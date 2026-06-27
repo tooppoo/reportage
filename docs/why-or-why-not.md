@@ -77,19 +77,19 @@ In this model:
 
 This distinction matters.
 
-Cucumber separates specification text from step implementation.
+[Cucumber](https://github.com/cucumber) separates specification text from step implementation.
 
 `reportage` separates E2E scripts from runtime execution and coverage instrumentation.
 
-Cypress and Playwright focus primarily on browser-oriented E2E workflows.
+[Cypress](https://github.com/cypress-io/cypress) and [Playwright](https://github.com/microsoft/playwright) focus primarily on browser-oriented E2E workflows.
 
 `reportage` focuses on a general E2E execution model that can include CLI, HTTP, services, and web frameworks.
 
-Hurl, Bruno, Postman, and similar tools focus on API-client or API-collection workflows.
+[Hurl](https://github.com/Orange-OpenSource/hurl), [Bruno](https://github.com/usebruno/bruno), [Postman](https://github.com/postmanlabs), and similar tools focus on API-client or API-collection workflows.
 
 `reportage` can test HTTP APIs, but it approaches them as E2E targets within a broader execution model rather than as API collections.
 
-Bats, Cram, and shell scripts are close to command-line execution.
+[Bats](https://github.com/bats-core) and shell scripts are close to command-line execution.
 
 `reportage` keeps the shell-like feel while adding structured cases, inline fixtures, richer assertions, and coverage-aware command resolution.
 
@@ -205,7 +205,7 @@ If the main concern is request collections, environments, manual exploration, an
 
 If the main concern is shell-like setup, service orchestration, fixture locality, explicit assertions, and coverage-aware runtime execution, use `reportage`.
 
-### Use Bats, Cram, or plain shell scripts for simple command testing
+### Use Bats or plain shell scripts for simple command testing
 
 If a project only needs a few command-line smoke tests, a shell script, Bats, or Cram may be enough.
 
