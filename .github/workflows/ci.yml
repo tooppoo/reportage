@@ -30,6 +30,10 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - uses: extractions/setup-just@v4
+        with:
+          just-version: 1.54.0
+
       - name: Setup
         run: just setup
 
