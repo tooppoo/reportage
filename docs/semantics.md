@@ -91,8 +91,7 @@ Each concrete case receives its own workspace.
 The workspace is the root for:
 
 - files written by `file` steps;
-- files and directories copied by `copy` steps;
-- commands executed by `$` steps;
+- commands executed by `$` steps, including ordinary shell filesystem operations such as `mkdir`, `cp`, `mv`, and `rm`;
 - file assertions;
 - temporary runtime artifacts produced by the system under test.
 
@@ -125,6 +124,8 @@ v0 rules:
 Recommended v0 semantic restriction:
 
 - `before_each` should be deterministic module-level setup.
+- `before_each` may use `file` steps and ordinary shell setup steps such as `$ mkdir -p ...` or `$ cp -R ... ...`.
+- Primary system-under-test actions and assertions should usually live in `case` blocks.
 - Variant-specific setup should usually live in the parameterized `case`, not in `before_each`.
 
 This keeps `before_each` independent of case-local parameter context.
@@ -176,7 +177,14 @@ A `$` step is executed by a POSIX shell.
 $ rellog check --json | jq .
 ```
 
-The runner does not rewrite arbitrary shell syntax in v0. The shell is responsible for interpreting pipelines, redirections, variable expansion, conditionals, and other shell constructs.
+The runner does not rewrite arbitrary shell syntax in v0. The shell is responsible for interpreting pipelines, redirections, variable expansion, conditionals, filesystem operations, and other shell constructs.
+
+For fixture copying and ordinary file operations, use shell commands:
+
+```reportage
+$ mkdir -p .rellog/entries
+$ cp -R fixtures/${FIXTURE}/. .
+```
 
 Native Windows shell execution is out of scope for v0. Windows users should use WSL, a devcontainer, or Linux-based CI.
 
@@ -331,6 +339,7 @@ If future use cases require external cleanup, such as stopping services or colle
 The following are intentionally outside v0:
 
 - native Windows shell execution;
+- dedicated `copy` syntax;
 - `before_all`;
 - `after_all`;
 - `after_each`;
