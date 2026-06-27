@@ -16,7 +16,14 @@ reportage is in early design. The documents in this repository describe the inte
 - [Syntax](docs/syntax.md): script syntax, including `before_each`, `case`, `params`, `variant`, file heredocs, shell steps, and assertions.
 - [Semantics](docs/semantics.md): execution model, workspace lifecycle, parameter expansion, shell execution, PATH shims, and coverage adapter responsibilities.
 - [Why reportage? / Why not reportage?](docs/why-or-why-not.md): When does `reportage` work well, and when does it not?
-- 
+- [Design Principles](docs/design-principle.md): thin core, transparent shims, opt-in adapters, and evidence-first boundaries.
+- [v0 Technical Selection](docs/v0-technical-selection.md): implementation foundation and links to detailed technical specs.
+- [Configuration](docs/configuration.md): KDL v2 config shape, commands, tests, and validation rules.
+- [Path Matching](docs/path-matching.md): path-like config value rules and test glob semantics.
+- [Artifacts](docs/artifacts.md): default artifact generation and early result layout.
+- [ADR](docs/adr/README.md): durable architecture and design decisions.
+- [TBD](TBD.md): intentionally deferred features and design topics.
+
 ## v0 Direction
 
 The v0 design is intentionally narrow:
@@ -41,4 +48,3 @@ The v0 design is intentionally narrow:
 - No embedded jq engine in v0.
 - No full shell parser or shell rewriting.
 - No hidden fixture namespace such as `@fixture` in v0.
-`reportage` is a language-agnostic, coverage-aware E2E script runner.
