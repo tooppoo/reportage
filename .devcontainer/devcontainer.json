@@ -1,19 +1,28 @@
 {
-  "name": "template-dev",
+  "name": "reportage-dev",
   "image": "mcr.microsoft.com/devcontainers/base:2.1.10-trixie",
-  "workspaceFolder": "/workspaces/fizz",
+  "workspaceFolder": "/workspaces/reportage",
   "remoteUser": "vscode",
   "runArgs": [
     "--init"
   ],
   "postCreateCommand": "sh scripts/setup-dev.sh",
   "features": {
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/rust:1.5.0": {
+        "version": "1.96.0"
+    },
+    "ghcr.io/tooppoo/devcontainer-features/git-kura:0": {
+      "version": "v0.0.6"
+    }
+
   },
   "customizations": {
     "vscode": {
       "extensions": [
-        "EditorConfig.EditorConfig"
+        "EditorConfig.EditorConfig",
+        "rust-lang.rust-analyzer",
+        "kdl-org.kdl"
       ],
       "settings": {
         "editor.formatOnSave": true,
