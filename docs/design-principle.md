@@ -2,6 +2,22 @@
 
 reportage is an E2E-oriented test runner. It should make E2E scenarios easier to write, execute, and inspect, but it must not add avoidable overhead to environments that are already heavy by nature.
 
+## Summary
+
+The design constraint is simple:
+
+```text
+core is thin
+shims are transparent
+adapters are opt-in
+heavy lifecycle management is external
+analysis is post-processing
+```
+
+reportage should be useful for E2E without inheriting all heavyweight behavior into its own core. It should make expensive systems testable without becoming an expensive system itself.
+
+## Goal of reportage
+
 The goal is not to make E2E itself cheap. Databases, Redis, containers, browsers, web frameworks, and external service fixtures may be expensive to start and run. That cost belongs to the target system and its test environment. The goal of reportage is to keep its own overhead small, predictable, and structurally bounded.
 
 ```text
@@ -155,17 +171,3 @@ post-processing tools
   -> generate rich reports
   -> support human review
 ```
-
-## Summary
-
-The design constraint is simple:
-
-```text
-core is thin
-shims are transparent
-adapters are opt-in
-heavy lifecycle management is external
-analysis is post-processing
-```
-
-reportage should be useful for E2E without inheriting all heavyweight behavior into its own core. It should make expensive systems testable without becoming an expensive system itself.
