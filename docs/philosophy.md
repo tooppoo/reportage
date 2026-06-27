@@ -2,7 +2,7 @@
 
 reportage is a language-agnostic, coverage-aware E2E script runner.
 
-It is inspired by Go's `testscript`: small text files, shell-like steps, and tests that exercise software from the outside. reportage takes that general direction and adapts it for a broader goal: runtime-independent E2E scripts whose command execution can be connected to language-specific coverage tooling through adapters.
+It is inspired by Go's[ `testscript`: small text files, shell-like steps, and tests that exercise software from the outside](https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript). reportage takes that general direction and adapts it for a broader goal: runtime-independent E2E scripts whose command execution can be connected to language-specific coverage tooling through adapters.
 
 This document defines the design principles for the v0 direction. It intentionally does not cover broader positioning such as "why reportage" or detailed comparisons against other tools.
 
