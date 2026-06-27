@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-This directory contains Architecture Decision Records (ADRs) for git-kura.
+This directory contains Architecture Decision Records (ADRs).
 
 An ADR records a decision that affects the architecture, public contract, operational model, or long-term maintainability of the project. It should explain not only what was decided, but why the decision was made and what trade-offs were accepted.
 
