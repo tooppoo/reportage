@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use crate::result::ActionOutput;
+use crate::result::ActionResult;
 
 #[derive(Debug)]
 pub struct ExecutionError {
@@ -15,7 +15,9 @@ impl std::fmt::Display for ExecutionError {
 
 impl std::error::Error for ExecutionError {}
 
-pub fn execute_action(command: &str) -> Result<ActionOutput, ExecutionError> {
+pub fn execute_action(command: &str) -> Result<ActionResult, ExecutionError> {
+    // Shell semantics are delegated to `sh -c` rather than parsed by the runner.
+    // See ADR 20260627T100500Z_use-posix-shell-and-path-shims for the rationale.
     let output = Command::new("sh")
         .arg("-c")
         .arg(command)
@@ -24,8 +26,10 @@ pub fn execute_action(command: &str) -> Result<ActionOutput, ExecutionError> {
             message: format!("failed to spawn shell for action '{command}': {e}"),
         })?;
 
-    Ok(ActionOutput {
+    Ok(ActionResult {
         command: command.to_string(),
+        // `status.code()` returns None when the process was terminated by a signal.
+        // -1 is used as a sentinel; no valid expectation target should expect -1.
         exit_code: output.status.code().unwrap_or(-1),
         stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&output.stderr).into_owned(),

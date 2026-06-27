@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::json;
 
-use crate::result::{AssertionKind, CaseResult, CaseStatus, RunResult};
+use crate::result::{CaseResult, CaseStatus, ExpectationKind, RunResult};
 
 pub struct ArtifactWriter {
     run_dir: PathBuf,
@@ -46,7 +46,7 @@ fn case_json(case: &CaseResult) -> serde_json::Value {
     let (status, message): (&str, Option<&str>) = match &case.status {
         CaseStatus::Pass => ("pass", None),
         CaseStatus::Fail => ("fail", None),
-        CaseStatus::ValidationError(msg) => ("validation_error", Some(msg)),
+        CaseStatus::ScriptError(msg) => ("script_error", Some(msg)),
         CaseStatus::RuntimeError(msg) => ("runtime_error", Some(msg)),
     };
 
@@ -66,21 +66,31 @@ fn case_json(case: &CaseResult) -> serde_json::Value {
         })
         .collect();
 
-    let assertions: Vec<serde_json::Value> = case
-        .assertions
+    let assertion_blocks: Vec<serde_json::Value> = case
+        .assertion_blocks
         .iter()
-        .map(|a| {
-            let (expected, actual) = match a.kind {
-                AssertionKind::Exit { expected, actual } => (expected as i64, actual as i64),
-            };
+        .map(|block| {
+            let expectations: Vec<serde_json::Value> = block
+                .expectations
+                .iter()
+                .map(|e| {
+                    let (kind_str, expected, actual) = match e.kind {
+                        ExpectationKind::Exit { expected, actual } => {
+                            ("exit", expected as i64, actual as i64)
+                        }
+                    };
+                    json!({
+                        "kind": kind_str,
+                        "expected": expected,
+                        "actual": actual,
+                        "result": if e.passed { "pass" } else { "fail" }
+                    })
+                })
+                .collect();
             json!({
-                "index": a.step_index,
-                "kind": "assertion",
-                "type": "exit",
-                "target_action_index": a.target_action_index,
-                "expected": expected,
-                "actual": actual,
-                "result": if a.passed { "pass" } else { "fail" }
+                "step_index": block.step_index,
+                "expectations": expectations,
+                "result": if block.has_failures() { "fail" } else { "pass" }
             })
         })
         .collect();
@@ -89,7 +99,7 @@ fn case_json(case: &CaseResult) -> serde_json::Value {
         "name": case.name,
         "status": status,
         "actions": actions,
-        "assertions": assertions
+        "assertion_blocks": assertion_blocks
     });
 
     if let Some(msg) = message {

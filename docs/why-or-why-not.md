@@ -2,11 +2,11 @@
 
 ## Overview
 
-`reportage` is a language-agnostic, coverage-aware E2E script runner.
+`reportage` is an explicit, runtime-agnostic, coverage-aware E2E scenario runner with shell-like actions.
 
 Its first target is CLI testing, but its core value is not limited to CLI. The main claim of `reportage` is not the target domain, but the execution model.
 
-`reportage` provides a lightweight, shell-like E2E scripting model where setup, execution, and assertions stay close together, while runtime-specific execution and coverage instrumentation are delegated to adapters and PATH shims.
+`reportage` provides a lightweight E2E execution model where setup, shell-like actions, and explicit assertion blocks stay close together, while runtime-specific execution and coverage instrumentation are delegated to adapters and PATH shims.
 
 This model can naturally target CLI commands, HTTP APIs, services, and web frameworks. Some targets may support coverage integration. Others may only support runtime-independent E2E execution. `reportage` should support both cases.
 
@@ -50,10 +50,12 @@ KDL
 
   $ app check --json
 
-  assert exit 1
-  assert stderr empty
-  assert stdout jq '.ok == false'
-  assert stdout jq '.diagnostics[0].code == "UNKNOWN_KIND"'
+  assert {
+    exit 1
+    stderr empty
+    stdout jq '.ok == false'
+    stdout jq '.diagnostics[0].code == "UNKNOWN_KIND"'
+  }
 }
 ```
 
@@ -250,10 +252,11 @@ Coverage depends on the ecosystem and adapter implementation. Some runtimes may 
 
 Use `reportage` when you need:
 
-- shell-like E2E scripts
-- explicit cases
+- explicit, structured E2E scenarios
+- shell-like action syntax
 - inline fixtures
-- rich assertions
+- assertion blocks with checkpoint-based verification
+- rich expectations per checkpoint
 - jq-based JSON assertions
 - CLI-first testing
 - extensibility toward HTTP APIs, services, and web frameworks
@@ -274,5 +277,5 @@ reportage is defined by its E2E execution model.
 Or, more compactly:
 
 ```text
-reportage is a shell-like, runtime-agnostic, coverage-aware E2E script runner.
+reportage is an explicit, runtime-agnostic, coverage-aware E2E scenario runner with shell-like actions.
 ```

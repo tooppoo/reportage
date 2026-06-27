@@ -25,12 +25,16 @@ fn passing_cases_with_explicit_exit_assertions() {
         r#"
 case "first pass" {
   $ true
-  assert exit 0
+  assert {
+    exit 0
+  }
 }
 
 case "second pass" {
   $ false
-  assert exit 1
+  assert {
+    exit 1
+  }
 }
 "#,
     );
@@ -46,7 +50,9 @@ fn false_with_assert_exit_one_is_a_pass() {
         r#"
 case "second pass" {
   $ false
-  assert exit 1
+  assert {
+    exit 1
+  }
 }
 "#,
     );
@@ -64,26 +70,54 @@ fn failing_assertion_exits_with_code_one() {
         r#"
 case "failing assertion" {
   $ false
-  assert exit 0
+  assert {
+    exit 0
+  }
 }
 "#,
     );
     reportage(&dir).arg(script).assert().code(1);
 }
 
-// --- multiple assertions ---
+// --- multiple expectations in one block ---
 
 #[test]
-fn multiple_assertions_for_one_action() {
+fn multiple_expectations_in_one_block() {
     let dir = TempDir::new().unwrap();
     let script = write_script(
         &dir,
         "test.repor",
         r#"
-case "multiple assertions" {
+case "multiple expectations" {
   $ true
-  assert exit 0
-  assert exit 0
+  assert {
+    exit 0
+    exit 0
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+// --- multiple assertion blocks ---
+
+#[test]
+fn precondition_and_postcondition_assertion_blocks() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "pre and post" {
+  $ true
+  assert {
+    exit 0
+  }
+  $ false
+  assert {
+    exit 1
+  }
 }
 "#,
     );
@@ -93,7 +127,7 @@ case "multiple assertions" {
 // --- validation/spec errors ---
 
 #[test]
-fn missing_assertion_exits_with_code_two() {
+fn missing_assertion_block_exits_with_code_two() {
     let dir = TempDir::new().unwrap();
     let script = write_script(
         &dir,
@@ -108,14 +142,16 @@ case "missing assertion" {
 }
 
 #[test]
-fn assertion_before_action_exits_with_code_two() {
+fn process_expectation_at_initial_checkpoint_exits_with_code_two() {
     let dir = TempDir::new().unwrap();
     let script = write_script(
         &dir,
         "test.repor",
         r#"
-case "assertion before action" {
-  assert exit 0
+case "process expectation before action" {
+  assert {
+    exit 0
+  }
 }
 "#,
     );
@@ -131,7 +167,9 @@ fn invalid_exit_code_value_exits_with_code_two() {
         r#"
 case "invalid exit" {
   $ true
-  assert exit 999
+  assert {
+    exit 999
+  }
 }
 "#,
     );
@@ -146,7 +184,7 @@ fn top_level_action_exits_with_code_two() {
 }
 
 #[test]
-fn unsupported_assertion_type_exits_with_code_two() {
+fn unsupported_expectation_type_exits_with_code_two() {
     let dir = TempDir::new().unwrap();
     let script = write_script(
         &dir,
@@ -154,7 +192,42 @@ fn unsupported_assertion_type_exits_with_code_two() {
         r#"
 case "unsupported" {
   $ true
-  assert unknown_assertion
+  assert {
+    unknown_assertion
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(2);
+}
+
+#[test]
+fn bare_assert_without_block_exits_with_code_two() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "bare assert" {
+  $ true
+  assert exit 0
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(2);
+}
+
+#[test]
+fn empty_assert_block_exits_with_code_two() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "empty block" {
+  $ true
+  assert {
+  }
 }
 "#,
     );
@@ -172,7 +245,9 @@ fn artifacts_directory_is_created_on_passing_run() {
         r#"
 case "pass" {
   $ true
-  assert exit 0
+  assert {
+    exit 0
+  }
 }
 "#,
     );
@@ -189,7 +264,9 @@ fn artifacts_directory_is_created_on_failing_run() {
         r#"
 case "fail" {
   $ false
-  assert exit 0
+  assert {
+    exit 0
+  }
 }
 "#,
     );
@@ -206,7 +283,9 @@ fn result_json_is_written() {
         r#"
 case "pass" {
   $ true
-  assert exit 0
+  assert {
+    exit 0
+  }
 }
 "#,
     );
@@ -235,6 +314,48 @@ case "pass" {
     assert!(content.contains("pass"), "result.json should indicate pass");
 }
 
+// --- source order execution ---
+
+#[test]
+fn assertion_block_failure_stops_subsequent_action() {
+    // assert { exit 1 } fails because true exits 0.
+    // Source order execution must not run the second action after the block failure.
+    // This is verified by checking that only one action appears in result.json.
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "source order" {
+  $ true
+  assert {
+    exit 1
+  }
+  $ false
+  assert {
+    exit 0
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(&script).assert().code(1);
+
+    let runs_dir = dir.child(".reportage").child("runs");
+    let entries: Vec<_> = std::fs::read_dir(runs_dir.path())
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    let content = std::fs::read_to_string(entries[0].path().join("result.json")).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+    let actions = json["cases"][0]["actions"].as_array().unwrap();
+    assert_eq!(
+        actions.len(),
+        1,
+        "only the first action should have run; source order execution stops on assertion block failure"
+    );
+}
+
 // --- output content ---
 
 #[test]
@@ -246,7 +367,9 @@ fn stdout_shows_pass_for_passing_case() {
         r#"
 case "my test" {
   $ true
-  assert exit 0
+  assert {
+    exit 0
+  }
 }
 "#,
     );
@@ -267,7 +390,9 @@ fn stdout_shows_fail_for_failing_case() {
         r#"
 case "my test" {
   $ false
-  assert exit 0
+  assert {
+    exit 0
+  }
 }
 "#,
     );

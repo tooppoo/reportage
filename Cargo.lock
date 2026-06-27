@@ -410,6 +410,7 @@ dependencies = [
  "clap",
  "predicates",
  "reportage-core",
+ "serde_json",
 ]
 
 [[package]]

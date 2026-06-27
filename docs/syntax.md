@@ -2,7 +2,7 @@
 
 This document describes the intended v0 syntax for reportage scripts.
 
-The syntax is intentionally small. A test file is a module. The module may define one `before_each` block and multiple `case` blocks. Each `case` may optionally define case-local `params`. Shell actions are written with `$`. Checks are written with explicit `assert` statements.
+The syntax is intentionally small. A test file is a module. The module may define one `before_each` block and multiple `case` blocks. Each `case` may optionally define case-local `params`. Shell actions are written with `$`. Checkpoint-level verification blocks are written with `assert { ... }`.
 
 ## Overview
 
@@ -18,12 +18,10 @@ case "check output" {
   params {
     variant "human" {
       ARGS = ""
-      EXPECT_EXIT = "0"
     }
 
     variant "json" {
       ARGS = "--json"
-      EXPECT_EXIT = "0"
     }
   }
 
@@ -35,8 +33,10 @@ KDL
 
   $ rellog check ${ARGS}
 
-  assert exit ${EXPECT_EXIT}
-  assert stderr empty
+  assert {
+    exit 0
+    stderr empty
+  }
 }
 ```
 
@@ -78,7 +78,7 @@ Recommended v0 restriction:
 
 - `before_each` should contain setup steps such as `file` and ordinary shell setup steps.
 - If setup needs normal filesystem operations, use `$` steps such as `$ mkdir -p ...` or `$ cp -R ... ...`.
-- Assertions and primary system-under-test actions should normally live in `case` blocks.
+- Assertion blocks and primary system-under-test actions should normally live in `case` blocks.
 
 ## `case`
 
@@ -94,7 +94,9 @@ KDL
 
   $ rellog check
 
-  assert exit 0
+  assert {
+    exit 0
+  }
 }
 ```
 
@@ -103,7 +105,7 @@ A `case` may contain:
 - an optional `params` block at the beginning;
 - setup steps such as `file` and `$` shell setup commands;
 - `$` shell steps for system-under-test actions;
-- `assert` statements.
+- `assert { ... }` blocks for checkpoint-level verification.
 
 ## Case-local `params`
 
@@ -114,18 +116,18 @@ case "check output" {
   params {
     variant "human" {
       ARGS = ""
-      EXPECT_EXIT = "0"
     }
 
     variant "json" {
       ARGS = "--json"
-      EXPECT_EXIT = "0"
     }
   }
 
   $ rellog check ${ARGS}
 
-  assert exit ${EXPECT_EXIT}
+  assert {
+    exit 0
+  }
 }
 ```
 
@@ -155,7 +157,10 @@ case "check output" {
   }
 
   $ rellog check ${ARGS}
-  assert exit 0
+
+  assert {
+    exit 0
+  }
 }
 ```
 
@@ -257,67 +262,172 @@ v0 rules:
 - The runner does not parse and rewrite arbitrary shell syntax in v0.
 - v0 does not define a dedicated `copy` syntax.
 
-## Assertions
+## Assertion blocks
 
-Assertions begin with `assert`.
+An `assert` statement defines a checkpoint-level verification block.
+
+```reportage
+assert {
+  exit 0
+  stderr empty
+}
+```
+
+An assertion block verifies the current checkpoint. It is not attached to the nearest preceding action. See [semantics.md](semantics.md) for the checkpoint model.
+
+### Block syntax
+
+An assertion block uses `{` and `}` delimiters.
+
+Valid — multi-line:
+
+```reportage
+assert {
+  exit 0
+  stderr empty
+}
+```
+
+Valid — single-line (single expectation):
+
+```reportage
+assert { exit 0 }
+```
+
+Invalid in v0 — single-line with multiple expectations (no separator defined):
+
+```reportage
+assert { exit 0 stderr empty }
+```
+
+Invalid in v0 — single-line `assert ${expectation}` form:
 
 ```reportage
 assert exit 0
-assert stderr empty
-assert stdout contains "OK"
 ```
 
-Assertions are evaluated against either:
-
-- the most recent `$` step result; or
-- the current workspace, for file assertions.
-
-### Exit assertions
+Deferred / future candidate — single-line with `;` as expectation separator:
 
 ```reportage
-assert exit 0
-assert exit 1
-assert exit nonzero
+assert { exit 0; stderr empty }
 ```
 
-### stdout and stderr assertions
+Rules:
+
+- `assert` defines a block; the block must use `{` and `}`.
+- A block must contain at least one expectation. An empty `assert { }` is a script error.
+- Indentation is recommended but not syntax-significant.
+- Multiple expectations in one line are not part of v0.
+- If a single-line multiple-expectation form is added in a future version, `;` is the candidate separator.
+- `$` actions may not appear inside an `assert` block.
+
+### Exit expectations
 
 ```reportage
-assert stdout empty
-assert stderr empty
-assert stdout contains "created"
-assert stderr contains "unknown kind"
-assert stdout matches /release [0-9]+\.[0-9]+\.[0-9]+/
-assert stdout not contains "panic"
+assert {
+  exit 0
+}
+
+assert {
+  exit 1
+}
+
+assert {
+  exit nonzero
+}
 ```
 
-### jq assertions
-
-`jq` assertions evaluate JSON using external `jq` in v0.
+### stdout and stderr expectations
 
 ```reportage
-assert stdout jq '.ok == true'
-assert stdout jq '.diagnostics | length == 1'
-assert stdout jq '.diagnostics[0].code == "UNKNOWN_KIND"'
+assert {
+  stdout empty
+}
+
+assert {
+  stderr empty
+}
+
+assert {
+  stdout contains "created"
+}
+
+assert {
+  stderr contains "unknown kind"
+}
+
+assert {
+  stdout matches /release [0-9]+\.[0-9]+\.[0-9]+/
+}
+
+assert {
+  stdout not contains "panic"
+}
 ```
 
-v0 requires `jq` to be available on `PATH` when `assert ... jq ...` is used.
+### jq expectations
 
-### File assertions
+`jq` expectations evaluate JSON using external `jq` in v0.
 
 ```reportage
-assert file exists "CHANGELOG.md"
-assert file not exists ".rellog/tmp"
-assert file contains "CHANGELOG.md" "Added"
-assert file matches "CHANGELOG.md" /## v[0-9]+\.[0-9]+\.[0-9]+/
+assert {
+  stdout jq '.ok == true'
+}
+
+assert {
+  stdout jq '.diagnostics | length == 1'
+  stdout jq '.diagnostics[0].code == "UNKNOWN_KIND"'
+}
 ```
 
-### File count assertions
+v0 requires `jq` to be available on `PATH` when `stdout jq` or `stderr jq` is used.
+
+### File expectations
 
 ```reportage
-assert file-count ".rellog/entries/*.kdl" == 0
-assert file-count ".rellog/entries/*.kdl" == 1
-assert file-count ".rellog/entries/*.kdl" >= 1
+assert {
+  file exists "CHANGELOG.md"
+}
+
+assert {
+  file not exists ".rellog/tmp"
+}
+
+assert {
+  file contains "CHANGELOG.md" "Added"
+}
+
+assert {
+  file matches "CHANGELOG.md" /## v[0-9]+\.[0-9]+\.[0-9]+/
+}
+```
+
+### Directory expectations
+
+```reportage
+assert {
+  dir exists .rellog
+}
+
+assert {
+  dir not exists .rellog
+}
+```
+
+### File count expectations
+
+```reportage
+assert {
+  file-count ".rellog/entries/*.kdl" == 0
+}
+
+assert {
+  file-count ".rellog/entries/*.kdl" == 1
+}
+
+assert {
+  file-count ".rellog/entries/*.kdl" >= 1
+}
 ```
 
 Glob evaluation is performed by the runner, not by the shell.
@@ -329,7 +439,7 @@ Parameter expansion uses `${NAME}`.
 Expansion is enabled in:
 
 - `$` shell steps, by shell environment expansion;
-- assertion string arguments;
+- expectation string arguments;
 - `file ... template` heredoc bodies.
 
 Expansion is disabled by default in:

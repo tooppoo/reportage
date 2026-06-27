@@ -1,6 +1,6 @@
 # Philosophy
 
-reportage is a language-agnostic, coverage-aware E2E script runner.
+reportage is an explicit, runtime-agnostic, coverage-aware E2E scenario runner with shell-like actions.
 
 It is inspired by Go's [`testscript`](https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript): small text files, shell-like steps, and tests that exercise software from the outside. reportage takes that general direction and adapts it for a broader goal: runtime-independent E2E scripts whose command execution can be connected to language-specific coverage tooling through adapters.
 
@@ -27,14 +27,16 @@ When developers test a CLI or a black-box system manually, they usually do not s
 
 That workflow is already close to a shell script.
 
-reportage starts from this observation. For developer-facing E2E tests, a shell-like script is often the most direct representation of the test. The goal is not to make tests read like prose. The goal is to make executable behavior easy to read, write, review, and run.
+reportage starts from this observation. For developer-facing E2E tests, shell-like action syntax is often the most direct way to express a test step. The goal is not to make tests read like prose. The goal is to make executable behavior easy to read, write, review, and run.
 
 ```reportage
 case "check json output" {
   $ mycli check --json
 
-  assert exit 0
-  assert stdout jq '.ok == true'
+  assert {
+    exit 0
+    stdout jq '.ok == true'
+  }
 }
 ```
 
@@ -159,22 +161,30 @@ This keeps `$` steps close to real shell scripts while still allowing adapters t
 
 The runner should not parse and rewrite arbitrary shell pipelines in v0. Shell syntax should be handled by the shell. Command mediation should happen through PATH resolution.
 
-## Explicit assertions
+## Explicit assertion blocks
 
-Assertions should be explicit and start with `assert`.
+Assertion blocks are explicit and start with `assert { ... }`.
 
-This avoids ambiguity between setup steps, shell steps, and checks. It also leaves room for richer assertions without turning the DSL into a shell dialect with hidden behavior.
+This avoids ambiguity between setup steps, shell steps, and verification. Each `assert { ... }` block is a checkpoint-level verification construct: it names an explicit boundary where observable state is checked against a set of expectations.
+
+Using a block rather than individual assertion lines makes the grouping and failure aggregation unit visible in the source.
 
 Examples:
 
 ```reportage
-assert exit 0
-assert stderr empty
-assert stdout contains "created"
-assert stdout matches /release [0-9]+\.[0-9]+\.[0-9]+/
-assert stdout jq '.ok == true'
-assert file exists "CHANGELOG.md"
-assert file-count ".rellog/entries/*.kdl" == 0
+assert {
+  exit 0
+}
+
+assert {
+  exit 0
+  stderr empty
+  stdout contains "created"
+  stdout matches /release [0-9]+\.[0-9]+\.[0-9]+/
+  stdout jq '.ok == true'
+  file exists "CHANGELOG.md"
+  file-count ".rellog/entries/*.kdl" == 0
+}
 ```
 
 ## Small syntax before expressive power

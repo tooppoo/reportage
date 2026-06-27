@@ -38,6 +38,39 @@ Some adapters may support parallel execution. Others may not, especially when co
 
 The result format should become more stable once enough real examples exist.
 
+## Assertion syntax extensions
+
+### Single-line assert block with multiple expectations
+
+`assert { exit 0; stderr empty }` — a single-line block with multiple expectations.
+
+The candidate separator is `;`. Rejected for v0 because v0 syntax does not define a multi-expectation separator. If added, `;` would be explicit and unambiguous.
+
+### Single-line `assert ${expectation}` sugar
+
+`assert exit 0` — a shorthand for a single-expectation block.
+
+Rejected for v0 to keep the assertion model unambiguous. Could be added as syntax sugar over a single-expectation `assert { ... }` block, but increases the surface area and potentially confuses the block model.
+
+### `require` / hard assertion
+
+A hard assertion variant that stops the case immediately on failure, before evaluating remaining expectations in the block.
+
+Deferred because v0 adopts a single model: assertion block failure stops the case, all expectations within a block are evaluated. Introducing a second mode prematurely splits a concept that is still simple.
+
+### Action-attached assertion sugar
+
+A future syntax for writing expectations inline with the action that produces them:
+
+```reportage
+$ rellog init {
+  exit 0
+  dir exists .rellog
+}
+```
+
+Rejected for v0. The fundamental problems — shell syntax ambiguity, need for standalone assertion blocks at the initial checkpoint, and added syntactic exceptions — are better addressed after v0 establishes a stable baseline.
+
 ## Later
 
 ### Browser automation integration

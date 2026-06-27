@@ -1,10 +1,10 @@
 # reportage
 
-reportage is a language-agnostic, coverage-aware E2E script runner.
+reportage is an explicit, runtime-agnostic, coverage-aware E2E scenario runner with shell-like actions.
 
 It starts with CLI E2E tests, but the execution model is intentionally built around adapters and PATH shims so that other runtime targets, such as web framework processes, can be supported later.
 
-reportage is inspired by Go's `testscript`, especially its lightweight script-oriented approach to E2E testing. It is not intended to be a compatible implementation. The v0 design focuses on a small shell-like DSL, per-case isolation, explicit assertions, case-local parameterized tests, and coverage-aware command execution through adapters.
+reportage is inspired by Go's `testscript`, especially its lightweight script-oriented approach to E2E testing. It is not intended to be a compatible implementation. The v0 design focuses on explicit, structured scenarios with shell-like actions, per-case isolation, assertion blocks with checkpoint-based verification, case-local parameterized tests, and coverage-aware command execution through adapters.
 
 ## Status
 

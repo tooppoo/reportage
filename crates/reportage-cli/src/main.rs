@@ -4,7 +4,7 @@ use clap::Parser;
 use reportage_core::{
     artifact::ArtifactWriter,
     evaluator, parser,
-    result::{AssertionKind, CaseStatus},
+    result::{CaseStatus, ExpectationKind},
 };
 
 #[derive(Parser)]
@@ -49,26 +49,28 @@ fn main() {
         let tag = match &case.status {
             CaseStatus::Pass => "PASS",
             CaseStatus::Fail => "FAIL",
-            CaseStatus::ValidationError(_) => "ERROR",
+            CaseStatus::ScriptError(_) => "ERROR",
             CaseStatus::RuntimeError(_) => "ERROR",
         };
         println!("{tag}  {}", case.name);
 
         match &case.status {
-            CaseStatus::ValidationError(msg) | CaseStatus::RuntimeError(msg) => {
+            CaseStatus::ScriptError(msg) | CaseStatus::RuntimeError(msg) => {
                 eprintln!("  {msg}");
             }
             _ => {}
         }
 
-        for assertion in &case.assertions {
-            if !assertion.passed {
-                match assertion.kind {
-                    AssertionKind::Exit { expected, actual } => {
-                        eprintln!(
-                            "  assertion failed at step {}: expected exit {expected}, got {actual}",
-                            assertion.step_index + 1,
-                        );
+        for block in &case.assertion_blocks {
+            for expectation in &block.expectations {
+                if !expectation.passed {
+                    match expectation.kind {
+                        ExpectationKind::Exit { expected, actual } => {
+                            eprintln!(
+                                "  assertion block at step {}: expected exit {expected}, got {actual}",
+                                block.step_index + 1,
+                            );
+                        }
                     }
                 }
             }
