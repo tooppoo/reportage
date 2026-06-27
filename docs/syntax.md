@@ -76,8 +76,9 @@ KDL
 
 Recommended v0 restriction:
 
-- `before_each` should contain setup steps such as `file`, `copy`, and directory preparation.
-- Runtime action and assertion steps should normally live in `case` blocks.
+- `before_each` should contain setup steps such as `file` and ordinary shell setup steps.
+- If setup needs normal filesystem operations, use `$` steps such as `$ mkdir -p ...` or `$ cp -R ... ...`.
+- Assertions and primary system-under-test actions should normally live in `case` blocks.
 
 ## `case`
 
@@ -100,8 +101,8 @@ KDL
 A `case` may contain:
 
 - an optional `params` block at the beginning;
-- setup steps such as `file` and `copy`;
-- `$` shell steps;
+- setup steps such as `file` and `$` shell setup commands;
+- `$` shell steps for system-under-test actions;
 - `assert` statements.
 
 ## Case-local `params`
@@ -241,12 +242,20 @@ Pipelines and normal shell syntax are allowed because the step is passed to the 
 $ rellog check --json | jq .
 ```
 
+Use shell commands for ordinary filesystem operations, including directory creation and copying fixtures.
+
+```reportage
+$ mkdir -p .rellog/entries
+$ cp -R fixtures/${FIXTURE}/. .
+```
+
 v0 rules:
 
 - `$` steps use POSIX shell execution.
 - Native Windows shell execution is out of scope in v0.
 - Registered commands may be intercepted through PATH shims.
 - The runner does not parse and rewrite arbitrary shell syntax in v0.
+- v0 does not define a dedicated `copy` syntax.
 
 ## Assertions
 
@@ -313,18 +322,6 @@ assert file-count ".rellog/entries/*.kdl" >= 1
 
 Glob evaluation is performed by the runner, not by the shell.
 
-## Copy step
-
-A `copy` step copies files or directories into the current workspace.
-
-```reportage
-copy "fixtures/${FIXTURE}" "."
-```
-
-`copy` is useful for parameterized tests that select input fixtures by path.
-
-In v0, no hidden fixture namespace such as `@fixture` is defined. If fixture source files are copied into the workspace, they are visible to the system under test.
-
 ## Parameter expansion
 
 Parameter expansion uses `${NAME}`.
@@ -333,13 +330,14 @@ Expansion is enabled in:
 
 - `$` shell steps, by shell environment expansion;
 - assertion string arguments;
-- `copy` paths;
 - `file ... template` heredoc bodies.
 
 Expansion is disabled by default in:
 
 - raw `file` heredoc bodies;
 - raw expected-output heredocs, if such assertions are added later.
+
+Because `$` steps are shell steps, `${NAME}` in commands such as `$ cp -R fixtures/${FIXTURE}/. .` follows shell expansion rules.
 
 ## Indentation
 
