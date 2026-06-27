@@ -2,7 +2,7 @@
 
 reportage is a language-agnostic, coverage-aware E2E script runner.
 
-It is inspired by Go's[ `testscript`: small text files, shell-like steps, and tests that exercise software from the outside](https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript). reportage takes that general direction and adapts it for a broader goal: runtime-independent E2E scripts whose command execution can be connected to language-specific coverage tooling through adapters.
+It is inspired by Go's `testscript`: small text files, shell-like steps, and tests that exercise software from the outside. reportage takes that general direction and adapts it for a broader goal: runtime-independent E2E scripts whose command execution can be connected to language-specific coverage tooling through adapters.
 
 This document defines the design principles for the v0 direction. It intentionally does not cover broader positioning such as "why reportage" or detailed comparisons against other tools.
 
@@ -58,6 +58,8 @@ reportage keeps the directness of shell scripts, but adds the missing test struc
 - PATH-shim based command mediation;
 - adapter-based coverage integration.
 
+Ordinary filesystem operations should remain ordinary shell operations in v0. If a test needs to create a directory, copy fixture files, move files, or remove temporary files, it can use `$ mkdir`, `$ cp`, `$ mv`, or `$ rm`. reportage should add syntax where the shell is weak as a test format, not duplicate shell commands unnecessarily.
+
 ## Developer-readable, not prose-first
 
 reportage lives near BDD and acceptance-testing tools in the broad sense that it describes externally observable behavior.
@@ -88,7 +90,7 @@ The goal is not to move all testing to E2E. The goal is to make E2E tests cheap,
 
 reportage should make Arrange, Act, Assert easy to express:
 
-- arrange with `before_each`, `file`, `copy`, and other setup steps;
+- arrange with `before_each`, `file`, and ordinary shell setup steps;
 - act with `$` shell steps;
 - assert with explicit `assert` statements.
 
@@ -186,6 +188,7 @@ For v0, this means:
 - `params` are case-local;
 - parameter variants use `variant`, not context-dependent `case` syntax;
 - heredoc file content is raw unless `template` is explicitly requested;
+- ordinary filesystem operations use `$` shell steps instead of dedicated syntax;
 - `jq` assertions depend on external `jq`;
 - native Windows shell execution is out of scope.
 
