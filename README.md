@@ -13,9 +13,10 @@ reportage is in early design. The documents in this repository describe the inte
 ## Documentation
 
 - [Philosophy](docs/philosophy.md): design principles and scope boundaries.
-- [Syntax](docs/syntax.md): v0 script syntax, including `before_each`, `case`, `params`, `variant`, file heredocs, shell steps, and assertions.
+- [Syntax](docs/syntax.md): script syntax, including `before_each`, `case`, `params`, `variant`, file heredocs, shell steps, and assertions.
 - [Semantics](docs/semantics.md): execution model, workspace lifecycle, parameter expansion, shell execution, PATH shims, and coverage adapter responsibilities.
-
+- [Why reportage? / Why not reportage?](docs/why-or-why-not.md): When does `reportage` work well, and when does it not?
+- 
 ## v0 Direction
 
 The v0 design is intentionally narrow:
@@ -40,3 +41,4 @@ The v0 design is intentionally narrow:
 - No embedded jq engine in v0.
 - No full shell parser or shell rewriting.
 - No hidden fixture namespace such as `@fixture` in v0.
+`reportage` is a language-agnostic, coverage-aware E2E script runner.
