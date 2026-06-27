@@ -1,6 +1,6 @@
 {
   "name": "template-dev",
-  "image": "mcr.microsoft.com/devcontainers/base:2.1.9-trixie",
+  "image": "mcr.microsoft.com/devcontainers/base:2.1.10-trixie",
   "workspaceFolder": "/workspaces/fizz",
   "remoteUser": "vscode",
   "runArgs": [
