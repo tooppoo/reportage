@@ -1,0 +1,6 @@
+[package]
+name = "reportage-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

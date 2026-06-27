@@ -22,7 +22,8 @@
       "extensions": [
         "EditorConfig.EditorConfig",
         "rust-lang.rust-analyzer",
-        "kdl-org.kdl"
+        "kdl-org.kdl",
+        "skellock.just"
       ],
       "settings": {
         "editor.formatOnSave": true,

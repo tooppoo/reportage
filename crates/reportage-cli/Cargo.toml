@@ -1,0 +1,17 @@
+[package]
+name = "reportage-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "reportage"
+path = "src/main.rs"
+
+[dependencies]
+reportage-core = { path = "../reportage-core" }
+clap = "4.6.1"
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
+assert_fs = "1.1.4"
+predicates = "3.1.4"
