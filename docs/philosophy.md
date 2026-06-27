@@ -4,7 +4,7 @@ reportage is a language-agnostic, coverage-aware E2E script runner.
 
 It is inspired by Go's `testscript`: small text files, shell-like steps, and tests that exercise software from the outside. reportage takes that general direction and adapts it for a broader goal: runtime-independent E2E scripts whose command execution can be connected to language-specific coverage tooling through adapters.
 
-This document defines the design principles for the v0 direction. It intentionally does not cover broader positioning such as "why reportage" or comparisons against other tools.
+This document defines the design principles for the v0 direction. It intentionally does not cover broader positioning such as "why reportage" or detailed comparisons against other tools.
 
 ## E2E first, but lightweight
 
@@ -21,11 +21,13 @@ For v0, reportage should stay small:
 - PATH shims for command mediation;
 - external coverage tools rather than a built-in coverage engine.
 
-## Shell-like, not host-language test code
+## Shell scripts are the natural substrate for black-box testing
 
-E2E tests should be readable as executable scenarios.
+When developers test a CLI or a black-box system manually, they usually do not start by writing host-language test code. They create files, run commands, inspect stdout and stderr, check exit codes, and compare generated artifacts.
 
-Host-language test code is useful for unit tests and many integration tests, but CLI E2E scenarios often read better as scripts:
+That workflow is already close to a shell script.
+
+reportage starts from this observation. For developer-facing E2E tests, a shell-like script is often the most direct representation of the test. The goal is not to make tests read like prose. The goal is to make executable behavior easy to read, write, review, and run.
 
 ```reportage
 case "check json output" {
@@ -36,7 +38,51 @@ case "check json output" {
 }
 ```
 
-The DSL should preserve the directness of shell transcripts while adding test-specific structure: cases, setup, parameter variants, file heredocs, and rich assertions.
+## More than shell scripts
+
+Raw shell scripts are simple, but they are weak as a test format.
+
+They do not provide a consistent assertion model, parameterized cases, structured test results, per-case isolation, rich diagnostics, or a natural way to connect E2E execution to language-specific coverage tooling.
+
+Bash-based testing frameworks can improve some of these problems, but they still usually leave coverage integration to project-specific glue. They also tend to inherit shell-level complexity when the goal is often simpler: describe files, run commands, and assert observable behavior.
+
+reportage keeps the directness of shell scripts, but adds the missing test structure:
+
+- `case` blocks;
+- `before_each` setup;
+- case-local `params` and `variant`s;
+- file heredocs;
+- explicit assertions;
+- jq-based JSON checks;
+- isolated workspaces;
+- PATH-shim based command mediation;
+- adapter-based coverage integration.
+
+## Developer-readable, not prose-first
+
+reportage lives near BDD and acceptance-testing tools in the broad sense that it describes externally observable behavior.
+
+However, reportage does not optimize for prose-like scenarios. It optimizes for operation-first specifications: files, commands, exit codes, stdout, stderr, JSON output, generated artifacts, and coverage-aware command execution.
+
+This makes reportage different from prose-first tools such as Cucumber. Cucumber-style frameworks are often useful when the primary goal is to express behavior in a form that is readable by a wider group of stakeholders. reportage focuses on a narrower but more direct audience: developers who need to understand and execute the concrete behavior of a system.
+
+These tools may not be strict competitors. A prose-first BDD framework could describe the human-readable scenario, while reportage could provide the developer-readable, shell-like, coverage-aware verification behind a step definition. This is a hypothesis for future integration, not a v0 design requirement. It suggests that reportage should remain easy to invoke from other tools, but it does not require reportage to become a Cucumber plugin or a BDD framework.
+
+## Executable specifications in AI-assisted development
+
+AI-assisted development makes it easier to generate large amounts of implementation code and test code. That increases the value of tests that describe intended behavior at the system boundary.
+
+Unit tests remain important for local correctness, but they can become too detailed to explain whether the system as a whole behaves as intended. E2E tests can serve as executable specifications: concrete files, commands, outputs, and artifacts that describe externally visible behavior.
+
+reportage is designed for that role. It should be simple enough for developers and AI assistants to produce many useful E2E scenarios, while still being structured enough for humans to review and for CI to execute.
+
+## Unit tests and E2E tests are complementary
+
+reportage is not a replacement for unit tests.
+
+Unit tests are effective for local invariants, edge cases, and small pieces of logic. reportage focuses on externally observable behavior: how the system behaves when invoked through commands, files, services, and adapters.
+
+The goal is not to move all testing to E2E. The goal is to make E2E tests cheap, readable, and coverage-aware enough that they can represent high-level intent instead of being treated only as a small number of slow smoke tests.
 
 ## Arrange, Act, Assert without forcing phases
 
