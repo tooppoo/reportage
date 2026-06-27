@@ -5,3 +5,5 @@ cargo binstall cargo-llvm-cov@0.8.7 \
   just@1.54.0 \
   cargo-nextest@0.9.138 \
   --locked
+
+rustup component add rustfmt clippy llvm-tools-preview
