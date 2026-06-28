@@ -1,0 +1,8 @@
+
+case "--unknown" {
+  $ reportage --unknown
+
+  assert {
+    exit 4
+  }
+}

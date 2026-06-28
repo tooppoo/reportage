@@ -9,6 +9,6 @@ end_of_line = lf
 indent_style = space
 indent_size = 2
 
-[*.{rs,go,md,kdl,json,sh}]
+[*.{rs,go,md,kdl,json,sh,repor}]
 indent_style = space
 indent_size = 2

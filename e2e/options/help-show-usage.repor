@@ -1,0 +1,9 @@
+
+case "with --help" {
+  $ reportage --help
+
+  assert {
+    exit 0
+    stdout contains "Usage: reportage [OPTIONS] [SUBCOMMAND]..."
+  }
+}

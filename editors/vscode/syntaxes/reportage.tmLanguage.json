@@ -30,7 +30,7 @@
       "patterns": [
         {
           "name": "comment.line.number-sign.reportage",
-          "match": "#.*$"
+          "match": "//.*$"
         }
       ]
     },
