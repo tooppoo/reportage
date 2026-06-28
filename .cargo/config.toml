@@ -28,6 +28,8 @@ lcov-assert = [
   "--fail-under-regions",
   "80",
   "--ignore-filename-regex",
+  # Ignore the main.rs file in the CLI crate, as it is not covered by tests and will always fail coverage checks.
+  # variant 実装でmodelもカバーされるようになるはずなので、そのタイミングでignoreから外す
   "cli/src/main|model",
 ]
 ins-self = ["install", "--path", "crates/reportage-cli", "--locked"]
