@@ -21,21 +21,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Cache
-        uses: actions/cache@v5
+      - uses: baptiste0928/cargo-install@v3
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - uses: extractions/setup-just@v4
+          crate: cargo-nextest
+          locked: true
+      - uses: baptiste0928/cargo-install@v3
         with:
-          just-version: 1.54.0
-
-      - name: Setup
-        run: just setup
+          crate: just
+          locked: true
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-llvm-cov
+          locked: true
+      - run: rustup toolchain install stable --profile minimal
+      - uses: Swatinem/rust-cache@v2
 
       - name: Check
         run: just check

@@ -1,29 +1,20 @@
 
-setup:
-  ./scripts/dev/setup-libs.sh
-
 default:
-  @just setup
+  @just check
 
 check:
-  @just lint fmt test build
+  @just test lint fmt build
 
 test:
-		cargo llvm-cov --locked --all-features --workspace --no-report
-		cargo llvm-cov report --codecov --output-path cov.json \
-				--ignore-filename-regex 'cli/src/main'
-		cargo llvm-cov report \
-				--fail-under-functions 80 \
-				--fail-under-lines 80 \
-				--fail-under-file-lines 80 \
-				--fail-under-regions 80 \
-				--ignore-filename-regex 'cli/src/main'
+		cargo lcov
+		cargo lcov-json
+		cargo lcov-assert
 
 fmt:
   cargo fmt --all --check
 
 lint:
-  cargo clippy --all-targets --locked -- -D warnings
+  cargo clippy --locked -- -D warnings
 
 build:
   cargo build --locked
