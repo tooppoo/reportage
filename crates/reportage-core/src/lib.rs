@@ -5,4 +5,5 @@ pub mod executor;
 pub mod model;
 pub mod parser;
 pub mod result;
+pub mod shim;
 pub mod suite;
