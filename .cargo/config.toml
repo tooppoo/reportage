@@ -28,6 +28,6 @@ lcov-assert = [
   "--fail-under-regions",
   "80",
   "--ignore-filename-regex",
-  "cli/src/main",
+  "cli/src/main|model",
 ]
 ins-self = ["install", "--path", "crates/reportage-cli", "--locked"]
