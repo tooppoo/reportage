@@ -3,5 +3,8 @@
 
 cov.json
 
+# reportage artifacts
+.reportage/
+
 # vscode extension
 .pnpm-store/
