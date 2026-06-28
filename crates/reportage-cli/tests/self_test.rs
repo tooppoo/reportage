@@ -21,16 +21,45 @@ fn workspace_root() -> PathBuf {
 }
 
 /// Materialize a `reportage` shim in `dir` that delegates to `reportage_bin`.
-///
-/// The shim embeds the absolute path to the cargo-built binary directly, with
-/// shell-safe escaping. This replaces the previous ad hoc wrapper that delegated
-/// through the `REPORTAGE_BIN` environment variable.
 #[cfg(unix)]
 fn make_reportage_shim(dir: &std::path::Path, reportage_bin: PathBuf) {
     let name = CommandName::new("reportage").unwrap();
     let invocation = ExecutableInvocation::new(reportage_bin, vec![]).unwrap();
     let shim = CommandShim::new(name, invocation);
     shim.materialize(dir).unwrap();
+}
+
+/// Build the PATH overlay used for self-tests: shim dir prepended to the inherited PATH.
+#[cfg(unix)]
+fn test_path(shim_dir: &std::path::Path) -> String {
+    let original = std::env::var("PATH").unwrap_or_default();
+    format!("{}:{}", shim_dir.display(), original)
+}
+
+/// Confirm that under the test PATH, `reportage` resolves to the generated shim rather
+/// than any ambient `reportage` installed on the machine.
+#[test]
+#[cfg(unix)]
+fn shim_resolves_before_ambient_reportage() {
+    let reportage_bin = assert_cmd::cargo::cargo_bin("reportage");
+
+    let shim_dir = TempDir::new().unwrap();
+    make_reportage_shim(shim_dir.path(), reportage_bin);
+
+    let new_path = test_path(shim_dir.path());
+
+    let output = std::process::Command::new("sh")
+        .args(["-c", "command -v reportage"])
+        .env("PATH", &new_path)
+        .output()
+        .unwrap();
+
+    let resolved = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim().to_string());
+    let expected = shim_dir.path().join("reportage");
+    assert_eq!(
+        resolved, expected,
+        "reportage must resolve to the generated shim, not an ambient binary"
+    );
 }
 
 /// Run all e2e self-tests through the cargo-built binary and assert the suite passes.
@@ -46,8 +75,7 @@ fn self_tests_pass() {
     let shim_dir = TempDir::new().unwrap();
     make_reportage_shim(shim_dir.path(), reportage_bin);
 
-    let original_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}:{}", shim_dir.path().display(), original_path);
+    let new_path = test_path(shim_dir.path());
 
     Command::cargo_bin("reportage")
         .unwrap()
