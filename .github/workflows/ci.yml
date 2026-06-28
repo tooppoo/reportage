@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -46,3 +47,4 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }} # required for private repos or protected branches
           files: cov.json
           fail_ci_if_error: true
+          use_oidc: true
