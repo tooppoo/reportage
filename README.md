@@ -21,6 +21,7 @@ reportage is in early design. The documents in this repository describe the inte
 - [Philosophy](docs/philosophy.md): design principles and scope boundaries.
 - [Syntax](docs/syntax.md): script syntax, including `before_each`, `case`, `params`, `variant`, file heredocs, shell steps, and assertions.
 - [Semantics](docs/semantics.md): execution model, workspace lifecycle, parameter expansion, shell execution, PATH shims, and coverage adapter responsibilities.
+- [Self-testing](docs/self-testing.md): representative reportage-written E2E tests for reportage itself and their command-resolution model.
 - [Why reportage? / Why not reportage?](docs/why-or-why-not.md): When does `reportage` work well, and when does it not?
 - [Design Principles](docs/design-principle.md): thin core, transparent shims, opt-in adapters, and evidence-first boundaries.
 - [v0 Technical Selection](docs/v0-technical-selection.md): implementation foundation and links to detailed technical specs.
