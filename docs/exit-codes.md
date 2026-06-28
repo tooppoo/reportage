@@ -51,6 +51,8 @@ For artifact `result`, use the corresponding highest-severity run outcome catego
 runtime_error > config_error > script_error > test_failed > pass
 ```
 
+This means `config_error` is used when discovery/configuration cannot produce a valid selected script set, while `script_error` is used when selected reportage script files themselves cannot be used as valid test definitions.
+
 ## Notes
 
 - A non-zero exit code from an action (`$ false` exits with `1`) is not itself an error. It is captured as the action's result and evaluated by explicit `assert exit` assertions.
