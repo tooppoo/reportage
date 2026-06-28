@@ -18,10 +18,16 @@ impl std::fmt::Display for ShimError {
         match self {
             ShimError::EmptyCommandName => write!(f, "command name must not be empty"),
             ShimError::CommandNameContainsPathSeparator(name) => {
-                write!(f, "command name '{name}' must not contain path separators ('/')")
+                write!(
+                    f,
+                    "command name '{name}' must not contain path separators ('/')"
+                )
             }
             ShimError::ReservedCommandName(name) => {
-                write!(f, "command name '{name}' is reserved and cannot be used as a shim name")
+                write!(
+                    f,
+                    "command name '{name}' is reserved and cannot be used as a shim name"
+                )
             }
             ShimError::CommandNameContainsNul => {
                 write!(f, "command name must not contain NUL bytes")
@@ -373,11 +379,9 @@ mod tests {
     #[test]
     fn wrapper_content_fixed_arg_with_dollar_sign() {
         let name = CommandName::new("tool").unwrap();
-        let invocation = ExecutableInvocation::new(
-            PathBuf::from("/usr/bin/prog"),
-            vec![OsString::from("$VAR")],
-        )
-        .unwrap();
+        let invocation =
+            ExecutableInvocation::new(PathBuf::from("/usr/bin/prog"), vec![OsString::from("$VAR")])
+                .unwrap();
         let shim = CommandShim::new(name, invocation);
         assert_eq!(
             shim.wrapper_content(),
@@ -388,11 +392,9 @@ mod tests {
     #[test]
     fn wrapper_content_fixed_arg_with_semicolon() {
         let name = CommandName::new("tool").unwrap();
-        let invocation = ExecutableInvocation::new(
-            PathBuf::from("/usr/bin/prog"),
-            vec![OsString::from("a;b")],
-        )
-        .unwrap();
+        let invocation =
+            ExecutableInvocation::new(PathBuf::from("/usr/bin/prog"), vec![OsString::from("a;b")])
+                .unwrap();
         let shim = CommandShim::new(name, invocation);
         assert_eq!(
             shim.wrapper_content(),
@@ -418,11 +420,9 @@ mod tests {
     #[test]
     fn wrapper_content_fixed_arg_with_single_quote() {
         let name = CommandName::new("tool").unwrap();
-        let invocation = ExecutableInvocation::new(
-            PathBuf::from("/usr/bin/prog"),
-            vec![OsString::from("it's")],
-        )
-        .unwrap();
+        let invocation =
+            ExecutableInvocation::new(PathBuf::from("/usr/bin/prog"), vec![OsString::from("it's")])
+                .unwrap();
         let shim = CommandShim::new(name, invocation);
         assert_eq!(
             shim.wrapper_content(),
@@ -440,8 +440,7 @@ mod tests {
 
         let dir = TempDir::new().unwrap();
         let name = CommandName::new("mytool").unwrap();
-        let invocation =
-            ExecutableInvocation::new(PathBuf::from("/usr/bin/true"), vec![]).unwrap();
+        let invocation = ExecutableInvocation::new(PathBuf::from("/usr/bin/true"), vec![]).unwrap();
         let shim = CommandShim::new(name, invocation);
         shim.materialize(dir.path()).unwrap();
 
@@ -484,7 +483,10 @@ mod tests {
             .args(["hello", "world"])
             .output()
             .unwrap();
-        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "hello world");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim(),
+            "hello world"
+        );
     }
 
     #[test]
@@ -579,7 +581,11 @@ mod tests {
         // A fixed arg with a shell metacharacter that must not be expanded.
         let invocation = ExecutableInvocation::new(
             echo_path,
-            vec![OsString::from("$HOME"), OsString::from(";"), OsString::from("`date`")],
+            vec![
+                OsString::from("$HOME"),
+                OsString::from(";"),
+                OsString::from("`date`"),
+            ],
         )
         .unwrap();
         let shim = CommandShim::new(name, invocation);
@@ -618,7 +624,11 @@ mod tests {
         let status = std::process::Command::new(dir.path().join("mytool"))
             .status()
             .unwrap();
-        assert_eq!(status.code(), Some(1), "overwritten shim should point to false");
+        assert_eq!(
+            status.code(),
+            Some(1),
+            "overwritten shim should point to false"
+        );
     }
 
     /// Resolve a standard binary by name using `which`.
