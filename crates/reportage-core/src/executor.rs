@@ -38,22 +38,24 @@ impl ExecutionEnvironment {
         }
     }
 
-    /// Compute the effective PATH to pass to the action shell.
+    /// Returns the PATH string to set on the action shell, or `None` when no
+    /// override is needed.
     ///
-    /// Returns `None` when no prefixes are configured, so the shell
-    /// inherits PATH from the current process without modification.
+    /// `None` means "no prefixes configured — let the shell inherit PATH from
+    /// the current process without modification". It is a control signal, not
+    /// an empty path value.
     fn effective_path(&self) -> Option<String> {
-        self.effective_path_with_base(std::env::var("PATH").ok().as_deref())
-    }
-
-    /// Compute the effective PATH given an explicit base PATH value.
-    ///
-    /// Prefixes are prepended in order; an absent or empty base is omitted.
-    /// Used directly in tests to avoid dependence on the test-process PATH.
-    pub(crate) fn effective_path_with_base(&self, inherited: Option<&str>) -> Option<String> {
         if self.path_prefixes.is_empty() {
             return None;
         }
+        Some(self.build_path_string(std::env::var("PATH").ok().as_deref()))
+    }
+
+    /// Build the PATH string by prepending `path_prefixes` before `inherited`.
+    ///
+    /// Only called when `path_prefixes` is non-empty. Exposed for testing so
+    /// tests can verify path construction without relying on the process PATH.
+    pub(crate) fn build_path_string(&self, inherited: Option<&str>) -> String {
         let mut parts: Vec<String> = self
             .path_prefixes
             .iter()
@@ -63,7 +65,7 @@ impl ExecutionEnvironment {
             Some(base) if !base.is_empty() => parts.push(base.to_string()),
             _ => {}
         }
-        Some(parts.join(":"))
+        parts.join(":")
     }
 }
 
@@ -131,21 +133,27 @@ mod tests {
         assert_eq!(out.stderr.trim(), "error");
     }
 
-    // --- PATH prefix logic (effective_path_with_base) ---
+    // --- effective_path: None/Some decision ---
 
     #[test]
-    fn no_prefix_returns_none() {
+    fn no_prefix_does_not_override_path() {
+        // None means "no override needed — inherit PATH from the current process".
         let env = ExecutionEnvironment::default();
-        assert_eq!(env.effective_path_with_base(Some("/usr/bin")), None);
+        assert!(env.effective_path().is_none());
     }
+
+    #[test]
+    fn with_prefix_effective_path_returns_some() {
+        let env = ExecutionEnvironment::with_path_prefixes(vec![PathBuf::from("/a")]);
+        assert!(env.effective_path().is_some());
+    }
+
+    // --- build_path_string: PATH string construction (always called with prefixes present) ---
 
     #[test]
     fn single_prefix_prepended_before_base() {
         let env = ExecutionEnvironment::with_path_prefixes(vec![PathBuf::from("/a")]);
-        assert_eq!(
-            env.effective_path_with_base(Some("/usr/bin")),
-            Some("/a:/usr/bin".to_string())
-        );
+        assert_eq!(env.build_path_string(Some("/usr/bin")), "/a:/usr/bin");
     }
 
     #[test]
@@ -155,24 +163,21 @@ mod tests {
             PathBuf::from("/second"),
         ]);
         assert_eq!(
-            env.effective_path_with_base(Some("/usr/bin")),
-            Some("/first:/second:/usr/bin".to_string())
+            env.build_path_string(Some("/usr/bin")),
+            "/first:/second:/usr/bin"
         );
     }
 
     #[test]
     fn absent_inherited_path_produces_prefixes_only() {
         let env = ExecutionEnvironment::with_path_prefixes(vec![PathBuf::from("/a")]);
-        assert_eq!(env.effective_path_with_base(None), Some("/a".to_string()));
+        assert_eq!(env.build_path_string(None), "/a");
     }
 
     #[test]
     fn empty_inherited_path_produces_prefixes_only() {
         let env = ExecutionEnvironment::with_path_prefixes(vec![PathBuf::from("/a")]);
-        assert_eq!(
-            env.effective_path_with_base(Some("")),
-            Some("/a".to_string())
-        );
+        assert_eq!(env.build_path_string(Some("")), "/a");
     }
 
     // --- PATH prefix integration through execute_action ---
