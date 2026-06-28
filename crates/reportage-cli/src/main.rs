@@ -4,6 +4,7 @@ use clap::Parser;
 use reportage_core::{
     artifact::ArtifactWriter,
     config, evaluator,
+    executor::ExecutionEnvironment,
     result::{CaseStatus, ExpectationKind, FileErrorKind, RunResult},
     suite,
 };
@@ -95,9 +96,10 @@ fn run_scripts(scripts: Vec<PathBuf>) -> RunResult {
         };
     }
 
+    let env = ExecutionEnvironment::default();
     let mut all_cases = Vec::new();
     for file in validated {
-        let mut run = evaluator::evaluate(&file.script);
+        let mut run = evaluator::evaluate(&file.script, &env);
         for case in &mut run.cases {
             case.source_path = Some(file.source_path.clone());
         }

@@ -38,11 +38,17 @@ The problem is that the command text alone should not decide which executable im
 
 ## Decision
 
-reportage will use runner-owned PATH overlay shims as the target command resolution model.
+reportage uses runner-owned PATH overlay shim injection as the command execution foundation.
+
+PATH overlay shim injection is the general model for how the runner controls command resolution for all `$` action steps. It is not limited to self-testing. It applies whenever the runner, harness, or adapter needs to control which executable invocation runs for a given command name.
+
+Same-name command interception — placing a wrapper with the same name as a command under test — is one application of this foundation, used specifically for self-testing. Ordinary application E2E tests may use the same mechanism for a different purpose: placing an entrypoint wrapper for the system under test in a prefix directory, even when the command name is not the same as a command that exists in the ambient environment.
 
 A reportage script should write the command name as the user understands it, such as `reportage`, `rellog`, or another CLI command under test. The runner, harness, or adapter may create an executable shim in a runner-owned directory and place that directory before the inherited `PATH` before executing `$` actions through the POSIX shell.
 
-In the target self-testing model:
+The runner maintains this as an ordered list of PATH prefix directories in an `ExecutionEnvironment` that is threaded through the evaluation path. Multiple prefixes are prepended in the given order. If the inherited `PATH` is absent or empty, only the provided prefixes are used.
+
+In the target self-testing model (same-name command interception):
 
 1. The `.repor` file writes `reportage` as a bare command.
 2. The Rust E2E harness resolves the Cargo-built reportage executable.
