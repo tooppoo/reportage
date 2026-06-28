@@ -13,6 +13,9 @@ test:
 fmt:
   cargo fmt --all --check
 
+fmt-fix:
+  cargo fmt --all
+
 lint:
   cargo clippy --locked -- -D warnings
 

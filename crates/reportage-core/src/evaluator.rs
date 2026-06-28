@@ -1,8 +1,8 @@
 use crate::executor::execute_action;
 use crate::model::{Case, Expectation, Script, Step};
 use crate::result::{
-    ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind,
-    ExpectationResult, RunResult,
+    ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind, ExpectationResult,
+    RunResult,
 };
 
 /// Observable evidence available at a point in case execution.
@@ -184,7 +184,7 @@ fn evaluate_expectation(expectation: &Expectation, checkpoint: &Checkpoint) -> E
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{ActionStep, AssertionBlock, Case, Expectation, ExitExpectation, Script};
+    use crate::model::{ActionStep, AssertionBlock, Case, ExitExpectation, Expectation, Script};
 
     fn make_script(cases: Vec<Case>) -> Script {
         Script { cases }
@@ -314,7 +314,7 @@ mod tests {
             name: "source order stop".to_string(),
             steps: vec![
                 action("true"),
-                assert_exit(1), // fails: true exits 0
+                assert_exit(1),  // fails: true exits 0
                 action("false"), // must not run
             ],
         }]);

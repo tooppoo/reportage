@@ -1,5 +1,5 @@
 use crate::model::{
-    ActionStep, AssertionBlock, AssertionBlockError, Case, Expectation, ExitExpectation, Script,
+    ActionStep, AssertionBlock, AssertionBlockError, Case, ExitExpectation, Expectation, Script,
     Step,
 };
 
@@ -232,12 +232,11 @@ fn process_in_assert_block(
 ) -> Result<ParseState, ParseError> {
     if trimmed == "}" {
         // Close the assertion block and return to InCase.
-        let block =
-            AssertionBlock::new(expectations).map_err(|AssertionBlockError::Empty| {
-                ParseError::EmptyAssertionBlock {
-                    line: block_start_line,
-                }
-            })?;
+        let block = AssertionBlock::new(expectations).map_err(|AssertionBlockError::Empty| {
+            ParseError::EmptyAssertionBlock {
+                line: block_start_line,
+            }
+        })?;
         case_steps.push(Step::AssertionBlock(block));
         Ok(ParseState::InCase {
             name: case_name,
