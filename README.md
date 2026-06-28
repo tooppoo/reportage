@@ -1,5 +1,10 @@
 # reportage
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![CI](https://github.com/tooppoo/reportage/actions/workflows/ci.yml/badge.svg)](https://github.com/tooppoo/reportage/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/tooppoo/reportage/graph/badge.svg?token=qdk2zXMPED)](https://codecov.io/gh/tooppoo/reportage)
+[![CodeQL](https://github.com/tooppoo/reportage/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/tooppoo/reportage/actions/workflows/github-code-scanning/codeql)
+
 `reportage` is an explicit, runtime-agnostic, coverage-aware E2E scenario runner with shell-like actions.
 
 It starts with CLI E2E tests, but the execution model is intentionally built around adapters and PATH shims so that other runtime targets, such as web framework processes, can be supported later.
