@@ -1,5 +1,12 @@
 [alias]
-lcov = ["llvm-cov", "--locked", "--all-features", "--workspace", "--no-report"]
+lcov = [
+  "llvm-cov",
+  "--locked",
+  "--all-features",
+  "--workspace",
+  "--no-report",
+  "nextest",
+]
 lcov-json = [
   "llvm-cov",
   "report",
