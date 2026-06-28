@@ -4,6 +4,18 @@ This document records intentionally deferred features and design topics.
 
 Items listed here are not accepted v0 requirements unless another document explicitly promotes them into scope.
 
+## Command shim model
+
+### Non-UTF-8 executable invocations
+
+`ExecutableInvocation` currently requires that both `program` and `args` are valid UTF-8, enforced at construction time. Non-UTF-8 values are rejected explicitly with a clear error rather than silently converted.
+
+Whether non-UTF-8 program paths or fixed arguments should be supported in a later version is TBD.
+
+Supporting them would require generating POSIX wrapper scripts that embed byte sequences which cannot be represented as UTF-8 strings. This may be possible using POSIX `printf` or octal escapes, but the added complexity — and the rarity of such paths in practice — makes this a candidate for a future issue rather than an immediate requirement.
+
+Until this is resolved, users with non-UTF-8 paths must work around the limitation at the OS level (e.g., by creating a symlink with an ASCII name).
+
 ## v0.1.x candidates
 
 ### Explicit file selection alongside config-driven discovery
