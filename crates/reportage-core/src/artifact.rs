@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::json;
 
-use crate::result::{CaseResult, CaseStatus, ExpectationKind, RunResult};
+use crate::result::{CaseResult, CaseStatus, ExpectationKind, FileErrorKind, RunResult};
 
 pub struct ArtifactWriter {
     run_dir: PathBuf,
@@ -31,15 +31,40 @@ impl ArtifactWriter {
 }
 
 fn build_json(result: &RunResult) -> serde_json::Value {
-    let overall = if result.exit_code() == 0 {
+    let overall = if !result.file_errors.is_empty() {
+        "script_error"
+    } else if result.exit_code() == 0 {
         "pass"
     } else {
         "fail"
     };
-    json!({
+
+    let mut obj = json!({
         "result": overall,
         "cases": result.cases.iter().map(case_json).collect::<Vec<_>>()
-    })
+    });
+
+    if !result.file_errors.is_empty() {
+        obj["file_errors"] = json!(
+            result
+                .file_errors
+                .iter()
+                .map(|e| {
+                    let (kind_str, message) = match &e.kind {
+                        FileErrorKind::ReadError(msg) => ("read_error", msg.as_str()),
+                        FileErrorKind::ParseError(msg) => ("parse_error", msg.as_str()),
+                    };
+                    json!({
+                        "source_path": e.source_path.display().to_string(),
+                        "kind": kind_str,
+                        "message": message
+                    })
+                })
+                .collect::<Vec<_>>()
+        );
+    }
+
+    obj
 }
 
 fn case_json(case: &CaseResult) -> serde_json::Value {
@@ -101,6 +126,10 @@ fn case_json(case: &CaseResult) -> serde_json::Value {
         "actions": actions,
         "assertion_blocks": assertion_blocks
     });
+
+    if let Some(path) = &case.source_path {
+        obj["source_path"] = json!(path.display().to_string());
+    }
 
     if let Some(msg) = message {
         obj["message"] = json!(msg);

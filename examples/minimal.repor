@@ -1,0 +1,6 @@
+case "always pass" {
+  $ true
+  assert {
+    exit 0
+  }
+}

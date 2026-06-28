@@ -43,6 +43,7 @@ pub struct WorkspaceState;
 pub fn evaluate(script: &Script) -> RunResult {
     RunResult {
         cases: script.cases.iter().map(evaluate_case).collect(),
+        file_errors: vec![],
     }
 }
 
@@ -55,6 +56,7 @@ fn evaluate_case(case: &Case) -> CaseResult {
     if !has_assertion_block {
         return CaseResult {
             name: case.name.clone(),
+            source_path: None,
             status: CaseStatus::ScriptError(format!(
                 "case '{}' has no assertion block; every case requires at least one assert {{ ... }} block",
                 case.name
@@ -87,6 +89,7 @@ fn evaluate_case(case: &Case) -> CaseResult {
                     Err(e) => {
                         return CaseResult {
                             name: case.name.clone(),
+                            source_path: None,
                             status: CaseStatus::RuntimeError(e.message),
                             actions: action_results,
                             assertion_blocks: assertion_block_results,
@@ -107,6 +110,7 @@ fn evaluate_case(case: &Case) -> CaseResult {
                     {
                         return CaseResult {
                             name: case.name.clone(),
+                            source_path: None,
                             status: CaseStatus::ScriptError(format!(
                                 "case '{}': assertion block at step {} uses a process expectation \
                                  (exit, stdout, stderr) but no '$' action has run yet; \
@@ -143,6 +147,7 @@ fn evaluate_case(case: &Case) -> CaseResult {
 
     CaseResult {
         name: case.name.clone(),
+        source_path: None,
         status: if case_failed {
             CaseStatus::Fail
         } else {

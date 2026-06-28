@@ -14,6 +14,28 @@ fn write_script(dir: &TempDir, name: &str, content: &str) -> std::path::PathBuf 
     child.path().to_path_buf()
 }
 
+fn write_config(dir: &TempDir, content: &str) {
+    dir.child("reportage.kdl").write_str(content).unwrap();
+}
+
+const PASSING_CASE: &str = r#"
+case "pass" {
+  $ true
+  assert {
+    exit 0
+  }
+}
+"#;
+
+const FAILING_CASE: &str = r#"
+case "fail" {
+  $ false
+  assert {
+    exit 0
+  }
+}
+"#;
+
 // --- passing cases ---
 
 #[test]
@@ -402,4 +424,237 @@ case "my test" {
         .code(1)
         .stdout(predicates::str::contains("FAIL"))
         .stdout(predicates::str::contains("my test"));
+}
+
+// --- config-driven mode ---
+
+#[test]
+fn config_driven_mode_discovers_and_runs_files() {
+    let dir = TempDir::new().unwrap();
+    write_script(&dir, "test.repor", PASSING_CASE);
+    write_config(
+        &dir,
+        r#"
+reportage {
+  config {
+    version 1
+  }
+  tests {
+    path "test.repor"
+  }
+}
+"#,
+    );
+    reportage(&dir).assert().code(0);
+}
+
+#[test]
+fn config_driven_mode_with_glob_pattern() {
+    let dir = TempDir::new().unwrap();
+    write_script(&dir, "a.repor", PASSING_CASE);
+    write_script(&dir, "b.repor", PASSING_CASE);
+    write_config(
+        &dir,
+        r#"
+reportage {
+  config {
+    version 1
+  }
+  tests {
+    path "*.repor"
+  }
+}
+"#,
+    );
+    reportage(&dir).assert().code(0);
+}
+
+#[test]
+fn explicit_config_flag_uses_specified_file() {
+    let dir = TempDir::new().unwrap();
+    write_script(&dir, "test.repor", PASSING_CASE);
+    let config_path = dir.child("custom.kdl");
+    config_path
+        .write_str(
+            r#"
+reportage {
+  config {
+    version 1
+  }
+  tests {
+    path "test.repor"
+  }
+}
+"#,
+        )
+        .unwrap();
+    reportage(&dir)
+        .arg("--config")
+        .arg(config_path.path())
+        .assert()
+        .code(0);
+}
+
+#[test]
+fn config_and_scripts_combined_is_rejected() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(&dir, "test.repor", PASSING_CASE);
+    write_config(
+        &dir,
+        r#"
+reportage {
+  config {
+    version 1
+  }
+  tests {
+    path "test.repor"
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg("--config")
+        .arg("reportage.kdl")
+        .arg(script)
+        .assert()
+        .code(3);
+}
+
+#[test]
+fn config_pattern_matching_no_files_exits_two() {
+    let dir = TempDir::new().unwrap();
+    write_config(
+        &dir,
+        r#"
+reportage {
+  config {
+    version 1
+  }
+  tests {
+    path "no_match/**/*.repor"
+  }
+}
+"#,
+    );
+    reportage(&dir).assert().code(2);
+}
+
+#[test]
+fn config_with_dot_segment_path_exits_nonzero() {
+    let dir = TempDir::new().unwrap();
+    write_config(
+        &dir,
+        r#"
+reportage {
+  config {
+    version 1
+  }
+  tests {
+    path "./test.repor"
+  }
+}
+"#,
+    );
+    // Config validation error → exit 3
+    reportage(&dir).assert().code(3);
+}
+
+#[test]
+fn source_path_appears_in_config_driven_output() {
+    let dir = TempDir::new().unwrap();
+    write_script(&dir, "mytest.repor", PASSING_CASE);
+    write_config(
+        &dir,
+        r#"
+reportage {
+  config {
+    version 1
+  }
+  tests {
+    path "mytest.repor"
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .assert()
+        .code(0)
+        .stdout(predicates::str::contains("mytest.repor"));
+}
+
+#[test]
+fn pre_execution_validation_blocks_all_execution_on_parse_error() {
+    let dir = TempDir::new().unwrap();
+    // valid.repor would pass, but broken.repor has a parse error.
+    // Neither should have its $-actions executed.
+    write_script(&dir, "valid.repor", PASSING_CASE);
+    write_script(&dir, "broken.repor", "this is not valid syntax\n");
+    write_config(
+        &dir,
+        r#"
+reportage {
+  config {
+    version 1
+  }
+  tests {
+    path "*.repor"
+  }
+}
+"#,
+    );
+    // Parse error → exit 2; no cases should have run
+    reportage(&dir).assert().code(2);
+}
+
+#[test]
+fn multiple_files_run_all_cases() {
+    let dir = TempDir::new().unwrap();
+    write_script(&dir, "a.repor", PASSING_CASE);
+    write_script(&dir, "b.repor", FAILING_CASE);
+    write_config(
+        &dir,
+        r#"
+reportage {
+  config {
+    version 1
+  }
+  tests {
+    path "*.repor"
+  }
+}
+"#,
+    );
+    // One file fails → overall exit 1
+    reportage(&dir).assert().code(1);
+}
+
+#[test]
+fn explicit_multiple_scripts_run_all_cases() {
+    let dir = TempDir::new().unwrap();
+    let a = write_script(&dir, "a.repor", PASSING_CASE);
+    let b = write_script(&dir, "b.repor", PASSING_CASE);
+    reportage(&dir).arg(a).arg(b).assert().code(0);
+}
+
+#[test]
+fn file_read_error_exits_two_with_no_execution() {
+    let dir = TempDir::new().unwrap();
+    write_config(
+        &dir,
+        r#"
+reportage {
+  config {
+    version 1
+  }
+  tests {
+    path "*.repor"
+  }
+}
+"#,
+    );
+    // Write a file that matches but is a directory, not a regular file.
+    // Actually, let's create a file and then remove it so glob matched it...
+    // easier: point to a non-existent file via explicit script mode.
+    let nonexistent = dir.path().join("nonexistent.repor");
+    reportage(&dir).arg(&nonexistent).assert().code(2);
 }

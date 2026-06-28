@@ -4,6 +4,23 @@ This document describes the intended v0 execution semantics for reportage script
 
 For syntax, see [syntax.md](syntax.md).
 
+## Suite pre-execution validation
+
+When running a suite of test files (config-driven or multi-script explicit mode), reportage performs a validation phase before executing any `$` actions.
+
+The validation phase:
+
+1. Read each selected file. A file that cannot be read produces a `read_error`.
+2. Parse each successfully-read file. A file that cannot be parsed produces a `parse_error`.
+3. Collect all file-level errors from the full set of selected files.
+4. If any file has a read or parse error, abort before executing any `$` actions.
+
+All file-level errors are reported in a single run. The run exits with code `2` and the artifact result is `script_error`.
+
+If the validation phase passes with no errors, execution proceeds normally across all files.
+
+See ADR 20260628T000000Z_validate-before-execute for the rationale.
+
 ## Core model
 
 A reportage script file is a test module.

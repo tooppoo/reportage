@@ -6,6 +6,12 @@ Items listed here are not accepted v0 requirements unless another document expli
 
 ## v0.1.x candidates
 
+### Explicit file selection alongside config-driven discovery
+
+`reportage --config <path> <script>...` combining a config file with explicit script arguments is rejected in v0.
+
+A future version may allow users to run a subset of config-discovered files by passing additional explicit paths. The interaction between pattern-discovered and explicitly-specified files needs a clear precedence rule before it can be added cleanly.
+
 ### Command timeout
 
 Deferred because v0 should first establish the runner, parser, assertion model, config, shims, and artifact output.

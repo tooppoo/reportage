@@ -87,6 +87,33 @@ Coverage artifacts belong to adapters and shims. The runner should preserve raw 
 
 The exact structure should remain adapter-defined until real coverage adapters exist.
 
+## File-level errors
+
+When the pre-execution validation phase finds files that cannot be read or parsed, the run artifact records them under `file_errors`.
+
+```json
+{
+  "result": "script_error",
+  "cases": [],
+  "file_errors": [
+    {
+      "source_path": "examples/broken.repor",
+      "kind": "read_error",
+      "message": "No such file or directory (os error 2)"
+    },
+    {
+      "source_path": "examples/invalid.repor",
+      "kind": "parse_error",
+      "message": "parse error at line 3: ..."
+    }
+  ]
+}
+```
+
+`kind` is either `read_error` (I/O or permission failure) or `parse_error` (syntax error).
+
+`result` is `script_error` when any file-level errors exist, regardless of whether any cases were evaluated.
+
 ## Artifact write failures
 
 Artifact write failures are runtime infrastructure errors.
