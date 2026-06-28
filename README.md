@@ -1,6 +1,6 @@
 # reportage
 
-reportage is an explicit, runtime-agnostic, coverage-aware E2E scenario runner with shell-like actions.
+`reportage` is an explicit, runtime-agnostic, coverage-aware E2E scenario runner with shell-like actions.
 
 It starts with CLI E2E tests, but the execution model is intentionally built around adapters and PATH shims so that other runtime targets, such as web framework processes, can be supported later.
 
