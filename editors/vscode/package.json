@@ -15,6 +15,7 @@
     "name": "philomagi",
     "url": "https://philomagi.dev"
   },
+  "icon": "icons/reportage-extension-icon.png",
   "scripts": {
     "package": "vsce package --out ./reportage-vscode.vsix"
   },
