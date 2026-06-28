@@ -7,22 +7,16 @@
       "include": "#comments"
     },
     {
-      "include": "#strings"
-    },
-    {
       "include": "#action-line"
     },
     {
-      "include": "#keywords"
+      "include": "#assertion-block"
     },
     {
-      "include": "#expectation-words"
+      "include": "#strings"
     },
     {
       "include": "#numbers"
-    },
-    {
-      "include": "#punctuation"
     }
   ],
   "repository": {
@@ -79,6 +73,71 @@
               "include": "source.shell"
             }
           ]
+        }
+      ]
+    },
+    "assertion-block": {
+      "patterns": [
+        {
+          "name": "meta.assertion.block.reportage",
+          "begin": "^(\\s*)(assert)\\b\\s*(\\{)?",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.assert.reportage"
+            },
+            "3": {
+              "name": "punctuation.section.block.begin.reportage"
+            }
+          },
+          "end": "^(\\s*)(\\})",
+          "endCaptures": {
+            "2": {
+              "name": "punctuation.section.block.end.reportage"
+            }
+          },
+          "patterns": [
+            {
+              "match": "^(\\s*)(exit|stdout|stderr)\\b",
+              "captures": {
+                "2": {
+                  "name": "entity.name.function.expectation.reportage"
+                }
+              }
+            },
+            {
+              "name": "keyword.operator.expectation.reportage",
+              "match": "\\b(contains|equals|matches|exists)\\b"
+            },
+            {
+              "include": "#strings"
+            },
+            {
+              "include": "#numbers"
+            },
+            {
+              "include": "#punctuation"
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.integer.reportage",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.section.block.begin.reportage",
+          "match": "\\{"
+        },
+        {
+          "name": "punctuation.section.block.end.reportage",
+          "match": "\\}"
         }
       ]
     }
