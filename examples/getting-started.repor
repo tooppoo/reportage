@@ -1,7 +1,13 @@
 
-case "minimal pass" {
+case "always true" {
   $ true
   assert {
     exit 0
+  }
+}
+case "always false" {
+  $ false
+  assert {
+    exit 1
   }
 }
