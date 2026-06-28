@@ -1,0 +1,108 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Reportage",
+  "scopeName": "source.reportage",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#action-line"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#expectation-words"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#punctuation"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.reportage",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.reportage",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.reportage",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "action-line": {
+      "patterns": [
+        {
+          "name": "meta.action.line.reportage",
+          "begin": "^(\\s*)(\\$)(?=\\s|$)",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.operator.action.reportage"
+            }
+          },
+          "end": "$",
+          "patterns": [
+            {
+              "include": "#strings"
+            }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.reportage",
+          "match": "\\b(assert|reportage|config)\\b"
+        },
+        {
+          "name": "support.type.property-name.reportage",
+          "match": "\\b(version)\\b"
+        }
+      ]
+    },
+    "expectation-words": {
+      "patterns": [
+        {
+          "name": "support.function.expectation.reportage",
+          "match": "\\b(stdout|stderr|exit-code|contains|equals|matches)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.reportage",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.section.block.reportage",
+          "match": "[{}]"
+        }
+      ]
+    }
+  }
+}

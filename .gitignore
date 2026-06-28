@@ -2,3 +2,6 @@
 /tmp
 
 cov.json
+
+# vscode extension
+.pnpm-store/

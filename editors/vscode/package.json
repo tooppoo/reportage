@@ -1,0 +1,49 @@
+{
+  "name": "reportage-vscode",
+  "displayName": "Reportage",
+  "description": "Syntax highlighting support for reportage files.",
+  "version": "0.0.0",
+  "publisher": "philomagi",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "repository": {
+    "url": "https://github.com/tooppoo/reportage/actions"
+  },
+  "homepage": "https://github.com/tooppoo/reportage/actions",
+  "author": {
+    "name": "philomagi",
+    "url": "https://philomagi.dev"
+  },
+  "scripts": {
+    "package": "vsce package --out ./reportage-vscode.vsix"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "reportage",
+        "aliases": [
+          "Reportage",
+          "reportage"
+        ],
+        "extensions": [
+          ".repor"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "reportage",
+        "scopeName": "source.reportage",
+        "path": "./syntaxes/reportage.tmLanguage.json"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
+  }
+}
