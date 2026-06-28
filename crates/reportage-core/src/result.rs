@@ -20,6 +20,10 @@ pub struct ActionResult {
 #[derive(Debug)]
 pub enum ExpectationKind {
     Exit { expected: u8, actual: i32 },
+    StdoutContains { expected: String, actual: String },
+    StderrContains { expected: String, actual: String },
+    StdoutEmpty { actual: String },
+    StderrEmpty { actual: String },
 }
 
 /// The result of evaluating one expectation within an assertion block.

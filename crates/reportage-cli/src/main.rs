@@ -9,7 +9,11 @@ use reportage_core::{
 };
 
 #[derive(Parser)]
-#[command(name = "reportage", about = "Run reportage test scripts")]
+#[command(
+    name = "reportage",
+    about = "Run reportage test scripts",
+    override_usage = "reportage [OPTIONS] [SUBCOMMAND]..."
+)]
 struct Cli {
     /// Explicit script paths to execute. Cannot be combined with --config.
     scripts: Vec<PathBuf>,
@@ -27,7 +31,21 @@ enum InvocationMode {
 }
 
 fn main() {
-    let cli = Cli::parse();
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(e) => {
+            match e.kind() {
+                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
+                    e.print().expect("error writing help");
+                    std::process::exit(0);
+                }
+                _ => {
+                    e.print().expect("error writing error");
+                    std::process::exit(4);
+                }
+            }
+        }
+    };
 
     let mode = determine_mode(&cli);
 
@@ -165,12 +183,42 @@ fn print_results(result: &RunResult) {
         for block in &case.assertion_blocks {
             for expectation in &block.expectations {
                 if !expectation.passed {
-                    match expectation.kind {
+                    match &expectation.kind {
                         ExpectationKind::Exit { expected, actual } => {
                             eprintln!(
                                 "  assertion block at step {}: expected exit {expected}, got {actual}",
                                 block.step_index + 1,
                             );
+                        }
+                        ExpectationKind::StdoutContains { expected, actual } => {
+                            eprintln!(
+                                "  assertion block at step {}: stdout does not contain {:?}",
+                                block.step_index + 1,
+                                expected,
+                            );
+                            eprintln!("    actual stdout: {:?}", actual);
+                        }
+                        ExpectationKind::StderrContains { expected, actual } => {
+                            eprintln!(
+                                "  assertion block at step {}: stderr does not contain {:?}",
+                                block.step_index + 1,
+                                expected,
+                            );
+                            eprintln!("    actual stderr: {:?}", actual);
+                        }
+                        ExpectationKind::StdoutEmpty { actual } => {
+                            eprintln!(
+                                "  assertion block at step {}: expected stdout to be empty",
+                                block.step_index + 1,
+                            );
+                            eprintln!("    actual stdout: {:?}", actual);
+                        }
+                        ExpectationKind::StderrEmpty { actual } => {
+                            eprintln!(
+                                "  assertion block at step {}: expected stderr to be empty",
+                                block.step_index + 1,
+                            );
+                            eprintln!("    actual stderr: {:?}", actual);
                         }
                     }
                 }

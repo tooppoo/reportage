@@ -1,6 +1,6 @@
 use crate::model::{
-    ActionStep, AssertionBlock, AssertionBlockError, Case, ExitExpectation, Expectation, Script,
-    Step,
+    ActionStep, AssertionBlock, AssertionBlockError, Case, ExitExpectation, Expectation,
+    OutputExpectation, Script, Step,
 };
 
 #[derive(Debug, PartialEq)]
@@ -304,10 +304,65 @@ fn parse_expectation(line_num: usize, content: &str) -> Result<Expectation, Pars
         Ok(Expectation::Exit(ExitExpectation {
             expected: code as u8,
         }))
+    } else if let Some(exp) = parse_output_expectation(line_num, content, "stdout")? {
+        Ok(Expectation::Stdout(exp))
+    } else if let Some(exp) = parse_output_expectation(line_num, content, "stderr")? {
+        Ok(Expectation::Stderr(exp))
     } else {
         Err(ParseError::UnexpectedToken {
             line: line_num,
-            message: format!("unsupported expectation: '{content}'; v0 supports 'exit <code>'"),
+            message: format!(
+                "unsupported expectation: '{content}'; v0 supports 'exit <code>', \
+                 'stdout contains \"...\"', 'stderr contains \"...\"'"
+            ),
+        })
+    }
+}
+
+fn parse_output_expectation(
+    line_num: usize,
+    content: &str,
+    stream: &str,
+) -> Result<Option<OutputExpectation>, ParseError> {
+    use crate::model::OutputMatcher;
+
+    let Some(rest) = content.strip_prefix(stream) else {
+        return Ok(None);
+    };
+    let rest = rest.trim();
+
+    if let Some(arg) = rest.strip_prefix("contains") {
+        let arg = arg.trim();
+        let s = parse_quoted_string(line_num, arg, &format!("{stream} contains"))?;
+        return Ok(Some(OutputExpectation {
+            matcher: OutputMatcher::Contains(s),
+        }));
+    }
+
+    if rest == "empty" {
+        return Ok(Some(OutputExpectation {
+            matcher: OutputMatcher::Empty,
+        }));
+    }
+
+    Err(ParseError::UnexpectedToken {
+        line: line_num,
+        message: format!(
+            "unsupported '{stream}' expectation: '{content}'; \
+             supported forms: '{stream} empty', '{stream} contains \"...\"'"
+        ),
+    })
+}
+
+fn parse_quoted_string(line_num: usize, s: &str, context: &str) -> Result<String, ParseError> {
+    if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+        Ok(s[1..s.len() - 1].to_string())
+    } else {
+        Err(ParseError::UnexpectedToken {
+            line: line_num,
+            message: format!(
+                "expected a double-quoted string after '{context}', found: '{s}'"
+            ),
         })
     }
 }

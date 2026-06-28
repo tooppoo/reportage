@@ -1,5 +1,5 @@
 use crate::executor::execute_action;
-use crate::model::{Case, Expectation, Script, Step};
+use crate::model::{Case, Expectation, OutputMatcher, Script, Step};
 use crate::result::{
     ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind, ExpectationResult,
     RunResult,
@@ -175,14 +175,61 @@ fn evaluate_expectation(expectation: &Expectation, checkpoint: &Checkpoint) -> E
                 passed,
             }
         }
-        // v0 evaluates Exit only. Remaining variants are defined in the model
-        // but not yet handled here. See TBD.md.
-        _ => {
-            // This branch is unreachable in v0 since the parser only produces Exit.
-            // It is included so that adding new Expectation variants later requires
-            // an explicit implementation here rather than a silent fallback.
-            unreachable!("expectation variant not implemented in v0 evaluator")
+        Expectation::Stdout(exp) => {
+            let actual = checkpoint
+                .last_action
+                .as_ref()
+                .map(|a| a.stdout.clone())
+                .unwrap_or_default();
+            match &exp.matcher {
+                OutputMatcher::Contains(expected) => {
+                    let passed = actual.contains(expected.as_str());
+                    ExpectationResult {
+                        kind: ExpectationKind::StdoutContains {
+                            expected: expected.clone(),
+                            actual,
+                        },
+                        passed,
+                    }
+                }
+                OutputMatcher::Empty => {
+                    let passed = actual.trim().is_empty();
+                    ExpectationResult {
+                        kind: ExpectationKind::StdoutEmpty { actual },
+                        passed,
+                    }
+                }
+                _ => unreachable!("output matcher variant not implemented in v0 evaluator"),
+            }
         }
+        Expectation::Stderr(exp) => {
+            let actual = checkpoint
+                .last_action
+                .as_ref()
+                .map(|a| a.stderr.clone())
+                .unwrap_or_default();
+            match &exp.matcher {
+                OutputMatcher::Contains(expected) => {
+                    let passed = actual.contains(expected.as_str());
+                    ExpectationResult {
+                        kind: ExpectationKind::StderrContains {
+                            expected: expected.clone(),
+                            actual,
+                        },
+                        passed,
+                    }
+                }
+                OutputMatcher::Empty => {
+                    let passed = actual.trim().is_empty();
+                    ExpectationResult {
+                        kind: ExpectationKind::StderrEmpty { actual },
+                        passed,
+                    }
+                }
+                _ => unreachable!("output matcher variant not implemented in v0 evaluator"),
+            }
+        }
+        _ => unreachable!("expectation variant not implemented in v0 evaluator"),
     }
 }
 

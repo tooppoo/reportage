@@ -1,8 +1,9 @@
 
-case "--unknown" {
+case "with --unknown" {
   $ reportage --unknown
 
   assert {
     exit 4
+    stderr contains "error: unexpected argument '--unknown' found"
   }
 }

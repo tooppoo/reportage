@@ -99,17 +99,37 @@ fn case_json(case: &CaseResult) -> serde_json::Value {
                 .expectations
                 .iter()
                 .map(|e| {
-                    let (kind_str, expected, actual) = match e.kind {
-                        ExpectationKind::Exit { expected, actual } => {
-                            ("exit", expected as i64, actual as i64)
-                        }
-                    };
-                    json!({
-                        "kind": kind_str,
-                        "expected": expected,
-                        "actual": actual,
-                        "result": if e.passed { "pass" } else { "fail" }
-                    })
+                    let result_str = if e.passed { "pass" } else { "fail" };
+                    match &e.kind {
+                        ExpectationKind::Exit { expected, actual } => json!({
+                            "kind": "exit",
+                            "expected": expected,
+                            "actual": actual,
+                            "result": result_str,
+                        }),
+                        ExpectationKind::StdoutContains { expected, actual } => json!({
+                            "kind": "stdout_contains",
+                            "expected": expected,
+                            "actual": actual,
+                            "result": result_str,
+                        }),
+                        ExpectationKind::StderrContains { expected, actual } => json!({
+                            "kind": "stderr_contains",
+                            "expected": expected,
+                            "actual": actual,
+                            "result": result_str,
+                        }),
+                        ExpectationKind::StdoutEmpty { actual } => json!({
+                            "kind": "stdout_empty",
+                            "actual": actual,
+                            "result": result_str,
+                        }),
+                        ExpectationKind::StderrEmpty { actual } => json!({
+                            "kind": "stderr_empty",
+                            "actual": actual,
+                            "result": result_str,
+                        }),
+                    }
                 })
                 .collect();
             json!({
