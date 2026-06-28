@@ -33,18 +33,16 @@ enum InvocationMode {
 fn main() {
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
-        Err(e) => {
-            match e.kind() {
-                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
-                    e.print().expect("error writing help");
-                    std::process::exit(0);
-                }
-                _ => {
-                    e.print().expect("error writing error");
-                    std::process::exit(4);
-                }
+        Err(e) => match e.kind() {
+            clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
+                e.print().expect("error writing help");
+                std::process::exit(0);
             }
-        }
+            _ => {
+                e.print().expect("error writing error");
+                std::process::exit(4);
+            }
+        },
     };
 
     let mode = determine_mode(&cli);

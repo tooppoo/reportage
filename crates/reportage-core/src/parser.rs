@@ -360,9 +360,7 @@ fn parse_quoted_string(line_num: usize, s: &str, context: &str) -> Result<String
     } else {
         Err(ParseError::UnexpectedToken {
             line: line_num,
-            message: format!(
-                "expected a double-quoted string after '{context}', found: '{s}'"
-            ),
+            message: format!("expected a double-quoted string after '{context}', found: '{s}'"),
         })
     }
 }
