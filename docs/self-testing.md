@@ -53,9 +53,15 @@ This is allowed only as an implementation bridge. It is not the target style bec
 
 ## Command resolution
 
-The target model is runner-owned PATH overlay command resolution.
+Self-testing uses same-name command interception, which is one specific application of the general PATH overlay shim injection model.
 
-A Rust E2E harness may:
+In same-name command interception, the harness places a wrapper with the same name as the command under test (`reportage`) in a runner-owned directory, and prepends that directory to `PATH`. The POSIX shell then resolves `reportage` through the wrapper rather than any ambient installation.
+
+For the general PATH overlay shim injection model, see [execution-model.md](execution-model.md).
+
+Same-name command interception is not the only application of PATH overlay shims. Ordinary application E2E tests may use the same mechanism to place an entrypoint wrapper for the system under test, even when the command name in the `.repor` file is not `reportage`.
+
+A Rust E2E harness for reportage self-testing may:
 
 1. resolve the Cargo-built reportage executable;
 2. create a POSIX wrapper named `reportage` in a runner-owned directory;

@@ -1,4 +1,4 @@
-use crate::executor::execute_action;
+use crate::executor::{ExecutionEnvironment, execute_action};
 use crate::model::{Case, Expectation, OutputMatcher, Script, Step};
 use crate::result::{
     ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind, ExpectationResult,
@@ -40,14 +40,14 @@ impl Checkpoint {
 /// are evaluated. A richer snapshot type may be introduced in future versions.
 pub struct WorkspaceState;
 
-pub fn evaluate(script: &Script) -> RunResult {
+pub fn evaluate(script: &Script, env: &ExecutionEnvironment) -> RunResult {
     RunResult {
-        cases: script.cases.iter().map(evaluate_case).collect(),
+        cases: script.cases.iter().map(|c| evaluate_case(c, env)).collect(),
         file_errors: vec![],
     }
 }
 
-fn evaluate_case(case: &Case) -> CaseResult {
+fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
     // Every case must contain at least one assertion block.
     let has_assertion_block = case
         .steps
@@ -81,7 +81,7 @@ fn evaluate_case(case: &Case) -> CaseResult {
                     // Do not proceed to next action after a block failure.
                     break;
                 }
-                match execute_action(&action.command) {
+                match execute_action(&action.command, env) {
                     Ok(result) => {
                         checkpoint = Checkpoint::after_action(result.clone());
                         action_results.push(result);
@@ -236,7 +236,12 @@ fn evaluate_expectation(expectation: &Expectation, checkpoint: &Checkpoint) -> E
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::executor::ExecutionEnvironment;
     use crate::model::{ActionStep, AssertionBlock, Case, ExitExpectation, Expectation, Script};
+
+    fn default_env() -> ExecutionEnvironment {
+        ExecutionEnvironment::default()
+    }
 
     fn make_script(cases: Vec<Case>) -> Script {
         Script { cases }
@@ -267,7 +272,7 @@ mod tests {
             name: "pass".to_string(),
             steps: vec![action("true"), assert_exit(0)],
         }]);
-        let result = evaluate(&script);
+        let result = evaluate(&script, &default_env());
         assert_eq!(result.exit_code(), 0);
         assert!(matches!(result.cases[0].status, CaseStatus::Pass));
     }
@@ -278,7 +283,7 @@ mod tests {
             name: "fail".to_string(),
             steps: vec![action("false"), assert_exit(0)],
         }]);
-        let result = evaluate(&script);
+        let result = evaluate(&script, &default_env());
         assert_eq!(result.exit_code(), 1);
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
     }
@@ -289,7 +294,7 @@ mod tests {
             name: "nonzero pass".to_string(),
             steps: vec![action("false"), assert_exit(1)],
         }]);
-        let result = evaluate(&script);
+        let result = evaluate(&script, &default_env());
         assert_eq!(result.exit_code(), 0);
         assert!(matches!(result.cases[0].status, CaseStatus::Pass));
     }
@@ -300,7 +305,7 @@ mod tests {
             name: "no assert".to_string(),
             steps: vec![action("true")],
         }]);
-        let result = evaluate(&script);
+        let result = evaluate(&script, &default_env());
         assert_eq!(result.exit_code(), 2);
         assert!(matches!(result.cases[0].status, CaseStatus::ScriptError(_)));
     }
@@ -311,7 +316,7 @@ mod tests {
             name: "assert first".to_string(),
             steps: vec![assert_exit(0)],
         }]);
-        let result = evaluate(&script);
+        let result = evaluate(&script, &default_env());
         assert_eq!(result.exit_code(), 2);
         assert!(matches!(result.cases[0].status, CaseStatus::ScriptError(_)));
     }
@@ -322,7 +327,7 @@ mod tests {
             name: "multi expect".to_string(),
             steps: vec![action("true"), assert_exits(&[0, 0])],
         }]);
-        let result = evaluate(&script);
+        let result = evaluate(&script, &default_env());
         assert_eq!(result.exit_code(), 0);
         assert_eq!(result.cases[0].assertion_blocks.len(), 1);
         assert_eq!(result.cases[0].assertion_blocks[0].expectations.len(), 2);
@@ -334,7 +339,7 @@ mod tests {
             name: "two fails".to_string(),
             steps: vec![action("true"), assert_exits(&[1, 1])],
         }]);
-        let result = evaluate(&script);
+        let result = evaluate(&script, &default_env());
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
         let block = &result.cases[0].assertion_blocks[0];
         assert_eq!(block.expectations.len(), 2);
@@ -354,7 +359,7 @@ mod tests {
                 steps: vec![action("true")], // no assertion block -> script error
             },
         ]);
-        let result = evaluate(&script);
+        let result = evaluate(&script, &default_env());
         assert_eq!(result.exit_code(), 2); // script error beats assertion failure
     }
 
@@ -370,7 +375,7 @@ mod tests {
                 action("false"), // must not run
             ],
         }]);
-        let result = evaluate(&script);
+        let result = evaluate(&script, &default_env());
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
         // Only the first action should have executed.
         assert_eq!(result.cases[0].actions.len(), 1);
