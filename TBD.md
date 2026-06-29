@@ -6,6 +6,42 @@ Items listed here are not accepted v0 requirements unless another document expli
 
 ## Command shim model
 
+### Non-compliant or third-party shims
+
+A shim that does not write to the `REPORTAGE_SHIM_EVENT_DIR` side channel
+following the event contract described in ADR
+`20260628T210000Z_shim-invocation-event-side-channel` is indistinguishable,
+from reportage's perspective, from a direct target or ambient command
+invocation. Its presence will not appear in action results, diagnostics, or
+artifacts.
+
+Future mitigation may include a validation interface — for example,
+`reportage shim test <shim-file>` — that checks whether a shim follows the
+protocol contract. Defining and stabilizing that interface, including what
+passing or failing the check means and how it is surfaced, is out of scope for
+the current implementation.
+
+### Dedicated diagnostic side channel for shim infrastructure warnings
+
+Runner-generated shim event write failures currently emit a prefixed diagnostic
+to the action's stderr:
+
+```
+reportage shim warning: failed to write shim invocation event: <path>
+```
+
+This diagnostic is deliberately observable stderr. It is not filtered out from
+stdout/stderr assertions, so a `stderr empty` assertion will fail if a shim
+write failure occurs.
+
+A dedicated diagnostic side channel or run-level warning file for shim
+infrastructure warnings may avoid polluting the action's stderr. Such a channel
+would let `stderr empty` assertions pass even when shim infrastructure warnings
+are present. However, it introduces additional concerns around write failure,
+attribution, ordering, reporting, and artifact integration. For the initial
+implementation, prefixed stderr diagnostics are accepted as the reporting
+mechanism. A dedicated channel is deferred.
+
 ### Non-UTF-8 executable invocations
 
 `ExecutableInvocation` currently requires that both `program` and `args` are valid UTF-8, enforced at construction time. Non-UTF-8 values are rejected explicitly with a clear error rather than silently converted.

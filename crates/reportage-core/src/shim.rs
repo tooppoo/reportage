@@ -1,6 +1,8 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+use crate::shim_event::SHIM_EVENT_DIR_VAR;
+
 #[derive(Debug)]
 pub enum ShimError {
     EmptyCommandName,
@@ -154,8 +156,8 @@ impl CommandShim {
     /// executable; does not panic. If the destination already exists it is
     /// overwritten.
     pub fn materialize(&self, dir: &Path) -> Result<(), ShimError> {
-        let content = self.wrapper_content();
         let dest = dir.join(self.name.as_str());
+        let content = self.wrapper_content(&dest);
         std::fs::write(&dest, content).map_err(ShimError::WriteError)?;
         #[cfg(unix)]
         {
@@ -166,20 +168,79 @@ impl CommandShim {
         Ok(())
     }
 
-    fn wrapper_content(&self) -> String {
+    /// Build the wrapper script content.
+    ///
+    /// The script writes a shim invocation event to `$REPORTAGE_SHIM_EVENT_DIR`
+    /// before exec-ing the target, so the runner can inspect which shim was used.
+    /// If the event write fails, a prefixed diagnostic is emitted to stderr and
+    /// the exec proceeds normally — preserving the user's test behavior.
+    fn wrapper_content(&self, shim_path: &Path) -> String {
         // program and args are guaranteed UTF-8 by ExecutableInvocation::new.
         let program_str = self.target.program.to_str().unwrap();
-        let mut parts = vec![shell_single_quote(program_str)];
-        for arg in &self.target.args {
-            parts.push(shell_single_quote(arg.to_str().unwrap()));
+        let fixed_args: Vec<&str> = self
+            .target
+            .args
+            .iter()
+            .map(|a| a.to_str().unwrap())
+            .collect();
+
+        let event_json = build_event_json(self.name.as_str(), shim_path, program_str, &fixed_args);
+        let quoted_json = shell_single_quote(&event_json);
+
+        let mut exec_parts = vec![shell_single_quote(program_str)];
+        for arg in &fixed_args {
+            exec_parts.push(shell_single_quote(arg));
         }
-        format!("#!/bin/sh\nexec {} \"$@\"\n", parts.join(" "))
+        let exec_cmd = exec_parts.join(" ");
+
+        format!(
+            "#!/bin/sh\n\
+             _REPORTAGE_ED=\"${{{var}:-}}\"\n\
+             if [ -n \"$_REPORTAGE_ED\" ]; then\n\
+             \tprintf '%s' {quoted_json} > \"$_REPORTAGE_ED/$$.json\" \\\n\
+             \t\t|| printf 'reportage shim warning: failed to write shim invocation event: %s\\n' \"$_REPORTAGE_ED/$$.json\" >&2\n\
+             fi\n\
+             exec {exec_cmd} \"$@\"\n",
+            var = SHIM_EVENT_DIR_VAR,
+            quoted_json = quoted_json,
+            exec_cmd = exec_cmd,
+        )
     }
 }
 
 /// Wrap `s` in POSIX single quotes, escaping any embedded single quotes as `'\''`.
 fn shell_single_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
+}
+
+/// Build the JSON event content for a shim invocation event.
+///
+/// All values are known at shim materialization time and embedded statically.
+/// The `shim_path` field uses `to_string_lossy` to handle the rare case of a
+/// non-UTF-8 destination directory.
+fn build_event_json(
+    command_name: &str,
+    shim_path: &Path,
+    program: &str,
+    fixed_args: &[&str],
+) -> String {
+    let args_json: Vec<serde_json::Value> = fixed_args
+        .iter()
+        .map(|a| serde_json::Value::String(a.to_string()))
+        .collect();
+
+    serde_json::to_string(&serde_json::json!({
+        "schema_version": 1,
+        "event": "shim_invoked",
+        "command_name": command_name,
+        "shim_path": shim_path.to_string_lossy(),
+        "target": {
+            "program": program,
+            "args": args_json
+        },
+        "forwards_caller_args": true
+    }))
+    .expect("shim event JSON serialization should not fail")
 }
 
 #[cfg(test)]
@@ -324,21 +385,42 @@ mod tests {
     }
 
     // --- wrapper_content ---
+    //
+    // Tests verify that the exec line uses correct shell escaping and that
+    // the event JSON embedded in the printf call contains the expected values.
+    // Full integration of the event-writing path is tested via materialize
+    // and the executor tests.
+
+    fn shim_path_for_test() -> PathBuf {
+        PathBuf::from("/test-shim-dir/tool")
+    }
 
     #[test]
-    fn wrapper_content_no_fixed_args() {
+    fn wrapper_content_starts_with_sh_shebang() {
         let name = CommandName::new("tool").unwrap();
         let invocation =
             ExecutableInvocation::new(PathBuf::from("/usr/bin/mytool"), vec![]).unwrap();
         let shim = CommandShim::new(name, invocation);
-        assert_eq!(
-            shim.wrapper_content(),
-            "#!/bin/sh\nexec '/usr/bin/mytool' \"$@\"\n"
+        assert!(
+            shim.wrapper_content(&shim_path_for_test())
+                .starts_with("#!/bin/sh\n")
         );
     }
 
     #[test]
-    fn wrapper_content_with_fixed_args() {
+    fn wrapper_content_ends_with_exec_no_fixed_args() {
+        let name = CommandName::new("tool").unwrap();
+        let invocation =
+            ExecutableInvocation::new(PathBuf::from("/usr/bin/mytool"), vec![]).unwrap();
+        let shim = CommandShim::new(name, invocation);
+        assert!(
+            shim.wrapper_content(&shim_path_for_test())
+                .ends_with("exec '/usr/bin/mytool' \"$@\"\n")
+        );
+    }
+
+    #[test]
+    fn wrapper_content_ends_with_exec_with_fixed_args() {
         let name = CommandName::new("tool").unwrap();
         let invocation = ExecutableInvocation::new(
             PathBuf::from("/usr/bin/ruby"),
@@ -346,33 +428,33 @@ mod tests {
         )
         .unwrap();
         let shim = CommandShim::new(name, invocation);
-        assert_eq!(
-            shim.wrapper_content(),
-            "#!/bin/sh\nexec '/usr/bin/ruby' '/scripts/tool.rb' \"$@\"\n"
+        assert!(
+            shim.wrapper_content(&shim_path_for_test())
+                .ends_with("exec '/usr/bin/ruby' '/scripts/tool.rb' \"$@\"\n")
         );
     }
 
     #[test]
-    fn wrapper_content_path_with_spaces() {
+    fn wrapper_content_exec_escapes_path_with_spaces() {
         let name = CommandName::new("tool").unwrap();
         let invocation =
             ExecutableInvocation::new(PathBuf::from("/path with spaces/mytool"), vec![]).unwrap();
         let shim = CommandShim::new(name, invocation);
-        assert_eq!(
-            shim.wrapper_content(),
-            "#!/bin/sh\nexec '/path with spaces/mytool' \"$@\"\n"
+        assert!(
+            shim.wrapper_content(&shim_path_for_test())
+                .ends_with("exec '/path with spaces/mytool' \"$@\"\n")
         );
     }
 
     #[test]
-    fn wrapper_content_path_with_single_quote() {
+    fn wrapper_content_exec_escapes_path_with_single_quote() {
         let name = CommandName::new("tool").unwrap();
         let invocation =
             ExecutableInvocation::new(PathBuf::from("/path'with'quotes/mytool"), vec![]).unwrap();
         let shim = CommandShim::new(name, invocation);
-        assert_eq!(
-            shim.wrapper_content(),
-            "#!/bin/sh\nexec '/path'\\''with'\\''quotes/mytool' \"$@\"\n"
+        assert!(
+            shim.wrapper_content(&shim_path_for_test())
+                .ends_with("exec '/path'\\''with'\\''quotes/mytool' \"$@\"\n")
         );
     }
 
@@ -383,9 +465,9 @@ mod tests {
             ExecutableInvocation::new(PathBuf::from("/usr/bin/prog"), vec![OsString::from("$VAR")])
                 .unwrap();
         let shim = CommandShim::new(name, invocation);
-        assert_eq!(
-            shim.wrapper_content(),
-            "#!/bin/sh\nexec '/usr/bin/prog' '$VAR' \"$@\"\n"
+        assert!(
+            shim.wrapper_content(&shim_path_for_test())
+                .ends_with("exec '/usr/bin/prog' '$VAR' \"$@\"\n")
         );
     }
 
@@ -396,9 +478,9 @@ mod tests {
             ExecutableInvocation::new(PathBuf::from("/usr/bin/prog"), vec![OsString::from("a;b")])
                 .unwrap();
         let shim = CommandShim::new(name, invocation);
-        assert_eq!(
-            shim.wrapper_content(),
-            "#!/bin/sh\nexec '/usr/bin/prog' 'a;b' \"$@\"\n"
+        assert!(
+            shim.wrapper_content(&shim_path_for_test())
+                .ends_with("exec '/usr/bin/prog' 'a;b' \"$@\"\n")
         );
     }
 
@@ -411,9 +493,9 @@ mod tests {
         )
         .unwrap();
         let shim = CommandShim::new(name, invocation);
-        assert_eq!(
-            shim.wrapper_content(),
-            "#!/bin/sh\nexec '/usr/bin/prog' '`date`' \"$@\"\n"
+        assert!(
+            shim.wrapper_content(&shim_path_for_test())
+                .ends_with("exec '/usr/bin/prog' '`date`' \"$@\"\n")
         );
     }
 
@@ -424,10 +506,56 @@ mod tests {
             ExecutableInvocation::new(PathBuf::from("/usr/bin/prog"), vec![OsString::from("it's")])
                 .unwrap();
         let shim = CommandShim::new(name, invocation);
-        assert_eq!(
-            shim.wrapper_content(),
-            "#!/bin/sh\nexec '/usr/bin/prog' 'it'\\''s' \"$@\"\n"
+        assert!(
+            shim.wrapper_content(&shim_path_for_test())
+                .ends_with("exec '/usr/bin/prog' 'it'\\''s' \"$@\"\n")
         );
+    }
+
+    #[test]
+    fn wrapper_content_embeds_event_json_with_command_name() {
+        let name = CommandName::new("mytool").unwrap();
+        let invocation =
+            ExecutableInvocation::new(PathBuf::from("/usr/bin/mytool"), vec![]).unwrap();
+        let shim = CommandShim::new(name, invocation);
+        let content = shim.wrapper_content(&PathBuf::from("/shims/mytool"));
+        // The embedded JSON must contain the command_name and shim_path.
+        assert!(content.contains("\"command_name\":\"mytool\""));
+        assert!(content.contains("\"shim_path\":\"/shims/mytool\""));
+        assert!(content.contains("\"program\":\"/usr/bin/mytool\""));
+    }
+
+    #[test]
+    fn wrapper_content_embeds_event_json_with_fixed_args() {
+        let name = CommandName::new("ruby-tool").unwrap();
+        let invocation = ExecutableInvocation::new(
+            PathBuf::from("/usr/bin/ruby"),
+            vec![OsString::from("/scripts/tool.rb")],
+        )
+        .unwrap();
+        let shim = CommandShim::new(name, invocation);
+        let content = shim.wrapper_content(&PathBuf::from("/shims/ruby-tool"));
+        assert!(content.contains("\"/scripts/tool.rb\""));
+    }
+
+    #[test]
+    fn wrapper_content_includes_shim_warning_on_write_failure() {
+        let name = CommandName::new("tool").unwrap();
+        let invocation =
+            ExecutableInvocation::new(PathBuf::from("/usr/bin/mytool"), vec![]).unwrap();
+        let shim = CommandShim::new(name, invocation);
+        let content = shim.wrapper_content(&shim_path_for_test());
+        assert!(content.contains("reportage shim warning: failed to write shim invocation event:"));
+    }
+
+    #[test]
+    fn wrapper_content_checks_shim_event_dir_env_var() {
+        let name = CommandName::new("tool").unwrap();
+        let invocation =
+            ExecutableInvocation::new(PathBuf::from("/usr/bin/mytool"), vec![]).unwrap();
+        let shim = CommandShim::new(name, invocation);
+        let content = shim.wrapper_content(&shim_path_for_test());
+        assert!(content.contains("REPORTAGE_SHIM_EVENT_DIR"));
     }
 
     // --- materialize and execution integration ---
@@ -629,6 +757,124 @@ mod tests {
             Some(1),
             "overwritten shim should point to false"
         );
+    }
+
+    // --- shim event writing integration ---
+
+    #[test]
+    #[cfg(unix)]
+    fn shim_writes_event_file_when_env_var_is_set() {
+        // REPORTAGE_SHIM_EVENT_DIR is set by the runner before each action.
+        // When it is present the shim knows it is executing under runner supervision
+        // and can write an identifiable event file to the runner-provided directory.
+        use crate::shim_event::{SHIM_EVENT_DIR_VAR, collect_from_dir};
+        use tempfile::TempDir;
+
+        let shim_dir = TempDir::new().unwrap();
+        let event_dir = TempDir::new().unwrap();
+
+        let name = CommandName::new("mytool").unwrap();
+        let true_path = which_bin("true");
+        let invocation = ExecutableInvocation::new(true_path, vec![]).unwrap();
+        let shim = CommandShim::new(name, invocation);
+        shim.materialize(shim_dir.path()).unwrap();
+
+        std::process::Command::new(shim_dir.path().join("mytool"))
+            .env(SHIM_EVENT_DIR_VAR, event_dir.path())
+            .output()
+            .unwrap();
+
+        let (events, warnings) = collect_from_dir(event_dir.path());
+        assert!(warnings.is_empty(), "unexpected warnings: {warnings:?}");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].command_name, "mytool");
+        assert_eq!(events[0].shim_path, shim_dir.path().join("mytool"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn shim_writes_no_event_file_when_env_var_is_absent() {
+        // When REPORTAGE_SHIM_EVENT_DIR is absent the shim has no runner-provided
+        // directory to write into: it cannot identify where to send the event.
+        // In this case the shim silently skips event writing and proceeds directly
+        // to exec-ing its target. This is the expected behavior for direct invocation
+        // outside of a reportage runner context.
+        use tempfile::TempDir;
+
+        let shim_dir = TempDir::new().unwrap();
+        let event_dir = TempDir::new().unwrap();
+
+        let name = CommandName::new("mytool").unwrap();
+        let true_path = which_bin("true");
+        let invocation = ExecutableInvocation::new(true_path, vec![]).unwrap();
+        let shim = CommandShim::new(name, invocation);
+        shim.materialize(shim_dir.path()).unwrap();
+
+        // Run without setting REPORTAGE_SHIM_EVENT_DIR.
+        std::process::Command::new(shim_dir.path().join("mytool"))
+            .env_remove("REPORTAGE_SHIM_EVENT_DIR")
+            .output()
+            .unwrap();
+
+        let entries: Vec<_> = std::fs::read_dir(event_dir.path()).unwrap().collect();
+        assert!(entries.is_empty(), "event dir should be empty");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn shim_emits_stderr_warning_when_event_dir_does_not_exist() {
+        use tempfile::TempDir;
+
+        let shim_dir = TempDir::new().unwrap();
+        let name = CommandName::new("mytool").unwrap();
+        let true_path = which_bin("true");
+        let invocation = ExecutableInvocation::new(true_path, vec![]).unwrap();
+        let shim = CommandShim::new(name, invocation);
+        shim.materialize(shim_dir.path()).unwrap();
+
+        // Point REPORTAGE_SHIM_EVENT_DIR at a non-existent directory.
+        let output = std::process::Command::new(shim_dir.path().join("mytool"))
+            .env("REPORTAGE_SHIM_EVENT_DIR", "/nonexistent/shim/event/dir")
+            .output()
+            .unwrap();
+
+        // The shim must still exit 0 (delegate to true).
+        assert_eq!(output.status.code(), Some(0));
+        // A prefixed warning must appear on stderr.
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("reportage shim warning: failed to write shim invocation event:"),
+            "expected prefixed warning on stderr, got: {stderr:?}"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn shim_event_includes_target_program_and_args() {
+        use crate::shim_event::{SHIM_EVENT_DIR_VAR, collect_from_dir};
+        use tempfile::TempDir;
+
+        let shim_dir = TempDir::new().unwrap();
+        let event_dir = TempDir::new().unwrap();
+
+        let echo_path = which_bin("echo");
+        let target_path = echo_path.clone();
+        let name = CommandName::new("myecho").unwrap();
+        let invocation =
+            ExecutableInvocation::new(echo_path, vec![OsString::from("fixed")]).unwrap();
+        let shim = CommandShim::new(name, invocation);
+        shim.materialize(shim_dir.path()).unwrap();
+
+        std::process::Command::new(shim_dir.path().join("myecho"))
+            .env(SHIM_EVENT_DIR_VAR, event_dir.path())
+            .output()
+            .unwrap();
+
+        let (events, _) = collect_from_dir(event_dir.path());
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].target.program, target_path);
+        assert_eq!(events[0].target.args, vec!["fixed"]);
+        assert!(events[0].forwards_caller_args);
     }
 
     /// Resolve a standard binary by name using `which`.
