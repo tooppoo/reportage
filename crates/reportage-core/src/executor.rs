@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use crate::result::ActionResult;
+use crate::shim_event::{SHIM_EVENT_DIR_VAR, collect_from_dir};
 
 #[derive(Debug)]
 pub struct ExecutionError {
@@ -73,6 +74,13 @@ pub fn execute_action(
     command: &str,
     env: &ExecutionEnvironment,
 ) -> Result<ActionResult, ExecutionError> {
+    // Create a fresh, action-scoped event directory so shim events from this
+    // action are isolated from events produced by any other action.
+    // See ADR 20260628T210000Z_shim-invocation-event-side-channel.
+    let event_dir = tempfile::TempDir::new().map_err(|e| ExecutionError {
+        message: format!("failed to create shim event directory for action '{command}': {e}"),
+    })?;
+
     // Shell semantics are delegated to `sh -c` rather than parsed by the runner.
     // See ADR 20260627T100500Z_use-posix-shell-and-path-shims for the rationale.
     let mut cmd = Command::new("sh");
@@ -85,9 +93,20 @@ pub fn execute_action(
         cmd.env("PATH", path);
     }
 
+    // Expose the event directory so protocol-compliant shims can write invocation
+    // events before exec-ing their target. The runner reads these events after the
+    // action completes; the shim must not write post-execution data because POSIX
+    // exec replaces the shim process.
+    cmd.env(SHIM_EVENT_DIR_VAR, event_dir.path());
+
     let output = cmd.output().map_err(|e| ExecutionError {
         message: format!("failed to spawn shell for action '{command}': {e}"),
     })?;
+
+    // Collect shim invocation events written by protocol-compliant shims.
+    // Malformed event files are returned as warnings, not hard errors, so they
+    // do not silently corrupt the action result.
+    let (shim_invocations, shim_event_parse_warnings) = collect_from_dir(event_dir.path());
 
     Ok(ActionResult {
         command: command.to_string(),
@@ -96,6 +115,8 @@ pub fn execute_action(
         exit_code: output.status.code().unwrap_or(-1),
         stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        shim_invocations,
+        shim_event_parse_warnings,
     })
 }
 
@@ -227,5 +248,147 @@ mod tests {
         let env = ExecutionEnvironment::default();
         let out = execute_action("true", &env).unwrap();
         assert_eq!(out.exit_code, 0);
+    }
+
+    // --- shim invocation event collection ---
+
+    #[test]
+    fn non_shim_action_has_no_shim_invocations() {
+        let out = execute_action("true", &default_env()).unwrap();
+        assert!(
+            out.shim_invocations.is_empty(),
+            "plain action must not produce shim invocations"
+        );
+        assert!(out.shim_event_parse_warnings.is_empty());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn shim_invocation_is_recorded_in_action_result() {
+        use crate::shim::{CommandName, CommandShim, ExecutableInvocation};
+        use tempfile::TempDir;
+
+        let shim_dir = TempDir::new().unwrap();
+        let name = CommandName::new("reportage-test-shim-cmd").unwrap();
+        let true_path = PathBuf::from(
+            String::from_utf8_lossy(
+                &std::process::Command::new("which")
+                    .arg("true")
+                    .output()
+                    .unwrap()
+                    .stdout,
+            )
+            .trim()
+            .to_string(),
+        );
+        let invocation = ExecutableInvocation::new(true_path.clone(), vec![]).unwrap();
+        let shim = CommandShim::new(name, invocation);
+        shim.materialize(shim_dir.path()).unwrap();
+
+        let env = ExecutionEnvironment::with_path_prefixes(vec![shim_dir.path().to_path_buf()]);
+        let out = execute_action("reportage-test-shim-cmd", &env).unwrap();
+
+        assert_eq!(out.exit_code, 0);
+        assert_eq!(out.shim_invocations.len(), 1, "one shim event expected");
+        assert_eq!(
+            out.shim_invocations[0].command_name,
+            "reportage-test-shim-cmd"
+        );
+        assert_eq!(out.shim_invocations[0].target.program, true_path);
+        assert!(out.shim_event_parse_warnings.is_empty());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn events_from_one_action_are_not_attached_to_another_action() {
+        use crate::shim::{CommandName, CommandShim, ExecutableInvocation};
+        use tempfile::TempDir;
+
+        let shim_dir = TempDir::new().unwrap();
+        let name = CommandName::new("reportage-test-isolation-cmd").unwrap();
+        let true_path = PathBuf::from(
+            String::from_utf8_lossy(
+                &std::process::Command::new("which")
+                    .arg("true")
+                    .output()
+                    .unwrap()
+                    .stdout,
+            )
+            .trim()
+            .to_string(),
+        );
+        let invocation = ExecutableInvocation::new(true_path, vec![]).unwrap();
+        let shim = CommandShim::new(name, invocation);
+        shim.materialize(shim_dir.path()).unwrap();
+
+        let env = ExecutionEnvironment::with_path_prefixes(vec![shim_dir.path().to_path_buf()]);
+
+        // First action: invokes the shim.
+        let first = execute_action("reportage-test-isolation-cmd", &env).unwrap();
+        assert_eq!(first.shim_invocations.len(), 1);
+
+        // Second action: does not invoke the shim — must not see the first action's events.
+        let second = execute_action("true", &env).unwrap();
+        assert!(
+            second.shim_invocations.is_empty(),
+            "second action must not inherit events from the first"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn multiple_shim_invocations_in_one_action_are_all_collected() {
+        use crate::shim::{CommandName, CommandShim, ExecutableInvocation};
+        use tempfile::TempDir;
+
+        let shim_dir = TempDir::new().unwrap();
+        let true_path = PathBuf::from(
+            String::from_utf8_lossy(
+                &std::process::Command::new("which")
+                    .arg("true")
+                    .output()
+                    .unwrap()
+                    .stdout,
+            )
+            .trim()
+            .to_string(),
+        );
+
+        // Materialize two distinct shims in the same directory.
+        for cmd_name in ["reportage-test-multi-a", "reportage-test-multi-b"] {
+            let name = CommandName::new(cmd_name).unwrap();
+            let invocation = ExecutableInvocation::new(true_path.clone(), vec![]).unwrap();
+            CommandShim::new(name, invocation)
+                .materialize(shim_dir.path())
+                .unwrap();
+        }
+
+        let env = ExecutionEnvironment::with_path_prefixes(vec![shim_dir.path().to_path_buf()]);
+        // Invoke both shims in a single action.
+        let out = execute_action("reportage-test-multi-a && reportage-test-multi-b", &env).unwrap();
+
+        assert_eq!(
+            out.shim_invocations.len(),
+            2,
+            "both shim invocations must be collected"
+        );
+    }
+
+    #[test]
+    fn malformed_event_file_produces_warning_not_error() {
+        use tempfile::TempDir;
+
+        let event_dir = TempDir::new().unwrap();
+        std::fs::write(event_dir.path().join("bad.json"), "not valid json").unwrap();
+
+        // Run an action that will see the pre-existing malformed event file.
+        // We inject it by using a custom action that writes the bad file to the
+        // event dir directly — but since execute_action creates a fresh dir per
+        // action, we test collect_from_dir indirectly via the shim_event module.
+        // Here we test that the runner handles parse failures gracefully.
+        let (events, warnings) = crate::shim_event::collect_from_dir(event_dir.path());
+        assert!(events.is_empty());
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("malformed shim event file"));
     }
 }

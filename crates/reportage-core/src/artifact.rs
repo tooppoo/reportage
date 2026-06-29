@@ -3,7 +3,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::json;
 
-use crate::result::{CaseResult, CaseStatus, ExpectationKind, FileErrorKind, RunResult};
+use crate::result::{
+    ActionResult, CaseResult, CaseStatus, ExpectationKind, FileErrorKind, RunResult,
+};
 
 pub struct ArtifactWriter {
     run_dir: PathBuf,
@@ -67,6 +69,45 @@ fn build_json(result: &RunResult) -> serde_json::Value {
     obj
 }
 
+fn action_json(index: usize, action: &ActionResult) -> serde_json::Value {
+    let mut obj = json!({
+        "index": index,
+        "kind": "action",
+        "command": action.command,
+        "exit_code": action.exit_code,
+        "stdout": action.stdout,
+        "stderr": action.stderr
+    });
+
+    if !action.shim_invocations.is_empty() {
+        obj["shim_invocations"] = json!(
+            action
+                .shim_invocations
+                .iter()
+                .map(|ev| {
+                    json!({
+                        "schema_version": ev.schema_version,
+                        "event": "shim_invoked",
+                        "command_name": ev.command_name,
+                        "shim_path": ev.shim_path.display().to_string(),
+                        "target": {
+                            "program": ev.target.program.display().to_string(),
+                            "args": ev.target.args
+                        },
+                        "forwards_caller_args": ev.forwards_caller_args
+                    })
+                })
+                .collect::<Vec<_>>()
+        );
+    }
+
+    if !action.shim_event_parse_warnings.is_empty() {
+        obj["shim_event_parse_warnings"] = json!(action.shim_event_parse_warnings);
+    }
+
+    obj
+}
+
 fn case_json(case: &CaseResult) -> serde_json::Value {
     let (status, message): (&str, Option<&str>) = match &case.status {
         CaseStatus::Pass => ("pass", None),
@@ -79,16 +120,7 @@ fn case_json(case: &CaseResult) -> serde_json::Value {
         .actions
         .iter()
         .enumerate()
-        .map(|(i, a)| {
-            json!({
-                "index": i,
-                "kind": "action",
-                "command": a.command,
-                "exit_code": a.exit_code,
-                "stdout": a.stdout,
-                "stderr": a.stderr
-            })
-        })
+        .map(|(i, a)| action_json(i, a))
         .collect();
 
     let assertion_blocks: Vec<serde_json::Value> = case

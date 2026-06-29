@@ -224,5 +224,27 @@ fn print_results(result: &RunResult) {
                 }
             }
         }
+
+        // For failing cases, show observed shim invocations so the resolved
+        // shim path and target invocation are visible in diagnostics.
+        // See ADR 20260628T210000Z_shim-invocation-event-side-channel.
+        if matches!(&case.status, CaseStatus::Fail | CaseStatus::RuntimeError(_)) {
+            for action in &case.actions {
+                for ev in &action.shim_invocations {
+                    eprintln!(
+                        "  shim invoked for '{}': {} -> {}",
+                        ev.command_name,
+                        ev.shim_path.display(),
+                        ev.target.program.display()
+                    );
+                    if !ev.target.args.is_empty() {
+                        eprintln!("    target args: {:?}", ev.target.args);
+                    }
+                }
+                for warning in &action.shim_event_parse_warnings {
+                    eprintln!("  shim event warning: {warning}");
+                }
+            }
+        }
     }
 }

@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crate::model::Script;
+use crate::shim_event::ShimInvocationEvent;
 
 /// The captured output of a single `$` action step.
 ///
@@ -14,6 +15,12 @@ pub struct ActionResult {
     pub exit_code: i32,
     pub stdout: String,
     pub stderr: String,
+    /// Shim invocation events collected from the action-scoped event directory.
+    /// Empty when no protocol-compliant shim was observed during this action.
+    pub shim_invocations: Vec<ShimInvocationEvent>,
+    /// Runner-level warnings about shim event file parsing. Surfaced as diagnostics.
+    /// Does not affect exit_code, stdout, or stderr.
+    pub shim_event_parse_warnings: Vec<String>,
 }
 
 /// The kind and actual vs. expected values of a single evaluated expectation.

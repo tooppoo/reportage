@@ -6,4 +6,5 @@ pub mod model;
 pub mod parser;
 pub mod result;
 pub mod shim;
+pub mod shim_event;
 pub mod suite;
