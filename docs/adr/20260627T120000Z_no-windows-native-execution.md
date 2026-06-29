@@ -53,4 +53,4 @@ Cross-platform shell abstraction libraries were considered. They would add a dep
 
 ## Compatibility
 
-This decision is recorded in [TBD.md](../../TBD.md) under "Native Windows shell execution".
+This decision is recorded in [TBD.md](../TBD.md) under "Native Windows shell execution".

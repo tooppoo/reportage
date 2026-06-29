@@ -7,20 +7,6 @@
 
 reportage v0.1.0 aims to make reportage capable of describing and running representative CLI-level E2E tests for reportage itself.
 
-A bootstrap self-test can pass the executable path through a harness-specific environment variable:
-
-```reportage
-case "with --help" {
-  $ $REPORTAGE_BIN --help
-
-  assert {
-    exit 0
-  }
-}
-```
-
-This works as an implementation bridge, but it exposes harness mechanics in the `.repor` file. It also makes self-tests look different from ordinary user-facing E2E scripts.
-
 The target form should be the same form a user would write:
 
 ```reportage
@@ -36,50 +22,26 @@ case "with --help" {
 
 The problem is that the command text alone should not decide which executable implementation is used at runtime. For self-testing, the harness must run the Cargo-built, coverage-instrumented reportage executable rather than an installed `reportage` found in the ambient environment. For future coverage-aware adapters, the runner must also be able to route a command name through adapter-provided execution behavior.
 
+For the canonical shim model, see [../shims.md](../shims.md).
+
 ## Decision
 
 reportage uses runner-owned PATH overlay shim injection as the command execution foundation.
 
-PATH overlay shim injection is the general model for how the runner controls command resolution for all `$` action steps. It is not limited to self-testing. It applies whenever the runner, harness, or adapter needs to control which executable invocation runs for a given command name.
-
-Same-name command interception — placing a wrapper with the same name as a command under test — is one application of this foundation, used specifically for self-testing. Ordinary application E2E tests may use the same mechanism for a different purpose: placing an entrypoint wrapper for the system under test in a prefix directory, even when the command name is not the same as a command that exists in the ambient environment.
-
-A reportage script should write the command name as the user understands it, such as `reportage`, `rellog`, or another CLI command under test. The runner, harness, or adapter may create an executable shim in a runner-owned directory and place that directory before the inherited `PATH` before executing `$` actions through the POSIX shell.
-
-The runner maintains this as an ordered list of PATH prefix directories in an `ExecutionEnvironment` that is threaded through the evaluation path. Multiple prefixes are prepended in the given order. If the inherited `PATH` is absent or empty, only the provided prefixes are used.
-
-In the target self-testing model (same-name command interception):
-
-1. The `.repor` file writes `reportage` as a bare command.
-2. The Rust E2E harness resolves the Cargo-built reportage executable.
-3. The harness creates a POSIX wrapper named `reportage` in a runner-owned directory.
-4. The harness prepends that directory to `PATH` when running self-tests.
-5. The shell resolves `reportage` through the wrapper.
-6. The wrapper `exec`s the intended executable invocation and forwards all arguments.
+PATH overlay shim injection is the model for how the runner controls command
+resolution for `$` action steps while leaving action text user-facing.
 
 The initial shim materialization strategy is POSIX shell wrappers. Native Windows wrapper generation is out of scope. Windows users should use WSL, a devcontainer, or Linux-based CI.
 
-A shim target must be modeled as an executable invocation, not merely as a binary path. An executable invocation may be:
-
-- a native executable;
-- an executable script with a shebang;
-- an interpreter and script invocation, such as `ruby tool.rb` or `node cli.js`.
-
-Runtime-specific coverage collection remains adapter responsibility. PATH overlay shims control command resolution; they do not by themselves define how coverage is collected or finalized.
+Execution behavior, use cases, executable invocation targets, and observability
+are defined in [../shims.md](../shims.md). PATH prefix mechanics are defined in
+[../execution-model.md](../execution-model.md).
 
 ## Alternatives Considered
 
-### Use `$REPORTAGE_BIN` directly in self-tests
+### Write harness-specific executable paths in `.repor` files
 
-This is useful as a bootstrap step because it makes the target executable explicit and works before PATH overlay shims exist.
-
-It is not the target model because it leaks harness-specific details into `.repor` files. It also prevents self-tests from exercising the same command-resolution path that user-facing tests and future adapters should use.
-
-Decision: allowed only as a bootstrap mechanism.
-
-### Write absolute executable paths in `.repor` files
-
-This would make the executed target explicit without environment variables.
+This would make the executed target explicit without PATH overlay shims.
 
 It is not suitable because it makes scripts machine-specific and prevents adapters from mediating command execution by command name. It also weakens the readability of E2E scripts: the script should describe what command is being tested, not where a particular local build artifact happens to live.
 
@@ -102,10 +64,9 @@ Decision: accepted.
 ### Positive Consequences
 
 - Self-tests can be written in the same style as ordinary user-facing E2E scripts.
-- The harness can run the Cargo-built reportage executable without exposing `$REPORTAGE_BIN` in the script.
+- The harness can run the Cargo-built reportage executable without exposing harness mechanics in the script.
 - The same command-resolution model can support future coverage-aware adapters.
 - Command names remain stable even when the execution mechanism changes.
-- Native executables, executable scripts, and interpreter/script invocations fit the same conceptual model.
 
 ### Negative Consequences
 

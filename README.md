@@ -29,7 +29,7 @@ reportage is in early design. The documents in this repository describe the inte
 - [Path Matching](docs/path-matching.md): path-like config value rules and test glob semantics.
 - [Artifacts](docs/artifacts.md): default artifact generation and early result layout.
 - [ADR](docs/adr/README.md): durable architecture and design decisions.
-- [TBD](TBD.md): intentionally deferred features and design topics.
+- [TBD](docs/TBD.md): intentionally deferred features and design topics.
 
 ## v0 Direction
 

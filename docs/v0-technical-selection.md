@@ -7,7 +7,7 @@ Detailed specifications are split into:
 - [Configuration](configuration.md)
 - [Path Matching](path-matching.md)
 - [Artifacts](artifacts.md)
-- [Deferred Topics](../TBD.md)
+- [Deferred Topics](TBD.md)
 
 Architecture decisions are recorded under [ADR](adr/README.md).
 

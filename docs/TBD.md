@@ -6,41 +6,31 @@ Items listed here are not accepted v0 requirements unless another document expli
 
 ## Command shim model
 
-### Non-compliant or third-party shims
+### Third-party shim validation
 
-A shim that does not write to the `REPORTAGE_SHIM_EVENT_DIR` side channel
-following the event contract described in ADR
-`20260628T210000Z_shim-invocation-event-side-channel` is indistinguishable,
-from reportage's perspective, from a direct target or ambient command
-invocation. Its presence will not appear in action results, diagnostics, or
-artifacts.
+A shim that does not follow the reportage shim event protocol may be
+indistinguishable from a direct target invocation or an ambient command
+invocation.
 
-Future mitigation may include a validation interface — for example,
-`reportage shim test <shim-file>` — that checks whether a shim follows the
-protocol contract. Defining and stabilizing that interface, including what
-passing or failing the check means and how it is surfaced, is out of scope for
-the current implementation.
+Future mitigation may include a validation interface such as:
 
-### Dedicated diagnostic side channel for shim infrastructure warnings
-
-Runner-generated shim event write failures currently emit a prefixed diagnostic
-to the action's stderr:
-
-```
-reportage shim warning: failed to write shim invocation event: <path>
+```sh
+reportage shim test <shim-file>
 ```
 
-This diagnostic is deliberately observable stderr. It is not filtered out from
-stdout/stderr assertions, so a `stderr empty` assertion will fail if a shim
-write failure occurs.
+This is deferred. The current shim event protocol only defines
+runner-generated shim events and records non-compliant shim limitations.
 
-A dedicated diagnostic side channel or run-level warning file for shim
-infrastructure warnings may avoid polluting the action's stderr. Such a channel
-would let `stderr empty` assertions pass even when shim infrastructure warnings
-are present. However, it introduces additional concerns around write failure,
-attribution, ordering, reporting, and artifact integration. For the initial
-implementation, prefixed stderr diagnostics are accepted as the reporting
-mechanism. A dedicated channel is deferred.
+### Dedicated shim diagnostic side channel
+
+Runner-generated shim infrastructure warnings currently use prefixed stderr
+diagnostics such as `reportage shim warning:` and remain observable stderr.
+
+A dedicated diagnostic side channel or run-level warning file may avoid
+polluting target stderr, but it introduces additional write-failure,
+attribution, ordering, and reporting concerns.
+
+This is deferred.
 
 ### Non-UTF-8 executable invocations
 
@@ -48,9 +38,9 @@ mechanism. A dedicated channel is deferred.
 
 Whether non-UTF-8 program paths or fixed arguments should be supported in a later version is TBD.
 
-Supporting them would require generating POSIX wrapper scripts that embed byte sequences which cannot be represented as UTF-8 strings. This may be possible using POSIX `printf` or octal escapes, but the added complexity — and the rarity of such paths in practice — makes this a candidate for a future issue rather than an immediate requirement.
+Supporting them would require generating POSIX wrapper scripts that embed byte sequences which cannot be represented as UTF-8 strings. This may be possible using POSIX `printf` or octal escapes, but the added complexity and the rarity of such paths in practice make this a candidate for a future issue rather than an immediate requirement.
 
-Until this is resolved, users with non-UTF-8 paths must work around the limitation at the OS level (e.g., by creating a symlink with an ASCII name).
+Until this is resolved, users with non-UTF-8 paths must work around the limitation at the OS level, for example by creating a symlink with an ASCII name.
 
 ## v0.1.x candidates
 
@@ -96,13 +86,13 @@ The result format should become more stable once enough real examples exist.
 
 ### Single-line assert block with multiple expectations
 
-`assert { exit 0; stderr empty }` — a single-line block with multiple expectations.
+`assert { exit 0; stderr empty }`: a single-line block with multiple expectations.
 
 The candidate separator is `;`. Rejected for v0 because v0 syntax does not define a multi-expectation separator. If added, `;` would be explicit and unambiguous.
 
 ### Single-line `assert ${expectation}` sugar
 
-`assert exit 0` — a shorthand for a single-expectation block.
+`assert exit 0`: a shorthand for a single-expectation block.
 
 Rejected for v0 to keep the assertion model unambiguous. Could be added as syntax sugar over a single-expectation `assert { ... }` block, but increases the surface area and potentially confuses the block model.
 
@@ -123,7 +113,7 @@ $ rellog init {
 }
 ```
 
-Rejected for v0. The fundamental problems — shell syntax ambiguity, need for standalone assertion blocks at the initial checkpoint, and added syntactic exceptions — are better addressed after v0 establishes a stable baseline.
+Rejected for v0. The fundamental problems are shell syntax ambiguity, need for standalone assertion blocks at the initial checkpoint, and added syntactic exceptions. They are better addressed after v0 establishes a stable baseline.
 
 ## Later
 
