@@ -60,6 +60,16 @@ Timeout support should be added after the command execution layer is stable enou
 
 Artifacts should be generated from the beginning, but the exact schema should remain experimental until real runs expose what needs to be preserved.
 
+### Self-test run ID control
+
+Self-tests that assert artifact or evidence output paths may need a stable run ID so that generated paths are deterministic.
+
+A hidden debug-prefixed option such as `--debug-run-id <id>` may be used for internal self-tests when an issue explicitly promotes it into scope. Such an option is not a public stable interface and should not be advertised as a normal CLI feature.
+
+The public contract for run ID control remains TBD. Future options may include a built-in strategy such as UUID / counter / fixed value, or a run ID provider command that emits an ID for the runner to validate and use.
+
+A provider command is deferred because it would introduce a runner-internal external command execution path distinct from `$` actions and shimmed target invocations. Before adopting it, reportage needs clear rules for failure handling, stdout parsing, stderr reporting, timeout, ID validation, collision behavior, and whether the provider itself participates in shim interception.
+
 ### Coverage adapter finalization hook
 
 Coverage is a first-class design concern, but reportage is not a coverage engine.
