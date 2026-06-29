@@ -1,367 +1,215 @@
+use pest::Parser;
+use pest_derive::Parser;
+
 use crate::model::{
-    ActionStep, AssertionBlock, AssertionBlockError, Case, ExitExpectation, Expectation,
-    OutputExpectation, Script, Step,
+    ActionStep, AssertionBlock, Case, ExitExpectation, Expectation, OutputExpectation,
+    OutputMatcher, Script, Step,
 };
+
+#[derive(Parser)]
+#[grammar = "reportage.pest"]
+struct ReportageParser;
 
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
-    UnexpectedToken { line: usize, message: String },
-    UnclosedCase { line: usize },
-    UnclosedAssertBlock { line: usize },
+    /// A syntax error produced by the pest grammar.
+    Syntax {
+        line: usize,
+        column: usize,
+        message: String,
+    },
+    /// Exit code is outside the valid range 0..=255.
     InvalidExitCode { line: usize, value: String },
-    EmptyAssertionBlock { line: usize },
 }
 
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseError::UnexpectedToken { line, message } => {
-                write!(f, "parse error at line {line}: {message}")
-            }
-            ParseError::UnclosedCase { line } => {
-                write!(
-                    f,
-                    "parse error: unclosed case block starting at line {line}"
-                )
-            }
-            ParseError::UnclosedAssertBlock { line } => {
-                write!(
-                    f,
-                    "parse error: unclosed assert block starting at line {line}"
-                )
-            }
-            ParseError::InvalidExitCode { line, value } => {
-                write!(
-                    f,
-                    "parse error at line {line}: invalid exit code '{value}', expected integer in 0..=255"
-                )
-            }
-            ParseError::EmptyAssertionBlock { line } => {
-                write!(
-                    f,
-                    "parse error at line {line}: empty assert block; assert {{ }} must contain at least one expectation"
-                )
-            }
+            ParseError::Syntax {
+                line,
+                column,
+                message,
+            } => write!(f, "parse error at line {line}, column {column}: {message}"),
+            ParseError::InvalidExitCode { line, value } => write!(
+                f,
+                "parse error at line {line}: invalid exit code '{value}', expected integer in 0..=255"
+            ),
         }
     }
 }
 
 impl std::error::Error for ParseError {}
 
-// State is consumed and replaced each line to avoid borrow-checker issues with
-// mutable references across state transitions.
-enum ParseState {
-    TopLevel,
-    InCase {
-        name: String,
-        steps: Vec<Step>,
-        start_line: usize,
-    },
-    InAssertBlock {
-        // Saved case context, restored when the block closes.
-        case_name: String,
-        case_steps: Vec<Step>,
-        case_start_line: usize,
-        // Block context.
-        expectations: Vec<Expectation>,
-        block_start_line: usize,
-    },
-}
-
 pub fn parse(source: &str) -> Result<Script, ParseError> {
+    let pairs = ReportageParser::parse(Rule::script, source).map_err(|e| {
+        let (line, col) = match e.line_col {
+            pest::error::LineColLocation::Pos((l, c)) => (l, c),
+            pest::error::LineColLocation::Span((l, c), _) => (l, c),
+        };
+        ParseError::Syntax {
+            line,
+            column: col,
+            message: e.variant.message().to_string(),
+        }
+    })?;
+
+    // `parse()` returns a Pairs that yields the top-level `script` pair.
+    // Call into_inner() to get its contents (case_blocks, SOI, EOI).
+    let script_pair = pairs.into_iter().next().expect("script always matches");
     let mut cases: Vec<Case> = Vec::new();
-    let mut state = ParseState::TopLevel;
-
-    for (idx, line) in source.lines().enumerate() {
-        let line_num = idx + 1;
-        let trimmed = line.trim();
-
-        if trimmed.is_empty() {
-            continue;
+    for pair in script_pair.into_inner() {
+        if pair.as_rule() == Rule::case_block {
+            // SOI, EOI, and silent blank_lines are skipped via the else branch.
+            cases.push(parse_case_block(pair)?);
         }
-
-        // Consume the state and produce the next state each iteration.
-        state = process_line(state, trimmed, line_num, &mut cases)?;
     }
 
-    match state {
-        ParseState::InAssertBlock {
-            block_start_line, ..
-        } => Err(ParseError::UnclosedAssertBlock {
-            line: block_start_line,
-        }),
-        ParseState::InCase { start_line, .. } => Err(ParseError::UnclosedCase { line: start_line }),
-        ParseState::TopLevel => Ok(Script { cases }),
-    }
+    Ok(Script { cases })
 }
 
-fn process_line(
-    state: ParseState,
-    trimmed: &str,
-    line_num: usize,
-    cases: &mut Vec<Case>,
-) -> Result<ParseState, ParseError> {
-    match state {
-        ParseState::TopLevel => process_top_level(trimmed, line_num),
+fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseError> {
+    let mut inner = pair.into_inner();
 
-        ParseState::InCase {
-            name,
-            steps,
-            start_line,
-        } => process_in_case(name, steps, start_line, trimmed, line_num, cases),
+    let name_pair = inner.next().expect("case_block must have a name");
+    let name = extract_string_inner(name_pair);
 
-        ParseState::InAssertBlock {
-            case_name,
-            case_steps,
-            case_start_line,
-            expectations,
-            block_start_line,
-        } => process_in_assert_block(
-            case_name,
-            case_steps,
-            case_start_line,
-            expectations,
-            block_start_line,
-            trimmed,
-            line_num,
-        ),
-    }
-}
-
-fn process_top_level(trimmed: &str, line_num: usize) -> Result<ParseState, ParseError> {
-    if trimmed.starts_with("case ") && trimmed.ends_with('{') {
-        let name = extract_case_name(trimmed, line_num)?;
-        Ok(ParseState::InCase {
-            name,
-            steps: Vec::new(),
-            start_line: line_num,
-        })
-    } else if trimmed.starts_with('$') {
-        Err(ParseError::UnexpectedToken {
-            line: line_num,
-            message: "action '$' is not allowed at top level; actions must be inside a case block"
-                .to_string(),
-        })
-    } else if trimmed.starts_with("assert") {
-        Err(ParseError::UnexpectedToken {
-            line: line_num,
-            message: "assertion 'assert' is not allowed at top level; assertions must be inside a case block"
-                .to_string(),
-        })
-    } else {
-        Err(ParseError::UnexpectedToken {
-            line: line_num,
-            message: format!("unexpected token at top level: '{trimmed}'"),
-        })
-    }
-}
-
-fn process_in_case(
-    name: String,
-    mut steps: Vec<Step>,
-    start_line: usize,
-    trimmed: &str,
-    line_num: usize,
-    cases: &mut Vec<Case>,
-) -> Result<ParseState, ParseError> {
-    if trimmed == "}" {
-        cases.push(Case { name, steps });
-        Ok(ParseState::TopLevel)
-    } else if let Some(rest) = trimmed.strip_prefix('$') {
-        let command = rest.trim().to_string();
-        steps.push(Step::Action(ActionStep { command }));
-        Ok(ParseState::InCase {
-            name,
-            steps,
-            start_line,
-        })
-    } else if trimmed == "assert {" {
-        // Start a multi-line assertion block.
-        Ok(ParseState::InAssertBlock {
-            case_name: name,
-            case_steps: steps,
-            case_start_line: start_line,
-            expectations: Vec::new(),
-            block_start_line: line_num,
-        })
-    } else if trimmed.starts_with("assert {") && trimmed.ends_with('}') {
-        // Single-line assertion block: assert { exit 0 }
-        let inner_start = "assert {".len();
-        let inner_end = trimmed.len() - 1;
-        let inner = trimmed[inner_start..inner_end].trim();
-        if inner.is_empty() {
-            return Err(ParseError::EmptyAssertionBlock { line: line_num });
+    let mut steps: Vec<Step> = Vec::new();
+    for pair in inner {
+        match pair.as_rule() {
+            Rule::action_step => steps.push(parse_action_step(pair)),
+            Rule::assertion_block => steps.push(parse_assertion_block(pair)?),
+            rule => unreachable!("unexpected rule in case_block: {rule:?}"),
         }
-        let exp = parse_expectation(line_num, inner)?;
-        let block = AssertionBlock::new(vec![exp])
-            .map_err(|_| ParseError::EmptyAssertionBlock { line: line_num })?;
-        steps.push(Step::AssertionBlock(block));
-        Ok(ParseState::InCase {
-            name,
-            steps,
-            start_line,
-        })
-    } else if trimmed.starts_with("assert") {
-        let rest = trimmed.strip_prefix("assert").unwrap_or("").trim();
-        Err(ParseError::UnexpectedToken {
-            line: line_num,
-            message: format!(
-                "expected 'assert {{ ... }}' block; \
-                 'assert {rest}' is not valid in v0 — use 'assert {{ {rest} }}' instead"
-            ),
-        })
-    } else {
-        Err(ParseError::UnexpectedToken {
-            line: line_num,
-            message: format!(
-                "unexpected token in case block: '{trimmed}'; \
-                 only '$' actions, 'assert {{ ... }}' blocks, and '}}' are valid"
-            ),
-        })
     }
+
+    Ok(Case { name, steps })
 }
 
-fn process_in_assert_block(
-    case_name: String,
-    mut case_steps: Vec<Step>,
-    case_start_line: usize,
-    mut expectations: Vec<Expectation>,
-    block_start_line: usize,
-    trimmed: &str,
-    line_num: usize,
-) -> Result<ParseState, ParseError> {
-    if trimmed == "}" {
-        // Close the assertion block and return to InCase.
-        let block = AssertionBlock::new(expectations).map_err(|AssertionBlockError::Empty| {
-            ParseError::EmptyAssertionBlock {
-                line: block_start_line,
-            }
-        })?;
-        case_steps.push(Step::AssertionBlock(block));
-        Ok(ParseState::InCase {
-            name: case_name,
-            steps: case_steps,
-            start_line: case_start_line,
-        })
-    } else if trimmed.starts_with('$') {
-        Err(ParseError::UnexpectedToken {
-            line: line_num,
-            message: "'$' actions are not allowed inside an assert block".to_string(),
-        })
-    } else if trimmed.starts_with("assert") {
-        Err(ParseError::UnexpectedToken {
-            line: line_num,
-            message: "nested 'assert' is not allowed inside an assert block".to_string(),
-        })
-    } else {
-        let exp = parse_expectation(line_num, trimmed)?;
-        expectations.push(exp);
-        Ok(ParseState::InAssertBlock {
-            case_name,
-            case_steps,
-            case_start_line,
-            expectations,
-            block_start_line,
-        })
-    }
+fn extract_string_inner(quoted: pest::iterators::Pair<Rule>) -> String {
+    // quoted_string = { "\"" ~ string_inner ~ "\"" }
+    quoted
+        .into_inner()
+        .next()
+        .expect("quoted_string must have string_inner")
+        .as_str()
+        .to_string()
 }
 
-fn extract_case_name(trimmed: &str, line_num: usize) -> Result<String, ParseError> {
-    // trimmed is `case "<name>" {` (already checked starts_with "case " and ends_with '{')
-    let after_keyword = trimmed["case ".len()..].trim_end();
-    let name_section = after_keyword[..after_keyword.len() - 1].trim();
-    if name_section.starts_with('"') && name_section.ends_with('"') && name_section.len() >= 2 {
-        Ok(name_section[1..name_section.len() - 1].to_string())
-    } else {
-        Err(ParseError::UnexpectedToken {
-            line: line_num,
-            message: format!(
-                "invalid case declaration; expected `case \"<name>\" {{`, found: '{trimmed}'"
-            ),
-        })
-    }
+fn parse_action_step(pair: pest::iterators::Pair<Rule>) -> Step {
+    // action_step = { "$" ~ ws* ~ command }
+    let command = pair
+        .into_inner()
+        .next()
+        .expect("action_step must have command")
+        .as_str()
+        .trim()
+        .to_string();
+    Step::Action(ActionStep { command })
 }
 
-fn parse_expectation(line_num: usize, content: &str) -> Result<Expectation, ParseError> {
-    if let Some(rest) = content.strip_prefix("exit") {
-        let code_str = rest.trim();
-        if code_str.is_empty() {
-            return Err(ParseError::UnexpectedToken {
-                line: line_num,
-                message: "exit expectation requires an exit code, e.g., 'exit 0'".to_string(),
-            });
+fn parse_assertion_block(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
+    // assertion_block = { "assert" ~ ws* ~ "{" ~ (single_assert | multi_assert) ~ ws* ~ "}" }
+    let body = pair
+        .into_inner()
+        .next()
+        .expect("assertion_block must have body");
+
+    let expectations: Vec<Expectation> = match body.as_rule() {
+        Rule::single_assert => {
+            // single_assert = { ws+ ~ expectation ~ ws* }
+            let exp_pair = body
+                .into_inner()
+                .next()
+                .expect("single_assert must have expectation");
+            vec![parse_expectation(exp_pair)?]
         }
-        let code: u16 = code_str.parse().map_err(|_| ParseError::InvalidExitCode {
-            line: line_num,
-            value: code_str.to_string(),
-        })?;
-        if code > 255 {
-            return Err(ParseError::InvalidExitCode {
-                line: line_num,
-                value: code_str.to_string(),
-            });
+        Rule::multi_assert => {
+            // multi_assert = { nl ~ assertion_line+ ~ ws* }
+            // assertion_line is silent, so its child (expectation) is promoted.
+            body.into_inner()
+                .map(|p| parse_expectation(p))
+                .collect::<Result<Vec<_>, _>>()?
         }
-        Ok(Expectation::Exit(ExitExpectation {
-            expected: code as u8,
-        }))
-    } else if let Some(exp) = parse_output_expectation(line_num, content, "stdout")? {
-        Ok(Expectation::Stdout(exp))
-    } else if let Some(exp) = parse_output_expectation(line_num, content, "stderr")? {
-        Ok(Expectation::Stderr(exp))
-    } else {
-        Err(ParseError::UnexpectedToken {
-            line: line_num,
-            message: format!(
-                "unsupported expectation: '{content}'; v0 supports 'exit <code>', \
-                 'stdout contains \"...\"', 'stderr contains \"...\"'"
-            ),
-        })
-    }
-}
-
-fn parse_output_expectation(
-    line_num: usize,
-    content: &str,
-    stream: &str,
-) -> Result<Option<OutputExpectation>, ParseError> {
-    use crate::model::OutputMatcher;
-
-    let Some(rest) = content.strip_prefix(stream) else {
-        return Ok(None);
+        rule => unreachable!("unexpected rule in assertion_block: {rule:?}"),
     };
-    let rest = rest.trim();
 
-    if let Some(arg) = rest.strip_prefix("contains") {
-        let arg = arg.trim();
-        let s = parse_quoted_string(line_num, arg, &format!("{stream} contains"))?;
-        return Ok(Some(OutputExpectation {
-            matcher: OutputMatcher::Contains(s),
-        }));
-    }
-
-    if rest == "empty" {
-        return Ok(Some(OutputExpectation {
-            matcher: OutputMatcher::Empty,
-        }));
-    }
-
-    Err(ParseError::UnexpectedToken {
-        line: line_num,
-        message: format!(
-            "unsupported '{stream}' expectation: '{content}'; \
-             supported forms: '{stream} empty', '{stream} contains \"...\"'"
-        ),
-    })
+    let block = AssertionBlock::new(expectations)
+        .expect("grammar guarantees at least one expectation in assertion block");
+    Ok(Step::AssertionBlock(block))
 }
 
-fn parse_quoted_string(line_num: usize, s: &str, context: &str) -> Result<String, ParseError> {
-    if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-        Ok(s[1..s.len() - 1].to_string())
+fn parse_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
+    // expectation = { exit_exp | stdout_exp | stderr_exp }
+    let inner = pair
+        .into_inner()
+        .next()
+        .expect("expectation must have inner rule");
+
+    match inner.as_rule() {
+        Rule::exit_exp => parse_exit_exp(inner),
+        Rule::stdout_exp => parse_output_exp(inner, true),
+        Rule::stderr_exp => parse_output_exp(inner, false),
+        rule => unreachable!("unexpected rule in expectation: {rule:?}"),
+    }
+}
+
+fn parse_exit_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
+    // exit_exp = { "exit" ~ ws+ ~ exit_code }
+    // exit_code = @{ ASCII_DIGIT+ }
+    let code_pair = pair
+        .into_inner()
+        .next()
+        .expect("exit_exp must have exit_code");
+    let line = code_pair.line_col().0;
+    let code_str = code_pair.as_str();
+
+    let code = code_str.parse::<u64>().unwrap_or(u64::MAX);
+    if code > 255 {
+        return Err(ParseError::InvalidExitCode {
+            line,
+            value: code_str.to_string(),
+        });
+    }
+
+    Ok(Expectation::Exit(ExitExpectation {
+        expected: code as u8,
+    }))
+}
+
+fn parse_output_exp(
+    pair: pest::iterators::Pair<Rule>,
+    is_stdout: bool,
+) -> Result<Expectation, ParseError> {
+    // stdout_exp = { "stdout" ~ ws+ ~ output_matcher }
+    // stderr_exp = { "stderr" ~ ws+ ~ output_matcher }
+    let matcher_pair = pair
+        .into_inner()
+        .next()
+        .expect("output_exp must have output_matcher");
+
+    let inner = matcher_pair
+        .into_inner()
+        .next()
+        .expect("output_matcher must have a variant");
+
+    let matcher = match inner.as_rule() {
+        Rule::output_empty => OutputMatcher::Empty,
+        Rule::output_contains => {
+            // output_contains = { "contains" ~ ws+ ~ quoted_string }
+            let qs = inner
+                .into_inner()
+                .next()
+                .expect("output_contains must have quoted_string");
+            OutputMatcher::Contains(extract_string_inner(qs))
+        }
+        rule => unreachable!("unexpected rule in output_matcher: {rule:?}"),
+    };
+
+    let exp = OutputExpectation { matcher };
+    if is_stdout {
+        Ok(Expectation::Stdout(exp))
     } else {
-        Err(ParseError::UnexpectedToken {
-            line: line_num,
-            message: format!("expected a double-quoted string after '{context}', found: '{s}'"),
-        })
+        Ok(Expectation::Stderr(exp))
     }
 }
 
@@ -382,7 +230,6 @@ case "first pass" {
         let script = parse(src).unwrap();
         assert_eq!(script.cases.len(), 1);
         assert_eq!(script.cases[0].name, "first pass");
-        // Steps: Action + AssertionBlock
         assert_eq!(script.cases[0].steps.len(), 2);
     }
 
@@ -437,7 +284,6 @@ case "multi" {
 }
 "#;
         let script = parse(src).unwrap();
-        // Steps: Action + one AssertionBlock
         assert_eq!(script.cases[0].steps.len(), 2);
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
@@ -449,14 +295,14 @@ case "multi" {
     fn top_level_action_is_error() {
         let src = "$ true\n";
         let err = parse(src).unwrap_err();
-        assert!(matches!(err, ParseError::UnexpectedToken { .. }));
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn top_level_assert_is_error() {
         let src = "assert { exit 0 }\n";
         let err = parse(src).unwrap_err();
-        assert!(matches!(err, ParseError::UnexpectedToken { .. }));
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
@@ -468,7 +314,7 @@ case "x" {
 }
 "#;
         let err = parse(src).unwrap_err();
-        assert!(matches!(err, ParseError::UnexpectedToken { .. }));
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
@@ -502,14 +348,14 @@ case "x" {
     fn unclosed_case_is_error() {
         let src = "case \"x\" {\n  $ true\n";
         let err = parse(src).unwrap_err();
-        assert!(matches!(err, ParseError::UnclosedCase { .. }));
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn unclosed_assert_block_is_error() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    exit 0\n";
         let err = parse(src).unwrap_err();
-        assert!(matches!(err, ParseError::UnclosedAssertBlock { .. }));
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
@@ -522,19 +368,14 @@ case "x" {
 }
 "#;
         let err = parse(src).unwrap_err();
-        assert!(matches!(err, ParseError::EmptyAssertionBlock { .. }));
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn empty_assert_block_single_line_is_error() {
-        // "assert { }" — inner content is empty after trimming
-        // Note: this is "assert {" + " }" which ends with '}' and starts with "assert {"
-        // so it falls into the single-line branch and finds empty inner content.
-        // Actually "assert { }" trims to "assert { }" — ends_with('}') is true,
-        // starts_with("assert {") is true. inner = " " which trims to "".
         let src = "case \"x\" {\n  $ true\n  assert { }\n}\n";
         let err = parse(src).unwrap_err();
-        assert!(matches!(err, ParseError::EmptyAssertionBlock { .. }));
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
@@ -548,7 +389,7 @@ case "x" {
 }
 "#;
         let err = parse(src).unwrap_err();
-        assert!(matches!(err, ParseError::UnexpectedToken { .. }));
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
@@ -562,7 +403,7 @@ case "x" {
 }
 "#;
         let err = parse(src).unwrap_err();
-        assert!(matches!(err, ParseError::UnexpectedToken { .. }));
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
@@ -592,13 +433,11 @@ case "x" {
 }
 "#;
         let err = parse(src).unwrap_err();
-        assert!(matches!(err, ParseError::UnexpectedToken { .. }));
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn two_assertion_blocks_in_one_case_parses_ok() {
-        // Parsing succeeds. ScriptError happens at evaluation time for the
-        // first block (process expectation at initial checkpoint).
         let src = r#"
 case "two blocks" {
   assert {
@@ -611,6 +450,107 @@ case "two blocks" {
 }
 "#;
         let script = parse(src).unwrap();
-        assert_eq!(script.cases[0].steps.len(), 3); // AssertionBlock, Action, AssertionBlock
+        assert_eq!(script.cases[0].steps.len(), 3);
+    }
+
+    #[test]
+    fn parse_stdout_empty() {
+        let src = r#"
+case "out" {
+  $ true
+  assert {
+    stdout empty
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Stdout(e) if matches!(e.matcher, OutputMatcher::Empty)
+        ));
+    }
+
+    #[test]
+    fn parse_stderr_empty() {
+        let src = r#"
+case "err" {
+  $ true
+  assert {
+    stderr empty
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Stderr(e) if matches!(e.matcher, OutputMatcher::Empty)
+        ));
+    }
+
+    #[test]
+    fn parse_stdout_contains() {
+        let src = r#"
+case "out" {
+  $ echo hello
+  assert {
+    stdout contains "hello"
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Stdout(e) if matches!(&e.matcher, OutputMatcher::Contains(s) if s == "hello")
+        ));
+    }
+
+    #[test]
+    fn parse_stderr_contains() {
+        let src = r#"
+case "err" {
+  $ echo err >&2
+  assert {
+    stderr contains "err"
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Stderr(e) if matches!(&e.matcher, OutputMatcher::Contains(s) if s == "err")
+        ));
+    }
+
+    #[test]
+    fn single_line_assert_multiple_expectations_is_error() {
+        let src = r#"
+case "x" {
+  $ true
+  assert { exit 0 exit 1 }
+}
+"#;
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    // Trailing whitespace on any line must be accepted (parity with the
+    // hand-written parser, which called trim() on every line).
+    #[test]
+    fn trailing_whitespace_is_accepted() {
+        // Trailing spaces on case opener, steps, assertion body, and closers.
+        let src = "case \"x\" {   \n  $ true   \n  assert {   \n    exit 0   \n  }   \n}   \n";
+        assert!(parse(src).is_ok());
     }
 }

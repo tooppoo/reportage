@@ -11,5 +11,7 @@ serde_json = "1"
 kdl = "6"
 glob = "0.3"
 tempfile = "3"
+pest = "2"
+pest_derive = "2"
 
 [dev-dependencies]

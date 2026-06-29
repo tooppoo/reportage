@@ -1,0 +1,74 @@
+// Reportage v0 grammar — canonical syntax source of truth.
+//
+// This file is the normative syntax definition for Reportage scripts.
+// Any syntax not expressible here is not part of v0.
+// See docs/syntax.md for human-readable intent; this grammar takes precedence
+// when the two diverge.
+
+// ─── Primitives ───────────────────────────────────────────────────────────────
+
+ws         = _{ " " | "\t" }
+nl         = _{ "\r\n" | "\n" }
+blank_line = _{ ws* ~ nl }
+// Trailing whitespace before a newline or end of file.
+// Used wherever a line ending may carry incidental trailing spaces.
+trail      = _{ ws* ~ (nl | EOI) }
+
+// ─── Script ───────────────────────────────────────────────────────────────────
+
+// ws* before EOI handles a trailing whitespace-only line with no final newline.
+script = { SOI ~ (blank_line | case_block)* ~ ws* ~ EOI }
+
+// ─── Case block ───────────────────────────────────────────────────────────────
+
+case_block = {
+    ws* ~ "case" ~ ws+ ~ quoted_string ~ ws* ~ "{" ~ trail
+    ~ (blank_line | case_step)*
+    ~ ws* ~ "}" ~ trail
+}
+
+// Silent: action_step and assertion_block are promoted directly into case_block.
+case_step = _{ ws* ~ (action_step | assertion_block) ~ trail }
+
+// ─── Action step ──────────────────────────────────────────────────────────────
+
+action_step = { "$" ~ ws* ~ command }
+// Captures everything up to the newline; Rust trims trailing whitespace.
+command     = @{ (!nl ~ ANY)* }
+
+// ─── Assertion block ──────────────────────────────────────────────────────────
+
+assertion_block = {
+    "assert" ~ ws* ~ "{"
+    ~ (single_assert | multi_assert)
+    ~ ws* ~ "}"
+}
+
+// Single-line form: assert { exit 0 }
+// Accepts exactly one expectation; rejects both empty and multiple expectations.
+single_assert = { ws+ ~ expectation ~ ws* }
+
+// Multi-line form: expectations each on their own line.
+// trail handles optional trailing whitespace on the `assert {` line.
+// Requires at least one expectation (+ quantifier), rejecting empty blocks.
+multi_assert   = { trail ~ assertion_line+ ~ ws* }
+assertion_line = _{ ws* ~ expectation ~ trail }
+
+// ─── Expectations ─────────────────────────────────────────────────────────────
+
+expectation     = { exit_exp | stdout_exp | stderr_exp }
+
+exit_exp        = { "exit" ~ ws+ ~ exit_code }
+exit_code       = @{ ASCII_DIGIT+ }
+
+stdout_exp      = { "stdout" ~ ws+ ~ output_matcher }
+stderr_exp      = { "stderr" ~ ws+ ~ output_matcher }
+
+output_matcher  = { output_contains | output_empty }
+output_contains = { "contains" ~ ws+ ~ quoted_string }
+output_empty    = { "empty" }
+
+// ─── String literals ──────────────────────────────────────────────────────────
+
+quoted_string = { "\"" ~ string_inner ~ "\"" }
+string_inner  = @{ (!"\"" ~ ANY)* }
