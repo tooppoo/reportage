@@ -195,10 +195,10 @@ impl CommandShim {
 
         format!(
             "#!/bin/sh\n\
-             _rp_ed=\"${{{var}:-}}\"\n\
-             if [ -n \"$_rp_ed\" ]; then\n\
-             \tprintf '%s' {quoted_json} > \"$_rp_ed/$$.json\" \\\n\
-             \t\t|| printf 'reportage shim warning: failed to write shim invocation event: %s\\n' \"$_rp_ed/$$.json\" >&2\n\
+             _REPORTAGE_ED=\"${{{var}:-}}\"\n\
+             if [ -n \"$_REPORTAGE_ED\" ]; then\n\
+             \tprintf '%s' {quoted_json} > \"$_REPORTAGE_ED/$$.json\" \\\n\
+             \t\t|| printf 'reportage shim warning: failed to write shim invocation event: %s\\n' \"$_REPORTAGE_ED/$$.json\" >&2\n\
              fi\n\
              exec {exec_cmd} \"$@\"\n",
             var = SHIM_EVENT_DIR_VAR,
@@ -764,6 +764,9 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn shim_writes_event_file_when_env_var_is_set() {
+        // REPORTAGE_SHIM_EVENT_DIR is set by the runner before each action.
+        // When it is present the shim knows it is executing under runner supervision
+        // and can write an identifiable event file to the runner-provided directory.
         use crate::shim_event::{SHIM_EVENT_DIR_VAR, collect_from_dir};
         use tempfile::TempDir;
 
@@ -791,6 +794,11 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn shim_writes_no_event_file_when_env_var_is_absent() {
+        // When REPORTAGE_SHIM_EVENT_DIR is absent the shim has no runner-provided
+        // directory to write into: it cannot identify where to send the event.
+        // In this case the shim silently skips event writing and proceeds directly
+        // to exec-ing its target. This is the expected behavior for direct invocation
+        // outside of a reportage runner context.
         use tempfile::TempDir;
 
         let shim_dir = TempDir::new().unwrap();
