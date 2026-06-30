@@ -8,3 +8,6 @@ cov.json
 
 # vscode extension
 .pnpm-store/
+
+# vscode
+.vscode/settings.json
