@@ -44,9 +44,9 @@ assertion_block = {
     ~ ws* ~ "}"
 }
 
-// Single-line form: assert { exit 0 }
+// Single-line form: assert { exit 0 } or assert {exit 0}
 // Accepts exactly one expectation; rejects both empty and multiple expectations.
-single_assert = { ws+ ~ expectation ~ ws* }
+single_assert = { ws* ~ expectation ~ ws* }
 
 // Multi-line form: expectations each on their own line.
 // trail handles optional trailing whitespace on the `assert {` line.

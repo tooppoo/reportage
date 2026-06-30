@@ -18,6 +18,12 @@ pub enum ParseError {
         column: usize,
         message: String,
     },
+    /// A case block must contain at least one step.
+    EmptyCase { line: usize, name: String },
+    /// A case block must contain at least one assertion block.
+    MissingAssertionBlock { line: usize, name: String },
+    /// An action step must contain a non-empty command after trimming whitespace.
+    EmptyAction { line: usize },
     /// Exit code is outside the valid range 0..=255.
     InvalidExitCode { line: usize, value: String },
 }
@@ -30,6 +36,18 @@ impl std::fmt::Display for ParseError {
                 column,
                 message,
             } => write!(f, "parse error at line {line}, column {column}: {message}"),
+            ParseError::EmptyCase { line, name } => write!(
+                f,
+                "parse error at line {line}: case '{name}' must contain at least one step"
+            ),
+            ParseError::MissingAssertionBlock { line, name } => write!(
+                f,
+                "parse error at line {line}: case '{name}' must contain at least one assertion block"
+            ),
+            ParseError::EmptyAction { line } => write!(
+                f,
+                "parse error at line {line}: action command must not be empty"
+            ),
             ParseError::InvalidExitCode { line, value } => write!(
                 f,
                 "parse error at line {line}: invalid exit code '{value}', expected integer in 0..=255"
@@ -68,18 +86,31 @@ pub fn parse(source: &str) -> Result<Script, ParseError> {
 }
 
 fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseError> {
+    let line = pair.line_col().0;
     let mut inner = pair.into_inner();
 
     let name_pair = inner.next().expect("case_block must have a name");
     let name = extract_string_inner(name_pair);
 
     let mut steps: Vec<Step> = Vec::new();
+    let mut has_assertion_block = false;
     for pair in inner {
         match pair.as_rule() {
-            Rule::action_step => steps.push(parse_action_step(pair)),
-            Rule::assertion_block => steps.push(parse_assertion_block(pair)?),
+            Rule::action_step => steps.push(parse_action_step(pair)?),
+            Rule::assertion_block => {
+                has_assertion_block = true;
+                steps.push(parse_assertion_block(pair)?);
+            }
             rule => unreachable!("unexpected rule in case_block: {rule:?}"),
         }
+    }
+
+    if steps.is_empty() {
+        return Err(ParseError::EmptyCase { line, name });
+    }
+
+    if !has_assertion_block {
+        return Err(ParseError::MissingAssertionBlock { line, name });
     }
 
     Ok(Case { name, steps })
@@ -95,8 +126,9 @@ fn extract_string_inner(quoted: pest::iterators::Pair<Rule>) -> String {
         .to_string()
 }
 
-fn parse_action_step(pair: pest::iterators::Pair<Rule>) -> Step {
+fn parse_action_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
     // action_step = { "$" ~ ws* ~ command }
+    let line = pair.line_col().0;
     let command = pair
         .into_inner()
         .next()
@@ -104,7 +136,12 @@ fn parse_action_step(pair: pest::iterators::Pair<Rule>) -> Step {
         .as_str()
         .trim()
         .to_string();
-    Step::Action(ActionStep { command })
+
+    if command.is_empty() {
+        return Err(ParseError::EmptyAction { line });
+    }
+
+    Ok(Step::Action(ActionStep { command }))
 }
 
 fn parse_assertion_block(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
@@ -116,7 +153,7 @@ fn parse_assertion_block(pair: pest::iterators::Pair<Rule>) -> Result<Step, Pars
 
     let expectations: Vec<Expectation> = match body.as_rule() {
         Rule::single_assert => {
-            // single_assert = { ws+ ~ expectation ~ ws* }
+            // single_assert = { ws* ~ expectation ~ ws* }
             let exp_pair = body
                 .into_inner()
                 .next()

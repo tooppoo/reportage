@@ -1,0 +1,6 @@
+case "stdout empty" {
+  $ true
+  assert {
+    stdout empty
+  }
+}

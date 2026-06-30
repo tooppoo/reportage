@@ -1,0 +1,4 @@
+case "too many inline expectations" {
+  $ true
+  assert { exit 0 stdout empty }
+}

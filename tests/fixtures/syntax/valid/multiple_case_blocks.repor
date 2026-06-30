@@ -1,0 +1,11 @@
+case "first" {
+  $ true
+  assert { exit 0 }
+}
+
+case "second" {
+  $ false
+  assert {
+    exit 1
+  }
+}

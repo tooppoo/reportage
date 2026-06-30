@@ -1,0 +1,6 @@
+case "valid case" {
+  $ true
+  assert { exit 0 }
+}
+
+  $ false

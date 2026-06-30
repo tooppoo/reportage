@@ -1,0 +1,6 @@
+case "stdout contains" {
+  $ echo hello
+  assert {
+    stdout contains "hello"
+  }
+}

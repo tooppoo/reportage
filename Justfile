@@ -24,9 +24,9 @@ lang-docs-check:
   echo "docs/syntax.md is up to date."
 
 test:
-		cargo lcov
-		cargo lcov-json
-		cargo lcov-assert
+		cargo llvm-cov --locked --all-features --workspace --no-report nextest
+		cargo llvm-cov report --codecov --output-path cov.json --ignore-filename-regex "cli/src/main"
+		cargo llvm-cov report --fail-under-functions 80 --fail-under-lines 80 --fail-under-file-lines 80 --fail-under-regions 80 --ignore-filename-regex "cli/src/main|model"
 
 fmt:
   cargo fmt --all --check

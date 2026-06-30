@@ -1,0 +1,6 @@
+case "exit out of range" {
+  $ true
+  assert {
+    exit 256
+  }
+}

@@ -1,0 +1,6 @@
+case "stderr contains" {
+  $ echo error >&2
+  assert {
+    stderr contains "error"
+  }
+}

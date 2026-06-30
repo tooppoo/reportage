@@ -1,0 +1,4 @@
+case "empty action" {
+  $
+  assert { exit 0 }
+}
