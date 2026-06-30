@@ -21,6 +21,16 @@ For v0, reportage should stay small:
 - PATH shims for command mediation;
 - external coverage tools rather than a built-in coverage engine.
 
+## Observable evidence first
+
+The primary field of reportage is the verification of externally observable evidence.
+
+reportage does not primarily inspect internal program state, model business scenarios as natural-language prose, or automate rich interactive UI behavior. It focuses on evidence that appears at system boundaries: process results, files, generated artifacts, structured output, HTTP responses, logs, and coverage artifacts.
+
+In CLI-first v0, this begins with command execution and process evidence: exit codes, stdout, and stderr. Planned file assertions, jq-based structured output assertions, generated artifact assertions, and future HTTP response assertions extend the same principle rather than introducing a different testing model.
+
+This is the reason reportage keeps actions and assertions close together. A scenario should make concrete inputs, executable steps, and expected observable evidence reviewable in one place.
+
 ## Shell scripts are the natural substrate for black-box testing
 
 When developers test a CLI or a black-box system manually, they usually do not start by writing host-language test code. They create files, run commands, inspect stdout and stderr, check exit codes, and compare generated artifacts.
@@ -69,7 +79,7 @@ Ordinary filesystem operations should remain ordinary shell operations in v0. If
 
 reportage lives near BDD and acceptance-testing tools in the broad sense that it describes externally observable behavior.
 
-However, reportage does not optimize for prose-like scenarios. It optimizes for operation-first specifications: files, commands, exit codes, stdout, stderr, JSON output, generated artifacts, and coverage-aware command execution.
+However, reportage does not optimize for prose-like scenarios. It optimizes for operation-first specifications: concrete inputs, executable actions, and externally observable evidence such as files, commands, exit codes, stdout, stderr, JSON output, generated artifacts, and coverage-aware command execution.
 
 This makes reportage different from prose-first tools such as Cucumber. Cucumber-style frameworks are often useful when the primary goal is to express behavior in a form that is readable by a wider group of stakeholders. reportage focuses on a narrower but more direct audience: developers who need to understand and execute the concrete behavior of a system.
 
