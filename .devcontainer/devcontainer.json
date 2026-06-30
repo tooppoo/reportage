@@ -12,9 +12,7 @@
     "ghcr.io/devcontainers/features/rust:1.5.0": {
       "version": "1.96.0"
     },
-    "ghcr.io/tooppoo/catalog-devcontainer-features/git-kura:0": {
-      "version": "0.0.6"
-    },
+    "ghcr.io/tooppoo/catalog-devcontainer-features/git-kura:0": {},
     "ghcr.io/devcontainers/features/node:2": {
       "version": "24.18.0",
       "pnpmVersion": "11.9.0"
