@@ -34,7 +34,7 @@ fn fixture_paths(kind: &str) -> Vec<PathBuf> {
 
 fn snapshot_paths() -> Vec<PathBuf> {
     let pattern = repo_root()
-        .join("tests/fixtures/syntax/ast_snapshots/*.json")
+        .join("tests/fixtures/syntax/valid/*.ast.json")
         .to_str()
         .expect("snapshot glob path must be valid UTF-8")
         .to_string();
@@ -58,10 +58,15 @@ fn fixture_stem(path: &Path) -> &str {
         .expect("syntax fixture file name must be valid UTF-8")
 }
 
+fn snapshot_stem(path: &Path) -> &str {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| name.strip_suffix(".ast.json"))
+        .expect("AST snapshot file name must end with .ast.json")
+}
+
 fn snapshot_path_for_fixture(path: &Path) -> PathBuf {
-    repo_root()
-        .join("tests/fixtures/syntax/ast_snapshots")
-        .join(format!("{}.json", fixture_stem(path)))
+    path.with_extension("ast.json")
 }
 
 fn format_snapshot(script: &Script) -> String {
@@ -361,7 +366,7 @@ fn valid_syntax_fixture_snapshots_have_matching_fixtures() {
         .collect::<std::collections::BTreeSet<_>>();
     let snapshot_stems = snapshot_paths()
         .into_iter()
-        .map(|path| fixture_stem(&path).to_string())
+        .map(|path| snapshot_stem(&path).to_string())
         .collect::<std::collections::BTreeSet<_>>();
 
     assert_eq!(
