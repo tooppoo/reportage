@@ -1,0 +1,6 @@
+case "unknown operator" {
+  $ echo hello
+  assert {
+    stdout includes "hello"
+  }
+}

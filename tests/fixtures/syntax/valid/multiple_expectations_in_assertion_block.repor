@@ -1,0 +1,8 @@
+case "multiple expectations" {
+  $ echo hello
+  assert {
+    exit 0
+    stdout contains "hello"
+    stderr empty
+  }
+}

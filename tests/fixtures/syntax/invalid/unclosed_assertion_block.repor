@@ -1,0 +1,4 @@
+case "unclosed assertion" {
+  $ true
+  assert {
+    exit 0

@@ -1,0 +1,6 @@
+case "exit expectation" {
+  $ true
+  assert {
+    exit 0
+  }
+}

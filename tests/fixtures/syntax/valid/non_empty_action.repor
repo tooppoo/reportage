@@ -1,0 +1,4 @@
+case "non-empty action" {
+  $ echo hello
+  assert { exit 0 }
+}

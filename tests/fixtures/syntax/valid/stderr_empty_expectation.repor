@@ -1,0 +1,6 @@
+case "stderr empty" {
+  $ true
+  assert {
+    stderr empty
+  }
+}

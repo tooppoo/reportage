@@ -1,0 +1,4 @@
+case "" {
+  $ true
+  assert { exit 0 }
+}

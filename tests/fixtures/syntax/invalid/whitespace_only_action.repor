@@ -1,0 +1,4 @@
+case "whitespace only action" {
+  $   
+  assert { exit 0 }
+}
