@@ -8,6 +8,8 @@ Its first target is CLI testing, but its core value is not limited to CLI. The m
 
 `reportage` provides a lightweight E2E execution model where setup, shell-like actions, and explicit assertion blocks stay close together, while runtime-specific execution and coverage instrumentation are delegated to adapters and PATH shims.
 
+More specifically, the primary field of `reportage` is verification of externally observable evidence at E2E boundaries: process results, files, generated artifacts, structured output, HTTP responses, logs, and coverage artifacts.
+
 This model can naturally target CLI commands, HTTP APIs, services, and web frameworks. Some targets may support coverage integration. Others may only support runtime-independent E2E execution. `reportage` should support both cases.
 
 `reportage` is not a coverage engine. It does not replace existing coverage tools. Instead, it provides a structured way to connect existing runtime coverage tools to E2E execution.
@@ -17,6 +19,8 @@ This model can naturally target CLI commands, HTTP APIs, services, and web frame
 Use `reportage` when you want E2E tests that are explicit, lightweight, runtime-agnostic, and coverage-aware.
 
 Many projects need to test behavior at the boundary where users or external systems interact with the software: command execution, files, environment variables, stdout, stderr, exit codes, HTTP responses, generated artifacts, or service behavior.
+
+The important object of verification is observable evidence: the concrete inputs, actions, outputs, artifacts, and diagnostics that show what happened at that boundary.
 
 Unit tests and integration tests often do not fully cover this boundary. Plain shell scripts can exercise it, but they tend to become difficult to assert, parameterize, structure, and connect to coverage reporting.
 
@@ -74,22 +78,22 @@ In this model:
 - registered commands can be intercepted through PATH shims
 - runtime-specific execution details are handled by adapters
 - coverage instrumentation is adapter-defined
-- assertions remain explicit in the test script
+- assertions verify externally observable evidence
 - coverage-enabled and coverage-disabled runs should not require different test scripts
 
 This distinction matters.
 
 [Cucumber](https://github.com/cucumber) separates specification text from step implementation.
 
-`reportage` separates E2E scripts from runtime execution and coverage instrumentation.
+`reportage` separates E2E scripts from runtime execution, coverage instrumentation, and evidence collection.
 
 [Cypress](https://github.com/cypress-io/cypress) and [Playwright](https://github.com/microsoft/playwright) focus primarily on browser-oriented E2E workflows.
 
-`reportage` focuses on a general E2E execution model that can include CLI, HTTP, services, and web frameworks.
+`reportage` focuses on a general E2E execution model that can include CLI, HTTP, services, and web frameworks when those targets can produce observable evidence for direct assertions.
 
 [Hurl](https://github.com/Orange-OpenSource/hurl), [Bruno](https://github.com/usebruno/bruno), [Postman](https://github.com/postmanlabs), and similar tools focus on API-client or API-collection workflows.
 
-`reportage` can test HTTP APIs, but it approaches them as E2E targets within a broader execution model rather than as API collections.
+`reportage` can test HTTP APIs, but it approaches them as E2E targets within a broader evidence-oriented execution model rather than as API collections.
 
 [Bats](https://github.com/bats-core) and shell scripts are close to command-line execution.
 
@@ -181,13 +185,13 @@ Cucumber is better when the primary goal is shared, business-readable executable
 
 If scenarios need to be written in a product language and read by product owners, QA, and non-developer stakeholders, Gherkin is a better fit.
 
-`reportage` is more developer-facing. It favors explicit fixtures, commands, assertions, and execution behavior over natural-language specifications.
+`reportage` is more developer-facing. It favors explicit fixtures, commands, assertions, and externally observable evidence over natural-language specifications.
 
 ### Use Playwright or Cypress directly for rich browser interaction testing
 
 If the main target is browser UI automation, cross-browser behavior, tracing, screenshots, selectors, browser contexts, and complex interaction flows, dedicated browser E2E tools are better.
 
-`reportage` may eventually integrate with browser-oriented workflows, but it should not try to replace mature browser automation tools.
+`reportage` may eventually integrate with browser-oriented workflows, but it should not try to replace mature browser automation tools. Its primary browser-adjacent role is to assert evidence produced by a web system or by specialized browser tools, not to become the default interaction engine itself.
 
 ### Use API-client tools when API workflow management is the main need
 
@@ -200,12 +204,12 @@ The difference is this:
 ```text
 API-client tools organize API requests.
 
-reportage organizes E2E execution.
+reportage organizes E2E execution and evidence verification.
 ```
 
 If the main concern is request collections, environments, manual exploration, and API-client ergonomics, use an API-client tool.
 
-If the main concern is shell-like setup, service orchestration, fixture locality, explicit assertions, and coverage-aware runtime execution, use `reportage`.
+If the main concern is shell-like setup, service orchestration, fixture locality, explicit assertions, observable evidence, and coverage-aware runtime execution, use `reportage`.
 
 ### Use Bats or plain shell scripts for simple command testing
 
@@ -230,7 +234,7 @@ For simple command checks, `reportage` may be unnecessary.
 
 Use the language ecosystem's native test runner when the test should call internal APIs, inspect in-memory structures, use mocks, or check small units of behavior.
 
-`reportage` is for E2E boundaries: processes, services, files, HTTP, shell execution, and externally observable behavior.
+`reportage` is for E2E boundaries: processes, services, files, HTTP, shell execution, externally observable behavior, and evidence generated at those boundaries.
 
 ### Do not use reportage when native Windows shell support is required
 
@@ -258,6 +262,7 @@ Use `reportage` when you need:
 - assertion blocks with checkpoint-based verification
 - rich expectations per checkpoint
 - jq-based JSON assertions
+- externally observable evidence verification
 - CLI-first testing
 - extensibility toward HTTP APIs, services, and web frameworks
 - runtime-independent test syntax
@@ -272,10 +277,11 @@ The core position is:
 ```text
 reportage is not defined by the target domain.
 reportage is defined by its E2E execution model.
+that model verifies externally observable evidence.
 ```
 
 Or, more compactly:
 
 ```text
-reportage is an explicit, runtime-agnostic, coverage-aware E2E scenario runner with shell-like actions.
+reportage is an explicit, runtime-agnostic, coverage-aware E2E scenario runner for externally observable evidence.
 ```
