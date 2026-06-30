@@ -19,7 +19,7 @@ reportage is in early design. The documents in this repository describe the inte
 ## Documentation
 
 - [Philosophy](docs/philosophy.md): design principles and scope boundaries.
-- [Grammar](docs/language/grammar.md): normative v0 syntax grammar, generated from `crates/reportage-core/src/reportage.pest`.
+- [Syntax](docs/syntax.md): normative v0 syntax grammar, generated from `crates/reportage-core/src/reportage.pest`.
 - [Semantics](docs/semantics.md): execution model, workspace lifecycle, parameter expansion, shell execution, PATH shims, and coverage adapter responsibilities.
 - [Self-testing](docs/self-testing.md): representative reportage-written E2E tests for reportage itself and their command-resolution model.
 - [Why reportage? / Why not reportage?](docs/why-or-why-not.md): When does `reportage` work well, and when does it not?
@@ -34,7 +34,7 @@ reportage is in early design. The documents in this repository describe the inte
 ## v0 Direction
 
 The v0 design is intentionally narrow. Items currently in the grammar
-([`docs/language/grammar.md`](docs/language/grammar.md)):
+([`docs/syntax.md`](docs/syntax.md)):
 
 - POSIX shell execution for `$` steps.
 - Native Windows shell execution is out of scope; use WSL, a devcontainer, or Linux CI on Windows.

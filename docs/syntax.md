@@ -5,7 +5,7 @@
 
 > **This file is auto-generated.** Do not edit it manually.
 > To update the grammar, modify
-> [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest)
+> [`crates/reportage-core/src/reportage.pest`](../crates/reportage-core/src/reportage.pest)
 > and run `just lang-docs-gen`.
 
 `crates/reportage-core/src/reportage.pest` is the normative syntax source for
@@ -15,7 +15,7 @@ Reportage v0. Any syntax not expressible in that file is not part of v0.
 
 This document covers *syntax* only — whether a script is accepted by the
 parser. Semantic behaviour (execution order, assertion evaluation, workspace
-lifecycle) is defined separately in [`docs/semantics.md`](../semantics.md).
+lifecycle) is defined separately in [`docs/semantics.md`](semantics.md).
 
 ## Grammar
 
@@ -24,7 +24,7 @@ lifecycle) is defined separately in [`docs/semantics.md`](../semantics.md).
 //
 // This file is the normative syntax definition for Reportage scripts.
 // Any syntax not expressible here is not part of v0.
-// See docs/language/grammar.md for the human-readable generated reference
+// See docs/syntax.md for the human-readable generated reference
 // (produced by `just lang-docs-gen`; see docs/adr/ for the ADR).
 
 // ─── Primitives ───────────────────────────────────────────────────────────────

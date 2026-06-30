@@ -2,7 +2,7 @@
 //
 // This file is the normative syntax definition for Reportage scripts.
 // Any syntax not expressible here is not part of v0.
-// See docs/language/grammar.md for the human-readable generated reference
+// See docs/syntax.md for the human-readable generated reference
 // (produced by `just lang-docs-gen`; see docs/adr/ for the ADR).
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
