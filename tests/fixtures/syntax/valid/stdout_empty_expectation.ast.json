@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "name": "stdout empty",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "empty"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

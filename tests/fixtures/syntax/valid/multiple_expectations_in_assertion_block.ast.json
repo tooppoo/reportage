@@ -1,0 +1,35 @@
+{
+  "cases": [
+    {
+      "name": "multiple expectations",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "echo hello"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            },
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "contains",
+                "value": "hello"
+              }
+            },
+            {
+              "kind": "stderr",
+              "matcher": {
+                "kind": "empty"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "name": "non-empty action",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "echo hello"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

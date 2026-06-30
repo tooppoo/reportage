@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "name": "stdout contains",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "echo hello"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "contains",
+                "value": "hello"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
