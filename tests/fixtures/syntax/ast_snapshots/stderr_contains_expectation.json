@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "name": "stderr contains",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "echo error >&2"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "stderr",
+              "matcher": {
+                "kind": "contains",
+                "value": "error"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

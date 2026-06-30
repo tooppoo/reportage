@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "name": "assertion block",
+      "steps": [
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

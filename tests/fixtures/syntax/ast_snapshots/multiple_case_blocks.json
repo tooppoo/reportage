@@ -1,0 +1,40 @@
+{
+  "cases": [
+    {
+      "name": "first",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "second",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "false"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
