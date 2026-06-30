@@ -19,7 +19,7 @@ reportage is in early design. The documents in this repository describe the inte
 ## Documentation
 
 - [Philosophy](docs/philosophy.md): design principles and scope boundaries.
-- [Syntax](docs/syntax.md): script syntax, including `before_each`, `case`, `params`, `variant`, file heredocs, shell steps, and assertions.
+- [Syntax](docs/syntax.md): normative v0 syntax grammar, generated from `crates/reportage-core/src/reportage.pest`.
 - [Semantics](docs/semantics.md): execution model, workspace lifecycle, parameter expansion, shell execution, PATH shims, and coverage adapter responsibilities.
 - [Self-testing](docs/self-testing.md): representative reportage-written E2E tests for reportage itself and their command-resolution model.
 - [Why reportage? / Why not reportage?](docs/why-or-why-not.md): When does `reportage` work well, and when does it not?
@@ -33,17 +33,21 @@ reportage is in early design. The documents in this repository describe the inte
 
 ## v0 Direction
 
-The v0 design is intentionally narrow:
+The v0 design is intentionally narrow. Items currently in the grammar
+([`docs/syntax.md`](docs/syntax.md)):
 
 - POSIX shell execution for `$` steps.
 - Native Windows shell execution is out of scope; use WSL, a devcontainer, or Linux CI on Windows.
 - One test file may contain multiple `case` blocks.
-- `before_each` is optional, at most one per file, and runs before every concrete case.
-- `params` are case-local in v0.
-- Each parameter `variant` expands into a concrete case.
 - Each concrete case runs in an isolated workspace.
 - Registered commands are resolved through PATH shims.
 - Coverage integration belongs to adapters and shims; reportage does not implement a coverage engine.
+
+Planned for v0 but not yet declared in `reportage.pest`:
+
+- `before_each` is optional, at most one per file, and runs before every concrete case.
+- `params` are case-local in v0.
+- Each parameter `variant` expands into a concrete case.
 - `assert ... jq ...` uses external `jq` in v0.
 
 ## Non-goals for v0

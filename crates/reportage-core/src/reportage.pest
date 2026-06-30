@@ -2,8 +2,8 @@
 //
 // This file is the normative syntax definition for Reportage scripts.
 // Any syntax not expressible here is not part of v0.
-// See docs/syntax.md for human-readable intent; this grammar takes precedence
-// when the two diverge.
+// See docs/syntax.md for the human-readable generated reference
+// (produced by `just lang-docs-gen`; see docs/adr/ for the ADR).
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
