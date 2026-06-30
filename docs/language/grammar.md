@@ -1,3 +1,25 @@
+<!-- Generated from crates/reportage-core/src/reportage.pest by scripts/gen-grammar-doc.sh.
+     DO NOT EDIT MANUALLY — run `just lang-docs-gen` to regenerate. -->
+
+# Reportage Grammar
+
+> **This file is auto-generated.** Do not edit it manually.
+> To update the grammar, modify
+> [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest)
+> and run `just lang-docs-gen`.
+
+`crates/reportage-core/src/reportage.pest` is the normative syntax source for
+Reportage v0. Any syntax not expressible in that file is not part of v0.
+
+## Syntax conformance vs. semantic conformance
+
+This document covers *syntax* only — whether a script is accepted by the
+parser. Semantic behaviour (execution order, assertion evaluation, workspace
+lifecycle) is defined separately in [`docs/semantics.md`](../semantics.md).
+
+## Grammar
+
+```pest
 // Reportage v0 grammar — canonical syntax source of truth.
 //
 // This file is the normative syntax definition for Reportage scripts.
@@ -72,3 +94,4 @@ output_empty    = { "empty" }
 
 quoted_string = { "\"" ~ string_inner ~ "\"" }
 string_inner  = @{ (!"\"" ~ ANY)* }
+```

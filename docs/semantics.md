@@ -2,7 +2,7 @@
 
 This document describes the intended v0 execution semantics for reportage scripts.
 
-For syntax, see [syntax.md](syntax.md).
+For syntax, see [language/grammar.md](language/grammar.md).
 
 ## Suite pre-execution validation
 

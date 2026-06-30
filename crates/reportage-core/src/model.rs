@@ -87,7 +87,7 @@ pub enum Expectation {
     Exit(ExitExpectation),
     // v0 parser produces only Exit. The remaining variants are defined for
     // conceptual completeness; they are not yet parsed or evaluated.
-    // See docs/syntax.md and TBD.md for planned additions.
+    // See docs/TBD.md for planned additions.
     Stdout(OutputExpectation),
     Stderr(OutputExpectation),
     File(FileExpectation),
