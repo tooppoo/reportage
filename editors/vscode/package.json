@@ -22,6 +22,16 @@
   "categories": [
     "Programming Languages"
   ],
+  "files": [
+    "package.json",
+    "README.md",
+    "LICENSE",
+    "language-configuration.json",
+    "syntaxes/reportage.tmLanguage.json",
+    "icons/reportage-extension-icon.png",
+    "icons/reportage-icon-light.svg",
+    "icons/reportage-icon-dark.svg"
+  ],
   "contributes": {
     "languages": [
       {
