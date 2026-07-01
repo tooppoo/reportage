@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "name": "escaped newline unescapes to actual newline",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "printf 'a\\nb'"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "contains",
+                "value": "a\nb"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

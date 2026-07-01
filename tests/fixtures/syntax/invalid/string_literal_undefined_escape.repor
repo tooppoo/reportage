@@ -1,0 +1,6 @@
+case "undefined escape sequence" {
+  $ true
+  assert {
+    stdout contains "a\xb"
+  }
+}

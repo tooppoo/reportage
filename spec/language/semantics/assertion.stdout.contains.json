@@ -107,16 +107,16 @@
       "expectedResult": "pass"
     },
     {
-      "description": "line endings are not normalized; a CRLF expectation does not match LF-only stdout",
-      "assertionSource": "stdout contains \"a\r\n\"",
+      "description": "line endings are not normalized; an LF expectation does not match CRLF-only stdout",
+      "assertionSource": "stdout contains \"a\\n\"",
       "assertion": {
         "subject": "stdout",
         "operator": "contains",
-        "expected": "a\r\n"
+        "expected": "a\n"
       },
       "checkpoint": {
         "exitCode": 0,
-        "stdout": { "data": "YQo=", "encoding": "base64", "text": "a\n" },
+        "stdout": { "data": "YQ0K", "encoding": "base64", "text": "a\r\n" },
         "stderr": { "data": "", "encoding": "base64", "text": "" }
       },
       "expectedResult": "fail"

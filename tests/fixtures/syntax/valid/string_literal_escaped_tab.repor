@@ -1,0 +1,6 @@
+case "escaped tab unescapes to actual tab" {
+  $ printf 'a\tb' >&2
+  assert {
+    stderr contains "a\tb"
+  }
+}

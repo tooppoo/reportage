@@ -1,0 +1,6 @@
+case "escaped newline unescapes to actual newline" {
+  $ printf 'a\nb'
+  assert {
+    stdout contains "a\nb"
+  }
+}

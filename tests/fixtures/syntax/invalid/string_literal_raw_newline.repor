@@ -1,0 +1,7 @@
+case "raw newline in string" {
+  $ true
+  assert {
+    stdout contains "line one
+line two"
+  }
+}
