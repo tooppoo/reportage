@@ -1,0 +1,6 @@
+case "a \"quoted\" case name" {
+  $ true
+  assert {
+    exit 0
+  }
+}

@@ -92,6 +92,11 @@ output_empty    = { "empty" }
 
 // ─── String literals ──────────────────────────────────────────────────────────
 
+// v0 forbids raw newlines (LF, CRLF, and bare CR) inside string literals and
+// allows exactly four escape sequences: \\, \", \n, \t. Any other backslash
+// sequence is rejected. See docs/adr/20260701T214658Z_string-literal-escape-sequences.md.
 quoted_string = { "\"" ~ string_inner ~ "\"" }
-string_inner  = @{ (!"\"" ~ ANY)* }
+string_inner  = @{ string_char* }
+string_char   = _{ escape_seq | (!("\"" | "\\" | "\r" | "\n") ~ ANY) }
+escape_seq    = _{ "\\" ~ ("\\" | "\"" | "n" | "t") }
 ```

@@ -202,12 +202,38 @@ fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseErro
 
 fn extract_string_inner(quoted: pest::iterators::Pair<Rule>) -> String {
     // quoted_string = { "\"" ~ string_inner ~ "\"" }
-    quoted
+    let raw = quoted
         .into_inner()
         .next()
         .expect("quoted_string must have string_inner")
-        .as_str()
-        .to_string()
+        .as_str();
+    unescape_string(raw)
+}
+
+/// Unescapes a raw `string_inner` match into its AST value.
+///
+/// The grammar's `string_char` rule only accepts `\\`, `\"`, `\n`, and `\t` as
+/// escape sequences, so every `\` in `raw` is guaranteed to be followed by one
+/// of those four characters.
+fn unescape_string(raw: &str) -> String {
+    let mut result = String::with_capacity(raw.len());
+    let mut chars = raw.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            result.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('\\') => result.push('\\'),
+            Some('"') => result.push('"'),
+            Some('n') => result.push('\n'),
+            Some('t') => result.push('\t'),
+            other => {
+                unreachable!("grammar guarantees only \\\\, \\\", \\n, \\t escapes, got {other:?}")
+            }
+        }
+    }
+    result
 }
 
 fn parse_action_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
@@ -652,6 +678,133 @@ case "err" {
             &block.expectations()[0],
             Expectation::Stderr(e) if matches!(&e.matcher, OutputMatcher::Contains(s) if s == "err")
         ));
+    }
+
+    #[test]
+    fn escaped_newline_unescapes_to_actual_newline() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    stdout contains "a\nb"
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Stdout(e) if matches!(&e.matcher, OutputMatcher::Contains(s) if s == "a\nb")
+        ));
+    }
+
+    #[test]
+    fn escaped_backslash_then_n_stays_literal_backslash_n() {
+        // `\\n` is an escaped backslash followed by a literal `n`, not an
+        // escaped newline. See docs/adr/20260701T214658Z_string-literal-escape-sequences.md.
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    stdout contains "a\\nb"
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Stdout(e) if matches!(&e.matcher, OutputMatcher::Contains(s) if s == "a\\nb")
+        ));
+    }
+
+    #[test]
+    fn escaped_tab_unescapes_to_actual_tab() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\\tb\"\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Stdout(e) if matches!(&e.matcher, OutputMatcher::Contains(s) if s == "a\tb")
+        ));
+    }
+
+    #[test]
+    fn escaped_quote_does_not_terminate_string() {
+        let src =
+            "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"say \\\"hi\\\"\"\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Stdout(e) if matches!(&e.matcher, OutputMatcher::Contains(s) if s == "say \"hi\"")
+        ));
+    }
+
+    #[test]
+    fn escaped_quote_in_case_name_does_not_terminate_string() {
+        let src = "case \"a \\\"b\\\" c\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n";
+        let script = parse(src).unwrap();
+        assert_eq!(script.cases[0].name, "a \"b\" c");
+    }
+
+    #[test]
+    fn raw_newline_in_string_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\nb\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn crlf_raw_newline_in_string_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\r\nb\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn bare_cr_in_string_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\rb\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn unclosed_string_literal_is_rejected() {
+        let src =
+            "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"never closed\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn undefined_escape_sequence_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\\xb\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn undefined_escape_r_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\\rb\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn undefined_unicode_escape_is_rejected() {
+        let src =
+            "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\\u{1245}b\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]

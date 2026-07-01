@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "name": "escaped quote is string content, not a terminator",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "printf 'say \"hi\"'"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "contains",
+                "value": "say \"hi\""
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

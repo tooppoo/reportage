@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "name": "escaped tab unescapes to actual tab",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "printf 'a\\tb' >&2"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "stderr",
+              "matcher": {
+                "kind": "contains",
+                "value": "a\tb"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

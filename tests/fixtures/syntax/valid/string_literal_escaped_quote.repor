@@ -1,0 +1,6 @@
+case "escaped quote is string content, not a terminator" {
+  $ printf 'say "hi"'
+  assert {
+    stdout contains "say \"hi\""
+  }
+}

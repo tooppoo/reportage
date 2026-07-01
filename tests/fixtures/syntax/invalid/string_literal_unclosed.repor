@@ -1,0 +1,3 @@
+case "x" {
+  $ true
+  assert { stdout contains "never closed }
