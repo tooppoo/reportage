@@ -1,5 +1,6 @@
 pub mod artifact;
 pub mod config;
+pub mod diagnostic;
 pub mod evaluator;
 pub mod executor;
 pub mod model;
