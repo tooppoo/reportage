@@ -1,0 +1,125 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "assertion.stderr.contains",
+  "category": "assertion",
+  "syntax": "stderr contains <string>",
+  "normative": {
+    "checkpointField": "stderr",
+    "operator": "contains",
+    "expectedValueType": "utf8String",
+    "matchSemantics": {
+      "comparison": "byteSubstring",
+      "caseSensitive": true,
+      "lineEndingNormalization": false,
+      "emptyExpectedAlwaysMatches": true
+    }
+  },
+  "conformanceCases": [
+    {
+      "description": "stderr contains the expected string",
+      "assertionSource": "stderr contains \"error\"",
+      "assertion": {
+        "subject": "stderr",
+        "operator": "contains",
+        "expected": "error"
+      },
+      "checkpoint": {
+        "exitCode": 1,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "ZXJyb3IK", "encoding": "base64", "text": "error\n" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "stderr does not contain the expected string",
+      "assertionSource": "stderr contains \"error\"",
+      "assertion": {
+        "subject": "stderr",
+        "operator": "contains",
+        "expected": "error"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail"
+    },
+    {
+      "description": "empty expected string always matches any stderr",
+      "assertionSource": "stderr contains \"\"",
+      "assertion": {
+        "subject": "stderr",
+        "operator": "contains",
+        "expected": ""
+      },
+      "checkpoint": {
+        "exitCode": 1,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "ZXJyb3IK", "encoding": "base64", "text": "error\n" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "empty expected string matches empty stderr",
+      "assertionSource": "stderr contains \"\"",
+      "assertion": {
+        "subject": "stderr",
+        "operator": "contains",
+        "expected": ""
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "match is case-sensitive; uppercase does not match lowercase expected",
+      "assertionSource": "stderr contains \"error\"",
+      "assertion": {
+        "subject": "stderr",
+        "operator": "contains",
+        "expected": "error"
+      },
+      "checkpoint": {
+        "exitCode": 1,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "RVJST1IK", "encoding": "base64", "text": "ERROR\n" }
+      },
+      "expectedResult": "fail"
+    },
+    {
+      "description": "match finds the expected string as a substring in the middle of stderr",
+      "assertionSource": "stderr contains \"rro\"",
+      "assertion": {
+        "subject": "stderr",
+        "operator": "contains",
+        "expected": "rro"
+      },
+      "checkpoint": {
+        "exitCode": 1,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "ZXJyb3IK", "encoding": "base64", "text": "error\n" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "line endings are not normalized; a CRLF expectation does not match LF-only stderr",
+      "assertionSource": "stderr contains \"a\r\n\"",
+      "assertion": {
+        "subject": "stderr",
+        "operator": "contains",
+        "expected": "a\r\n"
+      },
+      "checkpoint": {
+        "exitCode": 1,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "YQo=", "encoding": "base64", "text": "a\n" }
+      },
+      "expectedResult": "fail"
+    }
+  ]
+}

@@ -5,6 +5,9 @@ default:
 check:
   @just test lint fmt build
 
+semantic-specs-check:
+  cargo nextest run --locked --test semantic_specs
+
 lang-docs-gen:
   #!/usr/bin/env bash
   set -euo pipefail

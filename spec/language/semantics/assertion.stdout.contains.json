@@ -1,0 +1,125 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "assertion.stdout.contains",
+  "category": "assertion",
+  "syntax": "stdout contains <string>",
+  "normative": {
+    "checkpointField": "stdout",
+    "operator": "contains",
+    "expectedValueType": "utf8String",
+    "matchSemantics": {
+      "comparison": "byteSubstring",
+      "caseSensitive": true,
+      "lineEndingNormalization": false,
+      "emptyExpectedAlwaysMatches": true
+    }
+  },
+  "conformanceCases": [
+    {
+      "description": "stdout contains the expected string",
+      "assertionSource": "stdout contains \"hello\"",
+      "assertion": {
+        "subject": "stdout",
+        "operator": "contains",
+        "expected": "hello"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "aGVsbG8K", "encoding": "base64", "text": "hello\n" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "stdout does not contain the expected string",
+      "assertionSource": "stdout contains \"hello\"",
+      "assertion": {
+        "subject": "stdout",
+        "operator": "contains",
+        "expected": "hello"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "ZXJyb3IK", "encoding": "base64", "text": "error\n" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail"
+    },
+    {
+      "description": "empty expected string always matches any stdout",
+      "assertionSource": "stdout contains \"\"",
+      "assertion": {
+        "subject": "stdout",
+        "operator": "contains",
+        "expected": ""
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "aGVsbG8K", "encoding": "base64", "text": "hello\n" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "empty expected string matches empty stdout",
+      "assertionSource": "stdout contains \"\"",
+      "assertion": {
+        "subject": "stdout",
+        "operator": "contains",
+        "expected": ""
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "match is case-sensitive; uppercase does not match lowercase expected",
+      "assertionSource": "stdout contains \"hello\"",
+      "assertion": {
+        "subject": "stdout",
+        "operator": "contains",
+        "expected": "hello"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "SEVMTE8K", "encoding": "base64", "text": "HELLO\n" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail"
+    },
+    {
+      "description": "match finds the expected string as a substring in the middle of stdout",
+      "assertionSource": "stdout contains \"ell\"",
+      "assertion": {
+        "subject": "stdout",
+        "operator": "contains",
+        "expected": "ell"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "aGVsbG8K", "encoding": "base64", "text": "hello\n" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "line endings are not normalized; a CRLF expectation does not match LF-only stdout",
+      "assertionSource": "stdout contains \"a\r\n\"",
+      "assertion": {
+        "subject": "stdout",
+        "operator": "contains",
+        "expected": "a\r\n"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "YQo=", "encoding": "base64", "text": "a\n" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail"
+    }
+  ]
+}

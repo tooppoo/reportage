@@ -1,0 +1,92 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "assertion.exit.equals",
+  "category": "assertion",
+  "syntax": "exit <code>",
+  "normative": {
+    "checkpointField": "exitCode",
+    "operator": "equals",
+    "expectedValueType": "uint8",
+    "matchSemantics": {
+      "comparison": "exact"
+    }
+  },
+  "conformanceCases": [
+    {
+      "description": "exit code 0 matches expected 0",
+      "assertionSource": "exit 0",
+      "assertion": {
+        "subject": "exit",
+        "operator": "equals",
+        "expected": 0
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "exit code 1 matches expected 1",
+      "assertionSource": "exit 1",
+      "assertion": {
+        "subject": "exit",
+        "operator": "equals",
+        "expected": 1
+      },
+      "checkpoint": {
+        "exitCode": 1,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "exit code 1 does not match expected 0",
+      "assertionSource": "exit 0",
+      "assertion": {
+        "subject": "exit",
+        "operator": "equals",
+        "expected": 0
+      },
+      "checkpoint": {
+        "exitCode": 1,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail"
+    },
+    {
+      "description": "exit code 0 does not match expected 1",
+      "assertionSource": "exit 1",
+      "assertion": {
+        "subject": "exit",
+        "operator": "equals",
+        "expected": 1
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail"
+    },
+    {
+      "description": "non-zero exit code 42 matches expected 42",
+      "assertionSource": "exit 42",
+      "assertion": {
+        "subject": "exit",
+        "operator": "equals",
+        "expected": 42
+      },
+      "checkpoint": {
+        "exitCode": 42,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    }
+  ]
+}

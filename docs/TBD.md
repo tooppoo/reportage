@@ -4,6 +4,16 @@ This document records intentionally deferred features and design topics.
 
 Items listed here are not accepted v0 requirements unless another document explicitly promotes them into scope.
 
+## Semantic assertions
+
+### Encoding-aware assertions
+
+`stdout contains <string>` and `stderr contains <string>` perform byte-level substring matching in v0. The expected string literal is treated as UTF-8 bytes and matched against the raw output bytes without any encoding conversion.
+
+Assertions that decode output as a specific encoding before matching — for example, treating Shift-JIS output as Shift-JIS before comparing — are not in scope for v0. Supporting such encoding-aware assertions would require specifying which encoding to use, how to handle decode errors, and whether the expected value is also re-encoded for comparison.
+
+This is deferred. When it becomes concrete, it should be addressed in a separate issue that defines the encoding declaration syntax, the set of supported encodings, and the error model for invalid byte sequences.
+
 ## Command shim model
 
 ### Third-party shim validation

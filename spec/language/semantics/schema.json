@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tooppoo/reportage/spec/language/semantics/schema.json",
+  "title": "Reportage Semantic Spec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "id", "category", "syntax", "normative", "conformanceCases"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "./schema.json"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "id": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["assertion"]
+    },
+    "syntax": {
+      "type": "string"
+    },
+    "normative": {
+      "$ref": "#/$defs/NormativeFields"
+    },
+    "conformanceCases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/ConformanceCase"
+      }
+    }
+  },
+  "$defs": {
+    "NormativeFields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checkpointField", "operator", "expectedValueType", "matchSemantics"],
+      "properties": {
+        "checkpointField": {
+          "type": "string",
+          "enum": ["exitCode", "stdout", "stderr"]
+        },
+        "operator": {
+          "type": "string",
+          "enum": ["equals", "contains"]
+        },
+        "expectedValueType": {
+          "type": "string",
+          "enum": ["uint8", "utf8String"]
+        },
+        "matchSemantics": {
+          "$ref": "#/$defs/MatchSemantics"
+        }
+      }
+    },
+    "MatchSemantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["comparison"],
+      "properties": {
+        "comparison": {
+          "type": "string",
+          "enum": ["exact", "byteSubstring"]
+        },
+        "caseSensitive": {
+          "type": "boolean"
+        },
+        "lineEndingNormalization": {
+          "type": "boolean"
+        },
+        "emptyExpectedAlwaysMatches": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ConformanceCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["description", "assertionSource", "assertion", "checkpoint", "expectedResult"],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "assertionSource": {
+          "type": "string"
+        },
+        "assertion": {
+          "$ref": "#/$defs/Assertion"
+        },
+        "checkpoint": {
+          "$ref": "#/$defs/Checkpoint"
+        },
+        "expectedResult": {
+          "type": "string",
+          "enum": ["pass", "fail"]
+        }
+      }
+    },
+    "Assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject", "operator", "expected"],
+      "properties": {
+        "subject": {
+          "type": "string",
+          "enum": ["exit", "stdout", "stderr"]
+        },
+        "operator": {
+          "type": "string",
+          "enum": ["equals", "contains"]
+        },
+        "expected": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "integer" }
+          ]
+        }
+      }
+    },
+    "Checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exitCode", "stdout", "stderr"],
+      "properties": {
+        "exitCode": {
+          "type": "integer"
+        },
+        "stdout": {
+          "$ref": "#/$defs/StreamData"
+        },
+        "stderr": {
+          "$ref": "#/$defs/StreamData"
+        }
+      }
+    },
+    "StreamData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data", "encoding"],
+      "properties": {
+        "data": {
+          "type": "string"
+        },
+        "encoding": {
+          "type": "string",
+          "const": "base64"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
