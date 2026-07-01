@@ -26,7 +26,7 @@ Reportage's main assertion boundary is externally observable evidence: exit stat
 
 Reportage will not add expected command invocation contracts to the ordinary E2E assertion DSL.
 
-The following style of assertion is not a primary public scenario feature:
+The following style of assertion is not part of the ordinary public scenario DSL:
 
 ```reportage
 assert {
@@ -111,4 +111,4 @@ If such a feature is introduced, it should be explicitly separated from ordinary
 - [#49: action timeline evidence を設計する](https://github.com/tooppoo/reportage/issues/49)
 - [#50: evidence dependency map を設計する](https://github.com/tooppoo/reportage/issues/50)
 - [#51: 不採用案の理由をADRとして記録する](https://github.com/tooppoo/reportage/issues/51)
-- [Use shim-emitted events for shim invocation observability](./20260629T000000Z_use-shim-emitted-events-for-shim-invocation-observability.md)
+- [Use shim-emitted events for shim invocation observability](20260629T000000Z_use-shim-emitted-events-for-shim-invocation-observability.md)

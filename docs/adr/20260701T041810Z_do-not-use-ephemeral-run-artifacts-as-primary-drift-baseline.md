@@ -31,7 +31,7 @@ Because these artifacts are not normally git-managed, they are weak as durable p
 
 Reportage will not adopt standalone evidence drift detection based on arbitrary ephemeral run artifacts as a primary feature.
 
-Evidence drift must be treated, by default, as drift from an explicitly approved evidence baseline:
+Evidence drift is treated, by default, as drift from an explicitly approved evidence baseline:
 
 ```text
 current observed evidence
