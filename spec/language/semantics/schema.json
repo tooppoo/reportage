@@ -4,8 +4,12 @@
   "title": "Reportage Semantic Spec",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "id", "category", "syntax", "normative", "conformanceCases"],
+  "required": ["$schema", "schemaVersion", "id", "category", "syntax", "normative", "conformanceCases"],
   "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "./schema.json"
+    },
     "schemaVersion": {
       "type": "integer",
       "const": 1

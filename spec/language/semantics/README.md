@@ -1,4 +1,4 @@
-# Semantic Spec Conventions
+# Semantic Specs
 
 This document records the conventions used to write and identify semantic specs in `spec/language/semantics/`.
 
@@ -46,6 +46,7 @@ CI validation is performed by typed Rust deserialization in `crates/reportage-co
 
 Every semantic spec must include:
 
+- `$schema` — relative JSON Schema path; currently `"./schema.json"`.
 - `schemaVersion` — integer, currently `1`.
 - `id` — stable string identifier in `<category>.<subject>.<operator-or-form>` form.
 - `category` — enum value; currently `"assertion"`.

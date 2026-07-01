@@ -23,6 +23,8 @@ use std::path::PathBuf;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SemanticSpec {
+    #[serde(rename = "$schema")]
+    schema: String,
     #[serde(rename = "schemaVersion")]
     schema_version: u32,
     id: String,
@@ -214,7 +216,7 @@ fn byte_contains(haystack: &[u8], needle: &[u8]) -> bool {
 }
 
 /// Evaluate a conformance case's normalized `assertion` against its `checkpoint`
-/// using the v0 semantics documented in docs/language/spec-conventions.md.
+/// using the v0 semantics documented in spec/language/semantics/README.md.
 ///
 /// This reimplements the small v0 rule set (exit equals, byte-level substring
 /// contains) directly rather than invoking the production evaluator. It is a
@@ -267,6 +269,19 @@ fn all_semantic_spec_files_load_successfully() {
     // Loading without panic is the assertion; names are printed for context.
     for (path, spec) in &specs {
         println!("loaded: {} (id={})", path.display(), spec.id);
+    }
+}
+
+#[test]
+fn all_specs_reference_local_schema() {
+    for (path, spec) in load_spec_files() {
+        assert_eq!(
+            spec.schema,
+            "./schema.json",
+            "{}: expected $schema ./schema.json, got {}",
+            path.display(),
+            spec.schema
+        );
     }
 }
 
@@ -512,7 +527,7 @@ fn conformance_case_subjects_match_normative_checkpoint_field() {
 #[test]
 fn v0_required_spec_ids_are_all_present() {
     // These are the v0 initial semantic rules defined in Issue #29 and listed
-    // in docs/language/spec-conventions.md. Removing any of these files must
+    // in spec/language/semantics/README.md. Removing any of these files must
     // fail CI.
     const REQUIRED_IDS: &[&str] = &[
         "assertion.exit.equals",

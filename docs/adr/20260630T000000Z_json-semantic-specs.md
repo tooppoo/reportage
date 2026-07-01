@@ -34,6 +34,7 @@ KDL remains appropriate for user-authored configuration (`reportage.kdl`) where 
 ### Schema validation via typed Rust loading
 
 A JSON Schema file (`spec/language/semantics/schema.json`) is maintained for external tooling and editor support.
+Each semantic spec declares that schema with `"$schema": "./schema.json"` so editors and validators can discover the local contract from the spec file itself.
 
 CI validation is performed by Rust tests in `crates/reportage-core/tests/semantic_specs.rs`. Those tests deserialise each spec file into typed Rust structs marked `#[serde(deny_unknown_fields)]`. Unknown fields cause a deserialisation error; missing required fields cause a type mismatch. This approach combines schema validation with typed loading in a single step and integrates directly with the existing `cargo nextest` pipeline.
 
