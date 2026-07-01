@@ -62,9 +62,9 @@ impl std::error::Error for ParseError {}
 impl ParseError {
     /// The stable, machine-readable diagnostic code for this error.
     ///
-    /// This is independent of the enum variant name: tests and tooling must
-    /// depend on this code (or its string form) rather than on `Display`
-    /// output or `matches!` against variants. See docs/diagnostics.md.
+    /// This is independent of the enum variant name: downstream tests and tooling should
+    /// depend on this code (or its string form) rather than on `Display` output.
+    /// See docs/diagnostics.md.
     pub const fn code(&self) -> DiagnosticCode {
         match self {
             ParseError::Syntax { .. } => DiagnosticCode::ParseSyntax,
