@@ -33,3 +33,12 @@ cargo test -p reportage-core --test syntax_conformance
 Review the JSON diff before committing. Field order is defined by the snapshot
 intermediate representation, and files are written with stable pretty JSON plus
 a trailing newline so ordinary line-oriented diffs remain readable.
+
+## Diagnostic codes
+
+`invalid_syntax_fixtures_are_rejected` also asserts the stable diagnostic
+code (`ParseError::code()`) for fixtures where Reportage produces a
+fine-grained code beyond the generic `parse.syntax` wrapper. Not every
+invalid fixture needs an individual code assertion — see
+[`diagnostics.md`](diagnostics.md) for the naming convention and
+compatibility policy.

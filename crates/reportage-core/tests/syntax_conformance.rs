@@ -395,17 +395,26 @@ fn invalid_syntax_fixtures_are_rejected() {
         match fixture_stem(&path) {
             "empty_action" | "whitespace_only_action" => {
                 assert!(matches!(err, ParseError::EmptyAction { .. }));
+                assert_eq!(err.code().as_str(), "parse.empty_action");
             }
             "empty_case_block" => {
                 assert!(matches!(err, ParseError::EmptyCase { .. }));
+                assert_eq!(err.code().as_str(), "parse.empty_case");
             }
             "case_without_assertion_block" => {
                 assert!(matches!(err, ParseError::MissingAssertionBlock { .. }));
+                assert_eq!(err.code().as_str(), "parse.missing_assertion_block");
             }
             "exit_code_out_of_range" => {
                 assert!(matches!(err, ParseError::InvalidExitCode { .. }));
+                assert_eq!(err.code().as_str(), "parse.invalid_exit_code");
             }
-            _ => {}
+            // Remaining fixtures are rejected as plain pest syntax errors;
+            // they share the coarse-grained "parse.syntax" code and are not
+            // asserted individually here. See docs/diagnostics.md.
+            _ => {
+                assert_eq!(err.code().as_str(), "parse.syntax");
+            }
         }
     }
 }

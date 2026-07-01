@@ -1,6 +1,7 @@
 use pest::Parser;
 use pest_derive::Parser;
 
+use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, DiagnosticLocation};
 use crate::model::{
     ActionStep, AssertionBlock, Case, ExitExpectation, Expectation, OutputExpectation,
     OutputMatcher, Script, Step,
@@ -57,6 +58,89 @@ impl std::fmt::Display for ParseError {
 }
 
 impl std::error::Error for ParseError {}
+
+impl ParseError {
+    /// The stable, machine-readable diagnostic code for this error.
+    ///
+    /// This is independent of the enum variant name: downstream tests and tooling should
+    /// depend on this code (or its string form) rather than on `Display` output.
+    /// See docs/diagnostics.md.
+    pub const fn code(&self) -> DiagnosticCode {
+        match self {
+            ParseError::Syntax { .. } => DiagnosticCode::ParseSyntax,
+            ParseError::EmptyCase { .. } => DiagnosticCode::ParseEmptyCase,
+            ParseError::MissingAssertionBlock { .. } => DiagnosticCode::ParseMissingAssertionBlock,
+            ParseError::EmptyAction { .. } => DiagnosticCode::ParseEmptyAction,
+            ParseError::InvalidExitCode { .. } => DiagnosticCode::ParseInvalidExitCode,
+        }
+    }
+
+    /// Converts this error into the struct-based diagnostic model, separating
+    /// the stable `code` from the improvable `message`, `location`, and the
+    /// weaker-stability `details`.
+    pub fn to_diagnostic(&self) -> Diagnostic {
+        let (location, details) = match self {
+            ParseError::Syntax {
+                line,
+                column,
+                message,
+            } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: Some(*column),
+                }),
+                DiagnosticDetails {
+                    pest_message: Some(message.clone()),
+                    raw_value: None,
+                },
+            ),
+            ParseError::EmptyCase { line, name } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails {
+                    pest_message: None,
+                    raw_value: Some(name.clone()),
+                },
+            ),
+            ParseError::MissingAssertionBlock { line, name } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails {
+                    pest_message: None,
+                    raw_value: Some(name.clone()),
+                },
+            ),
+            ParseError::EmptyAction { line } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails::default(),
+            ),
+            ParseError::InvalidExitCode { line, value } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails {
+                    pest_message: None,
+                    raw_value: Some(value.clone()),
+                },
+            ),
+        };
+
+        Diagnostic {
+            code: self.code(),
+            message: self.to_string(),
+            location,
+            details,
+        }
+    }
+}
 
 pub fn parse(source: &str) -> Result<Script, ParseError> {
     let pairs = ReportageParser::parse(Rule::script, source).map_err(|e| {
@@ -589,5 +673,91 @@ case "x" {
         // Trailing spaces on case opener, steps, assertion body, and closers.
         let src = "case \"x\" {   \n  $ true   \n  assert {   \n    exit 0   \n  }   \n}   \n";
         assert!(parse(src).is_ok());
+    }
+
+    // Diagnostic codes are the stable, external identifier of a ParseError.
+    // These tests pin the string form directly, independent of the enum
+    // variant name and of Display message text. See docs/diagnostics.md.
+    #[test]
+    fn syntax_error_has_stable_code() {
+        let err = parse("$ true\n").unwrap_err();
+        assert_eq!(err.code().as_str(), "parse.syntax");
+
+        let diagnostic = err.to_diagnostic();
+        assert_eq!(diagnostic.code.as_str(), "parse.syntax");
+        assert!(diagnostic.details.pest_message.is_some());
+    }
+
+    #[test]
+    fn empty_case_has_stable_code() {
+        let src = "case \"x\" {\n}\n";
+        let err = parse(src).unwrap_err();
+        assert_eq!(err.code().as_str(), "parse.empty_case");
+
+        let diagnostic = err.to_diagnostic();
+        assert_eq!(diagnostic.code.as_str(), "parse.empty_case");
+        assert_eq!(diagnostic.details.raw_value.as_deref(), Some("x"));
+    }
+
+    #[test]
+    fn missing_assertion_block_has_stable_code() {
+        let src = "case \"x\" {\n  $ true\n}\n";
+        let err = parse(src).unwrap_err();
+        assert_eq!(err.code().as_str(), "parse.missing_assertion_block");
+
+        let diagnostic = err.to_diagnostic();
+        assert_eq!(diagnostic.code.as_str(), "parse.missing_assertion_block");
+        assert_eq!(diagnostic.details.raw_value.as_deref(), Some("x"));
+    }
+
+    #[test]
+    fn empty_action_has_stable_code() {
+        let src = "case \"x\" {\n  $\n  assert {\n    exit 0\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert_eq!(err.code().as_str(), "parse.empty_action");
+
+        let diagnostic = err.to_diagnostic();
+        assert_eq!(diagnostic.code.as_str(), "parse.empty_action");
+        assert_eq!(diagnostic.details, DiagnosticDetails::default());
+    }
+
+    #[test]
+    fn invalid_exit_code_has_stable_code() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    exit 999
+  }
+}
+"#;
+        let err = parse(src).unwrap_err();
+        assert_eq!(err.code().as_str(), "parse.invalid_exit_code");
+
+        let diagnostic = err.to_diagnostic();
+        assert_eq!(diagnostic.code.as_str(), "parse.invalid_exit_code");
+        assert_eq!(diagnostic.details.raw_value.as_deref(), Some("999"));
+    }
+
+    #[test]
+    fn to_diagnostic_separates_code_message_and_location() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    exit 999
+  }
+}
+"#;
+        let err = parse(src).unwrap_err();
+        let diagnostic = err.to_diagnostic();
+
+        assert_eq!(diagnostic.code.as_str(), "parse.invalid_exit_code");
+        assert_eq!(diagnostic.message, err.to_string());
+        assert_eq!(
+            diagnostic.location.expect("location must be present").line,
+            5
+        );
+        assert_eq!(diagnostic.details.raw_value.as_deref(), Some("999"));
     }
 }
