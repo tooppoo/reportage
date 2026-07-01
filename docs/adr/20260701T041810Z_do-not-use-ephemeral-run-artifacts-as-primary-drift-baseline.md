@@ -1,11 +1,9 @@
-# Do not use ephemeral run artifacts as the primary drift baseline
+# Use ephemeral run artifacts as the primary drift baseline
 
 - Status: Rejected
 - Created: 2026-07-01T04:18:10Z
 
 ## Context
-
-Reportage generates run artifacts for each run and each case. These artifacts are useful as evidence, diagnostics, and reproduction material, but ordinary run artifacts are expected to be ephemeral and git-ignored by default.
 
 One considered option was to add evidence drift detection as a standalone feature that compares evidence from an arbitrary previous run with evidence from the current run.
 
@@ -14,6 +12,8 @@ previous run evidence
 vs
 current run evidence
 ```
+
+Reportage generates run artifacts for each run and each case. These artifacts are useful as evidence, diagnostics, and reproduction material, but ordinary run artifacts are expected to be ephemeral and git-ignored by default.
 
 This option is aligned with Reportage's evidence-first direction at a conceptual level. It could detect changes in observed evidence even when ordinary assertions still pass.
 
