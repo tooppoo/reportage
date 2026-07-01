@@ -16,6 +16,12 @@ use std::fmt;
 /// Codes use a dot-separated `<domain>.<reason>` namespace, e.g.
 /// `parse.invalid_exit_code`. Renaming or removing an existing code is a
 /// breaking change; adding a new code is not.
+///
+/// Marked `#[non_exhaustive]` so that adding a new code does not break
+/// downstream `match` expressions that would otherwise have to be
+/// exhaustive over every variant. Downstream code must include a wildcard
+/// (`_`) arm when matching.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DiagnosticCode {
     /// A pest grammar syntax error, wrapped without a more specific code.
@@ -68,6 +74,12 @@ pub struct DiagnosticLocation {
 /// guarantee. In particular, pest-derived message text and expected-token
 /// summaries are grammar-dependent and must not be treated as a stable API by
 /// tests or tooling; depend on `code` instead.
+///
+/// Marked `#[non_exhaustive]` so that adding a new field does not break
+/// downstream struct-literal construction or exhaustive field patterns.
+/// Downstream code should build one via `DiagnosticDetails::default()` and
+/// read fields individually rather than matching on the full field set.
+#[non_exhaustive]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DiagnosticDetails {
     /// Raw message text from the pest grammar error, when the diagnostic
@@ -83,6 +95,12 @@ pub struct DiagnosticDetails {
 /// `code` is the stable identifier. `message` is a human-facing string that
 /// may be improved over time without being a breaking change. `location` and
 /// `details` provide position and auxiliary context respectively.
+///
+/// Marked `#[non_exhaustive]` for the same reason as [`DiagnosticCode`] and
+/// [`DiagnosticDetails`]: it keeps future field additions to the diagnostic
+/// model itself from being a breaking change for downstream construction or
+/// exhaustive matching.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Diagnostic {
     pub code: DiagnosticCode,

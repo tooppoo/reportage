@@ -141,6 +141,20 @@ v0 does not commit to a strict semver policy for diagnostic codes. If an
 existing code must be renamed or removed, record the reason in an issue
 comment or ADR at the time of the change.
 
+### Why `#[non_exhaustive]`
+
+`DiagnosticCode`, `DiagnosticDetails`, and `Diagnostic` are all
+`#[non_exhaustive]`. Without it, an exhaustive Rust enum or struct is itself
+a breaking-change trap: downstream code that writes an exhaustive `match`
+over every `DiagnosticCode` variant, or a struct literal / exhaustive field
+pattern over every `DiagnosticDetails` field, would fail to compile the
+moment Reportage adds a new code or a new details field — even though this
+document classifies both as non-breaking. `#[non_exhaustive]` forces
+downstream `match` expressions to include a wildcard (`_`) arm and forces
+struct construction to go through `Default::default()` (then set individual
+fields) rather than a full struct literal, so additive changes stay
+additive for consumers too.
+
 ## Pest-Derived Errors
 
 Pest error message text and expected-token summaries are not a stable API.

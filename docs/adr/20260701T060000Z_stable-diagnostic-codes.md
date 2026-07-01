@@ -79,6 +79,15 @@ are grammar-dependent and must not be a test's primary dependency.
 `to_diagnostic()`, converting to the full `Diagnostic` struct. Both let
 callers depend on stable identity instead of parsing `Display` text.
 
+`DiagnosticCode`, `DiagnosticDetails`, and `Diagnostic` are declared
+`#[non_exhaustive]`. An exhaustive public enum or struct would make "adding
+a code" or "adding a details field" a breaking change in practice, even
+though this ADR classifies both as non-breaking: downstream code could write
+an exhaustive `match` over `DiagnosticCode`, or a full struct literal /
+exhaustive field pattern over `DiagnosticDetails`, either of which stops
+compiling the moment a variant or field is added. `#[non_exhaustive]` keeps
+the stated compatibility policy true in practice, not just on paper.
+
 ### Compatibility policy
 
 - Renaming or removing an existing code is a breaking change.
@@ -137,6 +146,12 @@ a second migration later.
 - Diagnostic codes become a second thing (alongside the enum variant) that
   must be kept in sync when `ParseError` changes, which is small ongoing
   maintenance overhead.
+- `#[non_exhaustive]` on `DiagnosticDetails` means external construction goes
+  through `DiagnosticDetails::default()` plus individual field assignment
+  rather than a single struct literal, which is slightly more verbose for
+  callers that want to build one from scratch (expected to be rare, since
+  `DiagnosticDetails` is normally produced by `ParseError::to_diagnostic()`,
+  not hand-built by consumers).
 
 ### Neutral Consequences
 
