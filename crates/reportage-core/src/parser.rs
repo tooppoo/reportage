@@ -754,6 +754,13 @@ case "x" {
         let src = "case \"a \\\"b\\\" c\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n";
         let script = parse(src).unwrap();
         assert_eq!(script.cases[0].name, "a \"b\" c");
+
+        let err = parse("case \"a\\\\xb\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n")
+            .unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+
+        let err = parse("case \"a\nb\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n").unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
