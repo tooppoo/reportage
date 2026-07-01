@@ -1,4 +1,4 @@
-# Do not add command invocation contracts to the E2E assertion DSL
+# Add command invocation contracts to the E2E assertion DSL
 
 - Status: Rejected
 - Created: 2026-07-01T04:18:11Z
