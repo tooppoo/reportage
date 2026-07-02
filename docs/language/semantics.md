@@ -6,7 +6,7 @@ This file is generated from `spec/language/semantics/*.json`. The JSON specs are
 
 The conformance case lists below are read-only views derived from the JSON specs. Change the JSON specs, then regenerate this file.
 
-Semantic conformance verifies the expected pass/fail result by passing the normalized assertion representation and checkpoint data from each JSON case to the semantic evaluator. Parser/source consistency is checked separately. Expected diagnostic code checks are optional until the diagnostic code contract is defined; cases without diagnostic codes are verified by pass/fail result only.
+Semantic conformance verifies the expected pass/fail result by passing the normalized assertion representation and checkpoint data from each JSON case to the semantic evaluator. Parser/source consistency is checked separately. The diagnostic code contract is defined in [`semantic-diagnostics.md`](../semantic-diagnostics.md); expected diagnostic code checks remain optional until semantic conformance enables code verification. Cases without diagnostic codes are verified by pass/fail result only.
 
 ## assertion.exit.equals
 

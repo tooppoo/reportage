@@ -42,7 +42,7 @@ Example: `spec/language/semantics/assertion.exit.equals.json`.
 
 CI validation is performed by typed Rust deserialization in `crates/reportage-core/tests/semantic_specs.rs`. Each spec file is deserialised into Rust structs marked with `#[serde(deny_unknown_fields)]`, which rejects unknown fields and enforces required fields and enum constraints. The same test module runs every conformance case against the production semantic evaluator by converting the normalised assertion representation and checkpoint data into evaluator inputs. Parser/source consistency is checked separately and is not the primary purpose of semantic conformance.
 
-Expected diagnostic code checks are intentionally optional until the diagnostic code contract is fully defined. If future case data carries an expected diagnostic code before that contract is available, semantic conformance may ignore it and verify only the pass/fail result.
+The diagnostic code contract is defined in [`docs/semantic-diagnostics.md`](../../../docs/semantic-diagnostics.md). Expected diagnostic code checks remain optional: cases that carry an `expectedDiagnosticCode` can have that code verified once semantic conformance enables code verification (a follow-up to #41); cases without one are verified by pass/fail result only.
 
 The generated human-readable semantic documentation lives at `docs/language/semantics.md`. The entire file is generated from these JSON specs and must not be edited directly. Run `just semantic-docs-gen` to regenerate it and `just semantic-docs-check` to verify that the checked-in copy is fresh.
 
@@ -88,7 +88,7 @@ Each conformance case provides enough static data to run the semantic evaluator 
 - `assertion` — the normalised assertion representation: `subject`, `operator`, and `expected`.
 - `checkpoint` — static checkpoint data used as input to the semantic evaluator.
 - `expectedResult` — either `"pass"` or `"fail"`.
-- `expectedDiagnosticCode` — optional diagnostic code for future diagnostic-code conformance. Until that contract is defined, CI may ignore this field and verify only `expectedResult`.
+- `expectedDiagnosticCode` — optional diagnostic code string for diagnostic-code conformance. The value must be a dot-separated diagnostic code as defined in [`docs/semantic-diagnostics.md`](../../../docs/semantic-diagnostics.md) (e.g. `assertion.stdout.contains_mismatch`). Until semantic conformance enables code verification, CI may ignore this field and verify only `expectedResult`.
 
 ### Checkpoint bytes representation
 
