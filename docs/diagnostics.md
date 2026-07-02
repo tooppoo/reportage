@@ -37,9 +37,10 @@ Examples:
 - `parse.invalid_exit_code`
 
 `parse.*` covers pest grammar syntax errors and parse-domain validation
-errors raised while constructing the AST. A future `semantic.*` namespace is
-reserved for semantic validation diagnostics; this document does not define
-that namespace.
+errors raised while constructing the AST. The `semantic.*` and `assertion.*`
+namespaces cover the semantic evaluator side and are defined in
+[`semantic-diagnostics.md`](semantic-diagnostics.md); this document does not
+define them.
 
 A diagnostic code is **not** the same thing as the Rust error enum variant
 name that produces it. Internal enum variants (e.g. `ParseError::EmptyCase`)

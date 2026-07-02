@@ -132,7 +132,7 @@ fn render_docs(specs: &[(PathBuf, SemanticSpec)]) -> String {
     out.push_str("<!-- GENERATED FILE: do not edit directly. Regenerate with `just semantic-docs-gen`. -->\n\n");
     out.push_str("This file is generated from `spec/language/semantics/*.json`. The JSON specs are the machine-readable source of truth for v0 semantic documentation and semantic conformance cases.\n\n");
     out.push_str("The conformance case lists below are read-only views derived from the JSON specs. Change the JSON specs, then regenerate this file.\n\n");
-    out.push_str("Semantic conformance verifies the expected pass/fail result by passing the normalized assertion representation and checkpoint data from each JSON case to the semantic evaluator. Parser/source consistency is checked separately. Expected diagnostic code checks are optional until the diagnostic code contract is defined; cases without diagnostic codes are verified by pass/fail result only.\n\n");
+    out.push_str("Semantic conformance verifies the expected pass/fail result by passing the normalized assertion representation and checkpoint data from each JSON case to the semantic evaluator. Parser/source consistency is checked separately. The diagnostic code contract is defined in [`semantic-diagnostics.md`](../semantic-diagnostics.md); expected diagnostic code checks remain optional until semantic conformance enables code verification. Cases without diagnostic codes are verified by pass/fail result only.\n\n");
 
     for (path, spec) in specs {
         let relative = path
