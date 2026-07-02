@@ -1,17 +1,22 @@
 //! Semantic spec schema validation.
 //!
 //! Loads every `spec/language/semantics/*.json` file, deserialises it into
-//! typed Rust structs (with `deny_unknown_fields`), and checks fixture
-//! consistency invariants. This is the CI-integrated validation gate that
-//! ensures semantic spec files conform to the expected schema.
+//! typed Rust structs (with `deny_unknown_fields`), checks fixture consistency
+//! invariants, and runs every conformance case against the production semantic
+//! evaluator. This is the CI-integrated validation gate that ensures semantic
+//! spec files conform to the expected schema and remain executable.
 
 // Serde-populated struct fields are not "used" in the conventional sense;
 // their value comes from deserialisation rather than direct assignment.
 #![allow(dead_code)]
 
 use base64::Engine as _;
-use reportage_core::model::{Expectation, OutputMatcher, Step};
+use reportage_core::evaluator::{
+    Checkpoint as EvaluatorCheckpoint, WorkspaceState, evaluate_expectation_at_checkpoint,
+};
+use reportage_core::model::{ExitExpectation, Expectation, OutputExpectation, OutputMatcher, Step};
 use reportage_core::parser::parse;
+use reportage_core::result::ActionResult;
 use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
@@ -104,6 +109,8 @@ struct ConformanceCase {
     checkpoint: Checkpoint,
     #[serde(rename = "expectedResult")]
     expected_result: ExpectedResult,
+    #[serde(rename = "expectedDiagnosticCode")]
+    expected_diagnostic_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -205,52 +212,80 @@ fn decode_base64_stream(stream: &StreamData) -> Vec<u8> {
         .unwrap_or_else(|e| panic!("invalid base64 in stream data '{}': {}", stream.data, e))
 }
 
-/// Byte-level substring match matching the v0 `contains` semantics: an empty
-/// needle always matches; otherwise a raw byte-window search with no
-/// normalization.
-fn byte_contains(haystack: &[u8], needle: &[u8]) -> bool {
-    if needle.is_empty() {
-        return true;
-    }
-    haystack.windows(needle.len()).any(|w| w == needle)
+fn decode_action_stream(stream: &StreamData) -> String {
+    String::from_utf8_lossy(&decode_base64_stream(stream)).into_owned()
 }
 
-/// Evaluate a conformance case's normalized `assertion` against its `checkpoint`
-/// using the v0 semantics documented in spec/language/semantics/README.md.
-///
-/// This reimplements the small v0 rule set (exit equals, byte-level substring
-/// contains) directly rather than invoking the production evaluator. It is a
-/// fixture-consistency check that the static `expectedResult` agrees with the
-/// documented semantics; running conformance cases against the real semantic
-/// evaluator is out of scope for #29 and belongs to #30.
-fn evaluate_case_semantics(case: &ConformanceCase) -> ExpectedResult {
-    let passed = match case.assertion.subject {
+fn checkpoint_for_case(case: &ConformanceCase) -> EvaluatorCheckpoint {
+    EvaluatorCheckpoint {
+        workspace: WorkspaceState,
+        last_action: Some(ActionResult {
+            command: "<semantic conformance checkpoint>".to_string(),
+            exit_code: case.checkpoint.exit_code,
+            stdout: decode_action_stream(&case.checkpoint.stdout),
+            stderr: decode_action_stream(&case.checkpoint.stderr),
+            shim_invocations: vec![],
+            shim_event_parse_warnings: vec![],
+        }),
+    }
+}
+
+fn expectation_from_normalized_assertion(case: &ConformanceCase) -> Expectation {
+    match case.assertion.subject {
         AssertionSubject::Exit => {
+            assert_eq!(
+                case.assertion.operator,
+                Operator::Equals,
+                "case '{}': exit assertions must use equals",
+                case.description
+            );
             let expected = case
                 .assertion
                 .expected
-                .as_i64()
-                .expect("exit expected must be an integer");
-            i64::from(case.checkpoint.exit_code) == expected
+                .as_u64()
+                .or_else(|| {
+                    case.assertion
+                        .expected
+                        .as_i64()
+                        .filter(|&v| v >= 0)
+                        .map(|v| v as u64)
+                })
+                .expect("exit expected must be a non-negative integer");
+            let expected = u8::try_from(expected).expect("exit expected must fit in u8");
+            Expectation::Exit(ExitExpectation { expected })
         }
-        AssertionSubject::Stdout | AssertionSubject::Stderr => {
-            let stream = match case.assertion.subject {
-                AssertionSubject::Stdout => &case.checkpoint.stdout,
-                _ => &case.checkpoint.stderr,
-            };
-            let haystack = decode_base64_stream(stream);
-            let needle = case
+        AssertionSubject::Stdout => {
+            assert_eq!(
+                case.assertion.operator,
+                Operator::Contains,
+                "case '{}': stdout assertions must use contains",
+                case.description
+            );
+            let expected = case
                 .assertion
                 .expected
                 .as_str()
-                .expect("stdout/stderr expected must be a string");
-            byte_contains(&haystack, needle.as_bytes())
+                .expect("stdout expected must be a string");
+            Expectation::Stdout(OutputExpectation {
+                matcher: OutputMatcher::Contains(expected.to_string()),
+            })
         }
-    };
-    if passed {
-        ExpectedResult::Pass
-    } else {
-        ExpectedResult::Fail
+        AssertionSubject::Stderr => {
+            assert_eq!(
+                case.assertion.operator,
+                Operator::Contains,
+                "case '{}': stderr assertions must use contains",
+                case.description
+            );
+            let expected = case
+                .assertion
+                .expected
+                .as_str()
+                .expect("stderr expected must be a string");
+            Expectation::Stderr(OutputExpectation {
+                matcher: OutputMatcher::Contains(expected.to_string()),
+            })
+        }
     }
 }
 
@@ -757,15 +792,26 @@ fn initial_v0_rules_have_expected_normative_fields() {
 
 #[test]
 fn conformance_case_expected_result_matches_v0_semantics() {
-    // The static expectedResult must agree with evaluating the normalized
-    // assertion against the checkpoint under the documented v0 semantics.
+    // #30: the normalized assertion representation and checkpoint data from the
+    // JSON semantic specs are fed directly to the production semantic evaluator.
+    // Parser/source consistency is checked separately above and is not the
+    // primary purpose of semantic conformance. Until #41 defines the diagnostic
+    // code contract, optional expectedDiagnosticCode fields are accepted by the
+    // schema but ignored here.
     for (path, spec) in load_spec_files() {
         for (i, case) in spec.conformance_cases.iter().enumerate() {
-            let computed = evaluate_case_semantics(case);
+            let expectation = expectation_from_normalized_assertion(case);
+            let checkpoint = checkpoint_for_case(case);
+            let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint);
+            let computed = if result.passed {
+                ExpectedResult::Pass
+            } else {
+                ExpectedResult::Fail
+            };
             assert_eq!(
                 computed,
                 case.expected_result,
-                "{} case[{}] ({}): computed result {:?} does not match declared expectedResult {:?}",
+                "{} case[{}] ({}): evaluator result {:?} does not match declared expectedResult {:?}",
                 path.display(),
                 i,
                 case.description,
