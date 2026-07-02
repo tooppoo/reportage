@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "name": "comment only line in case block",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

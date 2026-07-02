@@ -1,0 +1,7 @@
+case "x" // comment splits the case header before the opening brace
+{
+  $ true
+  assert {
+    exit 0
+  }
+}

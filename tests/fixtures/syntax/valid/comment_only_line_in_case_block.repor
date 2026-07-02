@@ -1,0 +1,7 @@
+case "comment only line in case block" {
+  // a standalone comment inside the case block
+  $ true
+  assert {
+    exit 0
+  }
+}

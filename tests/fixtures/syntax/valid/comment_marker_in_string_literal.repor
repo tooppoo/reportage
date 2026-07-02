@@ -1,0 +1,6 @@
+case "comment marker in string literal" {
+  $ echo "https://example.com"
+  assert {
+    stdout contains "https://example.com" // trailing comment after a string containing //
+  }
+}

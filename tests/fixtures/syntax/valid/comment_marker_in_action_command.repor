@@ -1,0 +1,6 @@
+case "comment marker in action command" {
+  $ echo hello // passed to shell
+  assert {
+    exit 0
+  }
+}

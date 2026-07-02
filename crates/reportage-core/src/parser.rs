@@ -835,6 +835,130 @@ case "x" {
         assert!(parse(src).is_ok());
     }
 
+    // See #32 / docs/adr/20260702T032458Z_line-and-inline-comments.md.
+    #[test]
+    fn line_comment_before_case_block_is_ignored() {
+        let src = "// leading comment\ncase \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        assert_eq!(script.cases.len(), 1);
+    }
+
+    #[test]
+    fn comment_only_line_inside_case_block_is_ignored() {
+        let src = "case \"x\" {\n  // comment\n  $ true\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        assert_eq!(script.cases[0].steps.len(), 2);
+    }
+
+    #[test]
+    fn comment_only_line_inside_assertion_block_is_ignored() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    // comment\n    exit 0\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert_eq!(block.expectations().len(), 1);
+    }
+
+    #[test]
+    fn inline_comment_after_case_and_assertion_block_boundaries_is_ignored() {
+        let src = r#"
+case "x" { // case open
+  assert { // assert open
+    exit 0 // expectation
+  } // assert close
+} // case close
+"#;
+        let script = parse(src).unwrap();
+        assert_eq!(script.cases[0].steps.len(), 1);
+    }
+
+    #[test]
+    fn inline_comment_after_single_line_assertion_block_is_ignored() {
+        let src = "case \"x\" {\n  $ true\n  assert { exit 0 } // trailing\n}\n";
+        assert!(parse(src).is_ok());
+    }
+
+    #[test]
+    fn double_slash_in_string_literal_is_not_treated_as_comment() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"https://example.com\"\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Stdout(e) if matches!(&e.matcher, OutputMatcher::Contains(s) if s == "https://example.com")
+        ));
+    }
+
+    #[test]
+    fn double_slash_in_action_command_is_preserved_as_command_text() {
+        let src = "case \"x\" {\n  $ echo hello // passed to shell\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::Action(action) = &script.cases[0].steps[0] else {
+            panic!("expected Action step");
+        };
+        assert_eq!(action.command, "echo hello // passed to shell");
+    }
+
+    #[test]
+    fn comment_presence_does_not_change_ast_shape() {
+        let with_comments = r#"
+// leading comment
+case "x" { // case open
+  // standalone comment
+  $ true
+  assert { // assert open
+    // standalone comment
+    exit 0 // expectation
+  } // assert close
+} // case close
+"#;
+        let without_comments = r#"
+case "x" {
+  $ true
+  assert {
+    exit 0
+  }
+}
+"#;
+        let with = parse(with_comments).unwrap();
+        let without = parse(without_comments).unwrap();
+        assert_eq!(format!("{with:?}"), format!("{without:?}"));
+    }
+
+    #[test]
+    fn comment_splitting_case_header_before_open_brace_is_error() {
+        let src = "case \"x\" // comment\n{\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn comment_swallowing_single_line_assertion_close_brace_is_error() {
+        let src = "case \"x\" {\n  $ true\n  assert { exit 0 // comment\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn comment_splitting_expectation_tokens_is_error() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    exit // comment\n    0\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    // A comment-only assertion block has no real expectation and must be
+    // rejected the same way an empty assertion block is, not accepted with
+    // an empty expectations list (which would panic in parse_assertion_block).
+    #[test]
+    fn comment_only_assertion_block_is_error() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    // comment only\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
     // Diagnostic codes are the stable, external identifier of a ParseError.
     // These tests pin the string form directly, independent of the enum
     // variant name and of Display message text. See docs/diagnostics.md.

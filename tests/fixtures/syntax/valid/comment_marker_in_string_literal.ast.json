@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "name": "comment marker in string literal",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "echo \"https://example.com\""
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "contains",
+                "value": "https://example.com"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

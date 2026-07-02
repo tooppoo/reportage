@@ -1,0 +1,6 @@
+case "comment after expectation" {
+  $ true
+  assert {
+    exit 0 // trailing comment on the expectation line
+  }
+}
