@@ -1,0 +1,7 @@
+// a top-level comment before the case block
+case "comment before case block" {
+  $ true
+  assert {
+    exit 0
+  }
+}

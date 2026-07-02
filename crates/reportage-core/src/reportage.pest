@@ -10,20 +10,28 @@
 ws         = _{ " " | "\t" }
 nl         = _{ "\r\n" | "\n" }
 blank_line = _{ ws* ~ nl }
-// Trailing whitespace before a newline or end of file.
-// Used wherever a line ending may carry incidental trailing spaces.
-trail      = _{ ws* ~ (nl | EOI) }
+// Comment marker `//` to end of line. Discarded at parse time; never appears
+// in the AST. Only spliced in at specific "end of logical line" and "whole
+// line" positions below (via `trail` and `comment_line`) — never as generic
+// inter-token filler — so it cannot split a token sequence (e.g. between a
+// case name and `{`) or swallow a closing brace on the same line.
+comment      = _{ "//" ~ (!nl ~ ANY)* }
+comment_line = _{ ws* ~ comment ~ (nl | EOI) }
+// Trailing whitespace, and an optional trailing comment, before a newline or
+// end of file. Used wherever a line ending may carry incidental trailing
+// spaces or an inline comment.
+trail        = _{ ws* ~ comment? ~ (nl | EOI) }
 
 // ─── Script ───────────────────────────────────────────────────────────────────
 
 // ws* before EOI handles a trailing whitespace-only line with no final newline.
-script = { SOI ~ (blank_line | case_block)* ~ ws* ~ EOI }
+script = { SOI ~ (blank_line | comment_line | case_block)* ~ ws* ~ EOI }
 
 // ─── Case block ───────────────────────────────────────────────────────────────
 
 case_block = {
     ws* ~ "case" ~ ws+ ~ quoted_string ~ ws* ~ "{" ~ trail
-    ~ (blank_line | case_step)*
+    ~ (blank_line | comment_line | case_step)*
     ~ ws* ~ "}" ~ trail
 }
 
@@ -49,9 +57,11 @@ assertion_block = {
 single_assert = { ws* ~ expectation ~ ws* }
 
 // Multi-line form: expectations each on their own line.
-// trail handles optional trailing whitespace on the `assert {` line.
+// trail handles optional trailing whitespace (and an optional comment) on
+// the `assert {` line. comment_line allows comment-only lines between
+// expectations.
 // Requires at least one expectation (+ quantifier), rejecting empty blocks.
-multi_assert   = { trail ~ assertion_line+ ~ ws* }
+multi_assert   = { trail ~ (comment_line | assertion_line)+ ~ ws* }
 assertion_line = _{ ws* ~ expectation ~ trail }
 
 // ─── Expectations ─────────────────────────────────────────────────────────────

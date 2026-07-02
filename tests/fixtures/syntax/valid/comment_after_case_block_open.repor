@@ -1,0 +1,6 @@
+case "comment after case block open" { // trailing comment on the case open line
+  $ true
+  assert {
+    exit 0
+  }
+}

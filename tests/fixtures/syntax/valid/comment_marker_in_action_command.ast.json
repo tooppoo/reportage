@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "name": "comment marker in action command",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "echo hello // passed to shell"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

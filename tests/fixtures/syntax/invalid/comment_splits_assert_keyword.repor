@@ -1,0 +1,7 @@
+case "x" {
+  $ true
+  assert // comment splits assert from its opening brace
+  {
+    exit 0
+  }
+}

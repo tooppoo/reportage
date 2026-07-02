@@ -1,0 +1,9 @@
+// leading top-level comment
+case "comment all positions" { // case open comment
+  // standalone comment in case block
+  $ true
+  assert { // assert open comment
+    // standalone comment in assertion block
+    exit 0 // expectation comment
+  } // assert close comment
+} // case close comment

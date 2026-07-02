@@ -1,0 +1,6 @@
+case "x" {
+  $ true
+  assert {
+    exit 0
+  // } this closing brace is commented out, so the assertion block never closes
+}

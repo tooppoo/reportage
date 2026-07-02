@@ -1,0 +1,7 @@
+case "x" {
+  $ true
+  assert {
+    exit // comment splits the expectation keyword from its value
+    0
+  }
+}
