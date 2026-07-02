@@ -80,10 +80,12 @@ single_assert = { ws* ~ expectation ~ ws* }
 
 // Multi-line form: expectations each on their own line.
 // trail handles optional trailing whitespace (and an optional comment) on
-// the `assert {` line. comment_line allows comment-only lines between
-// expectations.
-// Requires at least one expectation (+ quantifier), rejecting empty blocks.
-multi_assert   = { trail ~ (comment_line | assertion_line)+ ~ ws* }
+// the `assert {` line. comment_line allows comment-only lines interspersed
+// with expectations, but a leading/trailing run of comment_line alone must
+// not satisfy the block: at least one assertion_line is required, so a
+// comment-only assertion block (no real expectation) is rejected the same
+// way an empty assertion block is.
+multi_assert   = { trail ~ comment_line* ~ assertion_line ~ (comment_line | assertion_line)* ~ ws* }
 assertion_line = _{ ws* ~ expectation ~ trail }
 
 // ─── Expectations ─────────────────────────────────────────────────────────────

@@ -949,6 +949,16 @@ case "x" {
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
+    // A comment-only assertion block has no real expectation and must be
+    // rejected the same way an empty assertion block is, not accepted with
+    // an empty expectations list (which would panic in parse_assertion_block).
+    #[test]
+    fn comment_only_assertion_block_is_error() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    // comment only\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
     // Diagnostic codes are the stable, external identifier of a ParseError.
     // These tests pin the string form directly, independent of the enum
     // variant name and of Display message text. See docs/diagnostics.md.

@@ -74,6 +74,15 @@ validation code:
   (`ASCII_DIGIT+`), not `//`. Syntax error.
 - A block whose real closing `}` is itself written inside a `// ...` comment leaves genuinely too
   few unescaped braces in the file, so the block (or the file) ends up unclosed. Syntax error.
+- A multi-line assertion block containing only comment-only lines and no real expectation (e.g.
+  `assert {\n  // comment only\n}`) is rejected the same way an empty assertion block already is.
+  `multi_assert` requires at least one real `assertion_line` — `comment_line* ~ assertion_line ~
+  (comment_line | assertion_line)*` — rather than `(comment_line | assertion_line)+`, precisely so
+  a run of `comment_line` alone cannot satisfy the block. (An earlier version of this grammar used
+  `(comment_line | assertion_line)+`, which let a comment-only block reach
+  `parser::parse_assertion_block` with an empty expectations list and panic on the
+  `AssertionBlock::new(...).expect(...)` call that assumes the grammar already guarantees at least
+  one expectation; this was caught in review before merge.)
 
 `$` action lines need no special-casing at all: `command`'s `@{ (!nl ~ ANY)* }` already consumes
 the rest of the line — including any `//` — before `trail` is reached, so `trail`'s new optional
