@@ -128,7 +128,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                 let expectation_results: Vec<ExpectationResult> = block
                     .expectations()
                     .iter()
-                    .map(|exp| evaluate_expectation(exp, &checkpoint))
+                    .map(|exp| evaluate_expectation_at_checkpoint(exp, &checkpoint))
                     .collect();
 
                 let block_result = AssertionBlockResult {
@@ -158,7 +158,16 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
     }
 }
 
-fn evaluate_expectation(expectation: &Expectation, checkpoint: &Checkpoint) -> ExpectationResult {
+/// Evaluate one expectation against the current checkpoint.
+///
+/// This is the checkpoint-level semantic evaluator used by normal case
+/// execution. Semantic conformance tests call the same entry point with static
+/// JSON checkpoint fixtures so those specs validate the production evaluator
+/// behavior without running an external command.
+pub fn evaluate_expectation_at_checkpoint(
+    expectation: &Expectation,
+    checkpoint: &Checkpoint,
+) -> ExpectationResult {
     match expectation {
         Expectation::Exit(exp) => {
             let actual = checkpoint

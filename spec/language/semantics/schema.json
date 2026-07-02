@@ -98,6 +98,9 @@
         "expectedResult": {
           "type": "string",
           "enum": ["pass", "fail"]
+        },
+        "expectedDiagnosticCode": {
+          "type": "string"
         }
       }
     },

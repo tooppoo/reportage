@@ -40,7 +40,11 @@ Example: `spec/language/semantics/assertion.exit.equals.json`.
 
 `spec/language/semantics/schema.json` defines the expected structure and is useful for editor integration (autocomplete, inline validation in VS Code and similar tools).
 
-CI validation is performed by typed Rust deserialization in `crates/reportage-core/tests/semantic_specs.rs`. Each spec file is deserialised into Rust structs marked with `#[serde(deny_unknown_fields)]`, which rejects unknown fields and enforces required fields and enum constraints. The JSON Schema and the Rust struct definitions must be kept consistent; if one changes, the other should be updated in the same commit.
+CI validation is performed by typed Rust deserialization in `crates/reportage-core/tests/semantic_specs.rs`. Each spec file is deserialised into Rust structs marked with `#[serde(deny_unknown_fields)]`, which rejects unknown fields and enforces required fields and enum constraints. The same test module runs every conformance case against the production semantic evaluator by converting the normalised assertion representation and checkpoint data into evaluator inputs. Parser/source consistency is checked separately and is not the primary purpose of semantic conformance.
+
+Expected diagnostic code checks are intentionally optional until the diagnostic code contract is fully defined. If future case data carries an expected diagnostic code before that contract is available, semantic conformance may ignore it and verify only the pass/fail result.
+
+The generated human-readable semantic documentation lives at `docs/language/semantics.md`. The entire file is generated from these JSON specs and must not be edited directly. Run `just semantic-docs-gen` to regenerate it and `just semantic-docs-check` to verify that the checked-in copy is fresh.
 
 ## Required fields
 
@@ -84,6 +88,7 @@ Each conformance case provides enough static data to run the semantic evaluator 
 - `assertion` — the normalised assertion representation: `subject`, `operator`, and `expected`.
 - `checkpoint` — static checkpoint data used as input to the semantic evaluator.
 - `expectedResult` — either `"pass"` or `"fail"`.
+- `expectedDiagnosticCode` — optional diagnostic code for future diagnostic-code conformance. Until that contract is defined, CI may ignore this field and verify only `expectedResult`.
 
 ### Checkpoint bytes representation
 
