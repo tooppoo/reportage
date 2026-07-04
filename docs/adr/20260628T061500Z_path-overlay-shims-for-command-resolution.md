@@ -28,14 +28,11 @@ For the canonical shim model, see [../shims.md](../shims.md).
 
 reportage uses runner-owned PATH overlay shim injection as the command execution foundation.
 
-PATH overlay shim injection is the model for how the runner controls command
-resolution for `$` action steps while leaving action text user-facing.
+PATH overlay shim injection is the model for how the runner controls command resolution for `$` action steps while leaving action text user-facing.
 
 The initial shim materialization strategy is POSIX shell wrappers. Native Windows wrapper generation is out of scope. Windows users should use WSL, a devcontainer, or Linux-based CI.
 
-Execution behavior, use cases, executable invocation targets, and observability
-are defined in [../shims.md](../shims.md). PATH prefix mechanics are defined in
-[../execution-model.md](../execution-model.md).
+Execution behavior, use cases, executable invocation targets, and observability are defined in [../shims.md](../shims.md). PATH prefix mechanics are defined in [../execution-model.md](../execution-model.md).
 
 ## Alternatives Considered
 

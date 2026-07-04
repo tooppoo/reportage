@@ -27,8 +27,7 @@ pub enum ParseError {
     EmptyAction { line: usize },
     /// Exit code is outside the valid range 0..=255.
     InvalidExitCode { line: usize, value: String },
-    /// A `not` / `all` / `any` logical composition block contains zero
-    /// expectation expressions.
+    /// A `not` / `all` / `any` logical composition block contains zero expectation expressions.
     EmptyLogicalCompositionBlock {
         line: usize,
         operator: LogicalOperator,
@@ -73,8 +72,7 @@ impl std::error::Error for ParseError {}
 impl ParseError {
     /// The stable, machine-readable diagnostic code for this error.
     ///
-    /// This is independent of the enum variant name: downstream tests and tooling should
-    /// depend on this code (or its string form) rather than on `Display` output.
+    /// This is independent of the enum variant name: downstream tests and tooling should depend on this code (or its string form) rather than on `Display` output.
     /// See docs/diagnostics.md.
     pub const fn code(&self) -> DiagnosticCode {
         match self {
@@ -89,9 +87,7 @@ impl ParseError {
         }
     }
 
-    /// Converts this error into the struct-based diagnostic model, separating
-    /// the stable `code` from the improvable `message`, `location`, and the
-    /// weaker-stability `details`.
+    /// Converts this error into the struct-based diagnostic model, separating the stable `code` from the improvable `message`, `location`, and the weaker-stability `details`.
     pub fn to_diagnostic(&self) -> Diagnostic {
         let (location, details) = match self {
             ParseError::Syntax {
@@ -236,9 +232,7 @@ fn extract_string_inner(quoted: pest::iterators::Pair<Rule>) -> String {
 
 /// Unescapes a raw `string_inner` match into its AST value.
 ///
-/// The grammar's `string_char` rule only accepts `\\`, `\"`, `\n`, and `\t` as
-/// escape sequences, so every `\` in `raw` is guaranteed to be followed by one
-/// of those four characters.
+/// The grammar's `string_char` rule only accepts `\\`, `\"`, `\n`, and `\t` as escape sequences, so every `\` in `raw` is guaranteed to be followed by one of those four characters.
 fn unescape_string(raw: &str) -> String {
     let mut result = String::with_capacity(raw.len());
     let mut chars = raw.chars();
@@ -292,14 +286,9 @@ fn parse_assertion_block(pair: pest::iterators::Pair<Rule>) -> Result<Step, Pars
     Ok(Step::AssertionBlock(block))
 }
 
-/// Parses the shared body form used by both `assert { ... }` and `not` /
-/// `all` / `any` composition blocks: a single expectation on one line, one
-/// or more expectations each on their own line, or (composition blocks only)
-/// zero expectations.
+/// Parses the shared body form used by both `assert { ... }` and `not` / `all` / `any` composition blocks: a single expectation on one line, one or more expectations each on their own line, or (composition blocks only) zero expectations.
 ///
-/// `assert { ... }`'s grammar never actually produces `empty_composition_body`
-/// (its body form requires at least one expectation), so this is dead code
-/// for that caller; it exists purely so both callers can share one function.
+/// `assert { ... }`'s grammar never actually produces `empty_composition_body` (its body form requires at least one expectation), so this is dead code for that caller; it exists purely so both callers can share one function.
 fn parse_expectation_body(
     body: pest::iterators::Pair<Rule>,
 ) -> Result<Vec<Expectation>, ParseError> {
@@ -803,8 +792,8 @@ case "x" {
 
     #[test]
     fn escaped_backslash_then_n_stays_literal_backslash_n() {
-        // `\\n` is an escaped backslash followed by a literal `n`, not an
-        // escaped newline. See docs/adr/20260701T214658Z_string-literal-escape-sequences.md.
+        // `\\n` is an escaped backslash followed by a literal `n`, not an escaped newline.
+        // See docs/adr/20260701T214658Z_string-literal-escape-sequences.md.
         let src = r#"
 case "x" {
   $ true
@@ -927,8 +916,7 @@ case "x" {
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
-    // Trailing whitespace on any line must be accepted (parity with the
-    // hand-written parser, which called trim() on every line).
+    // Trailing whitespace on any line must be accepted (parity with the hand-written parser, which called trim() on every line).
     #[test]
     fn trailing_whitespace_is_accepted() {
         // Trailing spaces on case opener, steps, assertion body, and closers.
@@ -1050,9 +1038,7 @@ case "x" {
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
-    // A comment-only assertion block has no real expectation and must be
-    // rejected the same way an empty assertion block is, not accepted with
-    // an empty expectations list (which would panic in parse_assertion_block).
+    // A comment-only assertion block has no real expectation and must be rejected the same way an empty assertion block is, not accepted with an empty expectations list (which would panic in parse_assertion_block).
     #[test]
     fn comment_only_assertion_block_is_error() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    // comment only\n  }\n}\n";
@@ -1061,8 +1047,8 @@ case "x" {
     }
 
     // Diagnostic codes are the stable, external identifier of a ParseError.
-    // These tests pin the string form directly, independent of the enum
-    // variant name and of Display message text. See docs/diagnostics.md.
+    // These tests pin the string form directly, independent of the enum variant name and of Display message text.
+    // See docs/diagnostics.md.
     #[test]
     fn syntax_error_has_stable_code() {
         let err = parse("$ true\n").unwrap_err();
@@ -1206,8 +1192,7 @@ case "x" {
         assert_eq!(block.expectations().len(), 3);
     }
 
-    // `file <expectation> <path> <...args>` (expectation-first) is not the v0
-    // syntax; only the subject-first `file "<path>" <predicate>` form parses.
+    // `file <expectation> <path> <...args>` (expectation-first) is not the v0 syntax; only the subject-first `file "<path>" <predicate>` form parses.
     // See docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
     #[test]
     fn expectation_first_file_form_is_rejected() {
@@ -1451,9 +1436,7 @@ case "x" {
 
     #[test]
     fn single_line_composition_block_multiple_expectations_is_error() {
-        // Mirrors single_line_assert_multiple_expectations_is_error: a
-        // composition block's single-line form accepts exactly one
-        // expectation, same as assert { ... }'s.
+        // Mirrors single_line_assert_multiple_expectations_is_error: a composition block's single-line form accepts exactly one expectation, same as assert { ... }'s.
         let src = "case \"x\" {\n  $ true\n  assert {\n    all { exit 0 exit 1 }\n  }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));

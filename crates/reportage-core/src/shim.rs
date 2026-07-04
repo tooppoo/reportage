@@ -63,8 +63,8 @@ impl std::error::Error for ShimError {}
 
 /// A validated POSIX file name used as a command shim name.
 ///
-/// A command name is a single POSIX file name component, not a path. It must
-/// not be empty, contain path separators, be `.` or `..`, or contain NUL bytes.
+/// A command name is a single POSIX file name component, not a path.
+/// It must not be empty, contain path separators, be `.` or `..`, or contain NUL bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandName(String);
 
@@ -93,18 +93,14 @@ impl CommandName {
 
 /// An executable invocation: an absolute program path with optional fixed arguments.
 ///
-/// Models the target of a command shim as an executable invocation rather than
-/// a bare binary path. This allows the target to be a native executable, an
-/// executable script, or an interpreter-plus-script invocation such as
-/// `ruby tool.rb` (where `program` is the ruby interpreter path and `args`
-/// contains the script path).
+/// Models the target of a command shim as an executable invocation rather than a bare binary path.
+/// This allows the target to be a native executable, an executable script, or an interpreter-plus-script invocation such as `ruby tool.rb` (where `program` is the ruby interpreter path and `args` contains the script path).
 ///
-/// `program` must be an absolute path. Fixed `args` are prepended before the
-/// caller-provided arguments (`"$@"`) in the generated wrapper.
+/// `program` must be an absolute path.
+/// Fixed `args` are prepended before the caller-provided arguments (`"$@"`) in the generated wrapper.
 ///
-/// Both `program` and `args` must be valid UTF-8; non-UTF-8 values are rejected
-/// explicitly at construction time. See `TBD.md` for the deferred policy on
-/// whether non-UTF-8 executable invocations may be supported later.
+/// Both `program` and `args` must be valid UTF-8; non-UTF-8 values are rejected explicitly at construction time.
+/// See `TBD.md` for the deferred policy on whether non-UTF-8 executable invocations may be supported later.
 #[derive(Debug, Clone)]
 pub struct ExecutableInvocation {
     pub program: PathBuf,
@@ -130,13 +126,9 @@ impl ExecutableInvocation {
 
 /// A named POSIX command shim that delegates to an executable invocation.
 ///
-/// `materialize` writes an executable POSIX shell wrapper at `dir/name` that
-/// `exec`s the target invocation, forwarding all caller-provided arguments
-/// after any fixed invocation arguments.
+/// `materialize` writes an executable POSIX shell wrapper at `dir/name` that `exec`s the target invocation, forwarding all caller-provided arguments after any fixed invocation arguments.
 ///
-/// The generated wrapper uses single-quote shell escaping for the program path
-/// and all fixed arguments, so paths containing spaces, single quotes, or other
-/// shell-significant characters are handled safely.
+/// The generated wrapper uses single-quote shell escaping for the program path and all fixed arguments, so paths containing spaces, single quotes, or other shell-significant characters are handled safely.
 ///
 /// If a file already exists at the destination, it is overwritten.
 pub struct CommandShim {
@@ -149,12 +141,10 @@ impl CommandShim {
         Self { name, target }
     }
 
-    /// Write the POSIX wrapper script into `dir` as an executable file named
-    /// after `self.name`.
+    /// Write the POSIX wrapper script into `dir` as an executable file named after `self.name`.
     ///
-    /// Returns a setup/runtime error if the file cannot be written or made
-    /// executable; does not panic. If the destination already exists it is
-    /// overwritten.
+    /// Returns a setup/runtime error if the file cannot be written or made executable; does not panic.
+    /// If the destination already exists it is overwritten.
     pub fn materialize(&self, dir: &Path) -> Result<(), ShimError> {
         let dest = dir.join(self.name.as_str());
         let content = self.wrapper_content(&dest);
@@ -170,10 +160,8 @@ impl CommandShim {
 
     /// Build the wrapper script content.
     ///
-    /// The script writes a shim invocation event to `$REPORTAGE_SHIM_EVENT_DIR`
-    /// before exec-ing the target, so the runner can inspect which shim was used.
-    /// If the event write fails, a prefixed diagnostic is emitted to stderr and
-    /// the exec proceeds normally — preserving the user's test behavior.
+    /// The script writes a shim invocation event to `$REPORTAGE_SHIM_EVENT_DIR` before exec-ing the target, so the runner can inspect which shim was used.
+    /// If the event write fails, a prefixed diagnostic is emitted to stderr and the exec proceeds normally — preserving the user's test behavior.
     fn wrapper_content(&self, shim_path: &Path) -> String {
         // program and args are guaranteed UTF-8 by ExecutableInvocation::new.
         let program_str = self.target.program.to_str().unwrap();
@@ -216,8 +204,7 @@ fn shell_single_quote(s: &str) -> String {
 /// Build the JSON event content for a shim invocation event.
 ///
 /// All values are known at shim materialization time and embedded statically.
-/// The `shim_path` field uses `to_string_lossy` to handle the rare case of a
-/// non-UTF-8 destination directory.
+/// The `shim_path` field uses `to_string_lossy` to handle the rare case of a non-UTF-8 destination directory.
 fn build_event_json(
     command_name: &str,
     shim_path: &Path,
@@ -386,10 +373,8 @@ mod tests {
 
     // --- wrapper_content ---
     //
-    // Tests verify that the exec line uses correct shell escaping and that
-    // the event JSON embedded in the printf call contains the expected values.
-    // Full integration of the event-writing path is tested via materialize
-    // and the executor tests.
+    // Tests verify that the exec line uses correct shell escaping and that the event JSON embedded in the printf call contains the expected values.
+    // Full integration of the event-writing path is tested via materialize and the executor tests.
 
     fn shim_path_for_test() -> PathBuf {
         PathBuf::from("/test-shim-dir/tool")
@@ -765,8 +750,7 @@ mod tests {
     #[cfg(unix)]
     fn shim_writes_event_file_when_env_var_is_set() {
         // REPORTAGE_SHIM_EVENT_DIR is set by the runner before each action.
-        // When it is present the shim knows it is executing under runner supervision
-        // and can write an identifiable event file to the runner-provided directory.
+        // When it is present the shim knows it is executing under runner supervision and can write an identifiable event file to the runner-provided directory.
         use crate::shim_event::{SHIM_EVENT_DIR_VAR, collect_from_dir};
         use tempfile::TempDir;
 
@@ -794,11 +778,9 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn shim_writes_no_event_file_when_env_var_is_absent() {
-        // When REPORTAGE_SHIM_EVENT_DIR is absent the shim has no runner-provided
-        // directory to write into: it cannot identify where to send the event.
-        // In this case the shim silently skips event writing and proceeds directly
-        // to exec-ing its target. This is the expected behavior for direct invocation
-        // outside of a reportage runner context.
+        // When REPORTAGE_SHIM_EVENT_DIR is absent the shim has no runner-provided directory to write into: it cannot identify where to send the event.
+        // In this case the shim silently skips event writing and proceeds directly to exec-ing its target.
+        // This is the expected behavior for direct invocation outside of a reportage runner context.
         use tempfile::TempDir;
 
         let shim_dir = TempDir::new().unwrap();

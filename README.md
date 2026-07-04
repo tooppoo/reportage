@@ -33,8 +33,7 @@ reportage is in early design. The documents in this repository describe the inte
 
 ## v0 Direction
 
-The v0 design is intentionally narrow. Items currently in the grammar
-([`docs/syntax.md`](docs/syntax.md)):
+The v0 design is intentionally narrow. Items currently in the grammar ([`docs/syntax.md`](docs/syntax.md)):
 
 - POSIX shell execution for `$` steps.
 - Native Windows shell execution is out of scope; use WSL, a devcontainer, or Linux CI on Windows.

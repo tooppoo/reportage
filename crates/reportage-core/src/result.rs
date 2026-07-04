@@ -11,8 +11,8 @@ use crate::shim_event::ShimInvocationEvent;
 #[derive(Debug, Clone)]
 pub struct ActionResult {
     pub command: String,
-    // i32 rather than u8: the OS returns None when a process is killed by a signal,
-    // which the executor maps to -1. See executor::execute_action.
+    // i32 rather than u8: the OS returns None when a process is killed by a signal, which the executor maps to -1.
+    // See executor::execute_action.
     pub exit_code: i32,
     pub stdout: String,
     pub stderr: String,
@@ -54,10 +54,8 @@ pub enum ExpectationKind {
         expected: String,
         observation: FileContentObservation,
     },
-    /// A `not` / `all` / `any` logical composition. `children` holds each
-    /// nested expectation's own result (independently evaluated, never
-    /// flipped by a `not`), so which child passed or failed is never lost —
-    /// see docs/semantics.md — Logical composition.
+    /// A `not` / `all` / `any` logical composition.
+    /// `children` holds each nested expectation's own result (independently evaluated, never flipped by a `not`), so which child passed or failed is never lost — see docs/semantics.md — Logical composition.
     Logical {
         operator: LogicalOperator,
         children: Vec<ExpectationResult>,
@@ -65,9 +63,9 @@ pub enum ExpectationKind {
 }
 
 impl ExpectationKind {
-    /// The stable diagnostic code for a failing expectation of this kind, if one is
-    /// defined. Passing expectations, and expectation kinds without a dedicated
-    /// diagnostic code, return `None`. See docs/semantic-diagnostics.md.
+    /// The stable diagnostic code for a failing expectation of this kind, if one is defined.
+    /// Passing expectations, and expectation kinds without a dedicated diagnostic code, return `None`.
+    /// See docs/semantic-diagnostics.md.
     pub fn failure_diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             ExpectationKind::FileExists { observation, .. } => match observation {
@@ -110,8 +108,7 @@ pub enum FileExistsObservation {
 pub enum FileContentObservation {
     /// `path` is a readable UTF-8 regular file whose content contains the expected substring.
     Found,
-    /// `path` is a readable UTF-8 regular file, but its content does not contain the expected
-    /// substring.
+    /// `path` is a readable UTF-8 regular file, but its content does not contain the expected substring.
     NotFound,
     /// `path` does not exist.
     Missing,
@@ -125,8 +122,8 @@ pub enum FileContentObservation {
 
 /// The result of evaluating one expectation within an assertion block.
 ///
-/// Failures are reported per expectation, independently of other expectations
-/// in the same block. See docs/semantics.md — Expectation.
+/// Failures are reported per expectation, independently of other expectations in the same block.
+/// See docs/semantics.md — Expectation.
 #[derive(Debug)]
 pub struct ExpectationResult {
     pub kind: ExpectationKind,
@@ -135,8 +132,8 @@ pub struct ExpectationResult {
 
 /// The result of evaluating one assertion block.
 ///
-/// All expectations within the block are evaluated; `has_failures` reflects
-/// whether any of them failed. See docs/semantics.md — Assertion block.
+/// All expectations within the block are evaluated; `has_failures` reflects whether any of them failed.
+/// See docs/semantics.md — Assertion block.
 #[derive(Debug)]
 pub struct AssertionBlockResult {
     /// Index of this assertion block's step within the case body.
@@ -156,8 +153,7 @@ impl AssertionBlockResult {
 pub enum CaseStatus {
     Pass,
     Fail,
-    /// A structural problem with the test script itself: empty assertion block,
-    /// process expectation at the initial checkpoint, etc.
+    /// A structural problem with the test script itself: empty assertion block, process expectation at the initial checkpoint, etc.
     ScriptError(String),
     /// A runtime infrastructure failure: cannot spawn the shell, I/O error, etc.
     RuntimeError(String),
@@ -183,8 +179,9 @@ pub enum FileErrorKind {
 
 /// A file-level error: a test file that could not be read or parsed.
 ///
-/// Collected during the pre-execution validation phase. If any file errors exist,
-/// no `$` actions execute from any file. See docs/semantics.md — Validation phase.
+/// Collected during the pre-execution validation phase.
+/// If any file errors exist, no `$` actions execute from any file.
+/// See docs/semantics.md — Validation phase.
 #[derive(Debug)]
 pub struct FileError {
     pub source_path: PathBuf,
@@ -251,8 +248,8 @@ impl RunResult {
 
     /// Process exit code for the run.
     ///
-    /// File-level errors produce exit code 2. Severity order within cases:
-    /// 3 (runtime) > 2 (script error) > 1 (assertion failure) > 0 (pass).
+    /// File-level errors produce exit code 2.
+    /// Severity order within cases: 3 (runtime) > 2 (script error) > 1 (assertion failure) > 0 (pass).
     /// See docs/exit-codes.md for the full table and precedence rule.
     pub fn exit_code(&self) -> i32 {
         if !self.file_errors.is_empty() {

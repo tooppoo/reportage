@@ -1,8 +1,7 @@
 //! Syntax conformance fixtures for the production `parse()` entrypoint.
 //!
-//! These tests intentionally avoid raw pest parser access. They lock down which
-//! checked-in scripts are accepted or rejected after grammar parsing plus
-//! parser construction validation.
+//! These tests intentionally avoid raw pest parser access.
+//! They lock down which checked-in scripts are accepted or rejected after grammar parsing plus parser construction validation.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -443,9 +442,8 @@ fn invalid_syntax_fixtures_are_rejected() {
                 ));
                 assert_eq!(err.code().as_str(), "semantic.expectation.empty_block");
             }
-            // Remaining fixtures are rejected as plain pest syntax errors;
-            // they share the coarse-grained "parse.syntax" code and are not
-            // asserted individually here. See docs/diagnostics.md.
+            // Remaining fixtures are rejected as plain pest syntax errors; they share the coarse-grained "parse.syntax" code and are not asserted individually here.
+            // See docs/diagnostics.md.
             _ => {
                 assert_eq!(err.code().as_str(), "parse.syntax");
             }

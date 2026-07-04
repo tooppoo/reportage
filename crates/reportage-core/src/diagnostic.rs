@@ -1,26 +1,19 @@
 //! Stable, machine-readable diagnostic identity for parser and validator errors.
 //!
-//! See docs/diagnostics.md for the naming convention, compatibility policy, and
-//! the split between `code` (stable), `message` (improvable), `location`, and
-//! `details` (auxiliary, weaker stability).
+//! See docs/diagnostics.md for the naming convention, compatibility policy, and the split between `code` (stable), `message` (improvable), `location`, and `details` (auxiliary, weaker stability).
 
 use std::fmt;
 
 /// A stable, machine-readable identifier for a diagnostic.
 ///
-/// The string form (see [`DiagnosticCode::as_str`]) is the external contract
-/// that tests and tooling depend on. It is intentionally independent of the
-/// Rust error enum variant names that produce it, so internal error types can
-/// be restructured without renaming published codes.
+/// The string form (see [`DiagnosticCode::as_str`]) is the external contract that tests and tooling depend on.
+/// It is intentionally independent of the Rust error enum variant names that produce it, so internal error types can be restructured without renaming published codes.
 ///
-/// Codes use a dot-separated `<domain>.<reason>` namespace, e.g.
-/// `parse.invalid_exit_code`. Renaming or removing an existing code is a
-/// breaking change; adding a new code is not.
+/// Codes use a dot-separated `<domain>.<reason>` namespace, e.g. `parse.invalid_exit_code`.
+/// Renaming or removing an existing code is a breaking change; adding a new code is not.
 ///
-/// Marked `#[non_exhaustive]` so that adding a new code does not break
-/// downstream `match` expressions that would otherwise have to be
-/// exhaustive over every variant. Downstream code must include a wildcard
-/// (`_`) arm when matching.
+/// Marked `#[non_exhaustive]` so that adding a new code does not break downstream `match` expressions that would otherwise have to be exhaustive over every variant.
+/// Downstream code must include a wildcard (`_`) arm when matching.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DiagnosticCode {
@@ -42,22 +35,19 @@ pub enum DiagnosticCode {
     AssertionFileExistsMissing,
     /// `file "<path>" exists` observed a path that is not a regular file (e.g. a directory).
     AssertionFileExistsNotAFile,
-    /// `file "<path>" contains "<text>"` observed a path that is not a readable UTF-8 regular
-    /// file (missing, a directory, unreadable, or non-UTF-8 content).
+    /// `file "<path>" contains "<text>"` observed a path that is not a readable UTF-8 regular file (missing, a directory, unreadable, or non-UTF-8 content).
     AssertionFileContainsPreconditionUnmet,
-    /// `file "<path>" contains "<text>"` observed a readable UTF-8 regular file that does not
-    /// contain the expected substring.
+    /// `file "<path>" contains "<text>"` observed a readable UTF-8 regular file that does not contain the expected substring.
     AssertionFileContainsMismatch,
-    /// A `not` / `all` / `any` logical composition block contains zero
-    /// expectation expressions. See docs/semantic-diagnostics.md.
+    /// A `not` / `all` / `any` logical composition block contains zero expectation expressions.
+    /// See docs/semantic-diagnostics.md.
     SemanticExpectationEmptyBlock,
 }
 
 impl DiagnosticCode {
     /// The stable external string representation of this code.
     ///
-    /// This is the identifier tests and tooling must depend on instead of
-    /// `Display` message text or internal enum variant names.
+    /// This is the identifier tests and tooling must depend on instead of `Display` message text or internal enum variant names.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::ParseSyntax => "parse.syntax",
@@ -86,8 +76,7 @@ impl fmt::Display for DiagnosticCode {
 
 /// Line/column position of a diagnostic within source text.
 ///
-/// `column` is not always available (e.g. some parse-domain validation
-/// errors only know the line a construct started on).
+/// `column` is not always available (e.g. some parse-domain validation errors only know the line a construct started on).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DiagnosticLocation {
     pub line: usize,
@@ -96,36 +85,27 @@ pub struct DiagnosticLocation {
 
 /// Auxiliary information attached to a diagnostic.
 ///
-/// Unlike `code`, the contents of `details` do not carry a strong stability
-/// guarantee. In particular, pest-derived message text and expected-token
-/// summaries are grammar-dependent and must not be treated as a stable API by
-/// tests or tooling; depend on `code` instead.
+/// Unlike `code`, the contents of `details` do not carry a strong stability guarantee.
+/// In particular, pest-derived message text and expected-token summaries are grammar-dependent and must not be treated as a stable API by tests or tooling; depend on `code` instead.
 ///
-/// Marked `#[non_exhaustive]` so that adding a new field does not break
-/// downstream struct-literal construction or exhaustive field patterns.
-/// Downstream code should build one via `DiagnosticDetails::default()` and
-/// read fields individually rather than matching on the full field set.
+/// Marked `#[non_exhaustive]` so that adding a new field does not break downstream struct-literal construction or exhaustive field patterns.
+/// Downstream code should build one via `DiagnosticDetails::default()` and read fields individually rather than matching on the full field set.
 #[non_exhaustive]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DiagnosticDetails {
-    /// Raw message text from the pest grammar error, when the diagnostic
-    /// originates from a syntax error.
+    /// Raw message text from the pest grammar error, when the diagnostic originates from a syntax error.
     pub pest_message: Option<String>,
-    /// The offending raw value (e.g. an out-of-range exit code literal or a
-    /// case name), when relevant to the diagnostic.
+    /// The offending raw value (e.g. an out-of-range exit code literal or a case name), when relevant to the diagnostic.
     pub raw_value: Option<String>,
 }
 
 /// A machine-readable diagnostic produced by parsing or validating a script.
 ///
-/// `code` is the stable identifier. `message` is a human-facing string that
-/// may be improved over time without being a breaking change. `location` and
-/// `details` provide position and auxiliary context respectively.
+/// `code` is the stable identifier.
+/// `message` is a human-facing string that may be improved over time without being a breaking change.
+/// `location` and `details` provide position and auxiliary context respectively.
 ///
-/// Marked `#[non_exhaustive]` for the same reason as [`DiagnosticCode`] and
-/// [`DiagnosticDetails`]: it keeps future field additions to the diagnostic
-/// model itself from being a breaking change for downstream construction or
-/// exhaustive matching.
+/// Marked `#[non_exhaustive]` for the same reason as [`DiagnosticCode`] and [`DiagnosticDetails`]: it keeps future field additions to the diagnostic model itself from being a breaking change for downstream construction or exhaustive matching.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Diagnostic {

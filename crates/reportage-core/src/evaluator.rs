@@ -10,8 +10,8 @@ use crate::semantic::validate_file_path;
 
 /// Observable evidence available at a point in case execution.
 ///
-/// A checkpoint is an evidence context, not a full filesystem snapshot. The
-/// initial checkpoint has workspace state but no last action result.
+/// A checkpoint is an evidence context, not a full filesystem snapshot.
+/// The initial checkpoint has workspace state but no last action result.
 ///
 /// See docs/semantics.md — Checkpoint.
 pub struct Checkpoint {
@@ -39,8 +39,8 @@ impl Checkpoint {
 
 /// Placeholder for observable workspace state.
 ///
-/// In v0, filesystem access is performed directly when workspace expectations
-/// are evaluated. A richer snapshot type may be introduced in future versions.
+/// In v0, filesystem access is performed directly when workspace expectations are evaluated.
+/// A richer snapshot type may be introduced in future versions.
 pub struct WorkspaceState;
 
 pub fn evaluate(script: &Script, env: &ExecutionEnvironment) -> RunResult {
@@ -126,10 +126,9 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                         };
                     }
 
-                    // A file assertion path must satisfy reportage's path policy
-                    // before evidence comparison begins. This is a semantic error,
-                    // not an assertion failure. See docs/semantic-diagnostics.md and
-                    // docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
+                    // A file assertion path must satisfy reportage's path policy before evidence comparison begins.
+                    // This is a semantic error, not an assertion failure.
+                    // See docs/semantic-diagnostics.md and docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
                     if let Expectation::File(file_exp) = expectation
                         && let Err(semantic_err) = validate_file_path(&file_exp.path)
                     {
@@ -185,10 +184,8 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
 
 /// Evaluate one expectation against the current checkpoint.
 ///
-/// This is the checkpoint-level semantic evaluator used by normal case
-/// execution. Semantic conformance tests call the same entry point with static
-/// JSON checkpoint fixtures so those specs validate the production evaluator
-/// behavior without running an external command.
+/// This is the checkpoint-level semantic evaluator used by normal case execution.
+/// Semantic conformance tests call the same entry point with static JSON checkpoint fixtures so those specs validate the production evaluator behavior without running an external command.
 pub fn evaluate_expectation_at_checkpoint(
     expectation: &Expectation,
     checkpoint: &Checkpoint,
@@ -265,8 +262,7 @@ pub fn evaluate_expectation_at_checkpoint(
         }
         Expectation::File(exp) => evaluate_file_expectation(exp),
         Expectation::Logical(l) => {
-            // Evaluate every child regardless of earlier results, so a
-            // failing composition still reports each child's own outcome.
+            // Evaluate every child regardless of earlier results, so a failing composition still reports each child's own outcome.
             // See docs/semantics.md — Logical composition.
             let children: Vec<ExpectationResult> = l
                 .children()
@@ -274,9 +270,7 @@ pub fn evaluate_expectation_at_checkpoint(
                 .map(|child| evaluate_expectation_at_checkpoint(child, checkpoint))
                 .collect();
 
-            // `not` negates the implicit-`all` grouping of its children, not
-            // each child individually: `not { A B }` is `not(all(A, B))`,
-            // never `not(A) and not(B)`.
+            // `not` negates the implicit-`all` grouping of its children, not each child individually: `not { A B }` is `not(all(A, B))`, never `not(A) and not(B)`.
             let all_children_passed = children.iter().all(|c| c.passed);
             let passed = match l.operator() {
                 LogicalOperator::All => all_children_passed,
@@ -298,16 +292,12 @@ pub fn evaluate_expectation_at_checkpoint(
 
 /// Evaluates a `file "<path>" ...` expectation against the real filesystem.
 ///
-/// The path policy (relative, no `.`/`..` segments) is checked earlier, in
-/// `evaluate_case`, before this function runs. By the time this function is
-/// called, `exp.path` is known to be policy-valid.
+/// The path policy (relative, no `.`/`..` segments) is checked earlier, in `evaluate_case`, before this function runs.
+/// By the time this function is called, `exp.path` is known to be policy-valid.
 ///
-/// Relative paths are resolved by the OS against the reportage process's own
-/// working directory. Actions never change that directory for the process
-/// (each `$` step runs in a fresh child shell), so file assertion paths are
-/// always resolved relative to the workspace root the runner was launched
-/// from, never affected by a `cd` performed inside an action. See
-/// docs/semantics.md.
+/// Relative paths are resolved by the OS against the reportage process's own working directory.
+/// Actions never change that directory for the process (each `$` step runs in a fresh child shell), so file assertion paths are always resolved relative to the workspace root the runner was launched from, never affected by a `cd` performed inside an action.
+/// See docs/semantics.md.
 fn evaluate_file_expectation(exp: &FileExpectation) -> ExpectationResult {
     match &exp.matcher {
         FileMatcher::Exists => {
@@ -341,9 +331,7 @@ fn evaluate_file_expectation(exp: &FileExpectation) -> ExpectationResult {
 
 /// Observes whether `path` is a regular file, following symlinks.
 ///
-/// A directory (or any other non-regular-file type) is observed as
-/// `NotRegularFile`, not `Missing`: the path does exist, but it does not
-/// satisfy the `file` subject's regular-file requirement.
+/// A directory (or any other non-regular-file type) is observed as `NotRegularFile`, not `Missing`: the path does exist, but it does not satisfy the `file` subject's regular-file requirement.
 fn observe_file_exists(path: &str) -> FileExistsObservation {
     match std::fs::metadata(path) {
         Ok(meta) if meta.is_file() => FileExistsObservation::RegularFile,
@@ -352,13 +340,9 @@ fn observe_file_exists(path: &str) -> FileExistsObservation {
     }
 }
 
-/// Observes whether `path` is a readable UTF-8 regular file containing
-/// `expected` as a plain substring.
+/// Observes whether `path` is a readable UTF-8 regular file containing `expected` as a plain substring.
 ///
-/// Per docs/semantic-diagnostics.md, missing / non-regular-file / unreadable /
-/// non-UTF-8 content are all "the `contains` precondition is unmet" — a
-/// single failure category distinct from "the file exists and is readable,
-/// but does not contain the expected substring".
+/// Per docs/semantic-diagnostics.md, missing / non-regular-file / unreadable / non-UTF-8 content are all "the `contains` precondition is unmet" — a single failure category distinct from "the file exists and is readable, but does not contain the expected substring".
 fn observe_file_contains(path: &str, expected: &str) -> FileContentObservation {
     let meta = match std::fs::metadata(path) {
         Ok(meta) => meta,
@@ -599,9 +583,7 @@ mod tests {
     #[test]
     fn not_with_multiple_children_negates_implicit_all_not_each_child() {
         // not { A B } is not(all(A, B)), not not(A) and not(B).
-        // Here A passes (exit 0) and B fails (exit 1): all(A, B) is false,
-        // so not(all(A, B)) is true — the block passes as a whole, even
-        // though per-child negation (not(A) and not(B)) would fail on A.
+        // Here A passes (exit 0) and B fails (exit 1): all(A, B) is false, so not(all(A, B)) is true — the block passes as a whole, even though per-child negation (not(A) and not(B)) would fail on A.
         let expectation = logical(LogicalOperator::Not, vec![exit_exp(0), exit_exp(1)]);
         let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0));
         assert!(result.passed);
@@ -631,8 +613,7 @@ mod tests {
 
     #[test]
     fn logical_result_retains_each_child_outcome() {
-        // Nothing is lost: an `any` whose candidates all fail must retain
-        // each candidate's own failure reason.
+        // Nothing is lost: an `any` whose candidates all fail must retain each candidate's own failure reason.
         let expectation = logical(LogicalOperator::Any, vec![exit_exp(1), exit_exp(2)]);
         let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0));
         let ExpectationKind::Logical { operator, children } = &result.kind else {
@@ -679,8 +660,7 @@ mod tests {
 
     #[test]
     fn logical_composition_wrapping_process_expectation_at_initial_checkpoint_is_script_error() {
-        // A composition wrapping exit/stdout/stderr still requires a
-        // preceding action, exactly like a bare process expectation.
+        // A composition wrapping exit/stdout/stderr still requires a preceding action, exactly like a bare process expectation.
         let script = make_script(vec![Case {
             name: "no action yet".to_string(),
             steps: vec![Step::AssertionBlock(

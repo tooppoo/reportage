@@ -373,13 +373,9 @@ case "not block all pass fail" {
     reportage(&dir).arg(script).assert().code(1);
 }
 
-// `not { A B }` evaluates as `not(all(A, B))`, never as `not(A) and not(B)`
-// (see the ADR and docs/semantics.md — Logical composition). With one child
-// passing and one failing, `all(A, B)` is false, so `not(all(A, B))` is
-// true: the `not` block — and therefore the case — passes. This is the
-// case that distinguishes the two groupings: item-wise negation would fail
-// here (since the passing child's negation fails), but grouped negation
-// passes.
+// `not { A B }` evaluates as `not(all(A, B))`, never as `not(A) and not(B)` (see the ADR and docs/semantics.md — Logical composition).
+// With one child passing and one failing, `all(A, B)` is false, so `not(all(A, B))` is true: the `not` block — and therefore the case — passes.
+// This is the case that distinguishes the two groupings: item-wise negation would fail here (since the passing child's negation fails), but grouped negation passes.
 #[test]
 fn not_block_passes_when_children_are_mixed_pass_and_fail() {
     let dir = TempDir::new().unwrap();
@@ -985,8 +981,7 @@ reportage {
 "#,
     );
     // Write a file that matches but is a directory, not a regular file.
-    // Actually, let's create a file and then remove it so glob matched it...
-    // easier: point to a non-existent file via explicit script mode.
+    // Actually, let's create a file and then remove it so glob matched it... easier: point to a non-existent file via explicit script mode.
     let nonexistent = dir.path().join("nonexistent.repor");
     reportage(&dir).arg(&nonexistent).assert().code(2);
 }
@@ -1023,9 +1018,8 @@ fn read_result_json(dir: &TempDir) -> serde_json::Value {
     serde_json::from_str(&content).unwrap()
 }
 
-/// A runner-generated shim that fails to write its event file emits a prefixed
-/// stderr diagnostic. That diagnostic is observable stderr: it is not filtered
-/// from `assert { stderr empty }`.
+/// A runner-generated shim that fails to write its event file emits a prefixed stderr diagnostic.
+/// That diagnostic is observable stderr: it is not filtered from `assert { stderr empty }`.
 #[test]
 #[cfg(unix)]
 fn shim_stderr_warning_is_not_filtered_from_stderr_empty_assertion() {
@@ -1033,9 +1027,8 @@ fn shim_stderr_warning_is_not_filtered_from_stderr_empty_assertion() {
 
     let dir = TempDir::new().unwrap();
 
-    // Create a hand-crafted shim that unconditionally writes a prefixed
-    // warning to stderr and then delegates to `true`. This mimics the
-    // behavior of a real shim that cannot write its event file.
+    // Create a hand-crafted shim that unconditionally writes a prefixed warning to stderr and then delegates to `true`.
+    // This mimics the behavior of a real shim that cannot write its event file.
     let shim_dir = dir.child("shims");
     shim_dir.create_dir_all().unwrap();
     let true_path = which_bin("true");
@@ -1063,8 +1056,7 @@ case "shim stderr not filtered" {
 "#,
     );
 
-    // The assertion must fail: the shim's stderr warning is observable stderr
-    // and is not automatically filtered from `assert { stderr empty }`.
+    // The assertion must fail: the shim's stderr warning is observable stderr and is not automatically filtered from `assert { stderr empty }`.
     reportage(&dir)
         .arg(script)
         .env("PATH", path_with_prefix(shim_dir.path()))
@@ -1072,8 +1064,7 @@ case "shim stderr not filtered" {
         .code(1);
 }
 
-/// When a reportage-generated shim is invoked during an action, the result
-/// artifact (result.json) records the observed shim invocation metadata.
+/// When a reportage-generated shim is invoked during an action, the result artifact (result.json) records the observed shim invocation metadata.
 #[test]
 #[cfg(unix)]
 fn result_json_contains_shim_invocations_when_shim_is_used() {
@@ -1130,8 +1121,7 @@ case "shim artifact" {
     assert_eq!(invocations[0]["forwards_caller_args"], true);
 }
 
-/// When a case fails and the action was resolved through a reportage-generated
-/// shim, the CLI diagnostics include the observed shim path and target invocation.
+/// When a case fails and the action was resolved through a reportage-generated shim, the CLI diagnostics include the observed shim path and target invocation.
 #[test]
 #[cfg(unix)]
 fn failing_case_with_shim_shows_shim_metadata_in_cli_output() {
@@ -1392,8 +1382,7 @@ case "absolute path rejected" {
 }
 "#,
     );
-    // The offending script's own path must be identifiable in the output, not just
-    // the diagnostic code, so a semantic error can be traced back to its source file.
+    // The offending script's own path must be identifiable in the output, not just the diagnostic code, so a semantic error can be traced back to its source file.
     reportage(&dir)
         .arg(script)
         .assert()
@@ -1427,8 +1416,8 @@ case "dot segment rejected" {
 
 #[test]
 fn file_assertion_path_resolves_against_workspace_root_not_action_cd() {
-    // A `cd` performed inside a `$` action must not change how the following
-    // file assertion's path is resolved. See docs/semantics.md.
+    // A `cd` performed inside a `$` action must not change how the following file assertion's path is resolved.
+    // See docs/semantics.md.
     let dir = TempDir::new().unwrap();
     dir.child("subdir").create_dir_all().unwrap();
     let script = write_script(

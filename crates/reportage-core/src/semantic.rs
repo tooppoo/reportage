@@ -1,13 +1,9 @@
 //! Semantic validation of the normalized expectation model.
 //!
-//! A semantic error means the script parses successfully, but a normalized
-//! expectation violates a policy the evaluator must reject *before* evidence
-//! comparison begins. This is distinct from a parse error (the script text
-//! itself is malformed) and from an assertion failure (the expectation is
-//! valid, but observed evidence does not satisfy it).
+//! A semantic error means the script parses successfully, but a normalized expectation violates a policy the evaluator must reject *before* evidence comparison begins.
+//! This is distinct from a parse error (the script text itself is malformed) and from an assertion failure (the expectation is valid, but observed evidence does not satisfy it).
 //!
-//! See docs/semantic-diagnostics.md and
-//! docs/adr/20260702T133734Z_semantic-and-assertion-diagnostic-model.md.
+//! See docs/semantic-diagnostics.md and docs/adr/20260702T133734Z_semantic-and-assertion-diagnostic-model.md.
 
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails};
 
@@ -73,10 +69,8 @@ impl SemanticError {
 /// - Absolute paths are rejected.
 /// - `.` and `..` path segments are rejected.
 ///
-/// This centralizes path policy validation for the `file "<path>"` subject so
-/// every predicate (`exists`, `contains`, and future predicates) shares the
-/// same rejection rule. See
-/// docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
+/// This centralizes path policy validation for the `file "<path>"` subject so every predicate (`exists`, `contains`, and future predicates) shares the same rejection rule.
+/// See docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
 pub fn validate_file_path(path: &str) -> Result<(), SemanticError> {
     if path.starts_with('/') {
         return Err(SemanticError::AbsoluteFilePath(path.to_string()));

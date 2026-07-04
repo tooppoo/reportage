@@ -6,12 +6,9 @@ For the detailed shim invocation event protocol, see [shims/event-protocol.md](s
 
 ## Overview
 
-reportage executes `$` actions through the POSIX shell with `sh -c <command>`.
-The shell resolves command names using `PATH`.
+reportage executes `$` actions through the POSIX shell with `sh -c <command>`. The shell resolves command names using `PATH`.
 
-A shim is a runner-owned executable placed in a PATH prefix directory. The shim
-lets a command name written in a `.repor` script resolve to a controlled
-executable invocation.
+A shim is a runner-owned executable placed in a PATH prefix directory. The shim lets a command name written in a `.repor` script resolve to a controlled executable invocation.
 
 ```repor
 case "with --help" {
@@ -23,8 +20,7 @@ case "with --help" {
 }
 ```
 
-The script says `reportage`, while the runner may arrange for that command name
-to resolve to a shim.
+The script says `reportage`, while the runner may arrange for that command name to resolve to a shim.
 
 ## Purpose
 
@@ -39,12 +35,9 @@ Use cases include:
 
 ## PATH overlay shims
 
-The runner prepends one or more runner-owned directories to `PATH`. Normal shell
-command resolution applies after that. A shim named `reportage` in the prefix
-directory shadows an ambient `reportage` found later on `PATH`.
+The runner prepends one or more runner-owned directories to `PATH`. Normal shell command resolution applies after that. A shim named `reportage` in the prefix directory shadows an ambient `reportage` found later on `PATH`.
 
-This is command resolution control, not shell selection. For the low-level
-`ExecutionEnvironment` PATH behavior, see [execution-model.md](execution-model.md).
+This is command resolution control, not shell selection. For the low-level `ExecutionEnvironment` PATH behavior, see [execution-model.md](execution-model.md).
 
 ## Use cases
 
@@ -62,9 +55,7 @@ For self-testing policy and representative cases, see [self-testing.md](self-tes
 
 ### Application E2E testing
 
-Same-name interception is not the only use case. Ordinary application tests may
-use a shim as a test-facing entrypoint, and the command name in the `.repor` file
-does not need to already exist in the ambient environment.
+Same-name interception is not the only use case. Ordinary application tests may use a shim as a test-facing entrypoint, and the command name in the `.repor` file does not need to already exist in the ambient environment.
 
 ```repor
 case "shows version" {
@@ -76,14 +67,11 @@ case "shows version" {
 }
 ```
 
-The runner or adapter may provide a `myapp` shim that delegates to the intended
-application invocation.
+The runner or adapter may provide a `myapp` shim that delegates to the intended application invocation.
 
 ### Coverage-aware adapters
 
-PATH overlay shims and coverage collection are related but distinct. Shims
-decide which executable invocation runs. Runtime-specific coverage setup remains
-adapter responsibility.
+PATH overlay shims and coverage collection are related but distinct. Shims decide which executable invocation runs. Runtime-specific coverage setup remains adapter responsibility.
 
 A target may be runnable even when coverage is unavailable.
 
@@ -114,34 +102,23 @@ Absolute program paths avoid recursive wrapper invocation.
 
 ## Shim invocation observability
 
-Shims can make failures harder to diagnose unless invocation metadata is
-recorded. reportage must not parse action command text to infer shim usage:
-command resolution belongs to the shell/runtime environment.
+Shims can make failures harder to diagnose unless invocation metadata is recorded. reportage must not parse action command text to infer shim usage: command resolution belongs to the shell/runtime environment.
 
-Protocol-compliant shims report invocation events through a runner-provided side
-channel. The runner attaches observed shim invocation metadata to action results,
-diagnostics, and artifacts.
+Protocol-compliant shims report invocation events through a runner-provided side channel. The runner attaches observed shim invocation metadata to action results, diagnostics, and artifacts.
 
 For the protocol, see [shims/event-protocol.md](shims/event-protocol.md).
 
 ## Observed metadata, not complete resolution tracing
 
-Shim invocation metadata is observed evidence. If a protocol-compliant shim
-writes an event, reportage can record the invocation. If metadata is absent, no
-protocol-compliant shim invocation was observed.
+Shim invocation metadata is observed evidence. If a protocol-compliant shim writes an event, reportage can record the invocation. If metadata is absent, no protocol-compliant shim invocation was observed.
 
-Absence does not prove that no shim, wrapper, or ambient command was involved.
-Third-party or non-compliant shims may run without producing observable metadata.
+Absence does not prove that no shim, wrapper, or ambient command was involved. Third-party or non-compliant shims may run without producing observable metadata.
 
 ## Error handling
 
-Runner-generated shims should write invocation event data before delegating. If
-event writing fails, they should emit a prefixed stderr diagnostic such as
-`reportage shim warning:` and continue delegating to the target invocation.
+Runner-generated shims should write invocation event data before delegating. If event writing fails, they should emit a prefixed stderr diagnostic such as `reportage shim warning:` and continue delegating to the target invocation.
 
-These diagnostics remain observable stderr. reportage does not automatically
-filter them out from stdout/stderr assertions. A dedicated diagnostic side
-channel is deferred.
+These diagnostics remain observable stderr. reportage does not automatically filter them out from stdout/stderr assertions. A dedicated diagnostic side channel is deferred.
 
 ## Non-goals
 

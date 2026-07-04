@@ -2,8 +2,7 @@ use std::path::{Path, PathBuf};
 
 /// Environment variable set by the runner before each action execution.
 ///
-/// Protocol-compliant shims read this variable to locate the action-scoped
-/// event directory and write invocation event files into it.
+/// Protocol-compliant shims read this variable to locate the action-scoped event directory and write invocation event files into it.
 pub const SHIM_EVENT_DIR_VAR: &str = "REPORTAGE_SHIM_EVENT_DIR";
 
 /// Error encountered while parsing a shim event file.
@@ -48,21 +47,18 @@ impl std::error::Error for ShimEventParseError {}
 
 /// The target executable invocation recorded in a shim event.
 ///
-/// Models the invocation as `program` plus fixed `args`, matching the
-/// `ExecutableInvocation` shape used when materializing shims. This allows
-/// targets such as `ruby tool.rb` to be represented without changing the model.
+/// Models the invocation as `program` plus fixed `args`, matching the `ExecutableInvocation` shape used when materializing shims.
+/// This allows targets such as `ruby tool.rb` to be represented without changing the model.
 #[derive(Debug, Clone)]
 pub struct ShimInvocationTarget {
     pub program: PathBuf,
     pub args: Vec<String>,
 }
 
-/// A shim invocation event written by a protocol-compliant shim to the
-/// action-scoped event directory before delegating to its target invocation.
+/// A shim invocation event written by a protocol-compliant shim to the action-scoped event directory before delegating to its target invocation.
 ///
-/// The runner reads these events after the action completes and attaches them
-/// to the corresponding `ActionResult`. Absence means no protocol-compliant
-/// shim was observed; it does not prove that no shim or wrapper was involved.
+/// The runner reads these events after the action completes and attaches them to the corresponding `ActionResult`.
+/// Absence means no protocol-compliant shim was observed; it does not prove that no shim or wrapper was involved.
 #[derive(Debug, Clone)]
 pub struct ShimInvocationEvent {
     pub schema_version: u64,
@@ -74,8 +70,8 @@ pub struct ShimInvocationEvent {
 
 /// Parse a shim event file from its JSON content.
 ///
-/// Returns an error if the content is malformed; the caller decides how to
-/// surface the error. Does not panic on unexpected content.
+/// Returns an error if the content is malformed; the caller decides how to surface the error.
+/// Does not panic on unexpected content.
 pub fn parse_event_file(content: &str) -> Result<ShimInvocationEvent, ShimEventParseError> {
     let value: serde_json::Value = serde_json::from_str(content)
         .map_err(|e| ShimEventParseError::InvalidJson(e.to_string()))?;
@@ -195,9 +191,8 @@ pub fn parse_event_file(content: &str) -> Result<ShimInvocationEvent, ShimEventP
 
 /// Read and parse all shim event files from `dir`.
 ///
-/// Files that cannot be read or parsed are returned as warning strings rather
-/// than hard errors so that malformed events do not silently corrupt the action
-/// result. Non-`.json` files in the directory are ignored.
+/// Files that cannot be read or parsed are returned as warning strings rather than hard errors so that malformed events do not silently corrupt the action result.
+/// Non-`.json` files in the directory are ignored.
 pub fn collect_from_dir(dir: &Path) -> (Vec<ShimInvocationEvent>, Vec<String>) {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,

@@ -9,13 +9,11 @@ For the decision rationale, see [ADR: Use PATH Overlay Shims for Command Resolut
 
 When reportage executes a `$` action step, it invokes the POSIX shell with `sh -c <command>`.
 
-The shell resolves command names according to `PATH`. reportage does not parse
-action command text to infer command resolution.
+The shell resolves command names according to `PATH`. reportage does not parse action command text to infer command resolution.
 
 ## PATH prefix injection
 
-The runner can inject one or more runner-owned directories into the front of
-`PATH` before each action is executed.
+The runner can inject one or more runner-owned directories into the front of `PATH` before each action is executed.
 
 The runner maintains an ordered list of PATH prefix directories in the `ExecutionEnvironment`.
 
@@ -24,10 +22,6 @@ The runner maintains an ordered list of PATH prefix directories in the `Executio
 - If the inherited `PATH` is absent or empty, the effective `PATH` contains only the provided prefixes.
 - When no prefixes are configured, the action shell inherits `PATH` from the current process without modification.
 
-Shell selection remains separate from PATH prefix injection. The runner invokes
-`sh -c` to execute action commands, and the shim PATH is applied only to command
-resolution within that shell.
+Shell selection remains separate from PATH prefix injection. The runner invokes `sh -c` to execute action commands, and the shim PATH is applied only to command resolution within that shell.
 
-For shim roles, executable invocation targets, self-testing interception,
-application entrypoint shims, coverage-aware adapters, and shim invocation
-observability, see [shims.md](shims.md).
+For shim roles, executable invocation targets, self-testing interception, application entrypoint shims, coverage-aware adapters, and shim invocation observability, see [shims.md](shims.md).

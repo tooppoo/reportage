@@ -18,9 +18,7 @@ This is deferred. When it becomes concrete, it should be addressed in a separate
 
 ### Third-party shim validation
 
-A shim that does not follow the reportage shim event protocol may be
-indistinguishable from a direct target invocation or an ambient command
-invocation.
+A shim that does not follow the reportage shim event protocol may be indistinguishable from a direct target invocation or an ambient command invocation.
 
 Future mitigation may include a validation interface such as:
 
@@ -28,17 +26,13 @@ Future mitigation may include a validation interface such as:
 reportage shim test <shim-file>
 ```
 
-This is deferred. The current shim event protocol only defines
-runner-generated shim events and records non-compliant shim limitations.
+This is deferred. The current shim event protocol only defines runner-generated shim events and records non-compliant shim limitations.
 
 ### Dedicated shim diagnostic side channel
 
-Runner-generated shim infrastructure warnings currently use prefixed stderr
-diagnostics such as `reportage shim warning:` and remain observable stderr.
+Runner-generated shim infrastructure warnings currently use prefixed stderr diagnostics such as `reportage shim warning:` and remain observable stderr.
 
-A dedicated diagnostic side channel or run-level warning file may avoid
-polluting target stderr, but it introduces additional write-failure,
-attribution, ordering, and reporting concerns.
+A dedicated diagnostic side channel or run-level warning file may avoid polluting target stderr, but it introduces additional write-failure, attribution, ordering, and reporting concerns.
 
 This is deferred.
 

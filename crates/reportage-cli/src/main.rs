@@ -28,8 +28,8 @@ struct Cli {
 
     /// Fixed artifact run id, for internal self-testing / development only.
     ///
-    /// Not a public stable interface: hidden from `--help`, and not documented
-    /// as a normal CLI feature. See docs/TBD.md — "Self-test run ID control".
+    /// Not a public stable interface: hidden from `--help`, and not documented as a normal CLI feature.
+    /// See docs/TBD.md — "Self-test run ID control".
     #[arg(long = "debug-run-id", hide = true)]
     debug_run_id: Option<String>,
 }
@@ -83,8 +83,7 @@ fn main() {
         None => ArtifactWriter::for_run(Path::new(".reportage")),
     };
     if let Err(e) = writer.write(&result) {
-        // Artifact generation is required by default; write failures are runtime
-        // infrastructure errors, not optional conditions the caller can ignore.
+        // Artifact generation is required by default; write failures are runtime infrastructure errors, not optional conditions the caller can ignore.
         // Continuing here would let CI report success with no artifact evidence.
         // See docs/artifacts.md and ADR 20260627T100400Z_generate-artifacts-by-default.
         eprintln!("error: failed to write artifacts: {e}");
@@ -220,8 +219,7 @@ fn print_results(result: &RunResult) {
             }
         }
 
-        // For failing cases, show observed shim invocations so the resolved
-        // shim path and target invocation are visible in diagnostics.
+        // For failing cases, show observed shim invocations so the resolved shim path and target invocation are visible in diagnostics.
         // See ADR 20260628T210000Z_shim-invocation-event-side-channel.
         if matches!(&case.status, CaseStatus::Fail | CaseStatus::RuntimeError(_)) {
             for action in &case.actions {
@@ -244,18 +242,11 @@ fn print_results(result: &RunResult) {
     }
 }
 
-/// Prints why one failed top-level expectation within an assertion block did
-/// not hold.
+/// Prints why one failed top-level expectation within an assertion block did not hold.
 ///
-/// Recurses into a `not` / `all` / `any` composition's children, printing
-/// every child's own detail rather than filtering by the child's own
-/// pass/fail state. This matters for `not`: when a `not` block fails, that
-/// means its (grouped) contents *held* — none of its children individually
-/// failed — so filtering for failed children would print nothing and lose
-/// the information needed to explain the negation's failure. Always
-/// recursing into every child, described in its own held/did-not-hold
-/// terms, keeps `all` / `any` failures explainable too, without needing a
-/// separate per-operator rule for which children are "responsible".
+/// Recurses into a `not` / `all` / `any` composition's children, printing every child's own detail rather than filtering by the child's own pass/fail state.
+/// This matters for `not`: when a `not` block fails, that means its (grouped) contents *held* — none of its children individually failed — so filtering for failed children would print nothing and lose the information needed to explain the negation's failure.
+/// Always recursing into every child, described in its own held/did-not-hold terms, keeps `all` / `any` failures explainable too, without needing a separate per-operator rule for which children are "responsible".
 fn print_failed_expectation(step_index: usize, expectation: &ExpectationResult) {
     print_expectation_detail(step_index, expectation);
     if let Some(code) = expectation.kind.failure_diagnostic_code() {

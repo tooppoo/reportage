@@ -1,10 +1,7 @@
 //! Guards the pest grammar against drifting away from real Reportage scripts.
 //!
-//! Unit tests in `parser.rs` exercise the grammar against inline string
-//! literals. This test instead parses every checked-in `.repor` fixture
-//! under `examples/` and `e2e/`, so a grammar change that breaks real
-//! scripts fails `cargo test` (and therefore `just check`) without needing
-//! a separate CI job or the full CLI binary.
+//! Unit tests in `parser.rs` exercise the grammar against inline string literals.
+//! This test instead parses every checked-in `.repor` fixture under `examples/` and `e2e/`, so a grammar change that breaks real scripts fails `cargo test` (and therefore `just check`) without needing a separate CI job or the full CLI binary.
 
 use std::fs;
 use std::path::Path;

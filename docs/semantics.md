@@ -455,11 +455,7 @@ In v0, structured output expectations use external `jq`.
 
 ## File assertions
 
-`file "<path>" exists` and `file "<path>" contains "<text>"` are v0
-workspace expectations. `file "<path>"` is the subject; `exists` and
-`contains "<text>"` are predicates on that subject. See
-[ADR: Adopt Subject-First File Assertion Syntax](adr/20260704T112155Z_subject-first-file-assertion-syntax.md)
-for why this shape was chosen over an expectation-first form.
+`file "<path>" exists` and `file "<path>" contains "<text>"` are v0 workspace expectations. `file "<path>"` is the subject; `exists` and `contains "<text>"` are predicates on that subject. See [ADR: Adopt Subject-First File Assertion Syntax](adr/20260704T112155Z_subject-first-file-assertion-syntax.md) for why this shape was chosen over an expectation-first form.
 
 ```reportage
 assert {
@@ -470,38 +466,24 @@ assert {
 
 Path resolution:
 
-- The path is resolved relative to the workspace root the runner used to
-  launch the current case's actions — in v0, the reportage process's own
-  working directory. A `cd` performed inside a `$` action never changes
-  this, because each action runs in a fresh child shell; only the parent
-  process's working directory is used to resolve file assertion paths.
+- The path is resolved relative to the workspace root the runner used to launch the current case's actions — in v0, the reportage process's own working directory. A `cd` performed inside a `$` action never changes this, because each action runs in a fresh child shell; only the parent process's working directory is used to resolve file assertion paths.
 - The path must be relative. Absolute paths are rejected.
 - `.` and `..` path segments are rejected.
-- These path policy violations are semantic errors
-  (`semantic.file_path.absolute`, `semantic.file_path.dot_segment`), not
-  assertion failures: the evaluator rejects them before attempting any
-  filesystem evidence comparison. See
-  [`docs/semantic-diagnostics.md`](semantic-diagnostics.md).
+- These path policy violations are semantic errors (`semantic.file_path.absolute`, `semantic.file_path.dot_segment`), not assertion failures: the evaluator rejects them before attempting any filesystem evidence comparison. See [`docs/semantic-diagnostics.md`](semantic-diagnostics.md).
 
 `exists` semantics:
 
 - Succeeds when the path resolves (following symlinks) to a regular file.
-- Fails when the path does not exist, or resolves to something other than a
-  regular file (e.g. a directory).
+- Fails when the path does not exist, or resolves to something other than a regular file (e.g. a directory).
 
 `contains` semantics:
 
-- Succeeds when the path is a readable UTF-8 regular file whose content
-  contains the expected text as a plain substring.
-- Fails when the path does not exist, is not a regular file, cannot be
-  read, or is not valid UTF-8.
-- Fails when the file is readable UTF-8 but does not contain the expected
-  substring.
-- The match is a plain byte/`str` substring match: no regex, no
-  line-based matching, no newline or Unicode normalization.
+- Succeeds when the path is a readable UTF-8 regular file whose content contains the expected text as a plain substring.
+- Fails when the path does not exist, is not a regular file, cannot be read, or is not valid UTF-8.
+- Fails when the file is readable UTF-8 but does not contain the expected substring.
+- The match is a plain byte/`str` substring match: no regex, no line-based matching, no newline or Unicode normalization.
 
-`file` is scoped to regular files in v0. Directory assertions (`dir`) are
-deferred to #66 and are not implemented.
+`file` is scoped to regular files in v0. Directory assertions (`dir`) are deferred to #66 and are not implemented.
 
 ## Example: checkpoint model in action
 

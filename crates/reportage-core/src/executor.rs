@@ -39,12 +39,10 @@ impl ExecutionEnvironment {
         }
     }
 
-    /// Returns the PATH string to set on the action shell, or `None` when no
-    /// override is needed.
+    /// Returns the PATH string to set on the action shell, or `None` when no override is needed.
     ///
-    /// `None` means "no prefixes configured — let the shell inherit PATH from
-    /// the current process without modification". It is a control signal, not
-    /// an empty path value.
+    /// `None` means "no prefixes configured — let the shell inherit PATH from the current process without modification".
+    /// It is a control signal, not an empty path value.
     fn effective_path(&self) -> Option<String> {
         if self.path_prefixes.is_empty() {
             return None;
@@ -54,8 +52,8 @@ impl ExecutionEnvironment {
 
     /// Build the PATH string by prepending `path_prefixes` before `inherited`.
     ///
-    /// Only called when `path_prefixes` is non-empty. Exposed for testing so
-    /// tests can verify path construction without relying on the process PATH.
+    /// Only called when `path_prefixes` is non-empty.
+    /// Exposed for testing so tests can verify path construction without relying on the process PATH.
     pub(crate) fn build_path_string(&self, inherited: Option<&str>) -> String {
         let mut parts: Vec<String> = self
             .path_prefixes
@@ -74,8 +72,7 @@ pub fn execute_action(
     command: &str,
     env: &ExecutionEnvironment,
 ) -> Result<ActionResult, ExecutionError> {
-    // Create a fresh, action-scoped event directory so shim events from this
-    // action are isolated from events produced by any other action.
+    // Create a fresh, action-scoped event directory so shim events from this action are isolated from events produced by any other action.
     // See ADR 20260628T210000Z_shim-invocation-event-side-channel.
     let event_dir = tempfile::TempDir::new().map_err(|e| ExecutionError {
         message: format!("failed to create shim event directory for action '{command}': {e}"),
@@ -86,17 +83,14 @@ pub fn execute_action(
     let mut cmd = Command::new("sh");
     cmd.arg("-c").arg(command);
 
-    // Prepend runner-owned PATH prefixes so the action shell resolves commands
-    // through shims before falling through to the inherited PATH.
+    // Prepend runner-owned PATH prefixes so the action shell resolves commands through shims before falling through to the inherited PATH.
     // Shell selection remains separate: `sh` is chosen before the shim PATH applies.
     if let Some(path) = env.effective_path() {
         cmd.env("PATH", path);
     }
 
-    // Expose the event directory so protocol-compliant shims can write invocation
-    // events before exec-ing their target. The runner reads these events after the
-    // action completes; the shim must not write post-execution data because POSIX
-    // exec replaces the shim process.
+    // Expose the event directory so protocol-compliant shims can write invocation events before exec-ing their target.
+    // The runner reads these events after the action completes; the shim must not write post-execution data because POSIX exec replaces the shim process.
     cmd.env(SHIM_EVENT_DIR_VAR, event_dir.path());
 
     let output = cmd.output().map_err(|e| ExecutionError {
@@ -104,8 +98,7 @@ pub fn execute_action(
     })?;
 
     // Collect shim invocation events written by protocol-compliant shims.
-    // Malformed event files are returned as warnings, not hard errors, so they
-    // do not silently corrupt the action result.
+    // Malformed event files are returned as warnings, not hard errors, so they do not silently corrupt the action result.
     let (shim_invocations, shim_event_parse_warnings) = collect_from_dir(event_dir.path());
 
     Ok(ActionResult {
@@ -382,9 +375,7 @@ mod tests {
         std::fs::write(event_dir.path().join("bad.json"), "not valid json").unwrap();
 
         // Run an action that will see the pre-existing malformed event file.
-        // We inject it by using a custom action that writes the bad file to the
-        // event dir directly — but since execute_action creates a fresh dir per
-        // action, we test collect_from_dir indirectly via the shim_event module.
+        // We inject it by using a custom action that writes the bad file to the event dir directly — but since execute_action creates a fresh dir per action, we test collect_from_dir indirectly via the shim_event module.
         // Here we test that the runner handles parse failures gracefully.
         let (events, warnings) = crate::shim_event::collect_from_dir(event_dir.path());
         assert!(events.is_empty());

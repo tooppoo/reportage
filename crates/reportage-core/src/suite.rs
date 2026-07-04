@@ -30,8 +30,7 @@ impl std::fmt::Display for DiscoveryError {
 
 impl std::error::Error for DiscoveryError {}
 
-/// Expands glob patterns relative to `base_dir`, deduplicates, and returns
-/// a lexicographically sorted list of matched file paths.
+/// Expands glob patterns relative to `base_dir`, deduplicates, and returns a lexicographically sorted list of matched file paths.
 ///
 /// Returns `DiscoveryError::EmptyPattern` if any pattern matches no files.
 pub fn discover_files(
@@ -69,8 +68,8 @@ pub fn discover_files(
 
 /// Reads and parses all `paths`. Returns validated files and any file-level errors.
 ///
-/// All files are read and parsed before any `$` actions execute. Errors from
-/// multiple files are collected in a single pass.
+/// All files are read and parsed before any `$` actions execute.
+/// Errors from multiple files are collected in a single pass.
 pub fn load_and_validate(paths: &[PathBuf]) -> (Vec<ValidatedFile>, Vec<FileError>) {
     let mut validated = Vec::new();
     let mut errors = Vec::new();

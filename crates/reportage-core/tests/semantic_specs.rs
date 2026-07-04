@@ -1,13 +1,9 @@
 //! Semantic spec schema validation.
 //!
-//! Loads every `spec/language/semantics/*.json` file, deserialises it into
-//! typed Rust structs (with `deny_unknown_fields`), checks fixture consistency
-//! invariants, and runs every conformance case against the production semantic
-//! evaluator. This is the CI-integrated validation gate that ensures semantic
-//! spec files conform to the expected schema and remain executable.
+//! Loads every `spec/language/semantics/*.json` file, deserialises it into typed Rust structs (with `deny_unknown_fields`), checks fixture consistency invariants, and runs every conformance case against the production semantic evaluator.
+//! This is the CI-integrated validation gate that ensures semantic spec files conform to the expected schema and remain executable.
 
-// Serde-populated struct fields are not "used" in the conventional sense;
-// their value comes from deserialisation rather than direct assignment.
+// Serde-populated struct fields are not "used" in the conventional sense; their value comes from deserialisation rather than direct assignment.
 #![allow(dead_code)]
 
 use base64::Engine as _;
@@ -561,9 +557,8 @@ fn conformance_case_subjects_match_normative_checkpoint_field() {
 
 #[test]
 fn v0_required_spec_ids_are_all_present() {
-    // These are the v0 initial semantic rules defined in Issue #29 and listed
-    // in spec/language/semantics/README.md. Removing any of these files must
-    // fail CI.
+    // These are the v0 initial semantic rules defined in Issue #29 and listed in spec/language/semantics/README.md.
+    // Removing any of these files must fail CI.
     const REQUIRED_IDS: &[&str] = &[
         "assertion.exit.equals",
         "assertion.stdout.contains",
@@ -599,9 +594,7 @@ fn conformance_case_operators_match_normative_operator() {
     }
 }
 
-/// Parse a conformance case `assertionSource` through the real Reportage parser
-/// and reduce the single parsed expectation to a normalised `(subject, operator,
-/// expected)` triple comparable to a spec's `assertion` fields.
+/// Parse a conformance case `assertionSource` through the real Reportage parser and reduce the single parsed expectation to a normalised `(subject, operator, expected)` triple comparable to a spec's `assertion` fields.
 fn parse_source_to_normalized(source: &str) -> (&'static str, &'static str, serde_json::Value) {
     // Wrap the bare expectation in a minimal script so the grammar accepts it.
     let script_src = format!("case \"c\" {{\n  assert {{\n    {source}\n  }}\n}}\n");
@@ -644,8 +637,7 @@ fn parse_source_to_normalized(source: &str) -> (&'static str, &'static str, serd
 
 #[test]
 fn conformance_case_assertion_source_matches_normalized_assertion() {
-    // Parsing the human-facing `assertionSource` through the real parser must
-    // yield the same subject/operator/expected as the normalised `assertion`.
+    // Parsing the human-facing `assertionSource` through the real parser must yield the same subject/operator/expected as the normalised `assertion`.
     // This prevents the two representations from drifting apart.
     for (path, spec) in load_spec_files() {
         for (i, case) in spec.conformance_cases.iter().enumerate() {
@@ -695,8 +687,7 @@ fn conformance_case_assertion_source_matches_normalized_assertion() {
 
 #[test]
 fn initial_v0_rules_have_expected_normative_fields() {
-    // Pin the normative fields of the three v0 rules so that a machine-readable
-    // source of truth cannot silently change its comparison semantics.
+    // Pin the normative fields of the three v0 rules so that a machine-readable source of truth cannot silently change its comparison semantics.
     for (path, spec) in load_spec_files() {
         let n = &spec.normative;
         let ms = &n.match_semantics;
@@ -792,12 +783,9 @@ fn initial_v0_rules_have_expected_normative_fields() {
 
 #[test]
 fn conformance_case_expected_result_matches_v0_semantics() {
-    // #30: the normalized assertion representation and checkpoint data from the
-    // JSON semantic specs are fed directly to the production semantic evaluator.
-    // Parser/source consistency is checked separately above and is not the
-    // primary purpose of semantic conformance. Until #41 defines the diagnostic
-    // code contract, optional expectedDiagnosticCode fields are accepted by the
-    // schema but ignored here.
+    // #30: the normalized assertion representation and checkpoint data from the JSON semantic specs are fed directly to the production semantic evaluator.
+    // Parser/source consistency is checked separately above and is not the primary purpose of semantic conformance.
+    // Until #41 defines the diagnostic code contract, optional expectedDiagnosticCode fields are accepted by the schema but ignored here.
     for (path, spec) in load_spec_files() {
         for (i, case) in spec.conformance_cases.iter().enumerate() {
             let expectation = expectation_from_normalized_assertion(case);

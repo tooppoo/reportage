@@ -20,22 +20,13 @@
 - These stderr warnings are observable stderr and are not automatically filtered from stdout/stderr assertions.
 - A dedicated diagnostic side channel or run-level warning file is deferred.
 
-Shim-emitted events are used because the shim is the component that directly
-knows it was invoked and which target invocation it will delegate to. This keeps
-command resolution semantics with the shell instead of making reportage
-speculate from command text.
+Shim-emitted events are used because the shim is the component that directly knows it was invoked and which target invocation it will delegate to. This keeps command resolution semantics with the shell instead of making reportage speculate from command text.
 
-Action-scoped event directories are used initially because they make event
-attribution direct and prevent stale events from earlier actions from being
-attached to later actions. They also support multiple shim invocations in one
-action without requiring the runner to parse shell structure.
+Action-scoped event directories are used initially because they make event attribution direct and prevent stale events from earlier actions from being attached to later actions. They also support multiple shim invocations in one action without requiring the runner to parse shell structure.
 
-Runner-generated shim event write failure is warning-and-continue because the
-target invocation should still run when observability fails. The prefixed stderr
-warning keeps the failure visible to users and artifacts.
+Runner-generated shim event write failure is warning-and-continue because the target invocation should still run when observability fails. The prefixed stderr warning keeps the failure visible to users and artifacts.
 
-A dedicated diagnostic side channel is deferred because it introduces additional
-write-failure, attribution, ordering, and reporting concerns.
+A dedicated diagnostic side channel is deferred because it introduces additional write-failure, attribution, ordering, and reporting concerns.
 
 ## Consequences
 

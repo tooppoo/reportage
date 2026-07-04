@@ -10,8 +10,7 @@ use crate::result::{
 
 /// Error rejecting an unsafe run id value.
 ///
-/// A run id becomes a single path component under `<artifact-root>/runs/`, so
-/// it must not be usable to escape or corrupt that layout.
+/// A run id becomes a single path component under `<artifact-root>/runs/`, so it must not be usable to escape or corrupt that layout.
 #[derive(Debug, PartialEq, Eq)]
 pub enum RunIdError {
     Empty,
@@ -41,8 +40,8 @@ impl std::error::Error for RunIdError {}
 
 /// A validated run id: a single safe path component for `<artifact-root>/runs/<id>`.
 ///
-/// This is an internal development / self-testing affordance (`--debug-run-id`),
-/// not a public stable interface. See docs/TBD.md — "Self-test run ID control".
+/// This is an internal development / self-testing affordance (`--debug-run-id`), not a public stable interface.
+/// See docs/TBD.md — "Self-test run ID control".
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunId(String);
 
@@ -72,8 +71,8 @@ impl RunId {
 /// Error constructing an `ArtifactWriter` for a fixed run id.
 #[derive(Debug)]
 pub enum ArtifactWriterError {
-    /// The target run directory already exists. A fixed run id must not silently
-    /// overwrite a previous run's artifacts.
+    /// The target run directory already exists.
+    /// A fixed run id must not silently overwrite a previous run's artifacts.
     RunDirectoryExists(PathBuf),
 }
 
@@ -109,9 +108,8 @@ impl ArtifactWriter {
 
     /// Construct a writer for a fixed, caller-chosen run id.
     ///
-    /// Internal development / self-testing affordance behind `--debug-run-id`; not
-    /// a public stable interface. Rejects with `RunDirectoryExists` rather than
-    /// silently overwriting a run directory that already exists.
+    /// Internal development / self-testing affordance behind `--debug-run-id`; not a public stable interface.
+    /// Rejects with `RunDirectoryExists` rather than silently overwriting a run directory that already exists.
     pub fn for_fixed_run(base_dir: &Path, run_id: &RunId) -> Result<Self, ArtifactWriterError> {
         let run_dir = base_dir.join("runs").join(run_id.as_str());
         if run_dir.exists() {
@@ -222,9 +220,7 @@ fn action_json(index: usize, action: &ActionResult) -> serde_json::Value {
     obj
 }
 
-/// Renders one evaluated expectation, recursing into a `not` / `all` / `any`
-/// composition's own children so nested results are never lost — see
-/// docs/semantics.md — Logical composition.
+/// Renders one evaluated expectation, recursing into a `not` / `all` / `any` composition's own children so nested results are never lost — see docs/semantics.md — Logical composition.
 fn expectation_result_json(e: &ExpectationResult) -> serde_json::Value {
     let result_str = if e.passed { "pass" } else { "fail" };
     let mut value = match &e.kind {

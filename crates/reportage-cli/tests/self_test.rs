@@ -1,9 +1,7 @@
 /// Self-test harness: runs the e2e `.repor` scripts through the cargo-built reportage binary.
 ///
-/// `$ reportage ...` steps inside the scripts resolve to the same cargo-built binary
-/// via a temporary PATH shim, not any binary installed on the system PATH.
-/// This ensures coverage data is collected from both the runner invocation and every
-/// subprocess the scripts spawn.
+/// `$ reportage ...` steps inside the scripts resolve to the same cargo-built binary via a temporary PATH shim, not any binary installed on the system PATH.
+/// This ensures coverage data is collected from both the runner invocation and every subprocess the scripts spawn.
 use std::path::PathBuf;
 
 use assert_cmd::Command;
@@ -36,8 +34,7 @@ fn test_path(shim_dir: &std::path::Path) -> String {
     format!("{}:{}", shim_dir.display(), original)
 }
 
-/// Confirm that under the test PATH, `reportage` resolves to the generated shim rather
-/// than any ambient `reportage` installed on the machine.
+/// Confirm that under the test PATH, `reportage` resolves to the generated shim rather than any ambient `reportage` installed on the machine.
 #[test]
 #[cfg(unix)]
 fn shim_resolves_before_ambient_reportage() {
@@ -64,9 +61,8 @@ fn shim_resolves_before_ambient_reportage() {
 
 /// Run all e2e self-tests through the cargo-built binary and assert the suite passes.
 ///
-/// The test runner (cargo-built `reportage`) reads `reportage.kdl` from the workspace root,
-/// discovers `e2e/**/*.repor`, and executes each case. `$ reportage ...` steps inside the
-/// scripts find the shim on PATH, which delegates to the same cargo-built binary.
+/// The test runner (cargo-built `reportage`) reads `reportage.kdl` from the workspace root, discovers `e2e/**/*.repor`, and executes each case.
+/// `$ reportage ...` steps inside the scripts find the shim on PATH, which delegates to the same cargo-built binary.
 #[test]
 #[cfg(unix)]
 fn self_tests_pass() {
