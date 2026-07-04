@@ -1,0 +1,10 @@
+
+case "file assertion verifies artifact evidence" {
+  $ rm -rf .reportage/runs/file-assertion-selftest .reportage/tmp-file-assertion-selftest && mkdir -p .reportage/tmp-file-assertion-selftest && printf '%s\n' 'case "inner" {' '  $ true' '  assert {' '    exit 0' '  }' '}' > .reportage/tmp-file-assertion-selftest/inner.repor && reportage --debug-run-id file-assertion-selftest .reportage/tmp-file-assertion-selftest/inner.repor
+
+  assert {
+    exit 0
+    file ".reportage/runs/file-assertion-selftest/result.json" exists
+    file ".reportage/runs/file-assertion-selftest/result.json" contains "\"result\": \"pass\""
+  }
+}

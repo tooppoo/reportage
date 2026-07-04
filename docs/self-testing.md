@@ -79,3 +79,35 @@ Useful cases include:
 - an artifact or evidence-output path.
 
 These self-tests should complement, not replace, Rust unit and integration tests.
+
+## Artifact / evidence self-testing
+
+[`e2e/artifacts/file-assertion-evidence.repor`](../e2e/artifacts/file-assertion-evidence.repor)
+is the representative artifact / evidence-output self-test. It:
+
+1. runs a nested `reportage` invocation against a small inner script;
+2. asserts the nested run's process-level behavior (`exit 0`);
+3. asserts that the nested run's `result.json` artifact file exists, using
+   `file "<path>" exists`;
+4. asserts that `result.json` contains a stable marker, using
+   `file "<path>" contains "<text>"`.
+
+The marker asserted (`"result": "pass"`) is a field name and enum-like value
+from the artifact schema, not a timestamp, absolute path, or
+platform-specific string, so it stays stable across runs and machines.
+
+The nested invocation uses the hidden `--debug-run-id <id>` option so its
+artifact path is deterministic (`.reportage/runs/<id>/result.json`) instead
+of the normal millisecond-timestamp run directory. `--debug-run-id` is an
+internal self-testing / development affordance, not a public stable CLI
+option — see [`docs/TBD.md`](TBD.md) — "Self-test run ID control".
+
+The self-test removes any previous `.reportage/runs/<id>` directory for its
+own fixed id before invoking the nested run, so repeated local runs do not
+collide with a stale directory from an earlier run. A fixed run id that
+does resolve to an existing run directory is a distinct, separately-tested
+runner behavior (the runner refuses to silently overwrite it); see the
+`for_fixed_run_rejects_existing_run_directory` unit test in
+`crates/reportage-core/src/artifact.rs` and the
+`debug_run_id_does_not_silently_overwrite_existing_run_directory`
+integration test in `crates/reportage-cli/tests/integration_test.rs`.

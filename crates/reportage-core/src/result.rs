@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use crate::diagnostic::DiagnosticCode;
 use crate::model::Script;
 use crate::shim_event::ShimInvocationEvent;
 
@@ -26,11 +27,92 @@ pub struct ActionResult {
 /// The kind and actual vs. expected values of a single evaluated expectation.
 #[derive(Debug)]
 pub enum ExpectationKind {
-    Exit { expected: u8, actual: i32 },
-    StdoutContains { expected: String, actual: String },
-    StderrContains { expected: String, actual: String },
-    StdoutEmpty { actual: String },
-    StderrEmpty { actual: String },
+    Exit {
+        expected: u8,
+        actual: i32,
+    },
+    StdoutContains {
+        expected: String,
+        actual: String,
+    },
+    StderrContains {
+        expected: String,
+        actual: String,
+    },
+    StdoutEmpty {
+        actual: String,
+    },
+    StderrEmpty {
+        actual: String,
+    },
+    FileExists {
+        path: String,
+        observation: FileExistsObservation,
+    },
+    FileContains {
+        path: String,
+        expected: String,
+        observation: FileContentObservation,
+    },
+}
+
+impl ExpectationKind {
+    /// The stable diagnostic code for a failing expectation of this kind, if one is
+    /// defined. Passing expectations, and expectation kinds without a dedicated
+    /// diagnostic code, return `None`. See docs/semantic-diagnostics.md.
+    pub fn failure_diagnostic_code(&self) -> Option<DiagnosticCode> {
+        match self {
+            ExpectationKind::FileExists { observation, .. } => match observation {
+                FileExistsObservation::RegularFile => None,
+                FileExistsObservation::Missing => Some(DiagnosticCode::AssertionFileExistsMissing),
+                FileExistsObservation::NotRegularFile => {
+                    Some(DiagnosticCode::AssertionFileExistsNotAFile)
+                }
+            },
+            ExpectationKind::FileContains { observation, .. } => match observation {
+                FileContentObservation::Found => None,
+                FileContentObservation::NotFound => {
+                    Some(DiagnosticCode::AssertionFileContainsMismatch)
+                }
+                FileContentObservation::Missing
+                | FileContentObservation::NotRegularFile
+                | FileContentObservation::Unreadable
+                | FileContentObservation::NotUtf8 => {
+                    Some(DiagnosticCode::AssertionFileContainsPreconditionUnmet)
+                }
+            },
+            _ => None,
+        }
+    }
+}
+
+/// What was observed on the filesystem for a `file "<path>" exists` expectation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileExistsObservation {
+    /// `path` resolves (following symlinks) to a regular file.
+    RegularFile,
+    /// `path` resolves to something other than a regular file (e.g. a directory).
+    NotRegularFile,
+    /// `path` does not exist (including a broken symlink).
+    Missing,
+}
+
+/// What was observed on the filesystem for a `file "<path>" contains "<text>"` expectation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileContentObservation {
+    /// `path` is a readable UTF-8 regular file whose content contains the expected substring.
+    Found,
+    /// `path` is a readable UTF-8 regular file, but its content does not contain the expected
+    /// substring.
+    NotFound,
+    /// `path` does not exist.
+    Missing,
+    /// `path` exists but is not a regular file (e.g. a directory).
+    NotRegularFile,
+    /// `path` is a regular file but could not be read.
+    Unreadable,
+    /// `path` is a regular file, but its content is not valid UTF-8.
+    NotUtf8,
 }
 
 /// The result of evaluating one expectation within an assertion block.

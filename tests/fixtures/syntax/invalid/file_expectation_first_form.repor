@@ -1,0 +1,6 @@
+case "expectation-first file form is rejected" {
+  $ true
+  assert {
+    file exists "out/result.json"
+  }
+}

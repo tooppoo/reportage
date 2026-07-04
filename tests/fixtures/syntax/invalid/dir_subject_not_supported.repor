@@ -1,0 +1,6 @@
+case "dir subject is not v0 syntax" {
+  $ true
+  assert {
+    dir "out" exists
+  }
+}

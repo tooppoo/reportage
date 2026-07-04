@@ -34,6 +34,20 @@ pub enum DiagnosticCode {
     ParseEmptyAction,
     /// An exit code expectation falls outside `0..=255`.
     ParseInvalidExitCode,
+    /// A file assertion path is absolute; only relative paths are accepted.
+    SemanticFilePathAbsolute,
+    /// A file assertion path contains a `.` or `..` segment.
+    SemanticFilePathDotSegment,
+    /// `file "<path>" exists` observed a missing path.
+    AssertionFileExistsMissing,
+    /// `file "<path>" exists` observed a path that is not a regular file (e.g. a directory).
+    AssertionFileExistsNotAFile,
+    /// `file "<path>" contains "<text>"` observed a path that is not a readable UTF-8 regular
+    /// file (missing, a directory, unreadable, or non-UTF-8 content).
+    AssertionFileContainsPreconditionUnmet,
+    /// `file "<path>" contains "<text>"` observed a readable UTF-8 regular file that does not
+    /// contain the expected substring.
+    AssertionFileContainsMismatch,
 }
 
 impl DiagnosticCode {
@@ -48,6 +62,14 @@ impl DiagnosticCode {
             Self::ParseMissingAssertionBlock => "parse.missing_assertion_block",
             Self::ParseEmptyAction => "parse.empty_action",
             Self::ParseInvalidExitCode => "parse.invalid_exit_code",
+            Self::SemanticFilePathAbsolute => "semantic.file_path.absolute",
+            Self::SemanticFilePathDotSegment => "semantic.file_path.dot_segment",
+            Self::AssertionFileExistsMissing => "assertion.file.exists_missing",
+            Self::AssertionFileExistsNotAFile => "assertion.file.exists_not_a_file",
+            Self::AssertionFileContainsPreconditionUnmet => {
+                "assertion.file.contains_precondition_unmet"
+            }
+            Self::AssertionFileContainsMismatch => "assertion.file.contains_mismatch",
         }
     }
 }
@@ -121,6 +143,12 @@ mod tests {
             DiagnosticCode::ParseMissingAssertionBlock,
             DiagnosticCode::ParseEmptyAction,
             DiagnosticCode::ParseInvalidExitCode,
+            DiagnosticCode::SemanticFilePathAbsolute,
+            DiagnosticCode::SemanticFilePathDotSegment,
+            DiagnosticCode::AssertionFileExistsMissing,
+            DiagnosticCode::AssertionFileExistsNotAFile,
+            DiagnosticCode::AssertionFileContainsPreconditionUnmet,
+            DiagnosticCode::AssertionFileContainsMismatch,
         ] {
             assert_eq!(code.to_string(), code.as_str());
         }

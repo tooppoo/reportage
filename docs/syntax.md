@@ -90,7 +90,7 @@ assertion_line = _{ ws* ~ expectation ~ trail }
 
 // ─── Expectations ─────────────────────────────────────────────────────────────
 
-expectation     = { exit_exp | stdout_exp | stderr_exp }
+expectation     = { exit_exp | stdout_exp | stderr_exp | file_exp }
 
 exit_exp        = { "exit" ~ ws+ ~ exit_code }
 exit_code       = @{ ASCII_DIGIT+ }
@@ -101,6 +101,15 @@ stderr_exp      = { "stderr" ~ ws+ ~ output_matcher }
 output_matcher  = { output_contains | output_empty }
 output_contains = { "contains" ~ ws+ ~ quoted_string }
 output_empty    = { "empty" }
+
+// `file "<path>" exists` / `file "<path>" contains "<text>"`.
+// Subject-first: `file <path>` is the common subject, `exists` / `contains`
+// are predicates on that subject. See
+// docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
+file_exp        = { "file" ~ ws+ ~ quoted_string ~ ws+ ~ file_predicate }
+file_predicate  = { file_contains | file_exists }
+file_exists     = { "exists" }
+file_contains   = { "contains" ~ ws+ ~ quoted_string }
 
 // ─── String literals ──────────────────────────────────────────────────────────
 
