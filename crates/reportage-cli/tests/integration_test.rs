@@ -1122,10 +1122,13 @@ case "absolute path rejected" {
 }
 "#,
     );
+    // The offending script's own path must be identifiable in the output, not just
+    // the diagnostic code, so a semantic error can be traced back to its source file.
     reportage(&dir)
         .arg(script)
         .assert()
         .code(2)
+        .stdout(predicates::str::contains("test.repor"))
         .stderr(predicates::str::contains("semantic.file_path.absolute"));
 }
 
@@ -1148,6 +1151,7 @@ case "dot segment rejected" {
         .arg(script)
         .assert()
         .code(2)
+        .stdout(predicates::str::contains("test.repor"))
         .stderr(predicates::str::contains("semantic.file_path.dot_segment"));
 }
 
