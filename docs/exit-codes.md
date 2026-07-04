@@ -4,7 +4,7 @@ This document defines the reportage CLI exit code policy and the exit codes intr
 
 ## Policy
 
-- Exit code `0` means success: every case in the run passed.
+- Exit code `0` means success: every case in the run passed, or the run was a no-op because no cases were found in otherwise-valid selected input.
 - Non-zero exit codes must be as specific and distinguishable as reasonably possible.
 - Test assertion failure, parse/validation error, and execution/runtime error must not share the same exit code.
 - Exit codes are process-level severity signals for CI and shell callers.
@@ -14,7 +14,7 @@ This document defines the reportage CLI exit code policy and the exit codes intr
 
 | Code | Meaning |
 |------|---------|
-| `0`  | **Success** — all cases passed. |
+| `0`  | **Success** — all cases passed, or no cases were found in otherwise-valid selected input. |
 | `1`  | **Test/assertion failure** — the run completed but at least one assertion did not pass. |
 | `2`  | **Script/config validation error** — the selected reportage scripts or configuration could not be treated as valid test input. Examples include read errors, parse errors, unsupported syntax, invalid config, a case with no assertion, an assertion with no preceding action, or an exit code outside `0..=255`. |
 | `3`  | **Action execution/runtime error** — the runner could not execute an action, write required artifacts, or perform required runtime infrastructure work. This is distinct from a non-zero action exit code, which is a normal execution outcome. |
@@ -27,7 +27,7 @@ v0 result categories:
 
 | `result` | Exit code | Meaning |
 |----------|-----------|---------|
-| `pass` | `0` | All selected cases executed and passed. |
+| `pass` | `0` | All selected cases executed and passed, or the run was a no-op success with `noop: true`. |
 | `test_failed` | `1` | The selected scripts were valid and execution completed, but one or more assertions failed. |
 | `script_error` | `2` | One or more selected reportage script files could not be used as valid test definitions. Examples include `read_error`, `parse_error`, unsupported syntax, and invalid script structure. |
 | `config_error` | `2` | The configuration itself is invalid, unsupported, or cannot be used for discovery. |
@@ -57,3 +57,4 @@ This means `config_error` is used when discovery/configuration cannot produce a 
 
 - A non-zero exit code from an action (`$ false` exits with `1`) is not itself an error. It is captured as the action's result and evaluated by explicit `assert exit` assertions.
 - Exit code `3` is reserved for infrastructure failures such as the POSIX shell not being found on `PATH`, or required artifact generation failing. It does not mean "the action exited non-zero".
+- Empty and whitespace-only scripts are syntax-valid inputs. At execution time they produce a no-op success with exit code `0`, no command execution, and no assertion evaluation.

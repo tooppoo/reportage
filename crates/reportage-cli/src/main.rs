@@ -147,6 +147,10 @@ fn run_with_config(config_path: PathBuf) -> RunResult {
 }
 
 fn print_results(result: &RunResult) {
+    if result.is_noop() {
+        println!("NO-OP  no cases found; nothing was executed");
+    }
+
     for error in &result.file_errors {
         let kind = match &error.kind {
             FileErrorKind::ReadError(_) => "READ ERROR",

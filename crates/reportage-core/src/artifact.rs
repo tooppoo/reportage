@@ -33,6 +33,7 @@ impl ArtifactWriter {
 }
 
 fn build_json(result: &RunResult) -> serde_json::Value {
+    let summary = result.summary();
     let overall = if !result.file_errors.is_empty() {
         "script_error"
     } else if result.exit_code() == 0 {
@@ -43,6 +44,21 @@ fn build_json(result: &RunResult) -> serde_json::Value {
 
     let mut obj = json!({
         "result": overall,
+        "noop": summary.noop,
+        "summary": {
+            "noop": summary.noop,
+            "cases": {
+                "total": summary.cases_total,
+                "passed": summary.cases_passed,
+                "failed": summary.cases_failed
+            },
+            "steps": {
+                "executed": summary.steps_executed
+            },
+            "assertions": {
+                "total": summary.assertions_total
+            }
+        },
         "cases": result.cases.iter().map(case_json).collect::<Vec<_>>()
     });
 

@@ -117,7 +117,48 @@ pub struct RunResult {
     pub file_errors: Vec<FileError>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RunSummary {
+    pub noop: bool,
+    pub cases_total: usize,
+    pub cases_passed: usize,
+    pub cases_failed: usize,
+    pub steps_executed: usize,
+    pub assertions_total: usize,
+}
+
 impl RunResult {
+    /// A no-op run has valid selected input but no concrete cases to execute.
+    pub fn is_noop(&self) -> bool {
+        self.file_errors.is_empty() && self.cases.is_empty()
+    }
+
+    pub fn summary(&self) -> RunSummary {
+        let cases_total = self.cases.len();
+        let cases_passed = self
+            .cases
+            .iter()
+            .filter(|case| matches!(case.status, CaseStatus::Pass))
+            .count();
+        let cases_failed = cases_total.saturating_sub(cases_passed);
+        let steps_executed = self.cases.iter().map(|case| case.actions.len()).sum();
+        let assertions_total = self
+            .cases
+            .iter()
+            .flat_map(|case| &case.assertion_blocks)
+            .map(|block| block.expectations.len())
+            .sum();
+
+        RunSummary {
+            noop: self.is_noop(),
+            cases_total,
+            cases_passed,
+            cases_failed,
+            steps_executed,
+            assertions_total,
+        }
+    }
+
     /// Process exit code for the run.
     ///
     /// File-level errors produce exit code 2. Severity order within cases:
