@@ -1,0 +1,8 @@
+case "logical not block" {
+  $ false
+  assert {
+    not {
+      exit 0
+    }
+  }
+}

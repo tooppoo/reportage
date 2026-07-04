@@ -1,0 +1,9 @@
+case "logical all block" {
+  $ true
+  assert {
+    all {
+      exit 0
+      stdout empty
+    }
+  }
+}

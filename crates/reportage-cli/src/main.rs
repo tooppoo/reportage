@@ -6,8 +6,8 @@ use reportage_core::{
     config, evaluator,
     executor::ExecutionEnvironment,
     result::{
-        CaseStatus, ExpectationKind, FileContentObservation, FileErrorKind, FileExistsObservation,
-        RunResult,
+        CaseStatus, ExpectationKind, ExpectationResult, FileContentObservation, FileErrorKind,
+        FileExistsObservation, RunResult,
     },
     suite,
 };
@@ -215,93 +215,7 @@ fn print_results(result: &RunResult) {
         for block in &case.assertion_blocks {
             for expectation in &block.expectations {
                 if !expectation.passed {
-                    match &expectation.kind {
-                        ExpectationKind::Exit { expected, actual } => {
-                            eprintln!(
-                                "  assertion block at step {}: expected exit {expected}, got {actual}",
-                                block.step_index + 1,
-                            );
-                        }
-                        ExpectationKind::StdoutContains { expected, actual } => {
-                            eprintln!(
-                                "  assertion block at step {}: stdout does not contain {:?}",
-                                block.step_index + 1,
-                                expected,
-                            );
-                            eprintln!("    actual stdout: {:?}", actual);
-                        }
-                        ExpectationKind::StderrContains { expected, actual } => {
-                            eprintln!(
-                                "  assertion block at step {}: stderr does not contain {:?}",
-                                block.step_index + 1,
-                                expected,
-                            );
-                            eprintln!("    actual stderr: {:?}", actual);
-                        }
-                        ExpectationKind::StdoutEmpty { actual } => {
-                            eprintln!(
-                                "  assertion block at step {}: expected stdout to be empty",
-                                block.step_index + 1,
-                            );
-                            eprintln!("    actual stdout: {:?}", actual);
-                        }
-                        ExpectationKind::StderrEmpty { actual } => {
-                            eprintln!(
-                                "  assertion block at step {}: expected stderr to be empty",
-                                block.step_index + 1,
-                            );
-                            eprintln!("    actual stderr: {:?}", actual);
-                        }
-                        ExpectationKind::FileExists { path, observation } => {
-                            let reason = match observation {
-                                FileExistsObservation::RegularFile => unreachable!(
-                                    "a passing FileExists observation cannot reach the failure branch"
-                                ),
-                                FileExistsObservation::Missing => "it does not exist",
-                                FileExistsObservation::NotRegularFile => {
-                                    "it is not a regular file (e.g. a directory)"
-                                }
-                            };
-                            eprintln!(
-                                "  assertion block at step {}: expected file {:?} to exist, but {reason}",
-                                block.step_index + 1,
-                                path,
-                            );
-                        }
-                        ExpectationKind::FileContains {
-                            path,
-                            expected,
-                            observation,
-                        } => {
-                            let reason = match observation {
-                                FileContentObservation::Found => unreachable!(
-                                    "a passing FileContains observation cannot reach the failure branch"
-                                ),
-                                FileContentObservation::NotFound => {
-                                    format!("its content does not contain {expected:?}")
-                                }
-                                FileContentObservation::Missing => "it does not exist".to_string(),
-                                FileContentObservation::NotRegularFile => {
-                                    "it is not a regular file (e.g. a directory)".to_string()
-                                }
-                                FileContentObservation::Unreadable => {
-                                    "it could not be read".to_string()
-                                }
-                                FileContentObservation::NotUtf8 => {
-                                    "its content is not valid UTF-8".to_string()
-                                }
-                            };
-                            eprintln!(
-                                "  assertion block at step {}: expected file {:?} to contain {:?}, but {reason}",
-                                block.step_index + 1,
-                                path,
-                                expected,
-                            );
-                        }
-                    }
-                    if let Some(code) = expectation.kind.failure_diagnostic_code() {
-                        eprintln!("    diagnostic code: {}", code.as_str());
-                    }
+                    print_failed_expectation(block.step_index, expectation);
                 }
             }
         }
@@ -324,6 +238,113 @@ fn print_results(result: &RunResult) {
                 }
                 for warning in &action.shim_event_parse_warnings {
                     eprintln!("  shim event warning: {warning}");
+                }
+            }
+        }
+    }
+}
+
+/// Prints why one failed expectation within an assertion block did not hold.
+///
+/// Recurses into a `not` / `all` / `any` composition's own failed children,
+/// so nested logical composition failures are reported down to the atomic
+/// expectation responsible, not just "the composition block failed".
+fn print_failed_expectation(step_index: usize, expectation: &ExpectationResult) {
+    print_failed_expectation_kind(step_index, expectation);
+    if let Some(code) = expectation.kind.failure_diagnostic_code() {
+        eprintln!("    diagnostic code: {}", code.as_str());
+    }
+}
+
+fn print_failed_expectation_kind(step_index: usize, expectation: &ExpectationResult) {
+    match &expectation.kind {
+        ExpectationKind::Exit { expected, actual } => {
+            eprintln!(
+                "  assertion block at step {}: expected exit {expected}, got {actual}",
+                step_index + 1,
+            );
+        }
+        ExpectationKind::StdoutContains { expected, actual } => {
+            eprintln!(
+                "  assertion block at step {}: stdout does not contain {:?}",
+                step_index + 1,
+                expected,
+            );
+            eprintln!("    actual stdout: {:?}", actual);
+        }
+        ExpectationKind::StderrContains { expected, actual } => {
+            eprintln!(
+                "  assertion block at step {}: stderr does not contain {:?}",
+                step_index + 1,
+                expected,
+            );
+            eprintln!("    actual stderr: {:?}", actual);
+        }
+        ExpectationKind::StdoutEmpty { actual } => {
+            eprintln!(
+                "  assertion block at step {}: expected stdout to be empty",
+                step_index + 1,
+            );
+            eprintln!("    actual stdout: {:?}", actual);
+        }
+        ExpectationKind::StderrEmpty { actual } => {
+            eprintln!(
+                "  assertion block at step {}: expected stderr to be empty",
+                step_index + 1,
+            );
+            eprintln!("    actual stderr: {:?}", actual);
+        }
+        ExpectationKind::FileExists { path, observation } => {
+            let reason = match observation {
+                FileExistsObservation::RegularFile => {
+                    unreachable!("a passing FileExists observation cannot reach the failure branch")
+                }
+                FileExistsObservation::Missing => "it does not exist",
+                FileExistsObservation::NotRegularFile => {
+                    "it is not a regular file (e.g. a directory)"
+                }
+            };
+            eprintln!(
+                "  assertion block at step {}: expected file {:?} to exist, but {reason}",
+                step_index + 1,
+                path,
+            );
+        }
+        ExpectationKind::FileContains {
+            path,
+            expected,
+            observation,
+        } => {
+            let reason = match observation {
+                FileContentObservation::Found => unreachable!(
+                    "a passing FileContains observation cannot reach the failure branch"
+                ),
+                FileContentObservation::NotFound => {
+                    format!("its content does not contain {expected:?}")
+                }
+                FileContentObservation::Missing => "it does not exist".to_string(),
+                FileContentObservation::NotRegularFile => {
+                    "it is not a regular file (e.g. a directory)".to_string()
+                }
+                FileContentObservation::Unreadable => "it could not be read".to_string(),
+                FileContentObservation::NotUtf8 => "its content is not valid UTF-8".to_string(),
+            };
+            eprintln!(
+                "  assertion block at step {}: expected file {:?} to contain {:?}, but {reason}",
+                step_index + 1,
+                path,
+                expected,
+            );
+        }
+        ExpectationKind::Logical { operator, children } => {
+            eprintln!(
+                "  assertion block at step {}: '{}' block did not hold",
+                step_index + 1,
+                operator.keyword(),
+            );
+            for child in children {
+                if !child.passed {
+                    print_failed_expectation(step_index, child);
                 }
             }
         }

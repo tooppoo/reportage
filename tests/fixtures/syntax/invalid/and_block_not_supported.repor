@@ -1,0 +1,9 @@
+case "and block not supported" {
+  $ true
+  assert {
+    and {
+      exit 0
+      exit 0
+    }
+  }
+}

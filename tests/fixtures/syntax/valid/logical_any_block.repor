@@ -1,0 +1,9 @@
+case "logical any block" {
+  $ true
+  assert {
+    any {
+      exit 0
+      exit 1
+    }
+  }
+}

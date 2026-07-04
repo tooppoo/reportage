@@ -1,0 +1,34 @@
+{
+  "cases": [
+    {
+      "name": "logical all block",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "logical",
+              "operator": "all",
+              "children": [
+                {
+                  "kind": "exit",
+                  "expected": 0
+                },
+                {
+                  "kind": "stdout",
+                  "matcher": {
+                    "kind": "empty"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

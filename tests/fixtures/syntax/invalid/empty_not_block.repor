@@ -1,0 +1,7 @@
+case "empty not block" {
+  $ true
+  assert {
+    not {
+    }
+  }
+}

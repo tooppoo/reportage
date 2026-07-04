@@ -62,6 +62,7 @@ assertion.file.contains_mismatch
 semantic.file_path.absolute
 semantic.file_path.dot_segment
 semantic.expectation.unsupported
+semantic.expectation.empty_block
 ```
 
 As with `parse.*` codes, a diagnostic code is **not** the Rust error enum

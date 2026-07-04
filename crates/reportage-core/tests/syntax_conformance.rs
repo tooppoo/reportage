@@ -8,7 +8,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use reportage_core::model::{
-    Case, CountOp, DirMatcher, Expectation, FileMatcher, OutputMatcher, OutputSource, Script, Step,
+    Case, CountOp, DirMatcher, Expectation, FileMatcher, LogicalOperator, OutputMatcher,
+    OutputSource, Script, Step,
 };
 use reportage_core::parser::{ParseError, parse};
 use serde::Serialize;
@@ -166,6 +167,10 @@ enum SnapshotExpectation<'a> {
         source: SnapshotOutputSource,
         expression: &'a str,
     },
+    Logical {
+        operator: SnapshotLogicalOperator,
+        children: Vec<SnapshotExpectation<'a>>,
+    },
 }
 
 impl<'a> From<&'a Expectation> for SnapshotExpectation<'a> {
@@ -197,6 +202,28 @@ impl<'a> From<&'a Expectation> for SnapshotExpectation<'a> {
                 source: SnapshotOutputSource::from(&jq.source),
                 expression: &jq.expression,
             },
+            Expectation::Logical(logical) => Self::Logical {
+                operator: SnapshotLogicalOperator::from(logical.operator()),
+                children: logical.children().iter().map(Self::from).collect(),
+            },
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+enum SnapshotLogicalOperator {
+    Not,
+    All,
+    Any,
+}
+
+impl From<LogicalOperator> for SnapshotLogicalOperator {
+    fn from(operator: LogicalOperator) -> Self {
+        match operator {
+            LogicalOperator::Not => Self::Not,
+            LogicalOperator::All => Self::All,
+            LogicalOperator::Any => Self::Any,
         }
     }
 }
@@ -408,6 +435,13 @@ fn invalid_syntax_fixtures_are_rejected() {
             "exit_code_out_of_range" => {
                 assert!(matches!(err, ParseError::InvalidExitCode { .. }));
                 assert_eq!(err.code().as_str(), "parse.invalid_exit_code");
+            }
+            "empty_not_block" => {
+                assert!(matches!(
+                    err,
+                    ParseError::EmptyLogicalCompositionBlock { .. }
+                ));
+                assert_eq!(err.code().as_str(), "semantic.expectation.empty_block");
             }
             // Remaining fixtures are rejected as plain pest syntax errors;
             // they share the coarse-grained "parse.syntax" code and are not
