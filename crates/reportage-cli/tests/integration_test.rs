@@ -20,6 +20,19 @@ fn write_config(dir: &TempDir, content: &str) {
     dir.child("reportage.kdl").write_str(content).unwrap();
 }
 
+fn read_single_result_json(dir: &TempDir) -> (serde_json::Value, PathBuf) {
+    let runs_dir = dir.child(".reportage").child("runs");
+    let entries: Vec<_> = std::fs::read_dir(runs_dir.path())
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(entries.len(), 1, "expected exactly one run directory");
+
+    let run_dir = entries[0].path();
+    let content = std::fs::read_to_string(run_dir.join("result.json")).unwrap();
+    (serde_json::from_str(&content).unwrap(), run_dir)
+}
+
 const PASSING_CASE: &str = r#"
 case "pass" {
   $ true
@@ -81,6 +94,53 @@ case "second pass" {
 "#,
     );
     reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn empty_script_is_noop_success() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(&dir, "empty.repor", "");
+
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(0)
+        .stdout(predicates::str::contains("NO-OP"))
+        .stdout(predicates::str::contains("no cases found"));
+
+    let (json, run_dir) = read_single_result_json(&dir);
+    assert_eq!(json["result"], "pass");
+    assert_eq!(json["noop"], true);
+    assert_eq!(json["summary"]["noop"], true);
+    assert_eq!(json["summary"]["cases"]["total"], 0);
+    assert_eq!(json["summary"]["cases"]["passed"], 0);
+    assert_eq!(json["summary"]["cases"]["failed"], 0);
+    assert_eq!(json["summary"]["steps"]["executed"], 0);
+    assert_eq!(json["summary"]["assertions"]["total"], 0);
+    assert_eq!(json["cases"].as_array().unwrap().len(), 0);
+    assert!(
+        !run_dir.join("cases").exists(),
+        "no-op run must not create case/checkpoint/evidence artifacts"
+    );
+}
+
+#[test]
+fn whitespace_only_script_is_noop_success() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(&dir, "whitespace.repor", " \n\t\n  \n");
+
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(0)
+        .stdout(predicates::str::contains("NO-OP"));
+
+    let (json, _run_dir) = read_single_result_json(&dir);
+    assert_eq!(json["result"], "pass");
+    assert_eq!(json["noop"], true);
+    assert_eq!(json["summary"]["cases"]["total"], 0);
+    assert_eq!(json["summary"]["steps"]["executed"], 0);
+    assert_eq!(json["summary"]["assertions"]["total"], 0);
 }
 
 // --- failing assertions ---

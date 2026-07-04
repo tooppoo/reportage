@@ -21,6 +21,22 @@ If the validation phase passes with no errors, execution proceeds normally acros
 
 See ADR 20260628T000000Z_validate-before-execute for the rationale.
 
+## Empty and zero-case scripts
+
+Empty and whitespace-only scripts are syntax-valid inputs. Syntax validity only means the file can be parsed as a reportage script; it does not imply that execution has work to do.
+
+When selected input is valid but produces zero concrete cases, the runner treats the run as a no-op success:
+
+- the CLI exits with code `0`;
+- no `$` command is executed;
+- no checkpoint is generated;
+- no assertion is evaluated;
+- no case, checkpoint, or evidence artifacts are generated;
+- human-readable CLI output states that no cases were found;
+- the run result summary records `noop: true` and zero case, step, and assertion counts.
+
+See ADR 20260703T000000Z_empty-and-whitespace-scripts-are-no-op-success for the rationale.
+
 ## Core model
 
 A reportage script file is a test module.

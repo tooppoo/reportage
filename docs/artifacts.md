@@ -60,20 +60,82 @@ Initial shape:
 
 ```json
 {
-  "schemaVersion": 1,
-  "status": "failed",
+  "result": "pass",
+  "noop": false,
+  "summary": {
+    "noop": false,
+    "cases": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "steps": {
+      "executed": 1
+    },
+    "assertions": {
+      "total": 1
+    }
+  },
   "cases": [
     {
-      "id": "check-output-json",
       "name": "check output / json",
-      "status": "failed",
-      "resultPath": "cases/check-output-json/result.json"
+      "status": "pass",
+      "actions": [
+        {
+          "index": 0,
+          "kind": "action",
+          "command": "true",
+          "exit_code": 0,
+          "stdout": "",
+          "stderr": ""
+        }
+      ],
+      "assertion_blocks": [
+        {
+          "step_index": 1,
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0,
+              "actual": 0,
+              "result": "pass"
+            }
+          ],
+          "result": "pass"
+        }
+      ]
     }
   ]
 }
 ```
 
 The exact schema is experimental in early v0.
+
+For an empty, whitespace-only, or otherwise valid zero-case suite, the run artifact records a no-op success:
+
+```json
+{
+  "result": "pass",
+  "noop": true,
+  "summary": {
+    "noop": true,
+    "cases": {
+      "total": 0,
+      "passed": 0,
+      "failed": 0
+    },
+    "steps": {
+      "executed": 0
+    },
+    "assertions": {
+      "total": 0
+    }
+  },
+  "cases": []
+}
+```
+
+No-op execution does not create case, checkpoint, or evidence artifacts because no command ran and no assertion was evaluated. The run-level `result.json` is still written because it records that nothing was executed.
 
 ## Case result
 
