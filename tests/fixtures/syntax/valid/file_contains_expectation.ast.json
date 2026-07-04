@@ -1,0 +1,26 @@
+{
+  "cases": [
+    {
+      "name": "file contains",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "out/result.json",
+              "matcher": {
+                "kind": "contains",
+                "value": "\"status\":\"passed\""
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

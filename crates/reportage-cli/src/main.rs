@@ -2,10 +2,13 @@ use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use reportage_core::{
-    artifact::ArtifactWriter,
+    artifact::{ArtifactWriter, RunId},
     config, evaluator,
     executor::ExecutionEnvironment,
-    result::{CaseStatus, ExpectationKind, FileErrorKind, RunResult},
+    result::{
+        CaseStatus, ExpectationKind, FileContentObservation, FileErrorKind, FileExistsObservation,
+        RunResult,
+    },
     suite,
 };
 
@@ -22,6 +25,13 @@ struct Cli {
     /// Path to the config file. Defaults to ./reportage.kdl when no scripts are given.
     #[arg(long)]
     config: Option<PathBuf>,
+
+    /// Fixed artifact run id, for internal self-testing / development only.
+    ///
+    /// Not a public stable interface: hidden from `--help`, and not documented
+    /// as a normal CLI feature. See docs/TBD.md — "Self-test run ID control".
+    #[arg(long = "debug-run-id", hide = true)]
+    debug_run_id: Option<String>,
 }
 
 enum InvocationMode {
@@ -53,7 +63,25 @@ fn main() {
         InvocationMode::Config(config_path) => run_with_config(config_path),
     };
 
-    let writer = ArtifactWriter::for_run(Path::new(".reportage"));
+    let writer = match &cli.debug_run_id {
+        Some(raw_id) => {
+            let run_id = match RunId::new(raw_id.clone()) {
+                Ok(id) => id,
+                Err(e) => {
+                    eprintln!("error: invalid --debug-run-id: {e}");
+                    std::process::exit(3);
+                }
+            };
+            match ArtifactWriter::for_fixed_run(Path::new(".reportage"), &run_id) {
+                Ok(writer) => writer,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    std::process::exit(3);
+                }
+            }
+        }
+        None => ArtifactWriter::for_run(Path::new(".reportage")),
+    };
     if let Err(e) = writer.write(&result) {
         // Artifact generation is required by default; write failures are runtime
         // infrastructure errors, not optional conditions the caller can ignore.
@@ -224,6 +252,55 @@ fn print_results(result: &RunResult) {
                             );
                             eprintln!("    actual stderr: {:?}", actual);
                         }
+                        ExpectationKind::FileExists { path, observation } => {
+                            let reason = match observation {
+                                FileExistsObservation::RegularFile => unreachable!(
+                                    "a passing FileExists observation cannot reach the failure branch"
+                                ),
+                                FileExistsObservation::Missing => "it does not exist",
+                                FileExistsObservation::NotRegularFile => {
+                                    "it is not a regular file (e.g. a directory)"
+                                }
+                            };
+                            eprintln!(
+                                "  assertion block at step {}: expected file {:?} to exist, but {reason}",
+                                block.step_index + 1,
+                                path,
+                            );
+                        }
+                        ExpectationKind::FileContains {
+                            path,
+                            expected,
+                            observation,
+                        } => {
+                            let reason = match observation {
+                                FileContentObservation::Found => unreachable!(
+                                    "a passing FileContains observation cannot reach the failure branch"
+                                ),
+                                FileContentObservation::NotFound => {
+                                    format!("its content does not contain {expected:?}")
+                                }
+                                FileContentObservation::Missing => "it does not exist".to_string(),
+                                FileContentObservation::NotRegularFile => {
+                                    "it is not a regular file (e.g. a directory)".to_string()
+                                }
+                                FileContentObservation::Unreadable => {
+                                    "it could not be read".to_string()
+                                }
+                                FileContentObservation::NotUtf8 => {
+                                    "its content is not valid UTF-8".to_string()
+                                }
+                            };
+                            eprintln!(
+                                "  assertion block at step {}: expected file {:?} to contain {:?}, but {reason}",
+                                block.step_index + 1,
+                                path,
+                                expected,
+                            );
+                        }
+                    }
+                    if let Some(code) = expectation.kind.failure_diagnostic_code() {
+                        eprintln!("    diagnostic code: {}", code.as_str());
                     }
                 }
             }

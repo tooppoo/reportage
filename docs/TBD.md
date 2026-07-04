@@ -72,9 +72,7 @@ Artifacts should be generated from the beginning, but the exact schema should re
 
 ### Self-test run ID control
 
-Self-tests that assert artifact or evidence output paths may need a stable run ID so that generated paths are deterministic.
-
-A hidden debug-prefixed option such as `--debug-run-id <id>` may be used for internal self-tests when an issue explicitly promotes it into scope. Such an option is not a public stable interface and should not be advertised as a normal CLI feature.
+`--debug-run-id <id>` was implemented in #24 as the hidden, internal-only option anticipated below, so that reportage's own file-assertion self-test could assert a deterministic artifact path (`.reportage/runs/<id>/result.json`). It is not a public stable interface: it is hidden from `--help`, and the runner refuses to silently overwrite an existing run directory for a fixed id.
 
 The public contract for run ID control remains TBD. Future options may include a built-in strategy such as UUID / counter / fixed value, or a run ID provider command that emits an ID for the runner to validate and use.
 

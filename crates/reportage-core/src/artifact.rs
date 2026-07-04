@@ -7,6 +7,90 @@ use crate::result::{
     ActionResult, CaseResult, CaseStatus, ExpectationKind, FileErrorKind, RunResult,
 };
 
+/// Error rejecting an unsafe run id value.
+///
+/// A run id becomes a single path component under `<artifact-root>/runs/`, so
+/// it must not be usable to escape or corrupt that layout.
+#[derive(Debug, PartialEq, Eq)]
+pub enum RunIdError {
+    Empty,
+    ContainsPathSeparator(String),
+    ReservedSegment(String),
+    ContainsControlChar(String),
+}
+
+impl std::fmt::Display for RunIdError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RunIdError::Empty => write!(f, "run id must not be empty"),
+            RunIdError::ContainsPathSeparator(id) => {
+                write!(f, "run id '{id}' must not contain a path separator")
+            }
+            RunIdError::ReservedSegment(id) => {
+                write!(f, "run id '{id}' must not be '.' or '..'")
+            }
+            RunIdError::ContainsControlChar(id) => {
+                write!(f, "run id '{id}' must not contain control characters")
+            }
+        }
+    }
+}
+
+impl std::error::Error for RunIdError {}
+
+/// A validated run id: a single safe path component for `<artifact-root>/runs/<id>`.
+///
+/// This is an internal development / self-testing affordance (`--debug-run-id`),
+/// not a public stable interface. See docs/TBD.md — "Self-test run ID control".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunId(String);
+
+impl RunId {
+    pub fn new(raw: impl Into<String>) -> Result<Self, RunIdError> {
+        let raw = raw.into();
+        if raw.is_empty() {
+            return Err(RunIdError::Empty);
+        }
+        if raw.contains('/') || raw.contains('\\') {
+            return Err(RunIdError::ContainsPathSeparator(raw));
+        }
+        if raw == "." || raw == ".." {
+            return Err(RunIdError::ReservedSegment(raw));
+        }
+        if raw.chars().any(|c| c.is_control()) {
+            return Err(RunIdError::ContainsControlChar(raw));
+        }
+        Ok(Self(raw))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Error constructing an `ArtifactWriter` for a fixed run id.
+#[derive(Debug)]
+pub enum ArtifactWriterError {
+    /// The target run directory already exists. A fixed run id must not silently
+    /// overwrite a previous run's artifacts.
+    RunDirectoryExists(PathBuf),
+}
+
+impl std::fmt::Display for ArtifactWriterError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ArtifactWriterError::RunDirectoryExists(path) => write!(
+                f,
+                "run directory '{}' already exists; refusing to overwrite a previous run",
+                path.display()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ArtifactWriterError {}
+
+#[derive(Debug)]
 pub struct ArtifactWriter {
     run_dir: PathBuf,
 }
@@ -20,6 +104,19 @@ impl ArtifactWriter {
         ArtifactWriter {
             run_dir: base_dir.join("runs").join(millis.to_string()),
         }
+    }
+
+    /// Construct a writer for a fixed, caller-chosen run id.
+    ///
+    /// Internal development / self-testing affordance behind `--debug-run-id`; not
+    /// a public stable interface. Rejects with `RunDirectoryExists` rather than
+    /// silently overwriting a run directory that already exists.
+    pub fn for_fixed_run(base_dir: &Path, run_id: &RunId) -> Result<Self, ArtifactWriterError> {
+        let run_dir = base_dir.join("runs").join(run_id.as_str());
+        if run_dir.exists() {
+            return Err(ArtifactWriterError::RunDirectoryExists(run_dir));
+        }
+        Ok(ArtifactWriter { run_dir })
     }
 
     pub fn write(&self, result: &RunResult) -> std::io::Result<()> {
@@ -148,7 +245,7 @@ fn case_json(case: &CaseResult) -> serde_json::Value {
                 .iter()
                 .map(|e| {
                     let result_str = if e.passed { "pass" } else { "fail" };
-                    match &e.kind {
+                    let mut value = match &e.kind {
                         ExpectationKind::Exit { expected, actual } => json!({
                             "kind": "exit",
                             "expected": expected,
@@ -177,7 +274,22 @@ fn case_json(case: &CaseResult) -> serde_json::Value {
                             "actual": actual,
                             "result": result_str,
                         }),
+                        ExpectationKind::FileExists { path, .. } => json!({
+                            "kind": "file_exists",
+                            "path": path,
+                            "result": result_str,
+                        }),
+                        ExpectationKind::FileContains { path, expected, .. } => json!({
+                            "kind": "file_contains",
+                            "path": path,
+                            "expected": expected,
+                            "result": result_str,
+                        }),
+                    };
+                    if let Some(code) = e.kind.failure_diagnostic_code() {
+                        value["diagnostic_code"] = json!(code.as_str());
                     }
+                    value
                 })
                 .collect();
             json!({
@@ -204,4 +316,83 @@ fn case_json(case: &CaseResult) -> serde_json::Value {
     }
 
     obj
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn empty_result() -> RunResult {
+        RunResult {
+            cases: vec![],
+            file_errors: vec![],
+        }
+    }
+
+    #[test]
+    fn run_id_rejects_empty() {
+        assert_eq!(RunId::new("").unwrap_err(), RunIdError::Empty);
+    }
+
+    #[test]
+    fn run_id_rejects_path_separator() {
+        assert!(matches!(
+            RunId::new("a/b").unwrap_err(),
+            RunIdError::ContainsPathSeparator(_)
+        ));
+        assert!(matches!(
+            RunId::new("a\\b").unwrap_err(),
+            RunIdError::ContainsPathSeparator(_)
+        ));
+    }
+
+    #[test]
+    fn run_id_rejects_dot_segments() {
+        assert!(matches!(
+            RunId::new(".").unwrap_err(),
+            RunIdError::ReservedSegment(_)
+        ));
+        assert!(matches!(
+            RunId::new("..").unwrap_err(),
+            RunIdError::ReservedSegment(_)
+        ));
+    }
+
+    #[test]
+    fn run_id_rejects_control_characters() {
+        assert!(matches!(
+            RunId::new("a\nb").unwrap_err(),
+            RunIdError::ContainsControlChar(_)
+        ));
+    }
+
+    #[test]
+    fn run_id_accepts_ordinary_name() {
+        let id = RunId::new("file-assertion-selftest").unwrap();
+        assert_eq!(id.as_str(), "file-assertion-selftest");
+    }
+
+    #[test]
+    fn for_fixed_run_writes_to_named_run_directory() {
+        let base = TempDir::new().unwrap();
+        let run_id = RunId::new("fixed-run").unwrap();
+        let writer = ArtifactWriter::for_fixed_run(base.path(), &run_id).unwrap();
+        writer.write(&empty_result()).unwrap();
+
+        assert!(base.path().join("runs/fixed-run/result.json").is_file());
+    }
+
+    #[test]
+    fn for_fixed_run_rejects_existing_run_directory() {
+        let base = TempDir::new().unwrap();
+        let run_id = RunId::new("fixed-run").unwrap();
+        ArtifactWriter::for_fixed_run(base.path(), &run_id)
+            .unwrap()
+            .write(&empty_result())
+            .unwrap();
+
+        let err = ArtifactWriter::for_fixed_run(base.path(), &run_id).unwrap_err();
+        assert!(matches!(err, ArtifactWriterError::RunDirectoryExists(_)));
+    }
 }

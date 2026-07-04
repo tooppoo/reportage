@@ -367,7 +367,7 @@ Semantics:
 
 An expectation is an individual expected condition within an assertion block.
 
-Examples: `exit 0`, `stderr empty`, `dir exists .rellog`, `file exists .rellog/config.yml`.
+Examples: `exit 0`, `stderr empty`, `dir exists .rellog`, `file ".rellog/config.yml" exists`.
 
 Each expectation has an evidence requirement that determines what checkpoint state must be available for it to be evaluated. Expectations are side-effect-free. Failures are reported per expectation, independently of other expectations in the same block.
 
@@ -411,9 +411,11 @@ Require only workspace state. Valid at the initial checkpoint.
 
 - `dir exists <path>`
 - `dir not exists <path>`
-- `file exists <path>`
-- `file contains <path> <string>`
+- `file "<path>" exists`
+- `file "<path>" contains "<text>"`
 - `file-count <glob> <op> <n>`
+
+`dir` and `file-count` are conceptual / future syntax and are not part of v0 (`dir` is deferred to #66). `file "<path>" exists` and `file "<path>" contains "<text>"` are implemented in v0; see "File assertions" below.
 
 ### Process expectations
 
@@ -434,6 +436,56 @@ Require the corresponding process output from the last action result.
 
 In v0, structured output expectations use external `jq`.
 
+## File assertions
+
+`file "<path>" exists` and `file "<path>" contains "<text>"` are v0
+workspace expectations. `file "<path>"` is the subject; `exists` and
+`contains "<text>"` are predicates on that subject. See
+[ADR: Adopt Subject-First File Assertion Syntax](adr/20260704T112155Z_subject-first-file-assertion-syntax.md)
+for why this shape was chosen over an expectation-first form.
+
+```reportage
+assert {
+  file ".reportage/runs/self-test/result.json" exists
+  file ".reportage/runs/self-test/result.json" contains "\"result\""
+}
+```
+
+Path resolution:
+
+- The path is resolved relative to the workspace root the runner used to
+  launch the current case's actions — in v0, the reportage process's own
+  working directory. A `cd` performed inside a `$` action never changes
+  this, because each action runs in a fresh child shell; only the parent
+  process's working directory is used to resolve file assertion paths.
+- The path must be relative. Absolute paths are rejected.
+- `.` and `..` path segments are rejected.
+- These path policy violations are semantic errors
+  (`semantic.file_path.absolute`, `semantic.file_path.dot_segment`), not
+  assertion failures: the evaluator rejects them before attempting any
+  filesystem evidence comparison. See
+  [`docs/semantic-diagnostics.md`](semantic-diagnostics.md).
+
+`exists` semantics:
+
+- Succeeds when the path resolves (following symlinks) to a regular file.
+- Fails when the path does not exist, or resolves to something other than a
+  regular file (e.g. a directory).
+
+`contains` semantics:
+
+- Succeeds when the path is a readable UTF-8 regular file whose content
+  contains the expected text as a plain substring.
+- Fails when the path does not exist, is not a regular file, cannot be
+  read, or is not valid UTF-8.
+- Fails when the file is readable UTF-8 but does not contain the expected
+  substring.
+- The match is a plain byte/`str` substring match: no regex, no
+  line-based matching, no newline or Unicode normalization.
+
+`file` is scoped to regular files in v0. Directory assertions (`dir`) are
+deferred to #66 and are not implemented.
+
 ## Example: checkpoint model in action
 
 ```reportage
@@ -447,7 +499,7 @@ case "init creates workspace" {
   assert {
     exit 0
     dir exists .rellog
-    file exists .rellog/config.yml
+    file ".rellog/config.yml" exists
   }
 }
 ```
@@ -459,7 +511,7 @@ Walkthrough:
 - `$ rellog init` executes the action and updates the checkpoint with the action result and post-action workspace state.
 - The second `assert { ... }` block evaluates the **action-updated checkpoint**.
 - `exit 0` is a process expectation and requires the last action result — valid because `$ rellog init` has run.
-- `dir exists .rellog` and `file exists .rellog/config.yml` are workspace expectations and observe the post-action workspace state.
+- `dir exists .rellog` and `file ".rellog/config.yml" exists` are workspace expectations and observe the post-action workspace state.
 
 ## Example: script error — process expectation at initial checkpoint
 

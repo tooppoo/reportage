@@ -3,8 +3,8 @@ use pest_derive::Parser;
 
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, DiagnosticLocation};
 use crate::model::{
-    ActionStep, AssertionBlock, Case, ExitExpectation, Expectation, OutputExpectation,
-    OutputMatcher, Script, Step,
+    ActionStep, AssertionBlock, Case, ExitExpectation, Expectation, FileExpectation, FileMatcher,
+    OutputExpectation, OutputMatcher, Script, Step,
 };
 
 #[derive(Parser)]
@@ -286,7 +286,7 @@ fn parse_assertion_block(pair: pest::iterators::Pair<Rule>) -> Result<Step, Pars
 }
 
 fn parse_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
-    // expectation = { exit_exp | stdout_exp | stderr_exp }
+    // expectation = { exit_exp | stdout_exp | stderr_exp | file_exp }
     let inner = pair
         .into_inner()
         .next()
@@ -296,6 +296,7 @@ fn parse_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, P
         Rule::exit_exp => parse_exit_exp(inner),
         Rule::stdout_exp => parse_output_exp(inner, true),
         Rule::stderr_exp => parse_output_exp(inner, false),
+        Rule::file_exp => parse_file_exp(inner),
         rule => unreachable!("unexpected rule in expectation: {rule:?}"),
     }
 }
@@ -358,6 +359,35 @@ fn parse_output_exp(
     } else {
         Ok(Expectation::Stderr(exp))
     }
+}
+
+fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
+    // file_exp = { "file" ~ ws+ ~ quoted_string ~ ws+ ~ file_predicate }
+    let mut inner = pair.into_inner();
+    let path_pair = inner.next().expect("file_exp must have a path");
+    let path = extract_string_inner(path_pair);
+
+    let predicate_pair = inner.next().expect("file_exp must have a predicate");
+    // file_predicate = { file_contains | file_exists }
+    let predicate = predicate_pair
+        .into_inner()
+        .next()
+        .expect("file_predicate must have a variant");
+
+    let matcher = match predicate.as_rule() {
+        Rule::file_exists => FileMatcher::Exists,
+        Rule::file_contains => {
+            // file_contains = { "contains" ~ ws+ ~ quoted_string }
+            let qs = predicate
+                .into_inner()
+                .next()
+                .expect("file_contains must have quoted_string");
+            FileMatcher::Contains(extract_string_inner(qs))
+        }
+        rule => unreachable!("unexpected rule in file_predicate: {rule:?}"),
+    };
+
+    Ok(Expectation::File(FileExpectation { path, matcher }))
 }
 
 #[cfg(test)]
@@ -1043,5 +1073,125 @@ case "x" {
             5
         );
         assert_eq!(diagnostic.details.raw_value.as_deref(), Some("999"));
+    }
+
+    #[test]
+    fn parse_file_exists() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    file "out/result.json" exists
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::File(f) if f.path == "out/result.json" && matches!(f.matcher, FileMatcher::Exists)
+        ));
+    }
+
+    #[test]
+    fn parse_file_contains() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    file "out/result.json" contains "\"status\":\"passed\""
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::File(f) if f.path == "out/result.json"
+                && matches!(&f.matcher, FileMatcher::Contains(s) if s == "\"status\":\"passed\"")
+        ));
+    }
+
+    #[test]
+    fn file_exists_and_contains_combine_with_process_expectations() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    exit 0
+    file "a.txt" exists
+    file "a.txt" contains "hi"
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert_eq!(block.expectations().len(), 3);
+    }
+
+    // `file <expectation> <path> <...args>` (expectation-first) is not the v0
+    // syntax; only the subject-first `file "<path>" <predicate>` form parses.
+    // See docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
+    #[test]
+    fn expectation_first_file_form_is_rejected() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    file exists "a.txt"
+  }
+}
+"#;
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn file_predicate_without_path_is_rejected() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    file exists
+  }
+}
+"#;
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn file_contains_without_text_is_rejected() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    file "a.txt" contains
+  }
+}
+"#;
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn dir_subject_is_not_v0_syntax() {
+        // `dir` is out of scope for #24; see #66.
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    dir "a" exists
+  }
+}
+"#;
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 }

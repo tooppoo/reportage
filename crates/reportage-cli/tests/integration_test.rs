@@ -901,3 +901,331 @@ case "shim diagnostics" {
             "shim invoked for 'reportage-test-diag-shim'",
         ));
 }
+
+// --- file assertions (#24) ---
+
+#[test]
+fn file_exists_passes_for_a_regular_file() {
+    let dir = TempDir::new().unwrap();
+    dir.child("evidence.txt").write_str("hello").unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file exists" {
+  $ true
+  assert {
+    file "evidence.txt" exists
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn file_exists_fails_for_a_missing_file() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file missing" {
+  $ true
+  assert {
+    file "does-not-exist.txt" exists
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(1);
+}
+
+#[test]
+fn file_exists_fails_for_a_directory() {
+    let dir = TempDir::new().unwrap();
+    dir.child("a-directory").create_dir_all().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "directory is not a file" {
+  $ true
+  assert {
+    file "a-directory" exists
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(1);
+}
+
+#[test]
+fn file_exists_follows_symlink_to_regular_file() {
+    #[cfg(unix)]
+    {
+        let dir = TempDir::new().unwrap();
+        dir.child("real.txt").write_str("hi").unwrap();
+        std::os::unix::fs::symlink(dir.child("real.txt").path(), dir.child("link.txt").path())
+            .unwrap();
+        let script = write_script(
+            &dir,
+            "test.repor",
+            r#"
+case "symlink to file" {
+  $ true
+  assert {
+    file "link.txt" exists
+  }
+}
+"#,
+        );
+        reportage(&dir).arg(script).assert().code(0);
+    }
+}
+
+#[test]
+fn file_contains_passes_when_substring_present() {
+    let dir = TempDir::new().unwrap();
+    dir.child("result.json")
+        .write_str("{\"status\":\"passed\"}")
+        .unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contains" {
+  $ true
+  assert {
+    file "result.json" contains "\"status\":\"passed\""
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn file_contains_fails_when_substring_absent() {
+    let dir = TempDir::new().unwrap();
+    dir.child("result.json")
+        .write_str("{\"status\":\"fail\"}")
+        .unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contains mismatch" {
+  $ true
+  assert {
+    file "result.json" contains "passed"
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains("does not contain"));
+}
+
+#[test]
+fn file_contains_fails_for_missing_file() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contains missing" {
+  $ true
+  assert {
+    file "missing.txt" contains "anything"
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(1);
+}
+
+#[test]
+fn file_contains_fails_for_directory() {
+    let dir = TempDir::new().unwrap();
+    dir.child("a-directory").create_dir_all().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contains directory" {
+  $ true
+  assert {
+    file "a-directory" contains "anything"
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(1);
+}
+
+#[test]
+#[cfg(unix)]
+fn file_contains_fails_for_non_utf8_content() {
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.child("binary.dat").path(), [0xff, 0xfe, 0x00, 0xff]).unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contains non-utf8" {
+  $ true
+  assert {
+    file "binary.dat" contains "anything"
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(1);
+}
+
+#[test]
+fn file_assertion_combines_with_process_expectations_in_one_block() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "combined evidence" {
+  $ sh -c 'echo done > out.txt'
+  assert {
+    exit 0
+    file "out.txt" exists
+    file "out.txt" contains "done"
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn absolute_file_assertion_path_is_a_script_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "absolute path rejected" {
+  $ true
+  assert {
+    file "/etc/passwd" exists
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains("semantic.file_path.absolute"));
+}
+
+#[test]
+fn dot_segment_file_assertion_path_is_a_script_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "dot segment rejected" {
+  $ true
+  assert {
+    file "../secret.txt" exists
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains("semantic.file_path.dot_segment"));
+}
+
+#[test]
+fn file_assertion_path_resolves_against_workspace_root_not_action_cd() {
+    // A `cd` performed inside a `$` action must not change how the following
+    // file assertion's path is resolved. See docs/semantics.md.
+    let dir = TempDir::new().unwrap();
+    dir.child("subdir").create_dir_all().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "cd does not affect file assertion root" {
+  $ cd subdir && echo hi > moved.txt
+  assert {
+    file "subdir/moved.txt" exists
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+// --- --debug-run-id (#24) ---
+
+#[test]
+fn debug_run_id_writes_to_named_run_directory() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(&dir, "test.repor", PASSING_CASE);
+    reportage(&dir)
+        .args(["--debug-run-id", "fixed-id"])
+        .arg(script)
+        .assert()
+        .code(0);
+
+    dir.child(".reportage/runs/fixed-id/result.json")
+        .assert(predicates::path::is_file());
+}
+
+#[test]
+fn debug_run_id_does_not_silently_overwrite_existing_run_directory() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(&dir, "test.repor", PASSING_CASE);
+    reportage(&dir)
+        .args(["--debug-run-id", "fixed-id"])
+        .arg(&script)
+        .assert()
+        .code(0);
+
+    // Same run id again: must fail rather than silently overwrite.
+    reportage(&dir)
+        .args(["--debug-run-id", "fixed-id"])
+        .arg(&script)
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains("already exists"));
+}
+
+#[test]
+fn debug_run_id_rejects_unsafe_values() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(&dir, "test.repor", PASSING_CASE);
+    reportage(&dir)
+        .args(["--debug-run-id", "../escape"])
+        .arg(script)
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains("invalid --debug-run-id"));
+}
+
+#[test]
+fn debug_run_id_is_hidden_from_help() {
+    use predicates::prelude::PredicateBooleanExt;
+
+    reportage(&TempDir::new().unwrap())
+        .arg("--help")
+        .assert()
+        .code(0)
+        .stdout(predicates::str::contains("--debug-run-id").not());
+}

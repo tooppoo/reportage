@@ -109,6 +109,8 @@ Initial shape:
 }
 ```
 
+A failing expectation includes a `diagnostic_code` field alongside `result: "fail"`, using the stable codes defined in [`semantic-diagnostics.md`](semantic-diagnostics.md) (e.g. `assertion.file.exists_missing` for a `file "<path>" exists` expectation whose path does not exist). Passing expectations, and expectation kinds without a dedicated diagnostic code, omit the field.
+
 The exact schema is experimental in early v0.
 
 For an empty, whitespace-only, or otherwise valid zero-case suite, the run artifact records a no-op success:

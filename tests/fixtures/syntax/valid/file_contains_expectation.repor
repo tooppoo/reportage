@@ -1,0 +1,6 @@
+case "file contains" {
+  $ true
+  assert {
+    file "out/result.json" contains "\"status\":\"passed\""
+  }
+}

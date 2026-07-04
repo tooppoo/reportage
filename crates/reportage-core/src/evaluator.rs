@@ -1,9 +1,10 @@
 use crate::executor::{ExecutionEnvironment, execute_action};
-use crate::model::{Case, Expectation, OutputMatcher, Script, Step};
+use crate::model::{Case, Expectation, FileExpectation, FileMatcher, OutputMatcher, Script, Step};
 use crate::result::{
     ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind, ExpectationResult,
-    RunResult,
+    FileContentObservation, FileExistsObservation, RunResult,
 };
+use crate::semantic::validate_file_path;
 
 /// Observable evidence available at a point in case execution.
 ///
@@ -117,6 +118,28 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                                  the initial checkpoint has no last action result",
                                 case.name,
                                 step_idx + 1,
+                            )),
+                            actions: action_results,
+                            assertion_blocks: assertion_block_results,
+                        };
+                    }
+
+                    // A file assertion path must satisfy reportage's path policy
+                    // before evidence comparison begins. This is a semantic error,
+                    // not an assertion failure. See docs/semantic-diagnostics.md and
+                    // docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
+                    if let Expectation::File(file_exp) = expectation
+                        && let Err(semantic_err) = validate_file_path(&file_exp.path)
+                    {
+                        return CaseResult {
+                            name: case.name.clone(),
+                            source_path: None,
+                            status: CaseStatus::ScriptError(format!(
+                                "case '{}': assertion block at step {} has an invalid file \
+                                 assertion path: {semantic_err} [{}]",
+                                case.name,
+                                step_idx + 1,
+                                semantic_err.code().as_str(),
                             )),
                             actions: action_results,
                             assertion_blocks: assertion_block_results,
@@ -238,7 +261,94 @@ pub fn evaluate_expectation_at_checkpoint(
                 _ => unreachable!("output matcher variant not implemented in v0 evaluator"),
             }
         }
+        Expectation::File(exp) => evaluate_file_expectation(exp),
         _ => unreachable!("expectation variant not implemented in v0 evaluator"),
+    }
+}
+
+/// Evaluates a `file "<path>" ...` expectation against the real filesystem.
+///
+/// The path policy (relative, no `.`/`..` segments) is checked earlier, in
+/// `evaluate_case`, before this function runs. By the time this function is
+/// called, `exp.path` is known to be policy-valid.
+///
+/// Relative paths are resolved by the OS against the reportage process's own
+/// working directory. Actions never change that directory for the process
+/// (each `$` step runs in a fresh child shell), so file assertion paths are
+/// always resolved relative to the workspace root the runner was launched
+/// from, never affected by a `cd` performed inside an action. See
+/// docs/semantics.md.
+fn evaluate_file_expectation(exp: &FileExpectation) -> ExpectationResult {
+    match &exp.matcher {
+        FileMatcher::Exists => {
+            let observation = observe_file_exists(&exp.path);
+            let passed = matches!(observation, FileExistsObservation::RegularFile);
+            ExpectationResult {
+                kind: ExpectationKind::FileExists {
+                    path: exp.path.clone(),
+                    observation,
+                },
+                passed,
+            }
+        }
+        FileMatcher::Contains(expected) => {
+            let observation = observe_file_contains(&exp.path, expected);
+            let passed = matches!(observation, FileContentObservation::Found);
+            ExpectationResult {
+                kind: ExpectationKind::FileContains {
+                    path: exp.path.clone(),
+                    expected: expected.clone(),
+                    observation,
+                },
+                passed,
+            }
+        }
+        FileMatcher::NotExists | FileMatcher::Matches(_) => {
+            unreachable!("file matcher variant not implemented in v0 parser or evaluator")
+        }
+    }
+}
+
+/// Observes whether `path` is a regular file, following symlinks.
+///
+/// A directory (or any other non-regular-file type) is observed as
+/// `NotRegularFile`, not `Missing`: the path does exist, but it does not
+/// satisfy the `file` subject's regular-file requirement.
+fn observe_file_exists(path: &str) -> FileExistsObservation {
+    match std::fs::metadata(path) {
+        Ok(meta) if meta.is_file() => FileExistsObservation::RegularFile,
+        Ok(_) => FileExistsObservation::NotRegularFile,
+        Err(_) => FileExistsObservation::Missing,
+    }
+}
+
+/// Observes whether `path` is a readable UTF-8 regular file containing
+/// `expected` as a plain substring.
+///
+/// Per docs/semantic-diagnostics.md, missing / non-regular-file / unreadable /
+/// non-UTF-8 content are all "the `contains` precondition is unmet" — a
+/// single failure category distinct from "the file exists and is readable,
+/// but does not contain the expected substring".
+fn observe_file_contains(path: &str, expected: &str) -> FileContentObservation {
+    let meta = match std::fs::metadata(path) {
+        Ok(meta) => meta,
+        Err(_) => return FileContentObservation::Missing,
+    };
+    if !meta.is_file() {
+        return FileContentObservation::NotRegularFile;
+    }
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(_) => return FileContentObservation::Unreadable,
+    };
+    let text = match String::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(_) => return FileContentObservation::NotUtf8,
+    };
+    if text.contains(expected) {
+        FileContentObservation::Found
+    } else {
+        FileContentObservation::NotFound
     }
 }
 
