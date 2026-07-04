@@ -107,10 +107,11 @@ impl Expectation {
     /// `LastActionResult`, `Stdout`, and `Stderr` are only available after
     /// a `$` action has run.
     ///
-    /// For a logical composition, this is the evidence requirement of
-    /// whichever child (if any) needs a last action result, so a composition
-    /// wrapping a process expectation is still rejected at the initial
-    /// checkpoint the same way a bare process expectation is.
+    /// For a logical composition, this is the requirement of whichever
+    /// (possibly nested) child needs a preceding `$` action — covering
+    /// `LastActionResult`, `Stdout`, and `Stderr` alike, not just exit code —
+    /// so a composition wrapping any process expectation is still rejected
+    /// at the initial checkpoint the same way a bare process expectation is.
     pub fn required_evidence(&self) -> EvidenceRequirement {
         match self {
             Expectation::Exit(_) => EvidenceRequirement::LastActionResult,

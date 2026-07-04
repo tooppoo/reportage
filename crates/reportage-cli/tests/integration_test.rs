@@ -208,6 +208,27 @@ case "all block pass" {
 }
 
 #[test]
+fn all_block_fails_when_every_child_fails() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "all block fail" {
+  $ false
+  assert {
+    all {
+      exit 0
+      stdout contains "PASS"
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(1);
+}
+
+#[test]
 fn any_block_passes_when_one_child_passes() {
     let dir = TempDir::new().unwrap();
     let script = write_script(
@@ -229,6 +250,48 @@ case "any block pass" {
 }
 
 #[test]
+fn any_block_passes_when_all_children_pass() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "any block all pass" {
+  $ true
+  assert {
+    any {
+      exit 0
+      stdout empty
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn any_block_fails_when_every_child_fails() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "any block all fail" {
+  $ false
+  assert {
+    any {
+      exit 0
+      stdout contains "PASS"
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(1);
+}
+
+#[test]
 fn not_block_fails_when_inner_expectation_passes() {
     let dir = TempDir::new().unwrap();
     let script = write_script(
@@ -246,6 +309,96 @@ case "not block fail" {
 "#,
     );
     reportage(&dir).arg(script).assert().code(1);
+}
+
+#[test]
+fn not_block_passes_when_single_inner_expectation_fails() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "not block single fail pass" {
+  $ false
+  assert {
+    not {
+      exit 0
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn not_block_passes_when_all_multiple_children_fail() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "not block all fail pass" {
+  $ false
+  assert {
+    not {
+      exit 0
+      stdout contains "PASS"
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn not_block_fails_when_all_multiple_children_pass() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "not block all pass fail" {
+  $ true
+  assert {
+    not {
+      exit 0
+      stdout empty
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(1);
+}
+
+// `not { A B }` evaluates as `not(all(A, B))`, never as `not(A) and not(B)`
+// (see the ADR and docs/semantics.md — Logical composition). With one child
+// passing and one failing, `all(A, B)` is false, so `not(all(A, B))` is
+// true: the `not` block — and therefore the case — passes. This is the
+// case that distinguishes the two groupings: item-wise negation would fail
+// here (since the passing child's negation fails), but grouped negation
+// passes.
+#[test]
+fn not_block_passes_when_children_are_mixed_pass_and_fail() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "not block mixed" {
+  $ true
+  assert {
+    not {
+      exit 0
+      stdout contains "PASS"
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
 }
 
 #[test]

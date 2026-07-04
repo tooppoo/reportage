@@ -244,19 +244,27 @@ fn print_results(result: &RunResult) {
     }
 }
 
-/// Prints why one failed expectation within an assertion block did not hold.
+/// Prints why one failed top-level expectation within an assertion block did
+/// not hold.
 ///
-/// Recurses into a `not` / `all` / `any` composition's own failed children,
-/// so nested logical composition failures are reported down to the atomic
-/// expectation responsible, not just "the composition block failed".
+/// Recurses into a `not` / `all` / `any` composition's children, printing
+/// every child's own detail rather than filtering by the child's own
+/// pass/fail state. This matters for `not`: when a `not` block fails, that
+/// means its (grouped) contents *held* — none of its children individually
+/// failed — so filtering for failed children would print nothing and lose
+/// the information needed to explain the negation's failure. Always
+/// recursing into every child, described in its own held/did-not-hold
+/// terms, keeps `all` / `any` failures explainable too, without needing a
+/// separate per-operator rule for which children are "responsible".
 fn print_failed_expectation(step_index: usize, expectation: &ExpectationResult) {
-    print_failed_expectation_kind(step_index, expectation);
+    print_expectation_detail(step_index, expectation);
     if let Some(code) = expectation.kind.failure_diagnostic_code() {
         eprintln!("    diagnostic code: {}", code.as_str());
     }
 }
 
-fn print_failed_expectation_kind(step_index: usize, expectation: &ExpectationResult) {
+fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) {
+    let held = expectation.passed;
     match &expectation.kind {
         ExpectationKind::Exit { expected, actual } => {
             eprintln!(
@@ -265,47 +273,57 @@ fn print_failed_expectation_kind(step_index: usize, expectation: &ExpectationRes
             );
         }
         ExpectationKind::StdoutContains { expected, actual } => {
+            let verb = if held { "contains" } else { "does not contain" };
             eprintln!(
-                "  assertion block at step {}: stdout does not contain {:?}",
+                "  assertion block at step {}: stdout {verb} {:?}",
                 step_index + 1,
                 expected,
             );
             eprintln!("    actual stdout: {:?}", actual);
         }
         ExpectationKind::StderrContains { expected, actual } => {
+            let verb = if held { "contains" } else { "does not contain" };
             eprintln!(
-                "  assertion block at step {}: stderr does not contain {:?}",
+                "  assertion block at step {}: stderr {verb} {:?}",
                 step_index + 1,
                 expected,
             );
             eprintln!("    actual stderr: {:?}", actual);
         }
         ExpectationKind::StdoutEmpty { actual } => {
+            let phrase = if held {
+                "is empty"
+            } else {
+                "was expected to be empty"
+            };
             eprintln!(
-                "  assertion block at step {}: expected stdout to be empty",
+                "  assertion block at step {}: stdout {phrase}",
                 step_index + 1,
             );
             eprintln!("    actual stdout: {:?}", actual);
         }
         ExpectationKind::StderrEmpty { actual } => {
+            let phrase = if held {
+                "is empty"
+            } else {
+                "was expected to be empty"
+            };
             eprintln!(
-                "  assertion block at step {}: expected stderr to be empty",
+                "  assertion block at step {}: stderr {phrase}",
                 step_index + 1,
             );
             eprintln!("    actual stderr: {:?}", actual);
         }
         ExpectationKind::FileExists { path, observation } => {
             let reason = match observation {
-                FileExistsObservation::RegularFile => {
-                    unreachable!("a passing FileExists observation cannot reach the failure branch")
-                }
+                FileExistsObservation::RegularFile => "it exists",
                 FileExistsObservation::Missing => "it does not exist",
                 FileExistsObservation::NotRegularFile => {
                     "it is not a regular file (e.g. a directory)"
                 }
             };
             eprintln!(
-                "  assertion block at step {}: expected file {:?} to exist, but {reason}",
+                "  assertion block at step {}: file {:?} — {reason}",
                 step_index + 1,
                 path,
             );
@@ -316,9 +334,7 @@ fn print_failed_expectation_kind(step_index: usize, expectation: &ExpectationRes
             observation,
         } => {
             let reason = match observation {
-                FileContentObservation::Found => unreachable!(
-                    "a passing FileContains observation cannot reach the failure branch"
-                ),
+                FileContentObservation::Found => format!("its content contains {expected:?}"),
                 FileContentObservation::NotFound => {
                     format!("its content does not contain {expected:?}")
                 }
@@ -330,22 +346,20 @@ fn print_failed_expectation_kind(step_index: usize, expectation: &ExpectationRes
                 FileContentObservation::NotUtf8 => "its content is not valid UTF-8".to_string(),
             };
             eprintln!(
-                "  assertion block at step {}: expected file {:?} to contain {:?}, but {reason}",
+                "  assertion block at step {}: file {:?} — {reason}",
                 step_index + 1,
                 path,
-                expected,
             );
         }
         ExpectationKind::Logical { operator, children } => {
+            let status = if held { "held" } else { "did not hold" };
             eprintln!(
-                "  assertion block at step {}: '{}' block did not hold",
+                "  assertion block at step {}: '{}' block {status}",
                 step_index + 1,
                 operator.keyword(),
             );
             for child in children {
-                if !child.passed {
-                    print_failed_expectation(step_index, child);
-                }
+                print_failed_expectation(step_index, child);
             }
         }
     }
