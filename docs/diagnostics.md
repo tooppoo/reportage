@@ -29,8 +29,9 @@ Examples:
 - `parse.missing_assertion_block`
 - `parse.empty_action`
 - `parse.invalid_exit_code`
+- `parse.raw_block.shallow_indent`
 
-`parse.*` covers pest grammar syntax errors and parse-domain validation errors raised while constructing the AST. The `semantic.*` and `assertion.*` namespaces cover the semantic evaluator side and are defined in [`semantic-diagnostics.md`](semantic-diagnostics.md); this document does not define them.
+`parse.*` covers pest grammar syntax errors and parse-domain validation errors raised while constructing the AST. This includes a `write` step's fenced raw text block indentation (`parse.raw_block.shallow_indent`) and its workspace path safety validation (`semantic.workspace_path.*`, surfaced as a `ParseError` because `WorkspacePath::parse` runs during AST construction — see [`docs/semantics.md`](semantics.md) — Write step). The `semantic.*` and `assertion.*` namespaces cover the semantic evaluator side and are defined in [`semantic-diagnostics.md`](semantic-diagnostics.md); this document does not define them. The `step.*` namespace covers runtime failures of side-effecting steps and is also defined in [`semantic-diagnostics.md`](semantic-diagnostics.md).
 
 A diagnostic code is **not** the same thing as the Rust error enum variant name that produces it. Internal enum variants (e.g. `ParseError::EmptyCase`) may be renamed or restructured freely. The code string (e.g. `parse.empty_case`) is the external, stable identifier that tests and tooling depend on.
 

@@ -1,0 +1,27 @@
+{
+  "cases": [
+    {
+      "name": "write step fence length for embedded backticks",
+      "steps": [
+        {
+          "kind": "write_file",
+          "path": "expected/markdown.md",
+          "content": "```ts\nconsole.log(\"hello\")\n```\n"
+        },
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

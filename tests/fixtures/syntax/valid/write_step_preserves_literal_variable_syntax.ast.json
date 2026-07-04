@@ -1,0 +1,27 @@
+{
+  "cases": [
+    {
+      "name": "write step preserves literal variable syntax",
+      "steps": [
+        {
+          "kind": "write_file",
+          "path": ".rellog/entries/001.kdl",
+          "content": "entry \"entry\" {\n  kind \"${ENTRY_KIND}\"\n}\n"
+        },
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

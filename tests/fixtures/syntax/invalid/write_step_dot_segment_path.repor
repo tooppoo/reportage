@@ -1,0 +1,9 @@
+case "write step dot segment path is rejected" {
+  write "../a.txt" ```
+    x
+    ```
+  $ true
+  assert {
+    exit 0
+  }
+}

@@ -4,7 +4,8 @@ use pest_derive::Parser;
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, DiagnosticLocation};
 use crate::model::{
     ActionStep, AssertionBlock, Case, ExitExpectation, Expectation, FileExpectation, FileMatcher,
-    LogicalExpectation, LogicalOperator, OutputExpectation, OutputMatcher, Script, Step,
+    LogicalExpectation, LogicalOperator, OutputExpectation, OutputMatcher, RawTextBlock, Script,
+    SideEffectingStep, Step, WorkspacePath, WorkspacePathError, WriteFileStep,
 };
 
 #[derive(Parser)]
@@ -32,6 +33,15 @@ pub enum ParseError {
         line: usize,
         operator: LogicalOperator,
     },
+    /// A `write` step's workspace path failed `WorkspacePath::parse` validation.
+    InvalidWorkspacePath {
+        line: usize,
+        raw: String,
+        reason: WorkspacePathError,
+    },
+    /// A `write` step's fenced raw text block has a non-blank body line
+    /// indented less than the closing fence's indentation.
+    ShallowRawBlockIndent { line: usize },
 }
 
 impl std::fmt::Display for ParseError {
@@ -63,6 +73,21 @@ impl std::fmt::Display for ParseError {
                 "parse error at line {line}: '{}' block must contain at least one expectation expression",
                 operator.keyword()
             ),
+            ParseError::InvalidWorkspacePath { line, raw, reason } => {
+                let reason_text = match reason {
+                    WorkspacePathError::Empty => "must not be empty",
+                    WorkspacePathError::Absolute => "must be relative; absolute paths are rejected",
+                    WorkspacePathError::DotSegment => "must not contain '.' or '..' segments",
+                };
+                write!(
+                    f,
+                    "parse error at line {line}: write step path '{raw}' {reason_text}"
+                )
+            }
+            ParseError::ShallowRawBlockIndent { line } => write!(
+                f,
+                "parse error at line {line}: raw text block body line is indented less than its closing fence"
+            ),
         }
     }
 }
@@ -84,6 +109,12 @@ impl ParseError {
             ParseError::EmptyLogicalCompositionBlock { .. } => {
                 DiagnosticCode::SemanticExpectationEmptyBlock
             }
+            ParseError::InvalidWorkspacePath { reason, .. } => match reason {
+                WorkspacePathError::Empty => DiagnosticCode::SemanticWorkspacePathEmpty,
+                WorkspacePathError::Absolute => DiagnosticCode::SemanticWorkspacePathAbsolute,
+                WorkspacePathError::DotSegment => DiagnosticCode::SemanticWorkspacePathDotSegment,
+            },
+            ParseError::ShallowRawBlockIndent { .. } => DiagnosticCode::ParseRawBlockShallowIndent,
         }
     }
 
@@ -151,6 +182,23 @@ impl ParseError {
                     raw_value: Some(operator.keyword().to_string()),
                 },
             ),
+            ParseError::InvalidWorkspacePath { line, raw, .. } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails {
+                    pest_message: None,
+                    raw_value: Some(raw.clone()),
+                },
+            ),
+            ParseError::ShallowRawBlockIndent { line } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails::default(),
+            ),
         };
 
         Diagnostic {
@@ -205,6 +253,7 @@ fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseErro
                 has_assertion_block = true;
                 steps.push(parse_assertion_block(pair)?);
             }
+            Rule::write_step => steps.push(parse_write_step(pair)?),
             rule => unreachable!("unexpected rule in case_block: {rule:?}"),
         }
     }
@@ -448,6 +497,114 @@ fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Pars
     };
 
     Ok(Expectation::File(FileExpectation { path, matcher }))
+}
+
+fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
+    // write_step = { "write" ~ ws+ ~ quoted_string ~ ws* ~ PUSH(opening_fence) ~ ws* ~ nl
+    //                ~ raw_block_body ~ closing_fence_line ~ DROP }
+    let line = pair.line_col().0;
+    let mut inner = pair.into_inner();
+
+    let path_pair = inner.next().expect("write_step must have a path");
+    let raw_path = extract_string_inner(path_pair);
+
+    let _opening_fence = inner
+        .next()
+        .expect("write_step must have an opening_fence (pushed onto the pest match stack)");
+
+    let body_pair = inner.next().expect("write_step must have raw_block_body");
+    let body_start_line = body_pair.line_col().0;
+    let body_text = body_pair.as_str();
+
+    let closing_pair = inner
+        .next()
+        .expect("write_step must have closing_fence_line");
+    // closing_fence_line = { closing_fence_indent ~ PEEK ~ "`"* ~ ws* ~ (nl | EOI) }
+    let indent = closing_pair
+        .into_inner()
+        .next()
+        .expect("closing_fence_line must have closing_fence_indent")
+        .as_str();
+
+    let content = dedent_raw_block(body_text, indent, body_start_line)?;
+
+    let path =
+        WorkspacePath::parse(&raw_path).map_err(|reason| ParseError::InvalidWorkspacePath {
+            line,
+            raw: raw_path,
+            reason,
+        })?;
+
+    Ok(Step::SideEffect(SideEffectingStep::WriteFile(
+        WriteFileStep {
+            path,
+            content: RawTextBlock::new(content),
+        },
+    )))
+}
+
+/// Dedents a fenced raw text block body against its closing fence's indentation.
+///
+/// Every non-blank line must start with `indent` as a literal string prefix
+/// (no tab/space width normalization); that prefix is stripped. Blank and
+/// whitespace-only lines are exempt from the prefix check and are dedented
+/// to a genuinely empty line instead. Line endings (LF or CRLF) are
+/// preserved exactly as they appeared in the source.
+///
+/// `body_start_line` is the source line number of `body`'s first line, used
+/// to report the correct line for a shallow-indentation error.
+fn dedent_raw_block(
+    body: &str,
+    indent: &str,
+    body_start_line: usize,
+) -> Result<String, ParseError> {
+    let mut result = String::with_capacity(body.len());
+    for (i, (content, ending)) in split_lines_keep_ending(body).into_iter().enumerate() {
+        let is_blank = content.chars().all(|c| c == ' ' || c == '\t');
+        if is_blank {
+            result.push_str(ending);
+            continue;
+        }
+        match content.strip_prefix(indent) {
+            Some(stripped) => {
+                result.push_str(stripped);
+                result.push_str(ending);
+            }
+            None => {
+                return Err(ParseError::ShallowRawBlockIndent {
+                    line: body_start_line + i,
+                });
+            }
+        }
+    }
+    Ok(result)
+}
+
+/// Splits `s` into `(line_content, line_ending)` pairs without normalizing
+/// line endings. `line_ending` is `"\n"`, `"\r\n"`, or `""` for a trailing
+/// line with no terminator (not produced by the grammar, which requires
+/// every raw block body line to end in an actual newline, but handled here
+/// defensively).
+fn split_lines_keep_ending(s: &str) -> Vec<(&str, &str)> {
+    let mut result = Vec::new();
+    let mut rest = s;
+    while !rest.is_empty() {
+        match rest.find('\n') {
+            Some(idx) => {
+                let line = &rest[..idx];
+                match line.strip_suffix('\r') {
+                    Some(stripped) => result.push((stripped, "\r\n")),
+                    None => result.push((line, "\n")),
+                }
+                rest = &rest[idx + 1..];
+            }
+            None => {
+                result.push((rest, ""));
+                rest = "";
+            }
+        }
+    }
+    result
 }
 
 #[cfg(test)]
@@ -1440,5 +1597,188 @@ case "x" {
         let src = "case \"x\" {\n  $ true\n  assert {\n    all { exit 0 exit 1 }\n  }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    // ─── Write step / fenced raw text block (#67) ─────────────────────────
+
+    fn write_file_step(script: &Script) -> &WriteFileStep {
+        let Step::SideEffect(SideEffectingStep::WriteFile(step)) = &script.cases[0].steps[0] else {
+            panic!("expected first step to be a write step");
+        };
+        step
+    }
+
+    #[test]
+    fn parse_basic_write_step() {
+        let src = "case \"x\" {\n  write \"a.txt\" ```\n    hello\n    ```\n  $ true\n  assert {\n    exit 0\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let step = write_file_step(&script);
+        assert_eq!(step.path.as_str(), "a.txt");
+        assert_eq!(step.content.as_str(), "hello\n");
+        assert_eq!(script.cases[0].steps.len(), 3);
+    }
+
+    #[test]
+    fn write_step_can_follow_an_action_in_source_order() {
+        let src = "case \"x\" {\n  $ true\n  write \"a.txt\" ```\n    hello\n    ```\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::SideEffect(SideEffectingStep::WriteFile(step)) = &script.cases[0].steps[1] else {
+            panic!("expected second step to be a write step");
+        };
+        assert_eq!(step.path.as_str(), "a.txt");
+        assert_eq!(step.content.as_str(), "hello\n");
+    }
+
+    #[test]
+    fn write_step_empty_block_content_is_empty_string() {
+        let src =
+            "case \"x\" {\n  write \"empty.txt\" ```\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        let step = write_file_step(&script);
+        assert_eq!(step.content.as_str(), "");
+    }
+
+    #[test]
+    fn write_step_blank_line_is_preserved_as_empty_line_after_dedent() {
+        let src = "case \"x\" {\n  write \"a.txt\" ```\n    first\n\n    third\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        let step = write_file_step(&script);
+        assert_eq!(step.content.as_str(), "first\n\nthird\n");
+    }
+
+    #[test]
+    fn write_step_whitespace_only_line_is_dedented_to_empty_line() {
+        // The blank line has trailing spaces shallower than the closing fence's indent;
+        // it must still be exempt from the shallow-indent check and dedent to empty.
+        let src = "case \"x\" {\n  write \"a.txt\" ```\n    first\n  \n    third\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        let step = write_file_step(&script);
+        assert_eq!(step.content.as_str(), "first\n\nthird\n");
+    }
+
+    #[test]
+    fn write_step_tab_indent_is_treated_as_literal_prefix_not_width() {
+        // Closing fence indented with a tab; body lines must match that exact
+        // tab character as a string prefix, not a width-equivalent number of spaces.
+        let src = "case \"x\" {\n  write \"a.txt\" ```\n\thello\n\t```\n  $ true\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        let step = write_file_step(&script);
+        assert_eq!(step.content.as_str(), "hello\n");
+    }
+
+    #[test]
+    fn write_step_crlf_line_endings_are_preserved() {
+        let src = "case \"x\" {\r\n  write \"a.txt\" ```\r\n    hello\r\n    ```\r\n  $ true\r\n  assert { exit 0 }\r\n}\r\n";
+        let script = parse(src).unwrap();
+        let step = write_file_step(&script);
+        assert_eq!(step.content.as_str(), "hello\r\n");
+    }
+
+    #[test]
+    fn write_step_content_preserves_variable_looking_text_literally() {
+        let src = "case \"x\" {\n  write \"a.txt\" ```\n    ${ENTRY_KIND}\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        let step = write_file_step(&script);
+        assert_eq!(step.content.as_str(), "${ENTRY_KIND}\n");
+    }
+
+    #[test]
+    fn write_step_closing_fence_longer_than_opening_is_accepted() {
+        let src = "case \"x\" {\n  write \"a.txt\" ```\n    hello\n    ````\n  $ true\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        let step = write_file_step(&script);
+        assert_eq!(step.content.as_str(), "hello\n");
+    }
+
+    #[test]
+    fn write_step_longer_opening_fence_allows_embedded_triple_backticks() {
+        let src = "case \"x\" {\n  write \"a.md\" ````\n    ```ts\n    console.log(1)\n    ```\n    ````\n  $ true\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        let step = write_file_step(&script);
+        assert_eq!(step.content.as_str(), "```ts\nconsole.log(1)\n```\n");
+    }
+
+    #[test]
+    fn write_step_shallow_indent_is_rejected() {
+        // "mid" is indented less than the closing fence's 4 spaces.
+        let src = "case \"x\" {\n  write \"a.txt\" ```\n    first\n  mid\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::ShallowRawBlockIndent { .. }));
+        assert_eq!(err.code().as_str(), "parse.raw_block.shallow_indent");
+    }
+
+    #[test]
+    fn write_step_unterminated_fence_is_a_syntax_error() {
+        let src =
+            "case \"x\" {\n  write \"a.txt\" ```\n    hello\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn write_step_opening_fence_inline_comment_is_rejected() {
+        let src = "case \"x\" {\n  write \"a.txt\" ``` // comment\n    hello\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn write_step_absolute_path_is_rejected() {
+        let src = "case \"x\" {\n  write \"/etc/passwd\" ```\n    x\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::InvalidWorkspacePath {
+                reason: WorkspacePathError::Absolute,
+                ..
+            }
+        ));
+        assert_eq!(err.code().as_str(), "semantic.workspace_path.absolute");
+    }
+
+    #[test]
+    fn write_step_dot_segment_path_is_rejected() {
+        let src = "case \"x\" {\n  write \"../a.txt\" ```\n    x\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::InvalidWorkspacePath {
+                reason: WorkspacePathError::DotSegment,
+                ..
+            }
+        ));
+        assert_eq!(err.code().as_str(), "semantic.workspace_path.dot_segment");
+    }
+
+    #[test]
+    fn write_step_empty_path_is_rejected() {
+        let src =
+            "case \"x\" {\n  write \"\" ```\n    x\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::InvalidWorkspacePath {
+                reason: WorkspacePathError::Empty,
+                ..
+            }
+        ));
+        assert_eq!(err.code().as_str(), "semantic.workspace_path.empty");
+    }
+
+    #[test]
+    fn multiple_write_steps_are_kept_in_source_order() {
+        let src = "case \"x\" {\n  write \"a.txt\" ```\n    a\n    ```\n  write \"b.txt\" ```\n    b\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        assert_eq!(script.cases[0].steps.len(), 4);
+        let Step::SideEffect(SideEffectingStep::WriteFile(first)) = &script.cases[0].steps[0]
+        else {
+            panic!("expected write step");
+        };
+        let Step::SideEffect(SideEffectingStep::WriteFile(second)) = &script.cases[0].steps[1]
+        else {
+            panic!("expected write step");
+        };
+        assert_eq!(first.path.as_str(), "a.txt");
+        assert_eq!(second.path.as_str(), "b.txt");
     }
 }

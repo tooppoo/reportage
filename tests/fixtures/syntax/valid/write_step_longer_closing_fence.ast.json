@@ -1,0 +1,27 @@
+{
+  "cases": [
+    {
+      "name": "write step longer closing fence",
+      "steps": [
+        {
+          "kind": "write_file",
+          "path": "a.txt",
+          "content": "hello\n"
+        },
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

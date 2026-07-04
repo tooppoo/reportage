@@ -1,0 +1,9 @@
+case "write step empty path is rejected" {
+  write "" ```
+    x
+    ```
+  $ true
+  assert {
+    exit 0
+  }
+}

@@ -1,0 +1,10 @@
+case "write step shallow indent is rejected" {
+  write "a.txt" ```
+    first
+  mid
+    ```
+  $ true
+  assert {
+    exit 0
+  }
+}

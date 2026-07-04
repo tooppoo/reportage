@@ -1,0 +1,9 @@
+case "write step absolute path is rejected" {
+  write "/etc/passwd" ```
+    x
+    ```
+  $ true
+  assert {
+    exit 0
+  }
+}

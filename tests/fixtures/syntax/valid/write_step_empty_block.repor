@@ -1,0 +1,8 @@
+case "write step empty block" {
+  write "empty.txt" ```
+    ```
+  $ true
+  assert {
+    exit 0
+  }
+}

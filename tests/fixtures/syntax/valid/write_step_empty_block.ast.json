@@ -1,0 +1,27 @@
+{
+  "cases": [
+    {
+      "name": "write step empty block",
+      "steps": [
+        {
+          "kind": "write_file",
+          "path": "empty.txt",
+          "content": ""
+        },
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
