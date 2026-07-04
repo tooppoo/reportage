@@ -1,0 +1,28 @@
+{
+  "cases": [
+    {
+      "name": "logical not block",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "false"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "logical",
+              "operator": "not",
+              "children": [
+                {
+                  "kind": "exit",
+                  "expected": 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

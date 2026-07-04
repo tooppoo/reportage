@@ -1,0 +1,48 @@
+{
+  "cases": [
+    {
+      "name": "logical nested composition",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "logical",
+              "operator": "all",
+              "children": [
+                {
+                  "kind": "logical",
+                  "operator": "not",
+                  "children": [
+                    {
+                      "kind": "exit",
+                      "expected": 1
+                    }
+                  ]
+                },
+                {
+                  "kind": "logical",
+                  "operator": "any",
+                  "children": [
+                    {
+                      "kind": "exit",
+                      "expected": 0
+                    },
+                    {
+                      "kind": "exit",
+                      "expected": 2
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

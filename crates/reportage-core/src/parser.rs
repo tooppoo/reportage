@@ -4,7 +4,7 @@ use pest_derive::Parser;
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, DiagnosticLocation};
 use crate::model::{
     ActionStep, AssertionBlock, Case, ExitExpectation, Expectation, FileExpectation, FileMatcher,
-    OutputExpectation, OutputMatcher, Script, Step,
+    LogicalExpectation, LogicalOperator, OutputExpectation, OutputMatcher, Script, Step,
 };
 
 #[derive(Parser)]
@@ -27,6 +27,12 @@ pub enum ParseError {
     EmptyAction { line: usize },
     /// Exit code is outside the valid range 0..=255.
     InvalidExitCode { line: usize, value: String },
+    /// A `not` / `all` / `any` logical composition block contains zero
+    /// expectation expressions.
+    EmptyLogicalCompositionBlock {
+        line: usize,
+        operator: LogicalOperator,
+    },
 }
 
 impl std::fmt::Display for ParseError {
@@ -53,6 +59,11 @@ impl std::fmt::Display for ParseError {
                 f,
                 "parse error at line {line}: invalid exit code '{value}', expected integer in 0..=255"
             ),
+            ParseError::EmptyLogicalCompositionBlock { line, operator } => write!(
+                f,
+                "parse error at line {line}: '{}' block must contain at least one expectation expression",
+                operator.keyword()
+            ),
         }
     }
 }
@@ -72,6 +83,9 @@ impl ParseError {
             ParseError::MissingAssertionBlock { .. } => DiagnosticCode::ParseMissingAssertionBlock,
             ParseError::EmptyAction { .. } => DiagnosticCode::ParseEmptyAction,
             ParseError::InvalidExitCode { .. } => DiagnosticCode::ParseInvalidExitCode,
+            ParseError::EmptyLogicalCompositionBlock { .. } => {
+                DiagnosticCode::SemanticExpectationEmptyBlock
+            }
         }
     }
 
@@ -129,6 +143,16 @@ impl ParseError {
                 DiagnosticDetails {
                     pest_message: None,
                     raw_value: Some(value.clone()),
+                },
+            ),
+            ParseError::EmptyLogicalCompositionBlock { line, operator } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails {
+                    pest_message: None,
+                    raw_value: Some(operator.keyword().to_string()),
                 },
             ),
         };
@@ -261,32 +285,47 @@ fn parse_assertion_block(pair: pest::iterators::Pair<Rule>) -> Result<Step, Pars
         .next()
         .expect("assertion_block must have body");
 
-    let expectations: Vec<Expectation> = match body.as_rule() {
-        Rule::single_assert => {
-            // single_assert = { ws* ~ expectation ~ ws* }
-            let exp_pair = body
-                .into_inner()
-                .next()
-                .expect("single_assert must have expectation");
-            vec![parse_expectation(exp_pair)?]
-        }
-        Rule::multi_assert => {
-            // multi_assert = { nl ~ assertion_line+ ~ ws* }
-            // assertion_line is silent, so its child (expectation) is promoted.
-            body.into_inner()
-                .map(|p| parse_expectation(p))
-                .collect::<Result<Vec<_>, _>>()?
-        }
-        rule => unreachable!("unexpected rule in assertion_block: {rule:?}"),
-    };
+    let expectations = parse_expectation_body(body)?;
 
     let block = AssertionBlock::new(expectations)
         .expect("grammar guarantees at least one expectation in assertion block");
     Ok(Step::AssertionBlock(block))
 }
 
+/// Parses the shared body form used by both `assert { ... }` and `not` /
+/// `all` / `any` composition blocks: a single expectation on one line, one
+/// or more expectations each on their own line, or (composition blocks only)
+/// zero expectations.
+///
+/// `assert { ... }`'s grammar never actually produces `empty_composition_body`
+/// (its body form requires at least one expectation), so this is dead code
+/// for that caller; it exists purely so both callers can share one function.
+fn parse_expectation_body(
+    body: pest::iterators::Pair<Rule>,
+) -> Result<Vec<Expectation>, ParseError> {
+    match body.as_rule() {
+        Rule::single_assert => {
+            // single_assert = { ws* ~ expectation ~ ws* }
+            let exp_pair = body
+                .into_inner()
+                .next()
+                .expect("single_assert must have expectation");
+            Ok(vec![parse_expectation(exp_pair)?])
+        }
+        Rule::multi_assert => {
+            // multi_assert = { trail ~ assertion_line+ ~ ws* }
+            // assertion_line is silent, so its child (expectation) is promoted.
+            body.into_inner()
+                .map(parse_expectation)
+                .collect::<Result<Vec<_>, _>>()
+        }
+        Rule::empty_composition_body => Ok(vec![]),
+        rule => unreachable!("unexpected rule in expectation body: {rule:?}"),
+    }
+}
+
 fn parse_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
-    // expectation = { exit_exp | stdout_exp | stderr_exp | file_exp }
+    // expectation = { exit_exp | stdout_exp | stderr_exp | file_exp | logical_composition }
     let inner = pair
         .into_inner()
         .next()
@@ -297,8 +336,40 @@ fn parse_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, P
         Rule::stdout_exp => parse_output_exp(inner, true),
         Rule::stderr_exp => parse_output_exp(inner, false),
         Rule::file_exp => parse_file_exp(inner),
+        Rule::logical_composition => parse_logical_composition(inner),
         rule => unreachable!("unexpected rule in expectation: {rule:?}"),
     }
+}
+
+fn parse_logical_composition(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
+    // logical_composition = { not_block | all_block | any_block }
+    let block = pair
+        .into_inner()
+        .next()
+        .expect("logical_composition must have a variant");
+    let line = block.line_col().0;
+
+    let operator = match block.as_rule() {
+        Rule::not_block => LogicalOperator::Not,
+        Rule::all_block => LogicalOperator::All,
+        Rule::any_block => LogicalOperator::Any,
+        rule => unreachable!("unexpected rule in logical_composition: {rule:?}"),
+    };
+
+    // not_block / all_block / any_block = { "<kw>" ~ ws* ~ "{" ~ (single_assert | multi_assert | empty_composition_body) ~ ws* ~ "}" }
+    let body = block
+        .into_inner()
+        .next()
+        .expect("composition block must have a body");
+    let children = parse_expectation_body(body)?;
+
+    if children.is_empty() {
+        return Err(ParseError::EmptyLogicalCompositionBlock { line, operator });
+    }
+
+    let logical =
+        LogicalExpectation::new(operator, children).expect("checked non-empty children above");
+    Ok(Expectation::Logical(logical))
 }
 
 fn parse_exit_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
@@ -1191,6 +1262,199 @@ case "x" {
   }
 }
 "#;
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    // ─── Logical composition (#25) ────────────────────────────────────────
+
+    fn logical_children(expectation: &Expectation) -> &[Expectation] {
+        match expectation {
+            Expectation::Logical(l) => l.children(),
+            other => panic!("expected Expectation::Logical, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_not_block_single_line() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    not { exit 1 }\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        let Expectation::Logical(l) = &block.expectations()[0] else {
+            panic!("expected Logical expectation");
+        };
+        assert!(matches!(l.operator(), LogicalOperator::Not));
+        assert_eq!(l.children().len(), 1);
+        assert!(matches!(l.children()[0], Expectation::Exit(_)));
+    }
+
+    #[test]
+    fn parse_all_block_multi_line() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    all {
+      exit 0
+      stdout empty
+    }
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        let Expectation::Logical(l) = &block.expectations()[0] else {
+            panic!("expected Logical expectation");
+        };
+        assert!(matches!(l.operator(), LogicalOperator::All));
+        assert_eq!(l.children().len(), 2);
+    }
+
+    #[test]
+    fn parse_any_block_multi_line() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    any {
+      exit 0
+      exit 1
+    }
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Logical(l) if matches!(l.operator(), LogicalOperator::Any)
+        ));
+    }
+
+    #[test]
+    fn parse_nested_logical_composition() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    all {
+      not {
+        exit 1
+      }
+      any {
+        exit 0
+        exit 2
+      }
+    }
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        let outer_children = logical_children(&block.expectations()[0]);
+        assert_eq!(outer_children.len(), 2);
+        assert!(matches!(
+            &outer_children[0],
+            Expectation::Logical(l) if matches!(l.operator(), LogicalOperator::Not)
+        ));
+        assert!(matches!(
+            &outer_children[1],
+            Expectation::Logical(l) if matches!(l.operator(), LogicalOperator::Any)
+        ));
+    }
+
+    #[test]
+    fn empty_not_block_is_semantic_empty_block_error() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    not { }\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::EmptyLogicalCompositionBlock {
+                operator: LogicalOperator::Not,
+                ..
+            }
+        ));
+        assert_eq!(err.code().as_str(), "semantic.expectation.empty_block");
+    }
+
+    #[test]
+    fn empty_all_block_multi_line_is_semantic_empty_block_error() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    all {\n    }\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::EmptyLogicalCompositionBlock {
+                operator: LogicalOperator::All,
+                ..
+            }
+        ));
+        assert_eq!(err.code().as_str(), "semantic.expectation.empty_block");
+    }
+
+    #[test]
+    fn empty_any_block_with_comment_only_is_semantic_empty_block_error() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    any {\n      // no expectations here\n    }\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::EmptyLogicalCompositionBlock {
+                operator: LogicalOperator::Any,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn empty_logical_composition_block_diagnostic_details_record_operator() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    all { }\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        let diagnostic = err.to_diagnostic();
+        assert_eq!(diagnostic.code.as_str(), "semantic.expectation.empty_block");
+        assert_eq!(diagnostic.details.raw_value.as_deref(), Some("all"));
+    }
+
+    #[test]
+    fn and_block_is_not_accepted_as_logical_composition() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    and { exit 0 }\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn or_block_is_not_accepted_as_logical_composition() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    or { exit 0 }\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn infix_and_between_expectations_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    exit 0 and exit 0\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn infix_or_between_expectations_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    exit 0 or exit 1\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn single_line_composition_block_multiple_expectations_is_error() {
+        // Mirrors single_line_assert_multiple_expectations_is_error: a
+        // composition block's single-line form accepts exactly one
+        // expectation, same as assert { ... }'s.
+        let src = "case \"x\" {\n  $ true\n  assert {\n    all { exit 0 exit 1 }\n  }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }

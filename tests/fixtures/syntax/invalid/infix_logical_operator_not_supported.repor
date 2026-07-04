@@ -1,0 +1,6 @@
+case "infix logical operator not supported" {
+  $ true
+  assert {
+    exit 0 and exit 0
+  }
+}

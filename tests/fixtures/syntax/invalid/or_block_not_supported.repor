@@ -1,0 +1,9 @@
+case "or block not supported" {
+  $ true
+  assert {
+    or {
+      exit 0
+      exit 1
+    }
+  }
+}

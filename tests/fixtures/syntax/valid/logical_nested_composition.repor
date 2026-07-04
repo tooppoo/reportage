@@ -1,0 +1,14 @@
+case "logical nested composition" {
+  $ true
+  assert {
+    all {
+      not {
+        exit 1
+      }
+      any {
+        exit 0
+        exit 2
+      }
+    }
+  }
+}

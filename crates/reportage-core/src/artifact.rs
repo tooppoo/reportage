@@ -4,7 +4,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde_json::json;
 
 use crate::result::{
-    ActionResult, CaseResult, CaseStatus, ExpectationKind, FileErrorKind, RunResult,
+    ActionResult, CaseResult, CaseStatus, ExpectationKind, ExpectationResult, FileErrorKind,
+    RunResult,
 };
 
 /// Error rejecting an unsafe run id value.
@@ -221,6 +222,64 @@ fn action_json(index: usize, action: &ActionResult) -> serde_json::Value {
     obj
 }
 
+/// Renders one evaluated expectation, recursing into a `not` / `all` / `any`
+/// composition's own children so nested results are never lost — see
+/// docs/semantics.md — Logical composition.
+fn expectation_result_json(e: &ExpectationResult) -> serde_json::Value {
+    let result_str = if e.passed { "pass" } else { "fail" };
+    let mut value = match &e.kind {
+        ExpectationKind::Exit { expected, actual } => json!({
+            "kind": "exit",
+            "expected": expected,
+            "actual": actual,
+            "result": result_str,
+        }),
+        ExpectationKind::StdoutContains { expected, actual } => json!({
+            "kind": "stdout_contains",
+            "expected": expected,
+            "actual": actual,
+            "result": result_str,
+        }),
+        ExpectationKind::StderrContains { expected, actual } => json!({
+            "kind": "stderr_contains",
+            "expected": expected,
+            "actual": actual,
+            "result": result_str,
+        }),
+        ExpectationKind::StdoutEmpty { actual } => json!({
+            "kind": "stdout_empty",
+            "actual": actual,
+            "result": result_str,
+        }),
+        ExpectationKind::StderrEmpty { actual } => json!({
+            "kind": "stderr_empty",
+            "actual": actual,
+            "result": result_str,
+        }),
+        ExpectationKind::FileExists { path, .. } => json!({
+            "kind": "file_exists",
+            "path": path,
+            "result": result_str,
+        }),
+        ExpectationKind::FileContains { path, expected, .. } => json!({
+            "kind": "file_contains",
+            "path": path,
+            "expected": expected,
+            "result": result_str,
+        }),
+        ExpectationKind::Logical { operator, children } => json!({
+            "kind": "logical",
+            "operator": operator.keyword(),
+            "children": children.iter().map(expectation_result_json).collect::<Vec<_>>(),
+            "result": result_str,
+        }),
+    };
+    if let Some(code) = e.kind.failure_diagnostic_code() {
+        value["diagnostic_code"] = json!(code.as_str());
+    }
+    value
+}
+
 fn case_json(case: &CaseResult) -> serde_json::Value {
     let (status, message): (&str, Option<&str>) = match &case.status {
         CaseStatus::Pass => ("pass", None),
@@ -243,54 +302,7 @@ fn case_json(case: &CaseResult) -> serde_json::Value {
             let expectations: Vec<serde_json::Value> = block
                 .expectations
                 .iter()
-                .map(|e| {
-                    let result_str = if e.passed { "pass" } else { "fail" };
-                    let mut value = match &e.kind {
-                        ExpectationKind::Exit { expected, actual } => json!({
-                            "kind": "exit",
-                            "expected": expected,
-                            "actual": actual,
-                            "result": result_str,
-                        }),
-                        ExpectationKind::StdoutContains { expected, actual } => json!({
-                            "kind": "stdout_contains",
-                            "expected": expected,
-                            "actual": actual,
-                            "result": result_str,
-                        }),
-                        ExpectationKind::StderrContains { expected, actual } => json!({
-                            "kind": "stderr_contains",
-                            "expected": expected,
-                            "actual": actual,
-                            "result": result_str,
-                        }),
-                        ExpectationKind::StdoutEmpty { actual } => json!({
-                            "kind": "stdout_empty",
-                            "actual": actual,
-                            "result": result_str,
-                        }),
-                        ExpectationKind::StderrEmpty { actual } => json!({
-                            "kind": "stderr_empty",
-                            "actual": actual,
-                            "result": result_str,
-                        }),
-                        ExpectationKind::FileExists { path, .. } => json!({
-                            "kind": "file_exists",
-                            "path": path,
-                            "result": result_str,
-                        }),
-                        ExpectationKind::FileContains { path, expected, .. } => json!({
-                            "kind": "file_contains",
-                            "path": path,
-                            "expected": expected,
-                            "result": result_str,
-                        }),
-                    };
-                    if let Some(code) = e.kind.failure_diagnostic_code() {
-                        value["diagnostic_code"] = json!(code.as_str());
-                    }
-                    value
-                })
+                .map(expectation_result_json)
                 .collect();
             json!({
                 "step_index": block.step_index,
@@ -394,5 +406,53 @@ mod tests {
 
         let err = ArtifactWriter::for_fixed_run(base.path(), &run_id).unwrap_err();
         assert!(matches!(err, ArtifactWriterError::RunDirectoryExists(_)));
+    }
+
+    use crate::model::LogicalOperator;
+    use crate::result::AssertionBlockResult;
+
+    #[test]
+    fn logical_expectation_result_renders_operator_and_children() {
+        let block = AssertionBlockResult {
+            step_index: 0,
+            expectations: vec![ExpectationResult {
+                kind: ExpectationKind::Logical {
+                    operator: LogicalOperator::Any,
+                    children: vec![
+                        ExpectationResult {
+                            kind: ExpectationKind::Exit {
+                                expected: 1,
+                                actual: 0,
+                            },
+                            passed: false,
+                        },
+                        ExpectationResult {
+                            kind: ExpectationKind::Exit {
+                                expected: 0,
+                                actual: 0,
+                            },
+                            passed: true,
+                        },
+                    ],
+                },
+                passed: true,
+            }],
+        };
+        let case = CaseResult {
+            name: "any exit".to_string(),
+            source_path: None,
+            status: CaseStatus::Pass,
+            actions: vec![],
+            assertion_blocks: vec![block],
+        };
+
+        let json = case_json(&case);
+        let expectation = &json["assertion_blocks"][0]["expectations"][0];
+        assert_eq!(expectation["kind"], "logical");
+        assert_eq!(expectation["operator"], "any");
+        assert_eq!(expectation["result"], "pass");
+        assert_eq!(expectation["children"][0]["kind"], "exit");
+        assert_eq!(expectation["children"][0]["result"], "fail");
+        assert_eq!(expectation["children"][1]["result"], "pass");
     }
 }

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::diagnostic::DiagnosticCode;
-use crate::model::Script;
+use crate::model::{LogicalOperator, Script};
 use crate::shim_event::ShimInvocationEvent;
 
 /// The captured output of a single `$` action step.
@@ -53,6 +53,14 @@ pub enum ExpectationKind {
         path: String,
         expected: String,
         observation: FileContentObservation,
+    },
+    /// A `not` / `all` / `any` logical composition. `children` holds each
+    /// nested expectation's own result (independently evaluated, never
+    /// flipped by a `not`), so which child passed or failed is never lost —
+    /// see docs/semantics.md — Logical composition.
+    Logical {
+        operator: LogicalOperator,
+        children: Vec<ExpectationResult>,
     },
 }
 

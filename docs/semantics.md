@@ -371,6 +371,23 @@ Examples: `exit 0`, `stderr empty`, `dir exists .rellog`, `file ".rellog/config.
 
 Each expectation has an evidence requirement that determines what checkpoint state must be available for it to be evaluated. Expectations are side-effect-free. Failures are reported per expectation, independently of other expectations in the same block.
 
+## Logical composition
+
+`not { ... }`, `all { ... }`, and `any { ... }` compose expectation expressions into a single expectation expression, block-form only. See ADR 20260704T150000Z_block-form-logical-composition for why v0 rejects infix `A and B` / `A or B`, `and { ... }` / `or { ... }` aliases, and predicate-level negation (`file "path" not exists`) in favor of this form.
+
+A logical composition block's body accepts the same single-line or multi-line expectation forms as `assert { ... }`, and may contain nested `not` / `all` / `any` blocks in addition to atomic expectations.
+
+Semantics:
+
+- `all { ... }` succeeds when every expectation expression inside it succeeds.
+- `any { ... }` succeeds when at least one expectation expression inside it succeeds.
+- `not { ... }` succeeds when the expectation expressions inside it, taken together, do not succeed.
+- The multiple expectations directly inside `assert { ... }` are an implicit `all`, exactly as before this feature existed.
+- A `not` block with multiple expectation expressions negates their implicit-`all` grouping, not each expectation individually: `not { A B }` evaluates as `not(all(A, B))`, never as `not(A) and not(B)`.
+- Evaluation is recursive: a nested `not` / `all` / `any` is itself evaluated by the same rules before its result is used by its parent.
+- A logical composition block must contain at least one expectation expression. An empty `not { }` / `all { }` / `any { }` is a **script error** — the same category of error as an assertion block with no expectations — not an assertion failure, because there is no evidence comparison to perform.
+- A logical composition's evidence requirement is inherited from whichever of its (possibly nested) descendants needs one: wrapping a process expectation (`exit`, `stdout`, `stderr`) in `not` / `all` / `any` still requires a preceding action, exactly like using that expectation bare.
+
 ## Checkpoint
 
 A checkpoint is the observable evidence context available at a point in case execution.

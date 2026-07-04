@@ -68,7 +68,7 @@ assertion_line = _{ ws* ~ expectation ~ trail }
 
 // ─── Expectations ─────────────────────────────────────────────────────────────
 
-expectation     = { exit_exp | stdout_exp | stderr_exp | file_exp }
+expectation     = { exit_exp | stdout_exp | stderr_exp | file_exp | logical_composition }
 
 exit_exp        = { "exit" ~ ws+ ~ exit_code }
 exit_code       = @{ ASCII_DIGIT+ }
@@ -88,6 +88,28 @@ file_exp        = { "file" ~ ws+ ~ quoted_string ~ ws+ ~ file_predicate }
 file_predicate  = { file_contains | file_exists }
 file_exists     = { "exists" }
 file_contains   = { "contains" ~ ws+ ~ quoted_string }
+
+// ─── Logical composition ──────────────────────────────────────────────────────
+//
+// Block-form logical composition over expectation expressions: `not { ... }`,
+// `all { ... }`, `any { ... }`. Infix `A and B` / `A or B`, `and { ... }` /
+// `or { ... }` aliases, and predicate-level negation are deliberately not
+// expressible in this grammar and are rejected as plain syntax errors. See #25
+// and the accompanying ADR.
+
+logical_composition = { not_block | all_block | any_block }
+
+// Reuses single_assert / multi_assert (the assertion_block body forms) so a
+// composition block's multiple expectations are grouped exactly like an
+// assertion block's implicit `all` — plus empty_composition_body, which lets
+// a body with zero expectation expressions parse successfully so Reportage
+// can reject it as a semantic error (semantic.expectation.empty_block)
+// instead of conflating it with a generic syntax error.
+not_block = { "not" ~ ws* ~ "{" ~ (single_assert | multi_assert | empty_composition_body) ~ ws* ~ "}" }
+all_block = { "all" ~ ws* ~ "{" ~ (single_assert | multi_assert | empty_composition_body) ~ ws* ~ "}" }
+any_block = { "any" ~ ws* ~ "{" ~ (single_assert | multi_assert | empty_composition_body) ~ ws* ~ "}" }
+
+empty_composition_body = { trail? ~ (blank_line | comment_line)* ~ ws* }
 
 // ─── String literals ──────────────────────────────────────────────────────────
 

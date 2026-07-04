@@ -48,6 +48,9 @@ pub enum DiagnosticCode {
     /// `file "<path>" contains "<text>"` observed a readable UTF-8 regular file that does not
     /// contain the expected substring.
     AssertionFileContainsMismatch,
+    /// A `not` / `all` / `any` logical composition block contains zero
+    /// expectation expressions. See docs/semantic-diagnostics.md.
+    SemanticExpectationEmptyBlock,
 }
 
 impl DiagnosticCode {
@@ -70,6 +73,7 @@ impl DiagnosticCode {
                 "assertion.file.contains_precondition_unmet"
             }
             Self::AssertionFileContainsMismatch => "assertion.file.contains_mismatch",
+            Self::SemanticExpectationEmptyBlock => "semantic.expectation.empty_block",
         }
     }
 }
@@ -149,6 +153,7 @@ mod tests {
             DiagnosticCode::AssertionFileExistsNotAFile,
             DiagnosticCode::AssertionFileContainsPreconditionUnmet,
             DiagnosticCode::AssertionFileContainsMismatch,
+            DiagnosticCode::SemanticExpectationEmptyBlock,
         ] {
             assert_eq!(code.to_string(), code.as_str());
         }
