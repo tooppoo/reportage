@@ -32,6 +32,100 @@ pub struct Case {
 pub enum Step {
     Action(ActionStep),
     AssertionBlock(AssertionBlock),
+    /// A step that changes workspace state rather than executing an action
+    /// or verifying a checkpoint. See docs/semantics.md — Write step.
+    SideEffect(SideEffectingStep),
+}
+
+/// A step that changes workspace state as a side effect, rather than
+/// executing an action (`$ ...`) or verifying a checkpoint (`assert { ... }`).
+///
+/// A side-effecting step's failure is a runtime step error, never an
+/// assertion failure: there is no expectation being compared against
+/// evidence, only an operation that either succeeds or does not.
+/// See docs/semantics.md — Write step, and the accompanying ADR.
+#[derive(Debug)]
+pub enum SideEffectingStep {
+    WriteFile(WriteFileStep),
+}
+
+/// A `write "<path>" ``` ... ``` ` step: writes a dedented raw text block to
+/// a file in the concrete case workspace.
+///
+/// Create-only: rejected at runtime if `path` already exists.
+/// See docs/semantics.md — Write step.
+#[derive(Debug)]
+pub struct WriteFileStep {
+    pub path: WorkspacePath,
+    pub content: RawTextBlock,
+}
+
+/// A path known to be safe to resolve against a concrete case workspace root.
+///
+/// Constructed only via [`WorkspacePath::parse`], which rejects empty paths,
+/// absolute paths, and `.` / `..` path segments. A `WorkspacePath` never
+/// refers to the repository root; it is always relative to the workspace
+/// the current concrete case is running in.
+/// See docs/adr — write step / workspace path domain type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspacePath(String);
+
+/// Error returned when a raw path string fails `WorkspacePath` validation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkspacePathError {
+    /// The path was empty.
+    Empty,
+    /// The path started with `/`.
+    Absolute,
+    /// The path contained a `.` or `..` segment.
+    DotSegment,
+}
+
+impl WorkspacePath {
+    /// Validates `raw` against the workspace path safety policy and, if
+    /// valid, returns a `WorkspacePath` wrapping it.
+    ///
+    /// Rejects: empty paths, absolute paths (leading `/`), and `.` / `..`
+    /// path segments. This centralizes path safety validation so every
+    /// caller (today, only the `write` step) shares the same rejection
+    /// rule, and future callers cannot bypass it by holding a raw `String`.
+    pub fn parse(raw: &str) -> Result<Self, WorkspacePathError> {
+        if raw.is_empty() {
+            return Err(WorkspacePathError::Empty);
+        }
+        if raw.starts_with('/') {
+            return Err(WorkspacePathError::Absolute);
+        }
+        for segment in raw.split('/') {
+            if segment == "." || segment == ".." {
+                return Err(WorkspacePathError::DotSegment);
+            }
+        }
+        Ok(Self(raw.to_string()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// The literal content of a fenced raw text block, already dedented against
+/// its closing fence's indentation.
+///
+/// No parameter expansion or variable expansion is ever performed on this
+/// content: `${VAR}`-shaped text inside a raw text block is preserved
+/// verbatim. See docs/semantics.md — Write step.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawTextBlock(String);
+
+impl RawTextBlock {
+    pub fn new(content: String) -> Self {
+        Self(content)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 /// A shell-like action step (`$ ...`).

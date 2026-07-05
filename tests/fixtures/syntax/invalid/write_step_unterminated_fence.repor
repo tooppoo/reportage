@@ -1,0 +1,8 @@
+case "write step unterminated fence is rejected" {
+  write "a.txt" ```
+    hello
+  $ true
+  assert {
+    exit 0
+  }
+}

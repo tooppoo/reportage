@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::result::ActionResult;
@@ -71,6 +71,7 @@ impl ExecutionEnvironment {
 pub fn execute_action(
     command: &str,
     env: &ExecutionEnvironment,
+    workspace_root: &Path,
 ) -> Result<ActionResult, ExecutionError> {
     // Create a fresh, action-scoped event directory so shim events from this action are isolated from events produced by any other action.
     // See ADR 20260628T210000Z_shim-invocation-event-side-channel.
@@ -82,6 +83,12 @@ pub fn execute_action(
     // See ADR 20260627T100500Z_use-posix-shell-and-path-shims for the rationale.
     let mut cmd = Command::new("sh");
     cmd.arg("-c").arg(command);
+
+    // Run in the concrete case's isolated workspace. A `cd` performed inside
+    // the action's own shell never escapes this for the *next* action or
+    // for file expectations, because each action spawns a fresh child shell.
+    // See docs/semantics.md — Workspace lifecycle.
+    cmd.current_dir(workspace_root);
 
     // Prepend runner-owned PATH prefixes so the action shell resolves commands through shims before falling through to the inherited PATH.
     // Shell selection remains separate: `sh` is chosen before the shim PATH applies.
@@ -121,29 +128,33 @@ mod tests {
         ExecutionEnvironment::default()
     }
 
+    fn tmp_workspace() -> tempfile::TempDir {
+        tempfile::TempDir::new().unwrap()
+    }
+
     // --- existing behaviour (no prefix) ---
 
     #[test]
     fn true_exits_zero() {
-        let out = execute_action("true", &default_env()).unwrap();
+        let out = execute_action("true", &default_env(), tmp_workspace().path()).unwrap();
         assert_eq!(out.exit_code, 0);
     }
 
     #[test]
     fn false_exits_one() {
-        let out = execute_action("false", &default_env()).unwrap();
+        let out = execute_action("false", &default_env(), tmp_workspace().path()).unwrap();
         assert_eq!(out.exit_code, 1);
     }
 
     #[test]
     fn stdout_is_captured() {
-        let out = execute_action("echo hello", &default_env()).unwrap();
+        let out = execute_action("echo hello", &default_env(), tmp_workspace().path()).unwrap();
         assert_eq!(out.stdout.trim(), "hello");
     }
 
     #[test]
     fn stderr_is_captured() {
-        let out = execute_action("echo error >&2", &default_env()).unwrap();
+        let out = execute_action("echo error >&2", &default_env(), tmp_workspace().path()).unwrap();
         assert_eq!(out.stderr.trim(), "error");
     }
 
@@ -208,7 +219,8 @@ mod tests {
         std::fs::set_permissions(&cmd_path, std::fs::Permissions::from_mode(0o755)).unwrap();
 
         let env = ExecutionEnvironment::with_path_prefixes(vec![dir.path().to_path_buf()]);
-        let out = execute_action("reportage-test-custom-cmd", &env).unwrap();
+        let out =
+            execute_action("reportage-test-custom-cmd", &env, tmp_workspace().path()).unwrap();
         assert_eq!(out.stdout.trim(), "found-via-prefix");
     }
 
@@ -232,14 +244,19 @@ mod tests {
             dir_a.path().to_path_buf(),
             dir_b.path().to_path_buf(),
         ]);
-        let out = execute_action("reportage-test-precedence-cmd", &env).unwrap();
+        let out = execute_action(
+            "reportage-test-precedence-cmd",
+            &env,
+            tmp_workspace().path(),
+        )
+        .unwrap();
         assert_eq!(out.stdout.trim(), "from-a");
     }
 
     #[test]
     fn no_prefix_preserves_existing_behaviour() {
         let env = ExecutionEnvironment::default();
-        let out = execute_action("true", &env).unwrap();
+        let out = execute_action("true", &env, tmp_workspace().path()).unwrap();
         assert_eq!(out.exit_code, 0);
     }
 
@@ -247,7 +264,7 @@ mod tests {
 
     #[test]
     fn non_shim_action_has_no_shim_invocations() {
-        let out = execute_action("true", &default_env()).unwrap();
+        let out = execute_action("true", &default_env(), tmp_workspace().path()).unwrap();
         assert!(
             out.shim_invocations.is_empty(),
             "plain action must not produce shim invocations"
@@ -279,7 +296,7 @@ mod tests {
         shim.materialize(shim_dir.path()).unwrap();
 
         let env = ExecutionEnvironment::with_path_prefixes(vec![shim_dir.path().to_path_buf()]);
-        let out = execute_action("reportage-test-shim-cmd", &env).unwrap();
+        let out = execute_action("reportage-test-shim-cmd", &env, tmp_workspace().path()).unwrap();
 
         assert_eq!(out.exit_code, 0);
         assert_eq!(out.shim_invocations.len(), 1, "one shim event expected");
@@ -317,11 +334,12 @@ mod tests {
         let env = ExecutionEnvironment::with_path_prefixes(vec![shim_dir.path().to_path_buf()]);
 
         // First action: invokes the shim.
-        let first = execute_action("reportage-test-isolation-cmd", &env).unwrap();
+        let first =
+            execute_action("reportage-test-isolation-cmd", &env, tmp_workspace().path()).unwrap();
         assert_eq!(first.shim_invocations.len(), 1);
 
         // Second action: does not invoke the shim — must not see the first action's events.
-        let second = execute_action("true", &env).unwrap();
+        let second = execute_action("true", &env, tmp_workspace().path()).unwrap();
         assert!(
             second.shim_invocations.is_empty(),
             "second action must not inherit events from the first"
@@ -358,7 +376,12 @@ mod tests {
 
         let env = ExecutionEnvironment::with_path_prefixes(vec![shim_dir.path().to_path_buf()]);
         // Invoke both shims in a single action.
-        let out = execute_action("reportage-test-multi-a && reportage-test-multi-b", &env).unwrap();
+        let out = execute_action(
+            "reportage-test-multi-a && reportage-test-multi-b",
+            &env,
+            tmp_workspace().path(),
+        )
+        .unwrap();
 
         assert_eq!(
             out.shim_invocations.len(),

@@ -214,7 +214,11 @@ fn decode_action_stream(stream: &StreamData) -> String {
 
 fn checkpoint_for_case(case: &ConformanceCase) -> EvaluatorCheckpoint {
     EvaluatorCheckpoint {
-        workspace: WorkspaceState,
+        // These conformance cases only exercise process expectations (exit/stdout/stderr),
+        // never workspace expectations, so the root value itself is inert here.
+        workspace: WorkspaceState {
+            root: PathBuf::from("."),
+        },
         last_action: Some(ActionResult {
             command: "<semantic conformance checkpoint>".to_string(),
             exit_code: case.checkpoint.exit_code,

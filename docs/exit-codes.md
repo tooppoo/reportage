@@ -17,7 +17,7 @@ This document defines the reportage CLI exit code policy and the exit codes intr
 | `0`  | **Success** — all cases passed, or no cases were found in otherwise-valid selected input. |
 | `1`  | **Test/assertion failure** — the run completed but at least one assertion did not pass. |
 | `2`  | **Script/config validation error** — the selected reportage scripts or configuration could not be treated as valid test input. Examples include read errors, parse errors, unsupported syntax, invalid config, a case with no assertion, an assertion with no preceding action, or an exit code outside `0..=255`. |
-| `3`  | **Action execution/runtime error** — the runner could not execute an action, write required artifacts, or perform required runtime infrastructure work. This is distinct from a non-zero action exit code, which is a normal execution outcome. |
+| `3`  | **Action execution/runtime error** — the runner could not execute an action, write required artifacts, run a side-effecting step such as `write`, or perform required runtime infrastructure work. This is distinct from a non-zero action exit code, which is a normal execution outcome. |
 
 ## Artifact result categories
 
@@ -57,4 +57,5 @@ This means `config_error` is used when discovery/configuration cannot produce a 
 
 - A non-zero exit code from an action (`$ false` exits with `1`) is not itself an error. It is captured as the action's result and evaluated by explicit `assert exit` assertions.
 - Exit code `3` is reserved for infrastructure failures such as the POSIX shell not being found on `PATH`, or required artifact generation failing. It does not mean "the action exited non-zero".
+- A `write` step's runtime step error (create-only target already exists, a regular file blocking its parent path, or an OS-level I/O failure) is exit code `3`, not `1`. There is no expectation being compared against evidence, so it is never an assertion failure. See [`docs/semantics.md`](semantics.md) — Write step.
 - Empty and whitespace-only scripts are syntax-valid inputs. At execution time they produce a no-op success with exit code `0`, no command execution, and no assertion evaluation.

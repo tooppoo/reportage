@@ -8,11 +8,14 @@
 > [`crates/reportage-core/src/reportage.pest`](../crates/reportage-core/src/reportage.pest)
 > and run `just lang-docs-gen`.
 
-`crates/reportage-core/src/reportage.pest` is the normative syntax source for Reportage v0. Any syntax not expressible in that file is not part of v0.
+`crates/reportage-core/src/reportage.pest` is the normative syntax source for
+Reportage v0. Any syntax not expressible in that file is not part of v0.
 
 ## Syntax conformance vs. semantic conformance
 
-This document covers *syntax* only — whether a script is accepted by the parser. Semantic behaviour (execution order, assertion evaluation, workspace lifecycle) is defined separately in [`docs/semantics.md`](semantics.md).
+This document covers *syntax* only — whether a script is accepted by the
+parser. Semantic behaviour (execution order, assertion evaluation, workspace
+lifecycle) is defined separately in [`docs/semantics.md`](semantics.md).
 
 ## Grammar
 
@@ -54,14 +57,57 @@ case_block = {
     ~ ws* ~ "}" ~ trail
 }
 
-// Silent: action_step and assertion_block are promoted directly into case_block.
-case_step = _{ ws* ~ (action_step | assertion_block) ~ trail }
+// Silent: action_step, assertion_block, and write_step are promoted directly
+// into case_block. write_step consumes its own trailing line ending (the
+// closing fence line, per its own no-inline-comment rule) so it does not
+// share the `trail` suffix that action_step / assertion_block rely on.
+case_step = _{ ws* ~ ((action_step | assertion_block) ~ trail | write_step) }
 
 // ─── Action step ──────────────────────────────────────────────────────────────
 
 action_step = { "$" ~ ws* ~ command }
 // Captures everything up to the newline; Rust trims trailing whitespace.
 command     = @{ (!nl ~ ANY)* }
+
+// ─── Write step (fenced raw text block) ────────────────────────────────────────
+//
+// `write "<path>" ``` ... ``` ` writes a dedented raw text block to a file in
+// the concrete case workspace. See docs/semantics.md — Write step.
+//
+// The opening fence's backtick run is pushed onto pest's match stack so the
+// closing fence can be recognized dynamically: PEEK requires at least that
+// many backticks (same character), and DROP clears the stack entry once the
+// block is fully matched. Neither the opening nor closing fence line accepts
+// an inline comment, unlike ordinary steps' `trail`.
+
+opening_fence = @{ "`"{3,} }
+
+// A body line is ordinary content; it must end in an actual newline, never
+// EOI, so an unterminated fenced block cannot be silently accepted as an
+// empty tail — the mandatory closing_fence_line after raw_block_body then
+// fails to match, surfacing as a syntax error.
+raw_block_line = _{ (!nl ~ ANY)* ~ nl }
+
+// Indentation is captured verbatim (not `ws`, which is silent) so the parser
+// can dedent body lines by literal string prefix, without tab/space width
+// normalization.
+closing_fence_indent = @{ (" " | "\t")* }
+
+// PEEK matches exactly the pushed opening fence; the trailing `"`"*` allows
+// the closing fence to be longer than the opening fence. No inline comment
+// is permitted after the fence.
+closing_fence_line = { closing_fence_indent ~ PEEK ~ "`"* ~ ws* ~ (nl | EOI) }
+
+// Atomic: the whole span between the opening fence's line ending and the
+// closing fence line is captured as one raw string, preserving original
+// whitespace and line endings exactly.
+raw_block_body = @{ (!closing_fence_line ~ raw_block_line)* }
+
+write_step = {
+    "write" ~ ws+ ~ quoted_string ~ ws* ~ PUSH(opening_fence) ~ ws* ~ nl
+    ~ raw_block_body
+    ~ closing_fence_line ~ DROP
+}
 
 // ─── Assertion block ──────────────────────────────────────────────────────────
 

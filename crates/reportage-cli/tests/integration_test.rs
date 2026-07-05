@@ -1167,12 +1167,14 @@ case "shim diagnostics" {
 #[test]
 fn file_exists_passes_for_a_regular_file() {
     let dir = TempDir::new().unwrap();
-    dir.child("evidence.txt").write_str("hello").unwrap();
     let script = write_script(
         &dir,
         "test.repor",
         r#"
 case "file exists" {
+  write "evidence.txt" ```
+    hello
+    ```
   $ true
   assert {
     file "evidence.txt" exists
@@ -1204,20 +1206,25 @@ case "file missing" {
 #[test]
 fn file_exists_fails_for_a_directory() {
     let dir = TempDir::new().unwrap();
-    dir.child("a-directory").create_dir_all().unwrap();
     let script = write_script(
         &dir,
         "test.repor",
         r#"
 case "directory is not a file" {
-  $ true
+  $ mkdir -p a-directory
   assert {
     file "a-directory" exists
   }
 }
 "#,
     );
-    reportage(&dir).arg(script).assert().code(1);
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "it is not a regular file (e.g. a directory)",
+        ));
 }
 
 #[test]
@@ -1225,15 +1232,15 @@ fn file_exists_follows_symlink_to_regular_file() {
     #[cfg(unix)]
     {
         let dir = TempDir::new().unwrap();
-        dir.child("real.txt").write_str("hi").unwrap();
-        std::os::unix::fs::symlink(dir.child("real.txt").path(), dir.child("link.txt").path())
-            .unwrap();
         let script = write_script(
             &dir,
             "test.repor",
             r#"
 case "symlink to file" {
-  $ true
+  write "real.txt" ```
+    hi
+    ```
+  $ ln -s real.txt link.txt
   assert {
     file "link.txt" exists
   }
@@ -1247,14 +1254,14 @@ case "symlink to file" {
 #[test]
 fn file_contains_passes_when_substring_present() {
     let dir = TempDir::new().unwrap();
-    dir.child("result.json")
-        .write_str("{\"status\":\"passed\"}")
-        .unwrap();
     let script = write_script(
         &dir,
         "test.repor",
         r#"
 case "file contains" {
+  write "result.json" ```
+    {"status":"passed"}
+    ```
   $ true
   assert {
     file "result.json" contains "\"status\":\"passed\""
@@ -1268,14 +1275,14 @@ case "file contains" {
 #[test]
 fn file_contains_fails_when_substring_absent() {
     let dir = TempDir::new().unwrap();
-    dir.child("result.json")
-        .write_str("{\"status\":\"fail\"}")
-        .unwrap();
     let script = write_script(
         &dir,
         "test.repor",
         r#"
 case "file contains mismatch" {
+  write "result.json" ```
+    {"status":"fail"}
+    ```
   $ true
   assert {
     file "result.json" contains "passed"
@@ -1311,40 +1318,48 @@ case "file contains missing" {
 #[test]
 fn file_contains_fails_for_directory() {
     let dir = TempDir::new().unwrap();
-    dir.child("a-directory").create_dir_all().unwrap();
     let script = write_script(
         &dir,
         "test.repor",
         r#"
 case "file contains directory" {
-  $ true
+  $ mkdir -p a-directory
   assert {
     file "a-directory" contains "anything"
   }
 }
 "#,
     );
-    reportage(&dir).arg(script).assert().code(1);
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "it is not a regular file (e.g. a directory)",
+        ));
 }
 
 #[test]
 #[cfg(unix)]
 fn file_contains_fails_for_non_utf8_content() {
     let dir = TempDir::new().unwrap();
-    std::fs::write(dir.child("binary.dat").path(), [0xff, 0xfe, 0x00, 0xff]).unwrap();
     let script = write_script(
         &dir,
         "test.repor",
         r#"
 case "file contains non-utf8" {
-  $ true
+  $ printf '\377\376\000\377' > binary.dat
   assert {
     file "binary.dat" contains "anything"
   }
 }
 "#,
     );
-    reportage(&dir).arg(script).assert().code(1);
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains("its content is not valid UTF-8"));
 }
 
 #[test]
@@ -1419,15 +1434,242 @@ fn file_assertion_path_resolves_against_workspace_root_not_action_cd() {
     // A `cd` performed inside a `$` action must not change how the following file assertion's path is resolved.
     // See docs/semantics.md.
     let dir = TempDir::new().unwrap();
-    dir.child("subdir").create_dir_all().unwrap();
     let script = write_script(
         &dir,
         "test.repor",
         r#"
 case "cd does not affect file assertion root" {
-  $ cd subdir && echo hi > moved.txt
+  $ mkdir -p subdir && cd subdir && echo hi > moved.txt
   assert {
     file "subdir/moved.txt" exists
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+// --- write step (#67) ---
+
+#[test]
+fn write_step_creates_file_seen_by_subsequent_file_assertion() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "write then assert" {
+  write "config.yml" ```
+    key: value
+    ```
+  assert {
+    file "config.yml" contains "key: value"
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn write_step_creates_parent_directories_automatically() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "write into nested directory" {
+  write "expected/nested/stdout.txt" ```
+    ok
+    ```
+  assert {
+    file "expected/nested/stdout.txt" exists
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn write_step_target_already_exists_is_a_runtime_step_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "write twice to same path" {
+  write "a.txt" ```
+    first
+    ```
+  write "a.txt" ```
+    second
+    ```
+  assert {
+    exit 0
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains("step.write.target_exists"));
+}
+
+#[test]
+fn write_step_parent_path_has_regular_file_is_a_runtime_step_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "parent is a regular file" {
+  write "blocker" ```
+    i am a file
+    ```
+  write "blocker/child.txt" ```
+    unreachable
+    ```
+  assert {
+    exit 0
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains(
+            "step.write.parent_not_a_directory",
+        ));
+}
+
+#[test]
+#[cfg(unix)]
+fn write_step_rejects_symlink_parent_instead_of_escaping_the_workspace() {
+    // A `$` action plants a symlink to a directory *outside* the workspace
+    // before a later `write` step targets a path through it. The write must
+    // be rejected as a runtime step error, and nothing must actually be
+    // written outside the isolated workspace through the symlink.
+    let dir = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        &format!(
+            r#"
+case "escape via symlink parent" {{
+  $ ln -s {outside} escape
+  write "escape/leaked.txt" ```
+    leaked
+    ```
+  assert {{
+    exit 0
+  }}
+}}
+"#,
+            outside = outside.path().display(),
+        ),
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains(
+            "step.write.parent_not_a_directory",
+        ));
+
+    outside
+        .child("leaked.txt")
+        .assert(predicates::path::missing());
+}
+
+#[test]
+fn write_step_failure_stops_subsequent_steps_in_the_same_case() {
+    // The second write step fails (create-only, target already exists). The
+    // case must stop there: the trailing `$` action's exit code, which
+    // would otherwise satisfy `assert { exit 1 }`, must never be reached.
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "write error stops the case" {
+  write "a.txt" ```
+    first
+    ```
+  write "a.txt" ```
+    second
+    ```
+  $ false
+  assert {
+    exit 1
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(3);
+}
+
+#[test]
+fn write_step_absolute_path_is_a_script_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "write step absolute path" {
+  write "/etc/passwd" ```
+    x
+    ```
+  assert {
+    exit 0
+  }
+}
+"#,
+    );
+    // A `write` step's path is validated at parse time via `WorkspacePath::parse`
+    // (a `ParseError`), unlike the checkpoint-time `file "<path>" ...` path
+    // policy. Both now render their stable diagnostic code inline in CLI output.
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains("write step path"))
+        .stderr(predicates::str::contains(
+            "semantic.workspace_path.absolute",
+        ));
+}
+
+#[test]
+fn concrete_cases_have_isolated_workspaces_and_do_not_collide_on_the_same_write_path() {
+    // Two cases in the same script both `write` the same relative path.
+    // If workspaces were shared across cases (rather than isolated per
+    // concrete case), the second case's create-only write would fail
+    // because the first case already created that path.
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "first case writes a.txt" {
+  write "a.txt" ```
+    from first case
+    ```
+  assert {
+    file "a.txt" contains "from first case"
+  }
+}
+
+case "second case writes a.txt" {
+  write "a.txt" ```
+    from second case
+    ```
+  assert {
+    file "a.txt" contains "from second case"
   }
 }
 "#,

@@ -1,0 +1,9 @@
+case "write step basic" {
+  write "expected/stdout.txt" ```
+    expected output
+    ```
+  $ true
+  assert {
+    exit 0
+  }
+}

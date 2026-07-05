@@ -277,11 +277,21 @@ fn expectation_result_json(e: &ExpectationResult) -> serde_json::Value {
 }
 
 fn case_json(case: &CaseResult) -> serde_json::Value {
-    let (status, message): (&str, Option<&str>) = match &case.status {
-        CaseStatus::Pass => ("pass", None),
-        CaseStatus::Fail => ("fail", None),
-        CaseStatus::ScriptError(msg) => ("script_error", Some(msg)),
-        CaseStatus::RuntimeError(msg) => ("runtime_error", Some(msg)),
+    let (status, message, diagnostic_code, error_step_index): (
+        &str,
+        Option<&str>,
+        Option<&str>,
+        Option<usize>,
+    ) = match &case.status {
+        CaseStatus::Pass => ("pass", None, None, None),
+        CaseStatus::Fail => ("fail", None, None, None),
+        CaseStatus::ScriptError(msg) => ("script_error", Some(msg), None, None),
+        CaseStatus::RuntimeError(err) => (
+            "runtime_error",
+            Some(err.message.as_str()),
+            err.diagnostic_code.map(|c| c.as_str()),
+            err.step_index,
+        ),
     };
 
     let actions: Vec<serde_json::Value> = case
@@ -321,6 +331,14 @@ fn case_json(case: &CaseResult) -> serde_json::Value {
 
     if let Some(msg) = message {
         obj["message"] = json!(msg);
+    }
+
+    if let Some(code) = diagnostic_code {
+        obj["diagnostic_code"] = json!(code);
+    }
+
+    if let Some(idx) = error_step_index {
+        obj["step_index"] = json!(idx);
     }
 
     obj
@@ -440,6 +458,7 @@ mod tests {
             status: CaseStatus::Pass,
             actions: vec![],
             assertion_blocks: vec![block],
+            side_effects_executed: 0,
         };
 
         let json = case_json(&case);

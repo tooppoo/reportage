@@ -1,0 +1,11 @@
+case "write step fence length for embedded backticks" {
+  write "expected/markdown.md" ````
+    ```ts
+    console.log("hello")
+    ```
+    ````
+  $ true
+  assert {
+    exit 0
+  }
+}

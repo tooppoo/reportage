@@ -19,6 +19,7 @@ Diagnostic codes are dot-separated strings, consistent with the `parse.*` conven
 - `parse.*` — syntax parse or parse-domain validation failures (defined in [`diagnostics.md`](diagnostics.md)).
 - `semantic.*` — the script, normalized semantic model, or expectation definition is invalid, and the evaluator must reject it before evidence comparison can begin.
 - `assertion.*` — the script and expectation are valid, but the observed evidence does not satisfy the expectation.
+- `step.*` — a side-effecting step (e.g. `write`) is valid, but failed while actually running: a runtime step error. Unlike `assertion.*`, there is no expectation being compared against evidence; unlike `semantic.*`, the step was not rejected before it ran. See [`docs/semantics.md`](semantics.md) — Write step.
 
 Uppercase prefix forms such as `RPT-ASSERT-EXIT-MISMATCH` are **not** adopted.
 
@@ -44,6 +45,12 @@ semantic.file_path.absolute
 semantic.file_path.dot_segment
 semantic.expectation.unsupported
 semantic.expectation.empty_block
+semantic.workspace_path.empty
+semantic.workspace_path.absolute
+semantic.workspace_path.dot_segment
+step.write.target_exists
+step.write.parent_not_a_directory
+step.write.io_error
 ```
 
 As with `parse.*` codes, a diagnostic code is **not** the Rust error enum variant name that produces it. Internal enum structure may be renamed or restructured freely; the published code string is the external, stable identifier that tests and tooling depend on.

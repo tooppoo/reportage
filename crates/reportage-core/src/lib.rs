@@ -10,3 +10,4 @@ pub mod semantic;
 pub mod shim;
 pub mod shim_event;
 pub mod suite;
+pub mod workspace;

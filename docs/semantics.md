@@ -129,7 +129,7 @@ Each concrete case receives its own workspace.
 
 The workspace is the root for:
 
-- files written by `file` steps;
+- files written by `write` steps;
 - commands executed by `$` steps, including ordinary shell filesystem operations such as `mkdir`, `cp`, `mv`, and `rm`;
 - file and directory expectations;
 - temporary runtime artifacts produced by the system under test.
@@ -163,7 +163,7 @@ v0 rules:
 Recommended v0 semantic restriction:
 
 - `before_each` should be deterministic module-level setup.
-- `before_each` may use `file` steps and ordinary shell setup steps such as `$ mkdir -p ...` or `$ cp -R ... ...`.
+- `before_each` may use `write` steps and ordinary shell setup steps such as `$ mkdir -p ...` or `$ cp -R ... ...`.
 - Primary system-under-test actions and assertion blocks should usually live in `case` blocks.
 - Variant-specific setup should usually live in the parameterized `case`, not in `before_each`.
 
@@ -198,17 +198,17 @@ assert {
 }
 ```
 
-and by explicit template heredocs:
+`write` steps (see "Write step" below) never expand variable bindings, whether or not the case is parameterized:
 
 ```reportage
-file ".rellog/entries/001.kdl" template <<'KDL'
-entry "entry" {
-  kind "${ENTRY_KIND}"
-}
-KDL
+write ".rellog/entries/001.kdl" ```
+  entry "entry" {
+    kind "${ENTRY_KIND}"
+  }
+  ```
 ```
 
-Raw file heredocs do not perform parameter expansion.
+`${ENTRY_KIND}` above is preserved as a literal string, not expanded. Whether `write` should ever support expansion, and what a template-block form would look like, is a separate, not-yet-decided follow-up; see #71.
 
 ## Shell execution
 
@@ -363,6 +363,46 @@ Semantics:
 - After a block failure, the same concrete case does not proceed to its next action. The runner may proceed to the next concrete case.
 - An assertion block is side-effect-free. It does not modify the checkpoint.
 
+## Write step
+
+A `write` step writes a dedented fenced raw text block to a file in the current concrete case's isolated workspace:
+
+```reportage
+write "expected/stdout.txt" ```
+  expected output
+  ```
+```
+
+`write` is a **side-effecting step**: unlike an action or an assertion block, it changes workspace state directly rather than executing an action or verifying a checkpoint. It is one of three step kinds a `case` body may contain — action (`$ ...`), assertion block (`assert { ... }`), and side-effecting step (`write ...`) — evaluated in source order, exactly like actions and assertion blocks.
+
+Semantics:
+
+- `write "<path>" ``` ... ``` ` is create-only. If `<path>` already exists (as a file, directory, or symlink), the step fails rather than silently overwriting it.
+- `<path>` is resolved relative to the current concrete case's workspace root, never the repository root. See "Repository root and workspace boundary" below.
+- Parent directories are created automatically. If a regular file, a symlink, or any other non-directory entry already occupies part of the parent path, the step fails — a symlink is rejected rather than followed, so a symlink planted by an earlier `$` action (e.g. `$ ln -s /tmp escape`) cannot be used to make a later `write` step escape the isolated workspace.
+- The fenced raw text block performs no parameter or variable expansion. `${VAR}`-shaped text inside the block is written verbatim. See "Parameter bindings" above.
+- The content is dedented against the closing fence's indentation: every non-blank body line must start with that indentation as a literal string prefix (not a tab/space width equivalence), and that prefix is stripped. Blank and whitespace-only lines are exempt from this check and are dedented to an empty line. A non-blank line indented less than the closing fence is a parse error.
+- Line endings (LF or CRLF) are preserved exactly as written; they are never normalized.
+- An empty block (opening fence immediately followed by a closing fence) writes an empty string. Otherwise, the block's final line ending is included in the written content.
+- The opening fence is three or more backticks; the closing fence uses the same character and must be at least as long as the opening fence. Use a longer opening fence to embed a shorter run of backticks (e.g. an embedded ` ``` ` Markdown block) as literal content.
+- Neither the opening nor the closing fence line accepts an inline `//` comment.
+
+A `write` step missing its own closing fence does not always fail with a syntax error: like a heredoc missing its terminator, the parser scans forward for the next line shaped like a valid closing fence, which may belong to a different, later `write` step. When that happens, everything in between — including that later step's own opening line — is silently absorbed as literal content, and the later step disappears from the case body with no diagnostic. Keep each `write` step's opening and closing fence visually paired to avoid this.
+
+### Side-effecting step failure classification
+
+A `write` step's failure is never an assertion failure — there is no expectation being compared against evidence, only an operation that either succeeds or does not:
+
+- Malformed syntax (an unterminated fenced block, a fence line with an inline comment, a non-blank body line indented less than the closing fence) is a **parse error**.
+- An unsafe workspace path — empty, absolute, or containing a `.` / `..` segment — is a **parse-domain validation error** (`semantic.workspace_path.*`), detected before any file I/O is attempted. See [`docs/diagnostics.md`](diagnostics.md).
+- A regular file blocking the parent path, an already-existing target, or an OS-level I/O failure is a **runtime step error** (`step.write.*`), detected while the step actually runs.
+
+A runtime step error stops the concrete case at that point, the same way an assertion block failure does: later steps in the same case do not run, but the runner may proceed to the next concrete case. Unlike an assertion block failure, a runtime step error is a `runtime_error` run outcome (exit code `3`), not a `test_failed` outcome — see [`docs/exit-codes.md`](exit-codes.md).
+
+### Repository root and workspace boundary
+
+A `write` step's path is always relative to the current concrete case's workspace, never the repository root. v0 has no mechanism for a `write` step, or any file expectation, to implicitly reference a file under the repository root. A future repository-fixture mechanism (`fixture` / `copy` / `import`, or a repository path literal) would need to make that boundary explicit rather than allowing repository paths where a workspace path is expected.
+
 ## Expectation
 
 An expectation is an individual expected condition within an assertion block.
@@ -466,7 +506,7 @@ assert {
 
 Path resolution:
 
-- The path is resolved relative to the workspace root the runner used to launch the current case's actions — in v0, the reportage process's own working directory. A `cd` performed inside a `$` action never changes this, because each action runs in a fresh child shell; only the parent process's working directory is used to resolve file assertion paths.
+- The path is resolved relative to the current concrete case's isolated workspace root (see "Workspace lifecycle" above). A `cd` performed inside a `$` action never changes this, because each action runs in a fresh child shell with the workspace root as its working directory; only that workspace root is used to resolve file assertion paths.
 - The path must be relative. Absolute paths are rejected.
 - `.` and `..` path segments are rejected.
 - These path policy violations are semantic errors (`semantic.file_path.absolute`, `semantic.file_path.dot_segment`), not assertion failures: the evaluator rejects them before attempting any filesystem evidence comparison. See [`docs/semantic-diagnostics.md`](semantic-diagnostics.md).

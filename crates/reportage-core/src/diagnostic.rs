@@ -42,6 +42,21 @@ pub enum DiagnosticCode {
     /// A `not` / `all` / `any` logical composition block contains zero expectation expressions.
     /// See docs/semantic-diagnostics.md.
     SemanticExpectationEmptyBlock,
+    /// A `write` step's workspace path was empty.
+    SemanticWorkspacePathEmpty,
+    /// A `write` step's workspace path was absolute.
+    SemanticWorkspacePathAbsolute,
+    /// A `write` step's workspace path contained a `.` or `..` segment.
+    SemanticWorkspacePathDotSegment,
+    /// A `write` step's fenced raw text block contains a non-blank body line
+    /// that is indented less than the closing fence.
+    ParseRawBlockShallowIndent,
+    /// A `write` step's target path already existed; create-only writes reject this.
+    StepWriteTargetExists,
+    /// A `write` step's target path had a regular file somewhere in its parent path.
+    StepWriteParentNotADirectory,
+    /// A `write` step failed due to an OS-level I/O error.
+    StepWriteIoError,
 }
 
 impl DiagnosticCode {
@@ -64,6 +79,13 @@ impl DiagnosticCode {
             }
             Self::AssertionFileContainsMismatch => "assertion.file.contains_mismatch",
             Self::SemanticExpectationEmptyBlock => "semantic.expectation.empty_block",
+            Self::SemanticWorkspacePathEmpty => "semantic.workspace_path.empty",
+            Self::SemanticWorkspacePathAbsolute => "semantic.workspace_path.absolute",
+            Self::SemanticWorkspacePathDotSegment => "semantic.workspace_path.dot_segment",
+            Self::ParseRawBlockShallowIndent => "parse.raw_block.shallow_indent",
+            Self::StepWriteTargetExists => "step.write.target_exists",
+            Self::StepWriteParentNotADirectory => "step.write.parent_not_a_directory",
+            Self::StepWriteIoError => "step.write.io_error",
         }
     }
 }
@@ -134,6 +156,13 @@ mod tests {
             DiagnosticCode::AssertionFileContainsPreconditionUnmet,
             DiagnosticCode::AssertionFileContainsMismatch,
             DiagnosticCode::SemanticExpectationEmptyBlock,
+            DiagnosticCode::SemanticWorkspacePathEmpty,
+            DiagnosticCode::SemanticWorkspacePathAbsolute,
+            DiagnosticCode::SemanticWorkspacePathDotSegment,
+            DiagnosticCode::ParseRawBlockShallowIndent,
+            DiagnosticCode::StepWriteTargetExists,
+            DiagnosticCode::StepWriteParentNotADirectory,
+            DiagnosticCode::StepWriteIoError,
         ] {
             assert_eq!(code.to_string(), code.as_str());
         }

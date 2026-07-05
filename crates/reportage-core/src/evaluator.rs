@@ -1,12 +1,16 @@
+use std::path::{Path, PathBuf};
+
 use crate::executor::{ExecutionEnvironment, execute_action};
 use crate::model::{
-    Case, Expectation, FileExpectation, FileMatcher, LogicalOperator, OutputMatcher, Script, Step,
+    Case, Expectation, FileExpectation, FileMatcher, LogicalOperator, OutputMatcher, Script,
+    SideEffectingStep, Step,
 };
 use crate::result::{
     ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind, ExpectationResult,
-    FileContentObservation, FileExistsObservation, RunResult,
+    FileContentObservation, FileExistsObservation, RunResult, RuntimeError,
 };
 use crate::semantic::validate_file_path;
+use crate::workspace::Workspace;
 
 /// Observable evidence available at a point in case execution.
 ///
@@ -21,27 +25,33 @@ pub struct Checkpoint {
 
 impl Checkpoint {
     /// The initial checkpoint: workspace state present, no last action result.
-    pub fn initial() -> Self {
+    pub fn initial(workspace_root: PathBuf) -> Self {
         Self {
-            workspace: WorkspaceState,
+            workspace: WorkspaceState {
+                root: workspace_root,
+            },
             last_action: None,
         }
     }
 
     /// An action-updated checkpoint after `$ ...` completes.
-    pub fn after_action(action: ActionResult) -> Self {
+    pub fn after_action(action: ActionResult, workspace_root: PathBuf) -> Self {
         Self {
-            workspace: WorkspaceState,
+            workspace: WorkspaceState {
+                root: workspace_root,
+            },
             last_action: Some(action),
         }
     }
 }
 
-/// Placeholder for observable workspace state.
+/// Observable workspace state: the concrete case's isolated workspace root.
 ///
-/// In v0, filesystem access is performed directly when workspace expectations are evaluated.
-/// A richer snapshot type may be introduced in future versions.
-pub struct WorkspaceState;
+/// File and directory expectations, and `write` steps, resolve paths
+/// relative to `root`. See docs/semantics.md — Workspace lifecycle.
+pub struct WorkspaceState {
+    pub root: PathBuf,
+}
 
 pub fn evaluate(script: &Script, env: &ExecutionEnvironment) -> RunResult {
     RunResult {
@@ -66,15 +76,42 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
             )),
             actions: vec![],
             assertion_blocks: vec![],
+            side_effects_executed: 0,
         };
     }
 
+    // Each concrete case gets its own isolated workspace, destroyed when
+    // this function returns. See docs/semantics.md — Workspace lifecycle.
+    let workspace = match Workspace::new() {
+        Ok(w) => w,
+        Err(e) => {
+            return CaseResult {
+                name: case.name.clone(),
+                source_path: None,
+                status: CaseStatus::RuntimeError(RuntimeError {
+                    message: format!(
+                        "case '{}': failed to create isolated case workspace: {e}",
+                        case.name
+                    ),
+                    diagnostic_code: None,
+                    step_index: None,
+                }),
+                actions: vec![],
+                assertion_blocks: vec![],
+                side_effects_executed: 0,
+            };
+        }
+    };
+
     let mut action_results: Vec<ActionResult> = Vec::new();
     let mut assertion_block_results: Vec<AssertionBlockResult> = Vec::new();
+    // Successful `write` (and future side-effecting) step count, independent
+    // of `action_results`. See `RunSummary::steps_executed`.
+    let mut side_effects_executed: usize = 0;
     // Steps are processed in source order.
     // Assertion block failure stops execution before the next action.
     // See docs/semantics.md — Assertion block and the checkpoint-based assertion ADR.
-    let mut checkpoint = Checkpoint::initial();
+    let mut checkpoint = Checkpoint::initial(workspace.root().to_path_buf());
     let mut case_failed = false;
 
     for (step_idx, step) in case.steps.iter().enumerate() {
@@ -84,18 +121,53 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                     // Do not proceed to next action after a block failure.
                     break;
                 }
-                match execute_action(&action.command, env) {
+                match execute_action(&action.command, env, workspace.root()) {
                     Ok(result) => {
-                        checkpoint = Checkpoint::after_action(result.clone());
+                        checkpoint = Checkpoint::after_action(
+                            result.clone(),
+                            workspace.root().to_path_buf(),
+                        );
                         action_results.push(result);
                     }
                     Err(e) => {
                         return CaseResult {
                             name: case.name.clone(),
                             source_path: None,
-                            status: CaseStatus::RuntimeError(e.message),
+                            status: CaseStatus::RuntimeError(RuntimeError {
+                                message: e.message,
+                                diagnostic_code: None,
+                                step_index: Some(step_idx),
+                            }),
                             actions: action_results,
                             assertion_blocks: assertion_block_results,
+                            side_effects_executed,
+                        };
+                    }
+                }
+            }
+
+            Step::SideEffect(SideEffectingStep::WriteFile(write_step)) => {
+                if case_failed {
+                    break;
+                }
+                match workspace.write_file(&write_step.path, write_step.content.as_str()) {
+                    Ok(()) => side_effects_executed += 1,
+                    Err(e) => {
+                        return CaseResult {
+                            name: case.name.clone(),
+                            source_path: None,
+                            status: CaseStatus::RuntimeError(RuntimeError {
+                                message: format!(
+                                    "case '{}': write step at step {} failed: {e}",
+                                    case.name,
+                                    step_idx + 1,
+                                ),
+                                diagnostic_code: Some(e.code()),
+                                step_index: Some(step_idx),
+                            }),
+                            actions: action_results,
+                            assertion_blocks: assertion_block_results,
+                            side_effects_executed,
                         };
                     }
                 }
@@ -123,6 +195,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                             )),
                             actions: action_results,
                             assertion_blocks: assertion_block_results,
+                            side_effects_executed,
                         };
                     }
 
@@ -144,6 +217,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                             )),
                             actions: action_results,
                             assertion_blocks: assertion_block_results,
+                            side_effects_executed,
                         };
                     }
                 }
@@ -179,6 +253,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
         },
         actions: action_results,
         assertion_blocks: assertion_block_results,
+        side_effects_executed,
     }
 }
 
@@ -260,7 +335,7 @@ pub fn evaluate_expectation_at_checkpoint(
                 _ => unreachable!("output matcher variant not implemented in v0 evaluator"),
             }
         }
-        Expectation::File(exp) => evaluate_file_expectation(exp),
+        Expectation::File(exp) => evaluate_file_expectation(exp, &checkpoint.workspace.root),
         Expectation::Logical(l) => {
             // Evaluate every child regardless of earlier results, so a failing composition still reports each child's own outcome.
             // See docs/semantics.md — Logical composition.
@@ -295,13 +370,13 @@ pub fn evaluate_expectation_at_checkpoint(
 /// The path policy (relative, no `.`/`..` segments) is checked earlier, in `evaluate_case`, before this function runs.
 /// By the time this function is called, `exp.path` is known to be policy-valid.
 ///
-/// Relative paths are resolved by the OS against the reportage process's own working directory.
-/// Actions never change that directory for the process (each `$` step runs in a fresh child shell), so file assertion paths are always resolved relative to the workspace root the runner was launched from, never affected by a `cd` performed inside an action.
+/// `exp.path` is resolved relative to `workspace_root`, the current concrete case's isolated workspace.
+/// Actions never change that directory for the process (each `$` step runs in a fresh child shell), so file assertion paths are always resolved relative to the case workspace root, never affected by a `cd` performed inside an action.
 /// See docs/semantics.md.
-fn evaluate_file_expectation(exp: &FileExpectation) -> ExpectationResult {
+fn evaluate_file_expectation(exp: &FileExpectation, workspace_root: &Path) -> ExpectationResult {
     match &exp.matcher {
         FileMatcher::Exists => {
-            let observation = observe_file_exists(&exp.path);
+            let observation = observe_file_exists(workspace_root, &exp.path);
             let passed = matches!(observation, FileExistsObservation::RegularFile);
             ExpectationResult {
                 kind: ExpectationKind::FileExists {
@@ -312,7 +387,7 @@ fn evaluate_file_expectation(exp: &FileExpectation) -> ExpectationResult {
             }
         }
         FileMatcher::Contains(expected) => {
-            let observation = observe_file_contains(&exp.path, expected);
+            let observation = observe_file_contains(workspace_root, &exp.path, expected);
             let passed = matches!(observation, FileContentObservation::Found);
             ExpectationResult {
                 kind: ExpectationKind::FileContains {
@@ -329,29 +404,34 @@ fn evaluate_file_expectation(exp: &FileExpectation) -> ExpectationResult {
     }
 }
 
-/// Observes whether `path` is a regular file, following symlinks.
+/// Observes whether `path`, resolved against `workspace_root`, is a regular file, following symlinks.
 ///
 /// A directory (or any other non-regular-file type) is observed as `NotRegularFile`, not `Missing`: the path does exist, but it does not satisfy the `file` subject's regular-file requirement.
-fn observe_file_exists(path: &str) -> FileExistsObservation {
-    match std::fs::metadata(path) {
+fn observe_file_exists(workspace_root: &Path, path: &str) -> FileExistsObservation {
+    match std::fs::metadata(workspace_root.join(path)) {
         Ok(meta) if meta.is_file() => FileExistsObservation::RegularFile,
         Ok(_) => FileExistsObservation::NotRegularFile,
         Err(_) => FileExistsObservation::Missing,
     }
 }
 
-/// Observes whether `path` is a readable UTF-8 regular file containing `expected` as a plain substring.
+/// Observes whether `path`, resolved against `workspace_root`, is a readable UTF-8 regular file containing `expected` as a plain substring.
 ///
 /// Per docs/semantic-diagnostics.md, missing / non-regular-file / unreadable / non-UTF-8 content are all "the `contains` precondition is unmet" — a single failure category distinct from "the file exists and is readable, but does not contain the expected substring".
-fn observe_file_contains(path: &str, expected: &str) -> FileContentObservation {
-    let meta = match std::fs::metadata(path) {
+fn observe_file_contains(
+    workspace_root: &Path,
+    path: &str,
+    expected: &str,
+) -> FileContentObservation {
+    let resolved = workspace_root.join(path);
+    let meta = match std::fs::metadata(&resolved) {
         Ok(meta) => meta,
         Err(_) => return FileContentObservation::Missing,
     };
     if !meta.is_file() {
         return FileContentObservation::NotRegularFile;
     }
-    let bytes = match std::fs::read(path) {
+    let bytes = match std::fs::read(&resolved) {
         Ok(bytes) => bytes,
         Err(_) => return FileContentObservation::Unreadable,
     };
@@ -528,14 +608,17 @@ mod tests {
     }
 
     fn checkpoint_after_exit(code: i32) -> Checkpoint {
-        Checkpoint::after_action(ActionResult {
-            command: "test".to_string(),
-            exit_code: code,
-            stdout: String::new(),
-            stderr: String::new(),
-            shim_invocations: vec![],
-            shim_event_parse_warnings: vec![],
-        })
+        Checkpoint::after_action(
+            ActionResult {
+                command: "test".to_string(),
+                exit_code: code,
+                stdout: String::new(),
+                stderr: String::new(),
+                shim_invocations: vec![],
+                shim_event_parse_warnings: vec![],
+            },
+            PathBuf::from("."),
+        )
     }
 
     #[test]

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use reportage_core::model::{
     Case, CountOp, DirMatcher, Expectation, FileMatcher, LogicalOperator, OutputMatcher,
-    OutputSource, Script, Step,
+    OutputSource, Script, SideEffectingStep, Step,
 };
 use reportage_core::parser::{ParseError, parse};
 use serde::Serialize;
@@ -118,6 +118,10 @@ enum SnapshotStep<'a> {
     AssertionBlock {
         expectations: Vec<SnapshotExpectation<'a>>,
     },
+    WriteFile {
+        path: &'a str,
+        content: &'a str,
+    },
 }
 
 impl<'a> From<&'a Step> for SnapshotStep<'a> {
@@ -132,6 +136,10 @@ impl<'a> From<&'a Step> for SnapshotStep<'a> {
                     .iter()
                     .map(SnapshotExpectation::from)
                     .collect(),
+            },
+            Step::SideEffect(SideEffectingStep::WriteFile(write_step)) => Self::WriteFile {
+                path: write_step.path.as_str(),
+                content: write_step.content.as_str(),
             },
         }
     }
@@ -441,6 +449,22 @@ fn invalid_syntax_fixtures_are_rejected() {
                     ParseError::EmptyLogicalCompositionBlock { .. }
                 ));
                 assert_eq!(err.code().as_str(), "semantic.expectation.empty_block");
+            }
+            "write_step_absolute_path" => {
+                assert!(matches!(err, ParseError::InvalidWorkspacePath { .. }));
+                assert_eq!(err.code().as_str(), "semantic.workspace_path.absolute");
+            }
+            "write_step_dot_segment_path" => {
+                assert!(matches!(err, ParseError::InvalidWorkspacePath { .. }));
+                assert_eq!(err.code().as_str(), "semantic.workspace_path.dot_segment");
+            }
+            "write_step_empty_path" => {
+                assert!(matches!(err, ParseError::InvalidWorkspacePath { .. }));
+                assert_eq!(err.code().as_str(), "semantic.workspace_path.empty");
+            }
+            "write_step_shallow_indent" => {
+                assert!(matches!(err, ParseError::ShallowRawBlockIndent { .. }));
+                assert_eq!(err.code().as_str(), "parse.raw_block.shallow_indent");
             }
             // Remaining fixtures are rejected as plain pest syntax errors; they share the coarse-grained "parse.syntax" code and are not asserted individually here.
             // See docs/diagnostics.md.

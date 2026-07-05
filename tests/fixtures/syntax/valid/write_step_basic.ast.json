@@ -1,0 +1,27 @@
+{
+  "cases": [
+    {
+      "name": "write step basic",
+      "steps": [
+        {
+          "kind": "write_file",
+          "path": "expected/stdout.txt",
+          "content": "expected output\n"
+        },
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
