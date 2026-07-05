@@ -9,9 +9,6 @@ on:
 permissions:
   contents: read
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
   test:
     permissions:
@@ -80,6 +77,8 @@ jobs:
         with:
           name: ${{ needs.setup-artifacts.outputs.artifact_name }}
           path: dist
+
+      - run: ls dist # debug
 
       - name: Verify artifact contents
         run: just archive-assert dist
