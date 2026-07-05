@@ -1,10 +1,10 @@
 [package]
 name = "reportage-cli"
-version = "0.0.1"
 
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+version.workspace = true
 
 [[bin]]
 name = "reportage"
