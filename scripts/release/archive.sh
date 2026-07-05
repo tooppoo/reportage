@@ -3,7 +3,6 @@
 set -eu
 
 script_path="$(dirname "$(realpath "$0")")"
-version="$($script_path/../get-version.sh)"
 
 dist=${1%/}
 
@@ -20,7 +19,7 @@ build_reportage() {
 }
 
 archive_reportage() {
-  archive_dir="$dist/$($script_path/archive_name.sh $version)"
+  archive_dir="$dist/$($script_path/archive_name.sh)"
   archive_path="$archive_dir.tar.gz"
 
   mkdir -p "$archive_dir"
@@ -28,7 +27,7 @@ archive_reportage() {
 
   tar -acf "$archive_path" "$archive_dir"
 
-  checksum_path="$dist/checksums_$(basename "$archive_dir").txt"
+  checksum_path="$dist"/"$($script_path/checksum_name.sh)"
   sha256sum "$archive_path" > "$checksum_path"
 
   rm -r "$archive_dir"

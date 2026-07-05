@@ -5,4 +5,4 @@ set -eu
 script_path="$(dirname "$(realpath "$0")")"
 version="$($script_path/../../get-version.sh)"
 
-echo "checksum.reportage_${version}_Linux_aarch64.txt"
+echo "$($script_path/../template/checksum.sh $version Linux aarch64)"

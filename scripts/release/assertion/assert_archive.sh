@@ -10,6 +10,7 @@ dist_path=${1%/}
 main() {
   assert_archive_x86_64
   assert_archive_aarch64
+  assert_checksum
 }
 
 assert_archive_x86_64() {
@@ -38,6 +39,12 @@ assert_archive() {
   "$script_path/assert_is_executable.sh" "$binary_path"
 
   unpack_cleanup
+}
+assert_checksum() {
+  checksum_path="$dist_path/$($script_path/../expected/checksum.sh)"
+
+  "$script_path/assert_exists.sh" "$checksum_path"
+  "$script_path/assert_is_file.sh" "$checksum_path"
 }
 
 unpack() {

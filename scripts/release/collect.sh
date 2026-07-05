@@ -13,7 +13,7 @@ main() {
   cp_archive "$($script_path/expected/x86_64_archive.sh).tar.gz"
   cp_archive "$($script_path/expected/aarch64_archive.sh).tar.gz"
 
-  cat_checksums > "$dist"/checksums.txt
+  cat_checksums > "$dist"/"$($script_path/expected/checksum.sh)"
 }
 
 ensure_dist() {
