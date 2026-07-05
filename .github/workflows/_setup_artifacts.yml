@@ -35,19 +35,13 @@ jobs:
       - name: Package archive and checksum
         shell: bash
         id: archive
-        run: |
-          just archive dist > files
-          mapfile -t outputs < files
-          echo "archive=${outputs[0]}" >> "$GITHUB_OUTPUT"
-          echo "checksum=${outputs[1]}" >> "$GITHUB_OUTPUT"
+        run: just archive dist
 
       - name: Upload archive and checksum
         uses: actions/upload-artifact@v7
         with:
           name: reportage-archive-${{ matrix.name }}
-          path:
-            ${{ steps.archive.outputs.archive }}
-            ${{ steps.archive.outputs.checksum }}
+          path: dist
           if-no-files-found: error
 
   setup_artifacts:
