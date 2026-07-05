@@ -81,3 +81,7 @@ archive dist:
 [group('check')]
 archive-assert dist:
   @sh scripts/release/assertion/assert_archive.sh {{ dist }}
+
+[group('build')]
+archive-collect src dist:
+  @sh scripts/release/collect.sh {{ src }} {{ dist }}

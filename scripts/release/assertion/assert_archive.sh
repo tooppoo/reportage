@@ -13,10 +13,12 @@ main() {
 }
 
 assert_archive_x86_64() {
-  assert_archive "$dist_path/reportage_${version}_Linux_x86_64"
+  expected="$($script_path/../expected/x86_64_archive.sh)"
+  assert_archive "$dist_path/$expected"
 }
 assert_archive_aarch64() {
-  assert_archive "$dist_path/reportage_${version}_Linux_aarch64"
+  expected="$($script_path/../expected/aarch64_archive.sh)"
+  assert_archive "$dist_path/$expected"
 }
 assert_archive() {
   archive_name=${1%/}
@@ -37,19 +39,21 @@ assert_archive() {
 
   unpack_cleanup
 }
+
 unpack() {
   archive_path=${1%/}
 
+  # reverse to ensure that files are removed before directories
   tar -xvf "$archive_path" \
-    # reverse to ensure that files are removed before directories
     | sort -r \
     > "$dist_path/unpacked.tmp"
 }
 unpack_cleanup() {
+  # use rm -r to remove unpacked file & dir transparently
   cat "$dist_path/unpacked.tmp" \
     | grep "$archive_name" \
-    # use -r to remove unpacked file & dir transparently
     | xargs rm -r
+
   rm "$dist_path/unpacked.tmp"
 }
 
