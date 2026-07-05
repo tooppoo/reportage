@@ -47,5 +47,6 @@ case "composite logic blocks" {
       }
       stdout empty
     }
+    stderr empty
   }
 }
