@@ -59,5 +59,12 @@ lint:
 build:
   cargo build --locked
 
-build-release:
-  cargo build --release --locked
+build-release pkg:
+  cargo build --release --locked -p {{pkg}}
+
+archive:
+  @just build-release reportage-cli
+  sh scripts/release/archive.sh
+
+unarchive:
+  sh scripts/release/unarchive.sh

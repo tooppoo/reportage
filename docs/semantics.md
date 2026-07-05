@@ -484,6 +484,14 @@ Require the last action result. A script error if used at a checkpoint with no l
 - `stderr empty`
 - `stderr contains <string>`
 
+### stdout/stderr evidence representation
+
+stdout and stderr are held and compared as raw process output bytes, not decoded text. `stdout contains <string>` / `stderr contains <string>` unescape the string literal to its UTF-8 bytes and match those bytes against the raw output as a byte-level substring search — there is no decoding of the actual output on either side of the comparison.
+
+`stdout empty` / `stderr empty` pass only when the actual output is zero bytes. Whitespace, tabs, LF, CRLF, and bare CR are all output — a stream containing only whitespace is not empty.
+
+Non-UTF-8 process output is not rejected. Reportage does not perform encoding-aware assertions (e.g. decoding Shift-JIS) in v0; only raw byte comparisons are defined. Lossy UTF-8 decoding is used only for human-readable display (CLI diagnostics, and the optional `text` helper field in artifact / result JSON), never for evaluating an expectation.
+
 ### Structured output expectations
 
 Require the corresponding process output from the last action result.

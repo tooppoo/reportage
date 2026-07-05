@@ -86,8 +86,8 @@ Initial shape:
           "kind": "action",
           "command": "true",
           "exit_code": 0,
-          "stdout": "",
-          "stderr": ""
+          "stdout": { "data": "", "encoding": "base64", "text": "" },
+          "stderr": { "data": "", "encoding": "base64", "text": "" }
         }
       ],
       "assertion_blocks": [
@@ -108,6 +108,8 @@ Initial shape:
   ]
 }
 ```
+
+`stdout` and `stderr` are always represented as `{"data": ..., "encoding": "base64", "text": ...}`: `data` is the base64 encoding of the raw process output bytes and is the canonical value. `text` is an optional human-readable helper view, present only when `data` decodes to valid UTF-8; it is never used for semantic comparison and must not be treated as machine-readable canonical data. The same envelope is used for the `actual` field of `stdout_contains` / `stderr_contains` / `stdout_empty` / `stderr_empty` expectation results. See [`semantics.md`](semantics.md#stdoutstderr-evidence-representation) for the underlying raw byte semantics.
 
 A failing expectation includes a `diagnostic_code` field alongside `result: "fail"`, using the stable codes defined in [`semantic-diagnostics.md`](semantic-diagnostics.md) (e.g. `assertion.file.exists_missing` for a `file "<path>" exists` expectation whose path does not exist). Passing expectations, and expectation kinds without a dedicated diagnostic code, omit the field.
 

@@ -14,8 +14,12 @@ pub struct ActionResult {
     // i32 rather than u8: the OS returns None when a process is killed by a signal, which the executor maps to -1.
     // See executor::execute_action.
     pub exit_code: i32,
-    pub stdout: String,
-    pub stderr: String,
+    // Raw process output bytes, not decoded text. See docs/semantics.md and the accompanying ADR
+    // on raw byte semantics for stdout/stderr: non-UTF-8 output must survive unmodified through
+    // capture and evaluation; lossy decoding is confined to display layers (CLI, artifact JSON's
+    // optional `text` helper view).
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
     /// Shim invocation events collected from the action-scoped event directory.
     /// Empty when no protocol-compliant shim was observed during this action.
     pub shim_invocations: Vec<ShimInvocationEvent>,
@@ -33,17 +37,17 @@ pub enum ExpectationKind {
     },
     StdoutContains {
         expected: String,
-        actual: String,
+        actual: Vec<u8>,
     },
     StderrContains {
         expected: String,
-        actual: String,
+        actual: Vec<u8>,
     },
     StdoutEmpty {
-        actual: String,
+        actual: Vec<u8>,
     },
     StderrEmpty {
-        actual: String,
+        actual: Vec<u8>,
     },
     FileExists {
         path: String,

@@ -120,6 +120,21 @@
         "stderr": { "data": "", "encoding": "base64", "text": "" }
       },
       "expectedResult": "fail"
+    },
+    {
+      "description": "non-UTF-8 stdout is not rejected; byte substring match still finds a valid-UTF-8 prefix",
+      "assertionSource": "stdout contains \"ok\"",
+      "assertion": {
+        "subject": "stdout",
+        "operator": "contains",
+        "expected": "ok"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "b2vD", "encoding": "base64" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
     }
   ]
 }

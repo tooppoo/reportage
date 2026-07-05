@@ -289,7 +289,7 @@ pub fn evaluate_expectation_at_checkpoint(
                 .unwrap_or_default();
             match &exp.matcher {
                 OutputMatcher::Contains(expected) => {
-                    let passed = actual.contains(expected.as_str());
+                    let passed = bytes_contains(&actual, expected.as_bytes());
                     ExpectationResult {
                         kind: ExpectationKind::StdoutContains {
                             expected: expected.clone(),
@@ -299,7 +299,7 @@ pub fn evaluate_expectation_at_checkpoint(
                     }
                 }
                 OutputMatcher::Empty => {
-                    let passed = actual.trim().is_empty();
+                    let passed = actual.is_empty();
                     ExpectationResult {
                         kind: ExpectationKind::StdoutEmpty { actual },
                         passed,
@@ -316,7 +316,7 @@ pub fn evaluate_expectation_at_checkpoint(
                 .unwrap_or_default();
             match &exp.matcher {
                 OutputMatcher::Contains(expected) => {
-                    let passed = actual.contains(expected.as_str());
+                    let passed = bytes_contains(&actual, expected.as_bytes());
                     ExpectationResult {
                         kind: ExpectationKind::StderrContains {
                             expected: expected.clone(),
@@ -326,7 +326,7 @@ pub fn evaluate_expectation_at_checkpoint(
                     }
                 }
                 OutputMatcher::Empty => {
-                    let passed = actual.trim().is_empty();
+                    let passed = actual.is_empty();
                     ExpectationResult {
                         kind: ExpectationKind::StderrEmpty { actual },
                         passed,
@@ -363,6 +363,17 @@ pub fn evaluate_expectation_at_checkpoint(
         }
         _ => unreachable!("expectation variant not implemented in v0 evaluator"),
     }
+}
+
+/// Byte-level substring search, per docs/semantics.md's raw byte semantics for `stdout contains` /
+/// `stderr contains`: `expected` is UTF-8 bytes of a Reportage string literal, matched against
+/// `haystack` (raw process output bytes) without any decoding on either side.
+///
+/// An empty `needle` always matches, including against an empty `haystack`
+/// (`emptyExpectedAlwaysMatches`, pinned by `spec/language/semantics/assertion.stdout.contains.json`
+/// and `assertion.stderr.contains.json`).
+fn bytes_contains(haystack: &[u8], needle: &[u8]) -> bool {
+    needle.is_empty() || haystack.windows(needle.len()).any(|w| w == needle)
 }
 
 /// Evaluates a `file "<path>" ...` expectation against the real filesystem.
@@ -595,6 +606,99 @@ mod tests {
         assert_eq!(result.cases[0].assertion_blocks.len(), 1);
     }
 
+    // ─── stdout/stderr raw byte semantics (#62) ────────────────────────────
+
+    fn checkpoint_after_output(stdout: Vec<u8>, stderr: Vec<u8>) -> Checkpoint {
+        Checkpoint::after_action(
+            ActionResult {
+                command: "test".to_string(),
+                exit_code: 0,
+                stdout,
+                stderr,
+                shim_invocations: vec![],
+                shim_event_parse_warnings: vec![],
+            },
+            PathBuf::from("."),
+        )
+    }
+
+    fn stdout_empty_expectation() -> Expectation {
+        Expectation::Stdout(crate::model::OutputExpectation {
+            matcher: OutputMatcher::Empty,
+        })
+    }
+
+    fn stderr_empty_expectation() -> Expectation {
+        Expectation::Stderr(crate::model::OutputExpectation {
+            matcher: OutputMatcher::Empty,
+        })
+    }
+
+    #[test]
+    fn stdout_empty_passes_on_zero_bytes() {
+        let checkpoint = checkpoint_after_output(vec![], vec![]);
+        let result = evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint);
+        assert!(result.passed);
+    }
+
+    // Whitespace-only output is still output: `empty` must observe zero bytes, not
+    // "nothing but whitespace". Regression coverage for the `.trim().is_empty()` bug.
+    #[test]
+    fn stdout_empty_fails_on_single_space() {
+        let checkpoint = checkpoint_after_output(b" ".to_vec(), vec![]);
+        let result = evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint);
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn stdout_empty_fails_on_tab() {
+        let checkpoint = checkpoint_after_output(b"\t".to_vec(), vec![]);
+        let result = evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint);
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn stdout_empty_fails_on_lf() {
+        let checkpoint = checkpoint_after_output(b"\n".to_vec(), vec![]);
+        let result = evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint);
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn stdout_empty_fails_on_crlf() {
+        let checkpoint = checkpoint_after_output(b"\r\n".to_vec(), vec![]);
+        let result = evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint);
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn stdout_empty_fails_on_bare_cr() {
+        let checkpoint = checkpoint_after_output(b"\r".to_vec(), vec![]);
+        let result = evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint);
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn stderr_empty_fails_on_whitespace_only() {
+        let checkpoint = checkpoint_after_output(vec![], b" \t\r\n".to_vec());
+        let result = evaluate_expectation_at_checkpoint(&stderr_empty_expectation(), &checkpoint);
+        assert!(!result.passed);
+    }
+
+    #[test]
+    fn stdout_contains_matches_substring_in_non_utf8_output() {
+        // 0xff is invalid UTF-8 in any position. A lossy decode at capture time would have
+        // replaced it with U+FFFD before this match ever ran; raw byte matching must not do that.
+        let mut stdout = b"ok".to_vec();
+        stdout.push(0xff);
+        let checkpoint = checkpoint_after_output(stdout, vec![]);
+        let expectation = Expectation::Stdout(crate::model::OutputExpectation {
+            matcher: OutputMatcher::Contains("ok".to_string()),
+        });
+        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint);
+        assert!(result.passed);
+    }
+
     // ─── Logical composition (#25) ────────────────────────────────────────
 
     use crate::model::{LogicalExpectation, LogicalOperator};
@@ -612,8 +716,8 @@ mod tests {
             ActionResult {
                 command: "test".to_string(),
                 exit_code: code,
-                stdout: String::new(),
-                stderr: String::new(),
+                stdout: Vec::new(),
+                stderr: Vec::new(),
                 shim_invocations: vec![],
                 shim_event_parse_warnings: vec![],
             },

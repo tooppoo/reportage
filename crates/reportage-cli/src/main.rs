@@ -276,7 +276,8 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
                 step_index + 1,
                 expected,
             );
-            eprintln!("    actual stdout: {:?}", actual);
+            // Lossy decode is display-only here; the canonical actual value stays raw bytes.
+            eprintln!("    actual stdout: {:?}", String::from_utf8_lossy(actual));
         }
         ExpectationKind::StderrContains { expected, actual } => {
             let verb = if held { "contains" } else { "does not contain" };
@@ -285,7 +286,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
                 step_index + 1,
                 expected,
             );
-            eprintln!("    actual stderr: {:?}", actual);
+            eprintln!("    actual stderr: {:?}", String::from_utf8_lossy(actual));
         }
         ExpectationKind::StdoutEmpty { actual } => {
             let phrase = if held {
@@ -297,7 +298,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
                 "  assertion block at step {}: stdout {phrase}",
                 step_index + 1,
             );
-            eprintln!("    actual stdout: {:?}", actual);
+            eprintln!("    actual stdout: {:?}", String::from_utf8_lossy(actual));
         }
         ExpectationKind::StderrEmpty { actual } => {
             let phrase = if held {
@@ -309,7 +310,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
                 "  assertion block at step {}: stderr {phrase}",
                 step_index + 1,
             );
-            eprintln!("    actual stderr: {:?}", actual);
+            eprintln!("    actual stderr: {:?}", String::from_utf8_lossy(actual));
         }
         ExpectationKind::FileExists { path, observation } => {
             let reason = match observation {

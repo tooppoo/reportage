@@ -208,10 +208,6 @@ fn decode_base64_stream(stream: &StreamData) -> Vec<u8> {
         .unwrap_or_else(|e| panic!("invalid base64 in stream data '{}': {}", stream.data, e))
 }
 
-fn decode_action_stream(stream: &StreamData) -> String {
-    String::from_utf8_lossy(&decode_base64_stream(stream)).into_owned()
-}
-
 fn checkpoint_for_case(case: &ConformanceCase) -> EvaluatorCheckpoint {
     EvaluatorCheckpoint {
         // These conformance cases only exercise process expectations (exit/stdout/stderr),
@@ -222,8 +218,12 @@ fn checkpoint_for_case(case: &ConformanceCase) -> EvaluatorCheckpoint {
         last_action: Some(ActionResult {
             command: "<semantic conformance checkpoint>".to_string(),
             exit_code: case.checkpoint.exit_code,
-            stdout: decode_action_stream(&case.checkpoint.stdout),
-            stderr: decode_action_stream(&case.checkpoint.stderr),
+            // Raw bytes, not lossy-decoded text: the evaluator's stdout/stderr semantics are
+            // defined over raw process output bytes (see docs/semantics.md and the raw byte
+            // semantics ADR), so the fixture harness must feed it the same raw bytes production
+            // capture would, not a UTF-8-lossy reinterpretation of them.
+            stdout: decode_base64_stream(&case.checkpoint.stdout),
+            stderr: decode_base64_stream(&case.checkpoint.stderr),
             shim_invocations: vec![],
             shim_event_parse_warnings: vec![],
         }),

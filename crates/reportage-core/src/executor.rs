@@ -113,8 +113,9 @@ pub fn execute_action(
         // `status.code()` returns None when the process was terminated by a signal.
         // -1 is used as a sentinel; no valid expectation target should expect -1.
         exit_code: output.status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        // Raw bytes, not decoded text — see result::ActionResult and the raw byte semantics ADR.
+        stdout: output.stdout,
+        stderr: output.stderr,
         shim_invocations,
         shim_event_parse_warnings,
     })
@@ -149,13 +150,23 @@ mod tests {
     #[test]
     fn stdout_is_captured() {
         let out = execute_action("echo hello", &default_env(), tmp_workspace().path()).unwrap();
-        assert_eq!(out.stdout.trim(), "hello");
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "hello");
     }
 
     #[test]
     fn stderr_is_captured() {
         let out = execute_action("echo error >&2", &default_env(), tmp_workspace().path()).unwrap();
-        assert_eq!(out.stderr.trim(), "error");
+        assert_eq!(String::from_utf8_lossy(&out.stderr).trim(), "error");
+    }
+
+    #[test]
+    fn non_utf8_stdout_is_captured_as_raw_bytes_without_lossy_substitution() {
+        // 0xff is never valid UTF-8 in any position. If capture still went through
+        // String::from_utf8_lossy, this byte would be replaced with U+FFFD (which encodes as
+        // 0xEF 0xBF 0xBD) before the assertion ever saw it.
+        let out =
+            execute_action("printf 'ok\\377'", &default_env(), tmp_workspace().path()).unwrap();
+        assert_eq!(out.stdout, vec![b'o', b'k', 0xff]);
     }
 
     // --- effective_path: None/Some decision ---
@@ -221,7 +232,10 @@ mod tests {
         let env = ExecutionEnvironment::with_path_prefixes(vec![dir.path().to_path_buf()]);
         let out =
             execute_action("reportage-test-custom-cmd", &env, tmp_workspace().path()).unwrap();
-        assert_eq!(out.stdout.trim(), "found-via-prefix");
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout).trim(),
+            "found-via-prefix"
+        );
     }
 
     #[test]
@@ -250,7 +264,7 @@ mod tests {
             tmp_workspace().path(),
         )
         .unwrap();
-        assert_eq!(out.stdout.trim(), "from-a");
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "from-a");
     }
 
     #[test]
