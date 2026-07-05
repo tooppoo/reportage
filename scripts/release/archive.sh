@@ -30,6 +30,8 @@ archive_reportage() {
   checksum_path="$dist/checksums_$(basename "$archive_dir").txt"
   sha256sum "$archive_path" > "$checksum_path"
 
+  rm -r "$archive_dir"
+
   echo "$archive_path"
   echo "$checksum_path"
 }
