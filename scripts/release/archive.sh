@@ -3,8 +3,9 @@
 set -eu
 
 script_path="$(dirname "$(realpath "$0")")"
-version=${1%/}
-dist=${2%/}
+version="$($script_path/../get-version.sh)"
+
+dist=${1%/}
 
 main() {
   cleanup
