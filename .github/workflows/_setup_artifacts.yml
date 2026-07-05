@@ -60,7 +60,7 @@ jobs:
 
       - name: create checksum for all archives
         shell: bash
-        run:
+        run: |
           cat dist/checksum_* > dist/checksums.txt
           rm dist/checksum_*
 
