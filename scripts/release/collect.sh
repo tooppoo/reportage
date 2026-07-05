@@ -8,7 +8,7 @@ src=${1%/}
 dist=${2%/}
 
 main() {
-  "$($script_path/../utils/ensure_dir.sh)" "$dist"
+  "$script_path/../utils/ensure_dir.sh" "$dist"
 
   cp_archive "$($script_path/expected/x86_64_archive.sh).tar.gz"
   cp_archive "$($script_path/expected/aarch64_archive.sh).tar.gz"
