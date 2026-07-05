@@ -14,6 +14,8 @@ main() {
   cp_archive "$($script_path/expected/aarch64_archive.sh).tar.gz"
 
   cat_checksums > "$dist"/"$($script_path/expected/checksum.sh)"
+
+  ls "$dist"
 }
 
 ensure_dist() {
