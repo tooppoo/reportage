@@ -19,7 +19,8 @@ build_reportage() {
 }
 
 archive_reportage() {
-  archive_dir="$dist/$($script_path/archive_name.sh)"
+  archive_name="$($script_path/archive_name.sh)"
+  archive_dir="$dist/$archive_name"
   archive_path="$archive_dir.tar.gz"
 
   mkdir -p "$archive_dir"
@@ -27,8 +28,11 @@ archive_reportage() {
 
   tar -acf "$archive_path" "$archive_dir"
 
-  checksum_path="$dist"/"$($script_path/checksum_name.sh)"
-  sha256sum "$archive_path" > "$checksum_path"
+  checksum_path="$($script_path/checksum_name.sh)"
+  (
+    cd "$dist"
+    sha256sum "$archive_name.tar.gz" > "$checksum_path"
+  )
 
   rm -r "$archive_dir"
 
