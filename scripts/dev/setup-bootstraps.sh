@@ -1,6 +1,6 @@
 #!/usr/bin/sh
 
-set -euo
+set -eu
 
 cargo install cargo-binstall@1.20.1 --locked
 cargo binstall cargo-llvm-cov@0.8.7 \

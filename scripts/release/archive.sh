@@ -1,9 +1,10 @@
 #!/usr/bin/env sh
 
-set -euo
+set -eu
 
 script_path="$(dirname "$(realpath "$0")")"
-dist=${1%/}
+version=${1%/}
+dist=${2%/}
 
 main() {
   cleanup
@@ -18,8 +19,8 @@ build_reportage() {
 }
 
 archive_reportage() {
-  archive_dir="$dist/$($script_path/archive_name.sh)"
-  archive_path="$dist/$($script_path/archive_path.sh)"
+  archive_dir="$dist/$($script_path/archive_name.sh $version)"
+  archive_path="$archive_dir.tar.gz"
 
   mkdir -p "$archive_dir"
   cp target/release/reportage "$archive_dir/reportage"

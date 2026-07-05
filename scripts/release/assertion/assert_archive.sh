@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-set -euo
+set -eu
 
 script_path="$(dirname "$(realpath "$0")")"
 version=${1%/}

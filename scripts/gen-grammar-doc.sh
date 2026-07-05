@@ -2,7 +2,7 @@
 # Generates docs/syntax.md from crates/reportage-core/src/reportage.pest.
 # Usage: gen-grammar-doc.sh [OUTPUT_PATH]
 #   OUTPUT_PATH defaults to docs/syntax.md (relative to repo root).
-set -euo
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

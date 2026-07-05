@@ -73,7 +73,7 @@ jobs:
           path: dist
 
       - name: Verify artifact contents
-        run: scripts/release/assertion/assert_archive.sh "$(scripts/release/get-version.sh)" dist
+        run: just archive-assert dist
 
       - name: Verify checksum
         shell: bash
