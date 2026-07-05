@@ -30,6 +30,15 @@ archive_reportage() {
 
   checksum_path="$($script_path/checksum_name.sh)"
   (
+    # if directory is not changed, "$dist/*.tar.gz" will be written to checksum file.
+    # checksum file and archives is in same directory finally,
+    # so "$dist" should not be included in any file paths.
+    #
+    # e.g.
+    # {checksum} dist/reportage_v0.0.1_Linux_x86_64.tar.gz
+    #
+    # expected:
+    # {checksum} reportage_v0.0.1_Linux_x86_64.tar.gz
     cd "$dist"
     sha256sum "$archive_name.tar.gz" > "$checksum_path"
   )
