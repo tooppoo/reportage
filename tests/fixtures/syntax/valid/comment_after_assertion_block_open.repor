@@ -1,6 +1,6 @@
 case "comment after assertion block open" {
   $ true
-  assert { // trailing comment on the assert open line
+  assert { # trailing comment on the assert open line
     exit 0
   }
 }

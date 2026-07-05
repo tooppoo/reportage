@@ -1,4 +1,4 @@
 case "x" {
   $ true
-  assert { exit 0 // comment swallows the closing brace on this line
+  assert { exit 0 # comment swallows the closing brace on this line
 }

@@ -1,5 +1,5 @@
 case "comment marker in action command" {
-  $ echo hello // passed to shell
+  $ echo hello # passed to the shell, not stripped as a Reportage comment
   assert {
     exit 0
   }

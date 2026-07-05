@@ -385,7 +385,7 @@ Semantics:
 - Line endings (LF or CRLF) are preserved exactly as written; they are never normalized.
 - An empty block (opening fence immediately followed by a closing fence) writes an empty string. Otherwise, the block's final line ending is included in the written content.
 - The opening fence is three or more backticks; the closing fence uses the same character and must be at least as long as the opening fence. Use a longer opening fence to embed a shorter run of backticks (e.g. an embedded ` ``` ` Markdown block) as literal content.
-- Neither the opening nor the closing fence line accepts an inline `//` comment.
+- Neither the opening nor the closing fence line accepts an inline `#` comment.
 
 A `write` step missing its own closing fence does not always fail with a syntax error: like a heredoc missing its terminator, the parser scans forward for the next line shaped like a valid closing fence, which may belong to a different, later `write` step. When that happens, everything in between — including that later step's own opening line — is silently absorbed as literal content, and the later step disappears from the case body with no diagnostic. Keep each `write` step's opening and closing fence visually paired to avoid this.
 

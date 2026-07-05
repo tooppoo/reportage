@@ -1,4 +1,4 @@
-case "x" // comment splits the case header before the opening brace
+case "x" # comment splits the case header before the opening brace
 {
   $ true
   assert {

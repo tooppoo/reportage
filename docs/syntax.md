@@ -32,17 +32,21 @@ lifecycle) is defined separately in [`docs/semantics.md`](semantics.md).
 ws         = _{ " " | "\t" }
 nl         = _{ "\r\n" | "\n" }
 blank_line = _{ ws* ~ nl }
-// Comment marker `//` to end of line. Discarded at parse time; never appears
+// Comment marker `#` to end of line. Discarded at parse time; never appears
 // in the AST. Only spliced in at specific "end of logical line" and "whole
 // line" positions below (via `trail` and `comment_line`) — never as generic
 // inter-token filler — so it cannot split a token sequence (e.g. between a
 // case name and `{`) or swallow a closing brace on the same line.
-comment      = _{ "//" ~ (!nl ~ ANY)* }
+comment      = _{ "#" ~ (!nl ~ ANY)* }
 comment_line = _{ ws* ~ comment ~ (nl | EOI) }
 // Trailing whitespace, and an optional trailing comment, before a newline or
 // end of file. Used wherever a line ending may carry incidental trailing
-// spaces or an inline comment.
-trail        = _{ ws* ~ comment? ~ (nl | EOI) }
+// spaces or an inline comment. An inline comment only starts at a `#`
+// separated from the preceding syntax element by at least one space/tab
+// (`ws+ ~ comment`), so a `#` glued to a token (`exit 0#c`) is a syntax
+// error rather than a comment — leaving room for future bare tokens that
+// contain `#` (paths, URL fragments).
+trail        = _{ (ws+ ~ comment)? ~ ws* ~ (nl | EOI) }
 
 // ─── Script ───────────────────────────────────────────────────────────────────
 

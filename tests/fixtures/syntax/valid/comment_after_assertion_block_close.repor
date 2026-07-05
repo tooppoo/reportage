@@ -2,5 +2,5 @@ case "comment after assertion block close" {
   $ true
   assert {
     exit 0
-  } // trailing comment on the assertion block close line
+  } # trailing comment on the assertion block close line
 }

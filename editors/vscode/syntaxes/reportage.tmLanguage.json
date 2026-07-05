@@ -4,6 +4,9 @@
   "scopeName": "source.reportage",
   "patterns": [
     {
+      "include": "#write-step"
+    },
+    {
       "include": "#comments"
     },
     {
@@ -24,7 +27,7 @@
       "patterns": [
         {
           "name": "comment.line.number-sign.reportage",
-          "match": "//.*$"
+          "match": "(?:^|(?<=[ \\t]))#.*$"
         }
       ]
     },
@@ -40,6 +43,36 @@
               "match": "\\\\."
             }
           ]
+        }
+      ]
+    },
+    "write-step": {
+      "patterns": [
+        {
+          "name": "meta.write.block.reportage",
+          "begin": "^(\\s*)(write)\\b(.*?)(`{3,})\\s*$",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.write.reportage"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#strings"
+                }
+              ]
+            },
+            "4": {
+              "name": "punctuation.definition.raw.begin.reportage"
+            }
+          },
+          "end": "^\\s*(\\4`*)\\s*$",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.raw.end.reportage"
+            }
+          },
+          "contentName": "string.unquoted.raw.reportage"
         }
       ]
     },
@@ -96,6 +129,9 @@
             }
           },
           "patterns": [
+            {
+              "include": "#comments"
+            },
             {
               "match": "^(\\s*)(exit|stdout|stderr)\\b",
               "captures": {
