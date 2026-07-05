@@ -1,5 +1,5 @@
 
-case "assert with and" {
+case "assert that all expectations match" {
   $ echo "assert with and"
 
   assert {
@@ -10,7 +10,7 @@ case "assert with and" {
   }
 }
 
-case "assert with any" {
+case "assert that any expectation matches" {
   $ echo "assert with or"
 
   assert {
@@ -21,7 +21,7 @@ case "assert with any" {
   }
 }
 
-case "assert with not" {
+case "assert that no expectation matches" {
   $ echo "assert with not"
 
   assert {
@@ -35,14 +35,17 @@ case "composite logic blocks" {
   $ echo "composite logic blocks"
 
   assert {
-    all {
-      any {
-        exit 1
-        stdout contains "composite"
+    any {
+      all {
+        any {
+          exit 1
+          stdout contains "composite"
+        }
+        not {
+          file "nonexistent.file" exists
+        }
       }
-      not {
-        file "nonexistent.file" exists
-      }
+      stdout empty
     }
   }
 }
