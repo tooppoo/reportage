@@ -4,7 +4,6 @@
 [![CI](https://github.com/tooppoo/reportage/actions/workflows/ci.yml/badge.svg)](https://github.com/tooppoo/reportage/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/tooppoo/reportage/graph/badge.svg?token=qdk2zXMPED)](https://codecov.io/gh/tooppoo/reportage)
 [![CodeQL](https://github.com/tooppoo/reportage/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/tooppoo/reportage/actions/workflows/github-code-scanning/codeql)
-[![Examples](https://github.com/tooppoo/reportage/actions/workflows/examples.yml/badge.svg)](https://github.com/tooppoo/reportage/actions/workflows/examples.yml)
 
 `reportage` is an explicit, runtime-agnostic, coverage-aware E2E scenario runner with shell-like actions.
 
