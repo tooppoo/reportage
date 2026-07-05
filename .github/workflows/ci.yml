@@ -56,8 +56,6 @@ jobs:
           use_oidc: true
 
   setup-artifacts:
-    name: Setup artifacts with all archives
-    runs-on: ubuntu-latest
     uses: ./.github/workflows/_setup_artifacts.yml
 
   assert-archive:
