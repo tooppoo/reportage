@@ -89,4 +89,3 @@ get-version:
   v="$(toml get Cargo.toml workspace.package.version --raw)"
 
   echo "v$v"
-
