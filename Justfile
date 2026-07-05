@@ -18,7 +18,7 @@ semantic-docs-gen:
 [group('check')]
 semantic-docs-check:
   #!/usr/bin/env bash
-  set -euo pipefail
+  set -euo
   tmp=$(mktemp)
   trap "rm -f '$tmp'" EXIT
   cargo run --locked -p reportage-core --bin gen_semantic_docs -- "$tmp" > /dev/null
@@ -32,14 +32,14 @@ semantic-docs-check:
 [group('docs')]
 lang-docs-gen:
   #!/usr/bin/env bash
-  set -euo pipefail
+  set -euo
   bash scripts/gen-grammar-doc.sh
 
 [group('docs')]
 [group('check')]
 lang-docs-check:
   #!/usr/bin/env bash
-  set -euo pipefail
+  set -euo
   tmp=$(mktemp)
   trap "rm -f '$tmp'" EXIT
   bash scripts/gen-grammar-doc.sh "$tmp" > /dev/null

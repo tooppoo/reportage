@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-set -euo pipefail
+set -euo
 
 script_path="$(dirname "$(realpath "$0")")"
 
