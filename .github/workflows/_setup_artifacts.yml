@@ -57,6 +57,7 @@ jobs:
         with:
           path: dist
           pattern: reportage-archive-*
+          merge-multiple: true
 
       - name: create checksum for all archives
         shell: bash
