@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Get all archives
-        uses: actions/download-artifact@f3e7c0d8a1b9f5e2c4a6b8e1f9c2d3e4f5a6b7c8 # v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           pattern: reportage-archive-*

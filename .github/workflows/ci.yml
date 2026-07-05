@@ -59,7 +59,7 @@ jobs:
       - uses: ./.github/workflows/_setup_artifacts.yml
         id: setup_artifacts
       - name: Get Archive
-        uses: actions/download-artifact@f3e7c0d8a1b9f5e2c4a6b8e1f9c2d3e4f5a6b7c8 # v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ steps.setup_artifacts.outputs.artifact_name }}
           path: dist
