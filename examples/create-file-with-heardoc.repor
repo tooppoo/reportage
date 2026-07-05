@@ -1,0 +1,18 @@
+
+case "create file with heredoc" {
+  write "test.txt" ```
+    Hello, Rerpotage!
+    Indentation is deindented relative to the terminating character
+
+    Therefore, the test will not fail even if you indent the text!
+    ```
+
+  $ cat test.txt | grep Therefore
+  assert {
+    exit 0
+    not {
+      stdout contains "Hello, Rerpotage!"
+    }
+    stdout contains "indent the text!"
+  }
+}

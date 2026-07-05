@@ -1,0 +1,10 @@
+
+case "action is shell, so it is possible HTTP request!" {
+  $ curl https://example.com
+
+  assert {
+    exit 0
+    stdout contains "Example Domain"
+    stdout contains "<!doctype html>"
+  }
+}

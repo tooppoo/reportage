@@ -1,0 +1,32 @@
+
+case "stdout is empty" {
+  $ true
+
+  assert {
+    stdout empty
+  }
+}
+
+case "stdout contains text" {
+  $ echo "Hello, World!"
+
+  assert {
+    stdout contains "World"
+  }
+}
+
+case "stderr is empty" {
+  $ true
+
+  assert {
+    stderr empty
+  }
+}
+
+case "stderr contains text" {
+  $ cat nonexistent.file
+
+  assert {
+    stderr contains "No such file or directory"
+  }
+}

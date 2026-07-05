@@ -1,0 +1,48 @@
+
+case "assert with and" {
+  $ echo "assert with and"
+
+  assert {
+    all {
+      exit 0
+      stdout contains "assert"
+    }
+  }
+}
+
+case "assert with any" {
+  $ echo "assert with or"
+
+  assert {
+    any {
+      exit 1
+      stdout contains "assert"
+    }
+  }
+}
+
+case "assert with not" {
+  $ echo "assert with not"
+
+  assert {
+    not {
+      exit 1
+    }
+  }
+}
+
+case "composite logic blocks" {
+  $ echo "composite logic blocks"
+
+  assert {
+    all {
+      any {
+        exit 1
+        stdout contains "composite"
+      }
+      not {
+        file "nonexistent.file" exists
+      }
+    }
+  }
+}
