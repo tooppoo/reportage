@@ -17,7 +17,7 @@ semantic-docs-gen:
 [group('docs')]
 [group('check')]
 semantic-docs-check:
-  #!/usr/bin/env bash
+  #!/usr/bin/env sh
   set -euo
   tmp=$(mktemp)
   trap "rm -f '$tmp'" EXIT
@@ -31,14 +31,14 @@ semantic-docs-check:
 
 [group('docs')]
 lang-docs-gen:
-  #!/usr/bin/env bash
+  #!/usr/bin/env sh
   set -euo
   bash scripts/gen-grammar-doc.sh
 
 [group('docs')]
 [group('check')]
 lang-docs-check:
-  #!/usr/bin/env bash
+  #!/usr/bin/env sh
   set -euo
   tmp=$(mktemp)
   trap "rm -f '$tmp'" EXIT
