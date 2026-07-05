@@ -82,6 +82,8 @@ A heredoc (`<<TXT ... TXT`) is equally capable but requires picking and typing a
 
 Fence matching is implemented with pest's match-stack operators (`PUSH` / `PEEK` / `DROP`): the opening fence's backtick run is pushed once, every following line is tested against `PEEK` (at least that many of the same character) to decide whether it is the closing fence, and `DROP` clears the stack entry once the block is fully matched. This keeps fence-length tracking inside the grammar rather than in a hand-rolled post-parse scanner.
 
+**Known limitation (shared with heredocs and Markdown fences generally):** a `write` step that is missing its own closing fence does not always fail with a syntax error. Because the grammar scans forward for *any* line shaped like a valid closing fence (correct indentation, same fence character, sufficient length), a missing closing fence can instead be satisfied by a line meant as a *different*, later `write` step's own closing fence — silently absorbing everything in between, including that later step's opening line, as literal content, with no diagnostic at all. This is the same class of footgun as forgetting a heredoc's terminator: the parser cannot distinguish "the intended terminator is missing" from "the block legitimately contains a lot of content" without unbounded lookahead, which would conflict with pest's single-pass grammar model. The mitigation is scripting discipline (keep each `write` step's opening and closing fence visually paired, use `UPDATE_AST_SNAPSHOTS=1` / AST snapshot review to catch an unexpectedly-absorbed step), not a grammar change.
+
 ### 7. Raw text block is separate from variable expansion / template block
 
 `${VAR}`-shaped text inside a `write` block is preserved as a literal string; v0 performs no expansion inside it, regardless of whether the case is parameterized. Whether Reportage should support variable expansion at all, and what a template-block form would look like, is deliberately left to a separate issue (#71) so that the raw text block's own fence / dedent / path semantics can ship without also having to settle expansion semantics at the same time.
@@ -101,6 +103,8 @@ impl WorkspacePath {
 ```
 
 The parser never holds a `write` step's path as a plain `String`; it must go through `WorkspacePath::parse`, which is the single place that rejects an empty path, an absolute path, and `.` / `..` segments. This means no future caller can construct a `WriteFileStep` with an unchecked path — the type itself is the guarantee. It also gives the model a place to grow: if a repository path literal is introduced later, model-layer code can distinguish `WorkspacePath` from a `RepositoryPath` by type, not by a runtime tag.
+
+**Known scope limitation:** this PR only migrates `write`'s own path to `WorkspacePath`. `file "<path>" ...` assertions (`FileExpectation`) still hold `path: String` and are validated separately, at evaluation time, by `semantic::validate_file_path` (`semantic.file_path.absolute` / `.dot_segment`) rather than by `WorkspacePath::parse`. The two validations enforce the same rule set today, but as two independent implementations rather than one shared type — a future `dir` / `file-count` / repository-fixture addition could let them drift. Unifying `FileExpectation.path` onto `WorkspacePath` too is deliberately left to a follow-up rather than bundled into this already-large PR; until then, both call sites must be kept in sync by hand when the path-safety rule set changes.
 
 ### 10. Parent directories are created automatically; overwrite and append are deferred
 
@@ -148,6 +152,7 @@ Considered and rejected during implementation. It would make `write`'s create-on
 - `$` action working-directory behavior changed: scripts (in this repository's own test suite) that relied on the reportage process's own cwd doubling as the workspace had to be rewritten to create their fixtures via `write` or a `$` action instead of external pre-seeding.
 - The evaluator, executor, and `Checkpoint` / `WorkspaceState` model all had to thread a workspace root parameter that did not exist before; this is a larger diff than `write`'s own grammar and model would have required in isolation.
 - A new `step.*` diagnostic namespace and a new `RawTextBlock` / `WorkspacePath` domain type add surface area that documentation, tests, and future step kinds now need to stay consistent with.
+- A `write` step missing its own closing fence can silently absorb a later, syntactically valid `write` step as literal content instead of failing to parse (see decision 6). This is a known, documented, and tested limitation, not something this PR resolves.
 
 ### Neutral Consequences
 

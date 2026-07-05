@@ -111,6 +111,8 @@ Initial shape:
 
 A failing expectation includes a `diagnostic_code` field alongside `result: "fail"`, using the stable codes defined in [`semantic-diagnostics.md`](semantic-diagnostics.md) (e.g. `assertion.file.exists_missing` for a `file "<path>" exists` expectation whose path does not exist). Passing expectations, and expectation kinds without a dedicated diagnostic code, omit the field.
 
+A case with `status: "runtime_error"` includes a `message` field. When the failure occurred at a specific case-body step (a `$` action's shell failing to spawn, or a `write` step's runtime step error), it also includes a `step_index` field identifying that step; a failure to create the case's isolated workspace itself, which happens before any step runs, omits `step_index`. When the failure additionally has a stable diagnostic code — currently every `step.write.*` runtime step error — the case also includes a top-level `diagnostic_code` field, using the same code namespace as `semantic-diagnostics.md`.
+
 The exact schema is experimental in early v0.
 
 For an empty, whitespace-only, or otherwise valid zero-case suite, the run artifact records a no-op success:

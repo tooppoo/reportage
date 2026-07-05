@@ -1548,6 +1548,46 @@ case "parent is a regular file" {
 }
 
 #[test]
+#[cfg(unix)]
+fn write_step_rejects_symlink_parent_instead_of_escaping_the_workspace() {
+    // A `$` action plants a symlink to a directory *outside* the workspace
+    // before a later `write` step targets a path through it. The write must
+    // be rejected as a runtime step error, and nothing must actually be
+    // written outside the isolated workspace through the symlink.
+    let dir = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        &format!(
+            r#"
+case "escape via symlink parent" {{
+  $ ln -s {outside} escape
+  write "escape/leaked.txt" ```
+    leaked
+    ```
+  assert {{
+    exit 0
+  }}
+}}
+"#,
+            outside = outside.path().display(),
+        ),
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains(
+            "step.write.parent_not_a_directory",
+        ));
+
+    outside
+        .child("leaked.txt")
+        .assert(predicates::path::missing());
+}
+
+#[test]
 fn write_step_failure_stops_subsequent_steps_in_the_same_case() {
     // The second write step fails (create-only, target already exists). The
     // case must stop there: the trailing `$` action's exit code, which
@@ -1591,16 +1631,17 @@ case "write step absolute path" {
 }
 "#,
     );
-    // Unlike the checkpoint-time `file "<path>" ...` path policy (validated in
-    // `evaluate_case` and rendered with its diagnostic code inline), a `write`
-    // step's path is validated at parse time as a `ParseError`; the CLI
-    // renders parse-domain errors without an inline diagnostic code today.
-    // See docs/diagnostics.md.
+    // A `write` step's path is validated at parse time via `WorkspacePath::parse`
+    // (a `ParseError`), unlike the checkpoint-time `file "<path>" ...` path
+    // policy. Both now render their stable diagnostic code inline in CLI output.
     reportage(&dir)
         .arg(script)
         .assert()
         .code(2)
-        .stderr(predicates::str::contains("write step path"));
+        .stderr(predicates::str::contains("write step path"))
+        .stderr(predicates::str::contains(
+            "semantic.workspace_path.absolute",
+        ));
 }
 
 #[test]

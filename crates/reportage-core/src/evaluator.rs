@@ -7,7 +7,7 @@ use crate::model::{
 };
 use crate::result::{
     ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind, ExpectationResult,
-    FileContentObservation, FileExistsObservation, RunResult,
+    FileContentObservation, FileExistsObservation, RunResult, RuntimeError,
 };
 use crate::semantic::validate_file_path;
 use crate::workspace::Workspace;
@@ -76,6 +76,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
             )),
             actions: vec![],
             assertion_blocks: vec![],
+            side_effects_executed: 0,
         };
     }
 
@@ -87,18 +88,26 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
             return CaseResult {
                 name: case.name.clone(),
                 source_path: None,
-                status: CaseStatus::RuntimeError(format!(
-                    "case '{}': failed to create isolated case workspace: {e}",
-                    case.name
-                )),
+                status: CaseStatus::RuntimeError(RuntimeError {
+                    message: format!(
+                        "case '{}': failed to create isolated case workspace: {e}",
+                        case.name
+                    ),
+                    diagnostic_code: None,
+                    step_index: None,
+                }),
                 actions: vec![],
                 assertion_blocks: vec![],
+                side_effects_executed: 0,
             };
         }
     };
 
     let mut action_results: Vec<ActionResult> = Vec::new();
     let mut assertion_block_results: Vec<AssertionBlockResult> = Vec::new();
+    // Successful `write` (and future side-effecting) step count, independent
+    // of `action_results`. See `RunSummary::steps_executed`.
+    let mut side_effects_executed: usize = 0;
     // Steps are processed in source order.
     // Assertion block failure stops execution before the next action.
     // See docs/semantics.md — Assertion block and the checkpoint-based assertion ADR.
@@ -124,9 +133,14 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                         return CaseResult {
                             name: case.name.clone(),
                             source_path: None,
-                            status: CaseStatus::RuntimeError(e.message),
+                            status: CaseStatus::RuntimeError(RuntimeError {
+                                message: e.message,
+                                diagnostic_code: None,
+                                step_index: Some(step_idx),
+                            }),
                             actions: action_results,
                             assertion_blocks: assertion_block_results,
+                            side_effects_executed,
                         };
                     }
                 }
@@ -136,20 +150,26 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                 if case_failed {
                     break;
                 }
-                if let Err(e) = workspace.write_file(&write_step.path, write_step.content.as_str())
-                {
-                    return CaseResult {
-                        name: case.name.clone(),
-                        source_path: None,
-                        status: CaseStatus::RuntimeError(format!(
-                            "case '{}': write step at step {} failed: {e} [{}]",
-                            case.name,
-                            step_idx + 1,
-                            e.code().as_str(),
-                        )),
-                        actions: action_results,
-                        assertion_blocks: assertion_block_results,
-                    };
+                match workspace.write_file(&write_step.path, write_step.content.as_str()) {
+                    Ok(()) => side_effects_executed += 1,
+                    Err(e) => {
+                        return CaseResult {
+                            name: case.name.clone(),
+                            source_path: None,
+                            status: CaseStatus::RuntimeError(RuntimeError {
+                                message: format!(
+                                    "case '{}': write step at step {} failed: {e}",
+                                    case.name,
+                                    step_idx + 1,
+                                ),
+                                diagnostic_code: Some(e.code()),
+                                step_index: Some(step_idx),
+                            }),
+                            actions: action_results,
+                            assertion_blocks: assertion_block_results,
+                            side_effects_executed,
+                        };
+                    }
                 }
             }
 
@@ -175,6 +195,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                             )),
                             actions: action_results,
                             assertion_blocks: assertion_block_results,
+                            side_effects_executed,
                         };
                     }
 
@@ -196,6 +217,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                             )),
                             actions: action_results,
                             assertion_blocks: assertion_block_results,
+                            side_effects_executed,
                         };
                     }
                 }
@@ -231,6 +253,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
         },
         actions: action_results,
         assertion_blocks: assertion_block_results,
+        side_effects_executed,
     }
 }
 

@@ -28,8 +28,15 @@ pub enum WriteFileError {
     /// The target path already exists (file, directory, or symlink).
     /// `write` is create-only and never silently overwrites.
     TargetAlreadyExists,
-    /// A regular file exists somewhere along the target's parent path,
-    /// so the parent directories cannot be created.
+    /// Something other than a plain directory (a regular file, a symlink,
+    /// or another special file type) already occupies part of the target's
+    /// parent path, so the parent directories cannot be created.
+    ///
+    /// A symlink is rejected here rather than followed: an earlier `$`
+    /// action could otherwise plant a symlink to an arbitrary external
+    /// directory inside the workspace (`$ ln -s /tmp escape`), and a later
+    /// `write` step through it would silently write outside the isolated
+    /// workspace.
     ParentNotADirectory,
     /// An OS-level I/O error occurred while creating directories or writing the file.
     Io(std::io::Error),
@@ -41,9 +48,10 @@ impl std::fmt::Display for WriteFileError {
             WriteFileError::TargetAlreadyExists => {
                 write!(f, "target path already exists; write is create-only")
             }
-            WriteFileError::ParentNotADirectory => {
-                write!(f, "a regular file exists along the target's parent path")
-            }
+            WriteFileError::ParentNotADirectory => write!(
+                f,
+                "the target's parent path is blocked by a file, symlink, or other non-directory entry"
+            ),
             WriteFileError::Io(e) => write!(f, "I/O error: {e}"),
         }
     }
@@ -82,41 +90,54 @@ impl Workspace {
     ///
     /// Create-only: rejects a target that already exists (file, directory,
     /// or symlink) rather than silently overwriting it. Parent directories
-    /// are created automatically, unless a regular file already occupies
-    /// part of that parent path.
+    /// are created automatically, unless something other than a plain
+    /// directory already occupies part of that parent path.
+    ///
+    /// `content` is written to a temporary file in the same parent
+    /// directory first, then atomically persisted to `target` only if
+    /// `target` does not already exist. This keeps a write that fails
+    /// partway through from ever leaving a partially-written file visible
+    /// at `target` — the create-only guarantee and the file's content
+    /// become visible together, or not at all.
     pub fn write_file(&self, path: &WorkspacePath, content: &str) -> Result<(), WriteFileError> {
-        if self.parent_has_regular_file(path) {
+        if self.parent_path_is_blocked(path) {
             return Err(WriteFileError::ParentNotADirectory);
         }
 
         let target = self.root().join(path.as_str());
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent).map_err(WriteFileError::Io)?;
-        }
+        let parent = target
+            .parent()
+            .expect("a workspace-root-joined path always has a parent");
+        std::fs::create_dir_all(parent).map_err(WriteFileError::Io)?;
 
         use std::io::Write as _;
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&target)
-        {
-            Ok(mut file) => file
-                .write_all(content.as_bytes())
-                .map_err(WriteFileError::Io),
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+        let mut temp = tempfile::Builder::new()
+            .tempfile_in(parent)
+            .map_err(WriteFileError::Io)?;
+        temp.write_all(content.as_bytes())
+            .map_err(WriteFileError::Io)?;
+
+        match temp.persist_noclobber(&target) {
+            Ok(_) => Ok(()),
+            Err(persist_err) if persist_err.error.kind() == std::io::ErrorKind::AlreadyExists => {
                 Err(WriteFileError::TargetAlreadyExists)
             }
-            Err(e) => Err(WriteFileError::Io(e)),
+            Err(persist_err) => Err(WriteFileError::Io(persist_err.error)),
         }
     }
 
-    /// Returns true if a regular file (not a directory) already occupies
-    /// one of `path`'s ancestor components under the workspace root.
+    /// Returns true if one of `path`'s ancestor directory components already
+    /// exists under the workspace root as something other than a plain
+    /// directory: a regular file, a symlink (regardless of what it points
+    /// to), or another special file type.
     ///
-    /// Checked explicitly, rather than inferred from `create_dir_all`'s
-    /// error kind, so the classification does not depend on platform-
-    /// specific `io::ErrorKind` variants.
-    fn parent_has_regular_file(&self, path: &WorkspacePath) -> bool {
+    /// Symlinks are rejected outright rather than followed and checked,
+    /// because a symlink planted by an earlier `$` action could otherwise
+    /// let a `write` step escape the isolated workspace. Checked explicitly,
+    /// rather than inferred from `create_dir_all`'s error kind, so the
+    /// classification does not depend on platform-specific `io::ErrorKind`
+    /// variants.
+    fn parent_path_is_blocked(&self, path: &WorkspacePath) -> bool {
         let mut ancestor = self.root().to_path_buf();
         let rel = Path::new(path.as_str());
         let mut components: Vec<_> = rel.components().collect();
@@ -124,7 +145,7 @@ impl Workspace {
         components.pop();
         for component in components {
             ancestor.push(component);
-            if std::fs::symlink_metadata(&ancestor).is_ok_and(|meta| meta.is_file()) {
+            if std::fs::symlink_metadata(&ancestor).is_ok_and(|meta| !meta.is_dir()) {
                 return true;
             }
         }
@@ -183,6 +204,39 @@ mod tests {
         let err = workspace.write_file(&path, "x").unwrap_err();
         assert!(matches!(err, WriteFileError::ParentNotADirectory));
         assert_eq!(err.code().as_str(), "step.write.parent_not_a_directory");
+    }
+
+    // A `$` action can plant a symlink inside the workspace (e.g. `$ ln -s
+    // /tmp escape`) before a later `write` step runs. Without rejecting
+    // symlink ancestors, `create_dir_all` / file creation would follow that
+    // symlink and let `write` escape the isolated workspace entirely.
+    #[test]
+    #[cfg(unix)]
+    fn write_file_rejects_symlink_in_parent_path_instead_of_following_it() {
+        let workspace = Workspace::new().unwrap();
+        let outside = tempfile::TempDir::new().unwrap();
+
+        std::os::unix::fs::symlink(outside.path(), workspace.root().join("escape")).unwrap();
+
+        let path = WorkspacePath::parse("escape/leaked.txt").unwrap();
+        let err = workspace.write_file(&path, "leaked").unwrap_err();
+        assert!(matches!(err, WriteFileError::ParentNotADirectory));
+
+        // Nothing was written outside the workspace through the symlink.
+        assert!(!outside.path().join("leaked.txt").exists());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn write_file_rejects_symlink_to_regular_file_in_parent_path() {
+        let workspace = Workspace::new().unwrap();
+        let real_file = workspace.root().join("real.txt");
+        std::fs::write(&real_file, b"i am a file").unwrap();
+        std::os::unix::fs::symlink(&real_file, workspace.root().join("link")).unwrap();
+
+        let path = WorkspacePath::parse("link/child.txt").unwrap();
+        let err = workspace.write_file(&path, "x").unwrap_err();
+        assert!(matches!(err, WriteFileError::ParentNotADirectory));
     }
 
     #[test]

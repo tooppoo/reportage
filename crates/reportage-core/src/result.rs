@@ -155,8 +155,26 @@ pub enum CaseStatus {
     Fail,
     /// A structural problem with the test script itself: empty assertion block, process expectation at the initial checkpoint, etc.
     ScriptError(String),
-    /// A runtime infrastructure failure: cannot spawn the shell, I/O error, etc.
-    RuntimeError(String),
+    /// A runtime infrastructure failure: cannot spawn the shell, cannot create the case workspace, a side-effecting step (`write`) failed at runtime, etc.
+    RuntimeError(RuntimeError),
+}
+
+/// Structured detail for a [`CaseStatus::RuntimeError`].
+///
+/// Unlike `ScriptError`, which is still a plain message, a runtime error can
+/// originate from a side-effecting step with its own stable diagnostic code
+/// (e.g. `step.write.target_exists`); `diagnostic_code` and `step_index`
+/// let callers (CLI rendering, the `result.json` artifact) surface that
+/// structurally instead of parsing it back out of `message`.
+#[derive(Debug)]
+pub struct RuntimeError {
+    pub message: String,
+    /// The stable diagnostic code for this failure, when one is defined.
+    /// `None` for infrastructure failures that predate a diagnostic code
+    /// (e.g. shell spawn failure, workspace creation failure).
+    pub diagnostic_code: Option<DiagnosticCode>,
+    /// The case-body step index this failure occurred at, when applicable.
+    pub step_index: Option<usize>,
 }
 
 /// The full result of one concrete case.
@@ -168,6 +186,9 @@ pub struct CaseResult {
     pub status: CaseStatus,
     pub actions: Vec<ActionResult>,
     pub assertion_blocks: Vec<AssertionBlockResult>,
+    /// Number of side-effecting steps (`write`, etc.) that ran to completion
+    /// before this case finished. See [`RunSummary::steps_executed`].
+    pub side_effects_executed: usize,
 }
 
 /// Kind of a file-level error encountered during the pre-execution validation phase.
@@ -228,7 +249,11 @@ impl RunResult {
             .filter(|case| matches!(case.status, CaseStatus::Pass))
             .count();
         let cases_failed = cases_total.saturating_sub(cases_passed);
-        let steps_executed = self.cases.iter().map(|case| case.actions.len()).sum();
+        let steps_executed = self
+            .cases
+            .iter()
+            .map(|case| case.actions.len() + case.side_effects_executed)
+            .sum();
         let assertions_total = self
             .cases
             .iter()

@@ -45,10 +45,12 @@ semantic.file_path.absolute
 semantic.file_path.dot_segment
 semantic.expectation.unsupported
 semantic.expectation.empty_block
+semantic.workspace_path.empty
 semantic.workspace_path.absolute
 semantic.workspace_path.dot_segment
 step.write.target_exists
 step.write.parent_not_a_directory
+step.write.io_error
 ```
 
 As with `parse.*` codes, a diagnostic code is **not** the Rust error enum variant name that produces it. Internal enum structure may be renamed or restructured freely; the published code string is the external, stable identifier that tests and tooling depend on.

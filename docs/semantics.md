@@ -379,13 +379,15 @@ Semantics:
 
 - `write "<path>" ``` ... ``` ` is create-only. If `<path>` already exists (as a file, directory, or symlink), the step fails rather than silently overwriting it.
 - `<path>` is resolved relative to the current concrete case's workspace root, never the repository root. See "Repository root and workspace boundary" below.
-- Parent directories are created automatically. If a regular file already occupies part of the parent path, the step fails.
+- Parent directories are created automatically. If a regular file, a symlink, or any other non-directory entry already occupies part of the parent path, the step fails — a symlink is rejected rather than followed, so a symlink planted by an earlier `$` action (e.g. `$ ln -s /tmp escape`) cannot be used to make a later `write` step escape the isolated workspace.
 - The fenced raw text block performs no parameter or variable expansion. `${VAR}`-shaped text inside the block is written verbatim. See "Parameter bindings" above.
 - The content is dedented against the closing fence's indentation: every non-blank body line must start with that indentation as a literal string prefix (not a tab/space width equivalence), and that prefix is stripped. Blank and whitespace-only lines are exempt from this check and are dedented to an empty line. A non-blank line indented less than the closing fence is a parse error.
 - Line endings (LF or CRLF) are preserved exactly as written; they are never normalized.
 - An empty block (opening fence immediately followed by a closing fence) writes an empty string. Otherwise, the block's final line ending is included in the written content.
 - The opening fence is three or more backticks; the closing fence uses the same character and must be at least as long as the opening fence. Use a longer opening fence to embed a shorter run of backticks (e.g. an embedded ` ``` ` Markdown block) as literal content.
 - Neither the opening nor the closing fence line accepts an inline `//` comment.
+
+A `write` step missing its own closing fence does not always fail with a syntax error: like a heredoc missing its terminator, the parser scans forward for the next line shaped like a valid closing fence, which may belong to a different, later `write` step. When that happens, everything in between — including that later step's own opening line — is silently absorbed as literal content, and the later step disappears from the case body with no diagnostic. Keep each `write` step's opening and closing fence visually paired to avoid this.
 
 ### Side-effecting step failure classification
 

@@ -1781,4 +1781,42 @@ case "x" {
         assert_eq!(first.path.as_str(), "a.txt");
         assert_eq!(second.path.as_str(), "b.txt");
     }
+
+    // Known limitation (documented in docs/semantics.md and the ADR): a
+    // `write` step missing its own closing fence does not always produce a
+    // syntax error. The grammar scans forward for the next line shaped like
+    // a valid closing fence, which here belongs to what the author intended
+    // as a *separate* `write "b.txt"` step. That step's opening line is
+    // silently absorbed as literal content of `a.txt`, and `b.txt`'s write
+    // step disappears from the AST entirely — this test pins that exact
+    // behavior so a future grammar change cannot silently alter it further
+    // without a test failure calling it out.
+    #[test]
+    fn missing_closing_fence_silently_absorbs_a_later_write_step_as_content() {
+        let src = concat!(
+            "case \"x\" {\n",
+            "  write \"a.txt\" ```\n",
+            "    first\n",
+            "    write \"b.txt\" ```\n",
+            "    second\n",
+            "    ```\n",
+            "  $ true\n",
+            "  assert { exit 0 }\n",
+            "}\n",
+        );
+        let script = parse(src).unwrap();
+
+        // Only 3 steps: the intended `write "b.txt"` step never materializes.
+        assert_eq!(script.cases[0].steps.len(), 3);
+
+        let step = write_file_step(&script);
+        assert_eq!(step.path.as_str(), "a.txt");
+        assert_eq!(
+            step.content.as_str(),
+            "first\nwrite \"b.txt\" ```\nsecond\n"
+        );
+
+        assert!(matches!(script.cases[0].steps[1], Step::Action(_)));
+        assert!(matches!(script.cases[0].steps[2], Step::AssertionBlock(_)));
+    }
 }

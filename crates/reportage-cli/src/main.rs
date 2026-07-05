@@ -205,8 +205,14 @@ fn print_results(result: &RunResult) {
         println!("{label}");
 
         match &case.status {
-            CaseStatus::ScriptError(msg) | CaseStatus::RuntimeError(msg) => {
+            CaseStatus::ScriptError(msg) => {
                 eprintln!("  {msg}");
+            }
+            CaseStatus::RuntimeError(err) => {
+                eprintln!("  {}", err.message);
+                if let Some(code) = err.diagnostic_code {
+                    eprintln!("    diagnostic code: {}", code.as_str());
+                }
             }
             _ => {}
         }
