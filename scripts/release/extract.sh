@@ -11,6 +11,6 @@ archive_name="$src"/"$($script_path/archive_name.sh)"
 
 tar -xf "$archive_name".tar.gz
 
-$($script_path/../utils/ensure_dir.sh) "$dist"
+"$script_path/../utils/ensure_dir.sh" "$dist"
 mv "$archive_name"/reportage "$dist"/reportage
 rm -r "$archive_name"
