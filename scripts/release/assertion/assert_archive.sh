@@ -7,6 +7,12 @@ version="$($script_path/../../get-version.sh)"
 
 dist_path=${1%/}
 
+# An assertion script for verifying the contents of release artefacts.
+# This script checks that the expected files are present and in the expected format.
+#
+# Verifying checksums is not the purpose of this script.
+# As checksum verification is sufficiently complex, it is appropriate to handle it separately.
+
 main() {
   assert_archive_x86_64
   assert_archive_aarch64
@@ -45,6 +51,7 @@ assert_checksum() {
 
   "$script_path/assert_exists.sh" "$checksum_path"
   "$script_path/assert_is_file.sh" "$checksum_path"
+  "$script_path/assert_line_count.sh" "$checksum_path" 2
 }
 
 unpack() {
