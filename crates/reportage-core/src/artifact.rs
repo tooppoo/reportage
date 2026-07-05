@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use base64::Engine as _;
 use serde_json::json;
 
 use crate::result::{
@@ -181,14 +182,30 @@ fn build_json(result: &RunResult) -> serde_json::Value {
     obj
 }
 
+/// Canonical JSON representation of raw process output bytes: base64 `data` (always present) plus
+/// an optional `text` helper view for display, present only when `bytes` is valid UTF-8.
+///
+/// `text` is never used for semantic comparison — see docs/semantics.md and the raw byte
+/// semantics ADR. Consumers that need the canonical value must decode `data`.
+fn stream_json(bytes: &[u8]) -> serde_json::Value {
+    let mut obj = json!({
+        "data": base64::engine::general_purpose::STANDARD.encode(bytes),
+        "encoding": "base64",
+    });
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        obj["text"] = json!(text);
+    }
+    obj
+}
+
 fn action_json(index: usize, action: &ActionResult) -> serde_json::Value {
     let mut obj = json!({
         "index": index,
         "kind": "action",
         "command": action.command,
         "exit_code": action.exit_code,
-        "stdout": action.stdout,
-        "stderr": action.stderr
+        "stdout": stream_json(&action.stdout),
+        "stderr": stream_json(&action.stderr)
     });
 
     if !action.shim_invocations.is_empty() {
@@ -233,23 +250,23 @@ fn expectation_result_json(e: &ExpectationResult) -> serde_json::Value {
         ExpectationKind::StdoutContains { expected, actual } => json!({
             "kind": "stdout_contains",
             "expected": expected,
-            "actual": actual,
+            "actual": stream_json(actual),
             "result": result_str,
         }),
         ExpectationKind::StderrContains { expected, actual } => json!({
             "kind": "stderr_contains",
             "expected": expected,
-            "actual": actual,
+            "actual": stream_json(actual),
             "result": result_str,
         }),
         ExpectationKind::StdoutEmpty { actual } => json!({
             "kind": "stdout_empty",
-            "actual": actual,
+            "actual": stream_json(actual),
             "result": result_str,
         }),
         ExpectationKind::StderrEmpty { actual } => json!({
             "kind": "stderr_empty",
-            "actual": actual,
+            "actual": stream_json(actual),
             "result": result_str,
         }),
         ExpectationKind::FileExists { path, .. } => json!({
