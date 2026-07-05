@@ -45,7 +45,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: reportage-archive-${{ matrix.name }}
-          path: ${{ steps.archive.outputs.archive }}
+          path:
+            ${{ steps.archive.outputs.archive }}
+            ${{ steps.archive.outputs.checksum }}
           if-no-files-found: error
 
   setup_artifacts:
@@ -64,7 +66,9 @@ jobs:
 
       - name: create checksum for all archives
         shell: bash
-        run: cat dist/checksum_* > dist/checksums.txt
+        run:
+          cat dist/checksum_* > dist/checksums.txt
+          rm dist/checksum_*
 
       - name: upload all archives and checksums as artifact
         uses: actions/upload-artifact@v7
