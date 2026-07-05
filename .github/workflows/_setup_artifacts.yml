@@ -37,7 +37,7 @@ jobs:
         run: just archive dist >> "$GITHUB_OUTPUT"
 
       - name: Upload archive and checksum
-        uses: actions/upload-artifact@7
+        uses: actions/upload-artifact@6
         with:
           name: reportage-archive-${{ matrix.name }}
           path: ${{ steps.archive.outputs.archive }}
@@ -62,7 +62,7 @@ jobs:
         run: cat dist/checksum_* > dist/checksums.txt
 
       - name: upload all archives and checksums as artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: reportage-archives
           path: dist
