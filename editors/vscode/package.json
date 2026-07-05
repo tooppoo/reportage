@@ -15,7 +15,7 @@
     "name": "philomagi",
     "url": "https://philomagi.dev"
   },
-  "icon": "./assets/reportage-icon.png",
+  "icon": "./assets/reportage-ext.png",
   "scripts": {
     "package": "vsce package --out ./reportage-vscode.vsix"
   },
@@ -28,6 +28,7 @@
     "LICENSE",
     "language-configuration.json",
     "syntaxes/reportage.tmLanguage.json",
+    "assets/reportage-ext.png",
     "assets/reportage-icon.png"
   ],
   "contributes": {
