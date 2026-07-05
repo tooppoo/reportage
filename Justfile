@@ -85,3 +85,6 @@ archive-assert dist:
 [group('build')]
 archive-collect src dist:
   @sh scripts/release/collect.sh {{ src }} {{ dist }}
+
+archive-extract src dist:
+  @sh scripts/release/extract.sh {{ src }} {{ dist }}
