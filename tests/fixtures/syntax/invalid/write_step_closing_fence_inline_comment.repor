@@ -1,7 +1,7 @@
 case "write step closing fence inline comment is rejected" {
   write "a.txt" ```
     hello
-    ``` // comment
+    ``` # comment
   $ true
   assert {
     exit 0

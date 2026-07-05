@@ -1,0 +1,7 @@
+// double slash is not a Reportage comment marker
+case "x" {
+  $ true
+  assert {
+    exit 0
+  }
+}

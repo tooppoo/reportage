@@ -1,7 +1,7 @@
 
 # Line and Inline Comments
 
-- Status: Accepted
+- Status: Superseded by [20260705T184047Z_use-hash-comment-marker.md](20260705T184047Z_use-hash-comment-marker.md)
 - Created: 2026-07-02T03:24:58Z
 
 ## Context

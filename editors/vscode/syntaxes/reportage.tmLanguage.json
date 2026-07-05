@@ -24,7 +24,7 @@
       "patterns": [
         {
           "name": "comment.line.number-sign.reportage",
-          "match": "//.*$"
+          "match": "(?:^|(?<=[ \\t]))#.*$"
         }
       ]
     },
@@ -96,6 +96,9 @@
             }
           },
           "patterns": [
+            {
+              "include": "#comments"
+            },
             {
               "match": "^(\\s*)(exit|stdout|stderr)\\b",
               "captures": {

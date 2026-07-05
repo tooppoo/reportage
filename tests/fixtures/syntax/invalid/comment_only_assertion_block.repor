@@ -1,6 +1,6 @@
 case "x" {
   $ true
   assert {
-    // comment only, no real expectation
+    # comment only, no real expectation
   }
 }

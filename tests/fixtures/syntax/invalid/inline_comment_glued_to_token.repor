@@ -1,0 +1,6 @@
+case "x" {
+  $ true
+  assert {
+    exit 0#comment marker glued to a token does not start an inline comment
+  }
+}

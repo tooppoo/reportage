@@ -1,4 +1,4 @@
-// a top-level comment before the case block
+# a top-level comment before the case block
 case "comment before case block" {
   $ true
   assert {

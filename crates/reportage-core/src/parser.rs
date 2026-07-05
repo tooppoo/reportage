@@ -1081,24 +1081,24 @@ case "x" {
         assert!(parse(src).is_ok());
     }
 
-    // See #32 / docs/adr/20260702T032458Z_line-and-inline-comments.md.
+    // See #77 / docs/adr/20260705T184047Z_use-hash-comment-marker.md.
     #[test]
     fn line_comment_before_case_block_is_ignored() {
-        let src = "// leading comment\ncase \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "# leading comment\ncase \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         assert_eq!(script.cases.len(), 1);
     }
 
     #[test]
     fn comment_only_line_inside_case_block_is_ignored() {
-        let src = "case \"x\" {\n  // comment\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  # comment\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 2);
     }
 
     #[test]
     fn comment_only_line_inside_assertion_block_is_ignored() {
-        let src = "case \"x\" {\n  $ true\n  assert {\n    // comment\n    exit 0\n  }\n}\n";
+        let src = "case \"x\" {\n  $ true\n  assert {\n    # comment\n    exit 0\n  }\n}\n";
         let script = parse(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
@@ -1109,11 +1109,11 @@ case "x" {
     #[test]
     fn inline_comment_after_case_and_assertion_block_boundaries_is_ignored() {
         let src = r#"
-case "x" { // case open
-  assert { // assert open
-    exit 0 // expectation
-  } // assert close
-} // case close
+case "x" { # case open
+  assert { # assert open
+    exit 0 # expectation
+  } # assert close
+} # case close
 "#;
         let script = parse(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 1);
@@ -1121,45 +1121,59 @@ case "x" { // case open
 
     #[test]
     fn inline_comment_after_single_line_assertion_block_is_ignored() {
-        let src = "case \"x\" {\n  $ true\n  assert { exit 0 } // trailing\n}\n";
+        let src = "case \"x\" {\n  $ true\n  assert { exit 0 } # trailing\n}\n";
         assert!(parse(src).is_ok());
     }
 
     #[test]
-    fn double_slash_in_string_literal_is_not_treated_as_comment() {
-        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"https://example.com\"\n  }\n}\n";
+    fn hash_in_string_literal_is_not_treated_as_comment() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"hello # world\" # trailing comment\n  }\n}\n";
         let script = parse(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
         assert!(matches!(
             &block.expectations()[0],
-            Expectation::Stdout(e) if matches!(&e.matcher, OutputMatcher::Contains(s) if s == "https://example.com")
+            Expectation::Stdout(e) if matches!(&e.matcher, OutputMatcher::Contains(s) if s == "hello # world")
         ));
     }
 
     #[test]
-    fn double_slash_in_action_command_is_preserved_as_command_text() {
-        let src = "case \"x\" {\n  $ echo hello // passed to shell\n  assert { exit 0 }\n}\n";
+    fn hash_in_action_command_is_preserved_as_command_text() {
+        let src = "case \"x\" {\n  $ echo hello # passed to shell\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let Step::Action(action) = &script.cases[0].steps[0] else {
             panic!("expected Action step");
         };
-        assert_eq!(action.command, "echo hello // passed to shell");
+        assert_eq!(action.command, "echo hello # passed to shell");
+    }
+
+    #[test]
+    fn inline_comment_glued_to_token_is_error() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    exit 0#comment\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn double_slash_is_not_a_comment_marker() {
+        let src = "// not a comment\ncase \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn comment_presence_does_not_change_ast_shape() {
         let with_comments = r#"
-// leading comment
-case "x" { // case open
-  // standalone comment
+# leading comment
+case "x" { # case open
+  # standalone comment
   $ true
-  assert { // assert open
-    // standalone comment
-    exit 0 // expectation
-  } // assert close
-} // case close
+  assert { # assert open
+    # standalone comment
+    exit 0 # expectation
+  } # assert close
+} # case close
 "#;
         let without_comments = r#"
 case "x" {
@@ -1176,21 +1190,21 @@ case "x" {
 
     #[test]
     fn comment_splitting_case_header_before_open_brace_is_error() {
-        let src = "case \"x\" // comment\n{\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" # comment\n{\n  $ true\n  assert { exit 0 }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn comment_swallowing_single_line_assertion_close_brace_is_error() {
-        let src = "case \"x\" {\n  $ true\n  assert { exit 0 // comment\n}\n";
+        let src = "case \"x\" {\n  $ true\n  assert { exit 0 # comment\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn comment_splitting_expectation_tokens_is_error() {
-        let src = "case \"x\" {\n  $ true\n  assert {\n    exit // comment\n    0\n  }\n}\n";
+        let src = "case \"x\" {\n  $ true\n  assert {\n    exit # comment\n    0\n  }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
@@ -1198,7 +1212,7 @@ case "x" {
     // A comment-only assertion block has no real expectation and must be rejected the same way an empty assertion block is, not accepted with an empty expectations list (which would panic in parse_assertion_block).
     #[test]
     fn comment_only_assertion_block_is_error() {
-        let src = "case \"x\" {\n  $ true\n  assert {\n    // comment only\n  }\n}\n";
+        let src = "case \"x\" {\n  $ true\n  assert {\n    # comment only\n  }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
@@ -1543,7 +1557,7 @@ case "x" {
 
     #[test]
     fn empty_any_block_with_comment_only_is_semantic_empty_block_error() {
-        let src = "case \"x\" {\n  $ true\n  assert {\n    any {\n      // no expectations here\n    }\n  }\n}\n";
+        let src = "case \"x\" {\n  $ true\n  assert {\n    any {\n      # no expectations here\n    }\n  }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(
             err,
@@ -1717,7 +1731,7 @@ case "x" {
 
     #[test]
     fn write_step_opening_fence_inline_comment_is_rejected() {
-        let src = "case \"x\" {\n  write \"a.txt\" ``` // comment\n    hello\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write \"a.txt\" ``` # comment\n    hello\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }

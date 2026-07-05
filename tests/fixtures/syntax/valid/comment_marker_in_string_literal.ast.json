@@ -5,7 +5,7 @@
       "steps": [
         {
           "kind": "action",
-          "command": "echo \"https://example.com\""
+          "command": "echo \"hello # world\""
         },
         {
           "kind": "assertion_block",
@@ -14,7 +14,7 @@
               "kind": "stdout",
               "matcher": {
                 "kind": "contains",
-                "value": "https://example.com"
+                "value": "hello # world"
               }
             }
           ]

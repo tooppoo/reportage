@@ -5,7 +5,7 @@
       "steps": [
         {
           "kind": "action",
-          "command": "echo hello // passed to shell"
+          "command": "echo hello # passed to the shell, not stripped as a Reportage comment"
         },
         {
           "kind": "assertion_block",
