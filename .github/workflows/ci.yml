@@ -14,11 +14,8 @@ jobs:
     name: Unit and Integration tests
     permissions:
       contents: read
-      id-token: write
-
-    name: Test
+      id-token: write # for codecov
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -120,7 +117,6 @@ jobs:
   e2e:
     name: E2E(self testing)
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -139,7 +135,6 @@ jobs:
   examples:
     name: Run examples actually
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
