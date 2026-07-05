@@ -83,4 +83,10 @@ archive-assert dist:
   @sh scripts/release/assertion/assert_archive.sh "$(just get-version)" {{ dist }}
 
 get-version:
-  @sh scripts/release/get-version.sh
+  #!/usr/bin/env sh
+  set -eu
+
+  v="$(toml get Cargo.toml workspace.package.version --raw)"
+
+  echo "v$v"
+
