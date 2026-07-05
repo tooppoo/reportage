@@ -21,8 +21,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - name: Install Self
-        run: cargo ins-self
+      - uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3
+        with:
+          crate: just
+          locked: true
+
+      - name: Install Reportage
+        run: just self-install
 
       - name: Run E2E
         run: reportage

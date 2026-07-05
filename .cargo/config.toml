@@ -1,2 +1,0 @@
-[alias]
-ins-self = ["install", "--path", "crates/reportage-cli", "--locked"]

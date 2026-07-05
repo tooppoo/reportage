@@ -86,5 +86,10 @@ archive-assert dist:
 archive-collect src dist:
   @sh scripts/release/collect.sh {{ src }} {{ dist }}
 
+[group('build')]
 archive-extract src dist:
   @sh scripts/release/extract.sh {{ src }} {{ dist }}
+
+[group('check')]
+self-install:
+  cargo install --path crates/reportage-cli --locked --force
