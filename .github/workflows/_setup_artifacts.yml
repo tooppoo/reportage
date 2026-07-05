@@ -63,18 +63,17 @@ jobs:
           crate: toml-cli
           locked: true
 
-      - name: Get all archives
+      - name: Get all sets of archive and checksum
         uses: actions/download-artifact@v8
         with:
           path: downloaded
           pattern: reportage-archive-*
           merge-multiple: true
 
-      - name: create checksum for all archives
-        shell: bash
+      - name: collect files as artifact
         run: just archive-collect downloaded dist
 
-      - name: upload all archives and checksums as artifact
+      - name: upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: artifacts
