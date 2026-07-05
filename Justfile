@@ -60,10 +60,11 @@ build:
   cargo build --locked
 
 build-release pkg:
-  cargo build --release --locked -p {{pkg}}
+  cargo build --release --locked --quiet --package {{pkg}}
 
 archive:
   @just build-release reportage-cli
+
   sh scripts/release/archive.sh
 
 unarchive:
