@@ -81,8 +81,15 @@ jobs:
         run: just archive-assert dist
 
   smoke-test:
-    name: Smoke test
-    runs-on: ubuntu-latest
+    name: Smoke test for ${{ matrix.name }}
+    strategy:
+      matrix:
+        include:
+          - name: x86_64
+            runner: ubuntu-24.04
+          - name: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     needs: setup-artifacts
     steps:
       - name: Checkout
