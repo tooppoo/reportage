@@ -51,3 +51,26 @@ jobs:
           files: cov.json
           fail_ci_if_error: true
           use_oidc: true
+
+  assert-archive:
+    name: Assert archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/workflows/_setup_artifacts.yml
+        id: setup_artifacts
+      - name: Get Archive
+        uses: actions/download-artifact@f3e7c0d8a1b9f5e2c4a6b8e1f9c2d3e4f5a6b7c8 # v4
+        with:
+          name: ${{ steps.setup_artifacts.outputs.artifact_name }}
+          path: dist
+
+      - name: Verify artifact contents
+        run: scripts/release/assertion/assert_archive.sh "$(scripts/release/get-version.sh)" dist
+
+      - name: Verify checksum
+        shell: bash
+        run: echo "TODO"
+
+      - name: Run extracted binary smoke test
+        shell: bash
+        run: echo "TODO"

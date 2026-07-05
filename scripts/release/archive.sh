@@ -1,43 +1,40 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 set -euo pipefail
 
 script_path="$(dirname "$(realpath "$0")")"
-root="$(realpath "$script_path/../..")"
-dist="$root/dist"
+dist=${1%/}
 
-function main() {
+main() {
   cleanup
 
   build_reportage
 
-  package="$($script_path/package-name.sh)"
-  archive="$($script_path/archive-name.sh)"
-
-  mkdir -p "$dist/${package}"
-  cp target/release/reportage "$dist/${package}/reportage"
-
-  package_reportage "$package" "$archive"
+  archive_reportage
 }
 
-function build_reportage() {
+build_reportage() {
   cargo build --release --locked --quiet --package reportage-cli
 }
 
-functionn package_reportage() {
-  package=${1%/}
-  archive=${2%/}
+archive_reportage() {
+  archive_dir="$dist/$($script_path/archive_name.sh)"
+  archive_path="$dist/$($script_path/archive_path.sh)"
 
-  tar -C "$dist" -czf "$dist/${archive}" "${package}"
-  echo "OUT: $dist/${archive}"
+  mkdir -p "$archive_dir"
+  cp target/release/reportage "$archive_dir/reportage"
 
-  sha256sum "$dist/$archive" > "$dist/checksums.txt"
+  tar -acf "$archive_path" "$archive_dir"
 
-  echo "OUT: $dist/$archive"
+  checksum_path="$dist/checksums_$(basename "$archive_dir").txt"
+  sha256sum "$archive_path" > "$checksum_path"
+
+  echo "$archive_path"
+  echo "$checksum_path"
 }
 
-function cleanup() {
-  rm -rf "$root/dist" 2>&1 > /dev/null || true
+cleanup() {
+  rm -rf "$dist" 2>&1 > /dev/null || true
 }
 
 main

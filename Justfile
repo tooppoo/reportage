@@ -2,15 +2,20 @@
 default:
   @just check
 
-check:
-  @just test lint fmt build semantic-docs-check
+[group('check')]
+check: test lint fmt build semantic-docs-check
 
+[group('docs')]
+[group('check')]
 semantic-specs-check:
   cargo nextest run --locked --test semantic_specs
 
+[group('docs')]
 semantic-docs-gen:
   cargo run --locked -p reportage-core --bin gen_semantic_docs -- docs/language/semantics.md
 
+[group('docs')]
+[group('check')]
 semantic-docs-check:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -24,11 +29,14 @@ semantic-docs-check:
   fi
   echo "docs/language/semantics.md is up to date."
 
+[group('docs')]
 lang-docs-gen:
   #!/usr/bin/env bash
   set -euo pipefail
   bash scripts/gen-grammar-doc.sh
 
+[group('docs')]
+[group('check')]
 lang-docs-check:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -42,30 +50,37 @@ lang-docs-check:
   fi
   echo "docs/syntax.md is up to date."
 
+[group('check')]
 test:
 		cargo llvm-cov --locked --all-features --workspace --no-report nextest
 		cargo llvm-cov report --codecov --output-path cov.json --ignore-filename-regex "cli/src/main"
 		cargo llvm-cov report --fail-under-functions 80 --fail-under-lines 80 --fail-under-file-lines 80 --fail-under-regions 80 --ignore-filename-regex "cli/src/main|src/bin/gen_semantic_docs|model"
 
+[group('check')]
 fmt:
   cargo fmt --all --check
 
+[group('check')]
 fmt-fix:
   cargo fmt --all
 
+[group('check')]
 lint:
   cargo clippy --locked -- -D warnings
 
+[group('check')]
+[group('build')]
 build:
   cargo build --locked
 
-build-release pkg:
-  cargo build --release --locked --quiet --package {{pkg}}
+[group('build')]
+archive dist:
+  @sh scripts/release/archive.sh {{ dist }}
 
-archive:
-  @just build-release reportage-cli
+[group('build')]
+[group('check')]
+archive-assert dist:
+  @sh scripts/release/assertion/assert_archive.sh "$(just get-version)" {{ dist }}
 
-  sh scripts/release/archive.sh
-
-unarchive:
-  sh scripts/release/unarchive.sh
+get-version:
+  @sh scripts/release/get-version.sh
