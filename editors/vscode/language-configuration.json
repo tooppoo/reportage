@@ -1,12 +1,8 @@
 {
   "comments": {
     "lineComment": {
-      "comment": "//"
-    },
-    "blockComment": [
-      "/*",
-      "*/"
-    ]
+      "comment": "#"
+    }
   },
   "brackets": [
     [

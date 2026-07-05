@@ -93,3 +93,7 @@ archive-extract src dist:
 [group('check')]
 self-install:
   cargo install --path crates/reportage-cli --locked --force
+
+[group('check')]
+vscode-install:
+  sh scripts/dev/setup-reportage-vscode-extension.sh

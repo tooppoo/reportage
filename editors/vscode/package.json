@@ -8,14 +8,14 @@
     "vscode": "^1.90.0"
   },
   "repository": {
-    "url": "https://github.com/tooppoo/reportage/actions"
+    "url": "https://github.com/tooppoo/reportage"
   },
-  "homepage": "https://github.com/tooppoo/reportage/actions",
+  "homepage": "https://github.com/tooppoo/reportage",
   "author": {
     "name": "philomagi",
     "url": "https://philomagi.dev"
   },
-  "icon": "icons/reportage-extension-icon.png",
+  "icon": "./assets/reportage-icon.png",
   "scripts": {
     "package": "vsce package --out ./reportage-vscode.vsix"
   },
@@ -28,9 +28,7 @@
     "LICENSE",
     "language-configuration.json",
     "syntaxes/reportage.tmLanguage.json",
-    "icons/reportage-extension-icon.png",
-    "icons/reportage-icon-light.svg",
-    "icons/reportage-icon-dark.svg"
+    "assets/reportage-icon.png"
   ],
   "contributes": {
     "languages": [
@@ -45,8 +43,8 @@
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./icons/reportage-icon-light.svg",
-          "dark": "./icons/reportage-icon-dark.svg"
+          "light": "./assets/reportage-icon.png",
+          "dark": "./assets/reportage-icon.png"
         }
       }
     ],
