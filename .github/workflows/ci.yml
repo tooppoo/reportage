@@ -74,9 +74,52 @@ jobs:
         with:
           name: ${{ needs.setup-artifacts.outputs.artifact_name }}
           path: dist
+      - name: Get current version
+        id: get-version
+        run: echo "version=$(just get-version)" >> $GITHUB_OUTPUT
 
-      - name: Verify artifact contents
-        run: just archive-assert dist
+      - name: assert artifacts
+        uses: tooppoo/fs-assert-action@latest
+        with:
+          root: dist
+          manifest: |
+            - path: checksums.txt
+              assertions:
+                - exists
+                - is_regular_file
+                - line_count:
+                    equals: 2
+            - path: reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.tar.gz
+              assertions:
+                - exists
+                - is_regular_file
+                - is_tarball
+            - path: reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.tar.gz
+              assertions:
+                - exists
+                - is_regular_file
+                - is_tarball
+
+      - name: extract archives
+        run: |
+          tar -xzf dist/reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.tar.gz -C dist
+          tar -xzf dist/reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.tar.gz -C dist
+
+      - name: assert extracted files
+        uses: tooppoo/fs-assert-action@latest
+        with:
+          root: dist
+          manifest: |
+            - path: reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64/reportage
+              assertions:
+                - exists
+                - is_regular_file
+                - is_executable
+            - path: reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64/reportage
+              assertions:
+                - exists
+                - is_regular_file
+                - is_executable
 
   smoke-test:
     name: Smoke test for ${{ matrix.name }}
@@ -109,7 +152,10 @@ jobs:
           path: dist
 
       - name: Extract archive
-        run: just archive-extract dist bin
+        run: |
+          target="reportage_${{ needs.setup-artifacts.outputs.version }}_Linux_${{ matrix.name }}"
+          tar -xzf dist/${target}.tar.gz -C dist
+          cp "dist/${target}/reportage" ./bin/reportage
 
       - name: run smoke test
         run: ./bin/reportage --help

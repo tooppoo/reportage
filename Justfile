@@ -2,6 +2,9 @@
 default:
   @just check
 
+get-version:
+  @sh scripts/get-version.sh
+
 # run all check actions
 [group('check')]
 check: test lint fmt build semantic-docs-check
