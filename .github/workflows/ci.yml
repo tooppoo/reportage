@@ -220,7 +220,7 @@ jobs:
         run: ./bin/reportage --help
 
   installer-smoke-test:
-    name: Installer smoke test for ${{ matrix.arch }}
+    name: Installer smoke test for ${{ matrix.os }}(${{ matrix.arch }})
     strategy:
       matrix:
         include:
