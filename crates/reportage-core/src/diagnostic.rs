@@ -39,6 +39,26 @@ pub enum DiagnosticCode {
     AssertionFileContainsPreconditionUnmet,
     /// `file "<path>" contains "<text>"` observed a readable UTF-8 regular file that does not contain the expected substring.
     AssertionFileContainsMismatch,
+    /// A `dir "<path>" contains "<name>"` entry name was empty.
+    SemanticDirEntryNameEmpty,
+    /// A `dir "<path>" contains "<name>"` entry name contained a path separator (`/`).
+    SemanticDirEntryNamePathSeparator,
+    /// A `dir "<path>" contains "<name>"` entry name was `.` or `..`.
+    SemanticDirEntryNameDotEntry,
+    /// A `dir "<path>" contains "<name>"` entry name contained a control character.
+    SemanticDirEntryNameControlChar,
+    /// `dir "<path>" exists` observed a missing path.
+    AssertionDirExistsMissing,
+    /// `dir "<path>" exists` observed a path that is not a directory (e.g. a regular file).
+    AssertionDirExistsNotADirectory,
+    /// `dir "<path>" contains "<name>"` observed a subject path that does not exist.
+    AssertionDirContainsSubjectMissing,
+    /// `dir "<path>" contains "<name>"` observed a subject path that is not a directory.
+    AssertionDirContainsSubjectNotADirectory,
+    /// `dir "<path>" contains "<name>"` observed a directory that does not contain an entry named `<name>`.
+    AssertionDirContainsEntryMissing,
+    /// `dir "<path>" contains "<name>"` observed a directory whose entries could not be read (e.g. a permission error).
+    AssertionDirContainsSubjectUnreadable,
     /// A `not` / `all` / `any` logical composition block contains zero expectation expressions.
     /// See docs/semantic-diagnostics.md.
     SemanticExpectationEmptyBlock,
@@ -78,6 +98,20 @@ impl DiagnosticCode {
                 "assertion.file.contains_precondition_unmet"
             }
             Self::AssertionFileContainsMismatch => "assertion.file.contains_mismatch",
+            Self::SemanticDirEntryNameEmpty => "semantic.dir_entry_name.empty",
+            Self::SemanticDirEntryNamePathSeparator => "semantic.dir_entry_name.path_separator",
+            Self::SemanticDirEntryNameDotEntry => "semantic.dir_entry_name.dot_entry",
+            Self::SemanticDirEntryNameControlChar => "semantic.dir_entry_name.control_char",
+            Self::AssertionDirExistsMissing => "assertion.dir.exists_missing",
+            Self::AssertionDirExistsNotADirectory => "assertion.dir.exists_not_directory",
+            Self::AssertionDirContainsSubjectMissing => "assertion.dir.contains_subject_missing",
+            Self::AssertionDirContainsSubjectNotADirectory => {
+                "assertion.dir.contains_subject_not_directory"
+            }
+            Self::AssertionDirContainsEntryMissing => "assertion.dir.contains_entry_missing",
+            Self::AssertionDirContainsSubjectUnreadable => {
+                "assertion.dir.contains_subject_unreadable"
+            }
             Self::SemanticExpectationEmptyBlock => "semantic.expectation.empty_block",
             Self::SemanticWorkspacePathEmpty => "semantic.workspace_path.empty",
             Self::SemanticWorkspacePathAbsolute => "semantic.workspace_path.absolute",
@@ -155,6 +189,16 @@ mod tests {
             DiagnosticCode::AssertionFileExistsNotAFile,
             DiagnosticCode::AssertionFileContainsPreconditionUnmet,
             DiagnosticCode::AssertionFileContainsMismatch,
+            DiagnosticCode::SemanticDirEntryNameEmpty,
+            DiagnosticCode::SemanticDirEntryNamePathSeparator,
+            DiagnosticCode::SemanticDirEntryNameDotEntry,
+            DiagnosticCode::SemanticDirEntryNameControlChar,
+            DiagnosticCode::AssertionDirExistsMissing,
+            DiagnosticCode::AssertionDirExistsNotADirectory,
+            DiagnosticCode::AssertionDirContainsSubjectMissing,
+            DiagnosticCode::AssertionDirContainsSubjectNotADirectory,
+            DiagnosticCode::AssertionDirContainsEntryMissing,
+            DiagnosticCode::AssertionDirContainsSubjectUnreadable,
             DiagnosticCode::SemanticExpectationEmptyBlock,
             DiagnosticCode::SemanticWorkspacePathEmpty,
             DiagnosticCode::SemanticWorkspacePathAbsolute,

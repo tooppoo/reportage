@@ -163,7 +163,7 @@ enum SnapshotExpectation<'a> {
     },
     Dir {
         path: &'a str,
-        matcher: SnapshotDirMatcher,
+        matcher: SnapshotDirMatcher<'a>,
     },
     FileCount {
         glob: &'a str,
@@ -276,17 +276,19 @@ impl<'a> From<&'a FileMatcher> for SnapshotFileMatcher<'a> {
 }
 
 #[derive(Serialize)]
-#[serde(rename_all = "snake_case")]
-enum SnapshotDirMatcher {
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum SnapshotDirMatcher<'a> {
     Exists,
     NotExists,
+    Contains { value: &'a str },
 }
 
-impl From<&DirMatcher> for SnapshotDirMatcher {
-    fn from(matcher: &DirMatcher) -> Self {
+impl<'a> From<&'a DirMatcher> for SnapshotDirMatcher<'a> {
+    fn from(matcher: &'a DirMatcher) -> Self {
         match matcher {
             DirMatcher::Exists => Self::Exists,
             DirMatcher::NotExists => Self::NotExists,
+            DirMatcher::Contains(value) => Self::Contains { value },
         }
     }
 }
