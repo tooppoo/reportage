@@ -1,0 +1,51 @@
+
+case "it is enable to define action with new-line escape" {
+  write "tmp.txt" ```
+    123
+    456
+    789
+    ```
+
+  $ cat tmp.txt \
+    | grep -v "456" \
+    | sed 's/123/abc/' \
+    > tmp2.txt
+
+  assert {
+    exit 0
+    file "tmp2.txt" exists
+    file "tmp2.txt" contains "abc"
+    file "tmp2.txt" contains "789"
+    not {
+      file "tmp2.txt" contains "456"
+    }
+  }
+}
+
+case "when blank line exists between new-line escape, parse error(same behavior with shell)" {
+  write "test.repor" ``````
+    case "inner" {
+      write "tmp.txt" ```
+        123
+        456
+        789
+        ```
+
+      $ cat tmp.txt \
+        | grep -v "456" \
+
+        | sed 's/123/abc/' \
+        > tmp2.txt
+
+      assert {
+        exit 0
+      }
+    }
+    ``````
+  $ reportage test.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.syntax"
+  }
+}
