@@ -76,28 +76,28 @@ jobs:
       - name: assert artifacts
         uses: tooppoo/fs-assert-action@latest
         with:
-          root: dist
+          root: downloaded
           manifest: |
             version: 1
             subjects:
-              - path: downloaded/checksum.reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.txt
+              - path: checksum.reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.txt
                 assertions:
                   - exists
                   - is_regular_file
                   - line_count:
                       equals: 1
-              - path: downloaded/reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.tar.gz
+              - path: reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.tar.gz
                 assertions:
                   - exists
                   - is_regular_file
                   - is_tarball
-              - path: downloaded/checksum.reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.txt
+              - path: checksum.reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.txt
                 assertions:
                   - exists
                   - is_regular_file
                   - line_count:
                       equals: 1
-              - path: downloaded/reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.tar.gz
+              - path: reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.tar.gz
                 assertions:
                   - exists
                   - is_regular_file
