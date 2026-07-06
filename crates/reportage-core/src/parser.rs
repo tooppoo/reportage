@@ -1954,7 +1954,7 @@ case "x" {
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
-    // ─── Write step / fenced raw text block (#67) ─────────────────────────
+    // ─── Write step: string literal / heredoc literal (#67, #86) ──────────
 
     fn write_file_step(script: &Script) -> &WriteFileStep {
         let Step::SideEffect(SideEffectingStep::WriteFile(step)) = &script.cases[0].steps[0] else {

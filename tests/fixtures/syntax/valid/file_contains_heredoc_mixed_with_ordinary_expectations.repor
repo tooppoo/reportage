@@ -1,0 +1,18 @@
+case "file contains heredoc mixed with ordinary expectations" {
+  write "out/result.json" ```
+    hello
+    ```
+  $ true
+  assert {
+    exit 0
+    file "out/result.json" contains ```
+    hello
+    ```
+    all {
+      file "out/result.json" exists
+      file "out/result.json" contains ```
+      hello
+      ```
+    }
+  }
+}

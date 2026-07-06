@@ -1,0 +1,65 @@
+{
+  "cases": [
+    {
+      "name": "file contains heredoc mixed with ordinary expectations",
+      "steps": [
+        {
+          "kind": "write_file",
+          "path": "out/result.json",
+          "content": {
+            "kind": "heredoc",
+            "value": "hello\n"
+          }
+        },
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            },
+            {
+              "kind": "file",
+              "path": "out/result.json",
+              "matcher": {
+                "kind": "contains",
+                "value": {
+                  "kind": "heredoc",
+                  "value": "hello\n"
+                }
+              }
+            },
+            {
+              "kind": "logical",
+              "operator": "all",
+              "children": [
+                {
+                  "kind": "file",
+                  "path": "out/result.json",
+                  "matcher": {
+                    "kind": "exists"
+                  }
+                },
+                {
+                  "kind": "file",
+                  "path": "out/result.json",
+                  "matcher": {
+                    "kind": "contains",
+                    "value": {
+                      "kind": "heredoc",
+                      "value": "hello\n"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
