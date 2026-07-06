@@ -30,7 +30,9 @@ case "when nested heredocs have the same length fence, the parser should error" 
   assert {
     exit 2
     stderr contains "parse.syntax"
-    # TODO: render more detail error message
+    stderr contains "line 17, column 5"
+    stderr contains "```"
+    stderr contains "^"
   }
 }
 

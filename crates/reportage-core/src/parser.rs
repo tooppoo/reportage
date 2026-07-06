@@ -20,6 +20,9 @@ pub enum ParseError {
         line: usize,
         column: usize,
         message: String,
+        /// The full source line the error is on, for a caret-annotated display snippet.
+        /// Not part of the stable diagnostic contract — see `DiagnosticDetails::pest_message`.
+        source_line: String,
     },
     /// A case block must contain at least one step.
     EmptyCase { line: usize, name: String },
@@ -52,7 +55,16 @@ impl std::fmt::Display for ParseError {
                 line,
                 column,
                 message,
-            } => write!(f, "parse error at line {line}, column {column}: {message}"),
+                source_line,
+            } => {
+                writeln!(f, "parse error at line {line}, column {column}: {message}")?;
+                let indent: String = source_line
+                    .chars()
+                    .take(column.saturating_sub(1))
+                    .map(|c| if c == '\t' { '\t' } else { ' ' })
+                    .collect();
+                write!(f, "  | {source_line}\n  | {indent}^")
+            }
             ParseError::EmptyCase { line, name } => write!(
                 f,
                 "parse error at line {line}: case '{name}' must contain at least one step"
@@ -126,6 +138,7 @@ impl ParseError {
                 line,
                 column,
                 message,
+                source_line: _,
             } => (
                 Some(DiagnosticLocation {
                     line: *line,
@@ -221,6 +234,7 @@ pub fn parse(source: &str) -> Result<Script, ParseError> {
             line,
             column: col,
             message: e.variant.message().to_string(),
+            source_line: e.line().to_string(),
         }
     })?;
 
@@ -1365,6 +1379,20 @@ case "x" {
         let diagnostic = err.to_diagnostic();
         assert_eq!(diagnostic.code.as_str(), "parse.syntax");
         assert!(diagnostic.details.pest_message.is_some());
+    }
+
+    // A bare `expected X` message doesn't show what's actually on the offending
+    // line, which is often the only way to tell a syntax error apart from a
+    // deeper structural issue (e.g. a stray fence line closing the wrong block).
+    // The Display impl now echoes the source line with a caret under the column.
+    #[test]
+    fn syntax_error_display_includes_source_line_and_caret() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    exit 0\n  }\n} extra\n";
+        let err = parse(src).unwrap_err();
+        let rendered = err.to_string();
+
+        assert!(rendered.contains("} extra"));
+        assert!(rendered.contains("  |   ^"));
     }
 
     #[test]
