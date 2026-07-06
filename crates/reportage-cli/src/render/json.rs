@@ -345,7 +345,7 @@ fn assertion_json(
         "id": assertion_id,
         "status": if expectation.passed { "passed" } else { "failed" },
         "checkpoint": checkpoint,
-        "expectation": expectation_json(test_id, checkpoint_action_index, expectation, diagnostics),
+        "expectation": expectation_json(test_id, checkpoint_action_index, expectation, diagnostics, true),
     });
 
     // The top-level assertion's `diagnosticRef` mirrors its own expectation node's, for
@@ -360,15 +360,29 @@ fn assertion_json(
 
 /// Builds the `expectation` object for one evaluated expectation, recursing into a `not` /
 /// `all` / `any` composition's own children (each already an independently evaluated
-/// `ExpectationResult`; see `ExpectationKind::Logical`) so a nested failure's own code and
-/// message are never lost. Registers a `diagnostics[]` entry — and attaches its id as
-/// `diagnosticRef` — for every failing node (leaf or, in principle, composition) that has a
-/// stable diagnostic code; today only leaves do, since `Logical` itself carries none.
+/// `ExpectationResult`; see `ExpectationKind::Logical`) so a nested failure's own detail is
+/// never lost — every child's `status` reflects its own raw held/did-not-hold outcome,
+/// regardless of the composition's outcome, mirroring `render::human`.
+///
+/// `attribute_diagnostics` controls whether *this* node may register a `diagnostics[]` entry
+/// and attach `diagnosticRef` to itself. It is `true` only for the node passed in directly
+/// from [`assertion_json`] (the top of one assertion); every recursive call for a `Logical`
+/// composition's children passes `false`. This matters because a child's own `passed` is its
+/// raw, never-negated result (see `ExpectationKind::Logical`'s doc comment) — for `not`
+/// specifically, a child that "did not hold" is exactly what makes the *composition* hold, so
+/// treating that child's own failure code as a document-level diagnostic would report a
+/// failure on an otherwise-passing assertion (and, conversely, a composition that fails
+/// because a child *held* would report no diagnostic at all). Per-child diagnostic
+/// attribution across `not` / `all` / `any` is explicitly not required in v0 — see
+/// docs/semantic-diagnostics.md, "Logical Composition and Nested Diagnostics" — so instead a
+/// failing composition gets exactly one composition-level diagnostic (below), and children
+/// contribute descriptive detail only, never their own `diagnostics[]` entry.
 fn expectation_json(
     test_id: &str,
     checkpoint_action_index: Option<usize>,
     expectation: &ExpectationResult,
     diagnostics: &mut DiagnosticsBuilder,
+    attribute_diagnostics: bool,
 ) -> Value {
     let status = if expectation.passed {
         "passed"
@@ -448,7 +462,9 @@ fn expectation_json(
         ExpectationKind::Logical { operator, children } => {
             let children_json: Vec<Value> = children
                 .iter()
-                .map(|child| expectation_json(test_id, checkpoint_action_index, child, diagnostics))
+                .map(|child| {
+                    expectation_json(test_id, checkpoint_action_index, child, diagnostics, false)
+                })
                 .collect();
             json!({
                 "kind": "logical",
@@ -460,11 +476,30 @@ fn expectation_json(
 
     value["status"] = json!(status);
 
-    if let Some(code) = expectation.failure_diagnostic_code() {
-        let origin = json!({ "kind": "test", "test": test_id });
-        let message = assertion_failure_message(&expectation.kind, code);
-        let diagnostic_id = diagnostics.push("assertion", Some(code), "failure", &message, origin);
-        value["diagnosticRef"] = json!(diagnostic_id);
+    if attribute_diagnostics {
+        match &expectation.kind {
+            ExpectationKind::Logical { operator, .. } => {
+                // See this function's doc comment: children never register their own
+                // diagnostic, so a failing composition needs its own summary entry here,
+                // or a genuinely failing case would surface no diagnostic at all.
+                if !expectation.passed {
+                    let origin = json!({ "kind": "test", "test": test_id });
+                    let message = format!("'{}' composition did not hold", operator.keyword());
+                    let diagnostic_id =
+                        diagnostics.push("assertion", None, "failure", &message, origin);
+                    value["diagnosticRef"] = json!(diagnostic_id);
+                }
+            }
+            _ => {
+                if let Some(code) = expectation.failure_diagnostic_code() {
+                    let origin = json!({ "kind": "test", "test": test_id });
+                    let message = assertion_failure_message(&expectation.kind, code);
+                    let diagnostic_id =
+                        diagnostics.push("assertion", Some(code), "failure", &message, origin);
+                    value["diagnosticRef"] = json!(diagnostic_id);
+                }
+            }
+        }
     }
 
     value
@@ -799,5 +834,260 @@ mod tests {
         let report = report_with_cases(vec![]);
         let doc = build_document(&report, Path::new(".reportage/runs/42"));
         assert_eq!(doc["artifactRoot"], ".reportage/runs/42");
+    }
+
+    // --- Logical composition diagnostic attribution ---
+    //
+    // A composition's children are independently evaluated and never flipped by `not` (see
+    // `ExpectationKind::Logical`'s own doc comment): a child's raw `passed` does not indicate
+    // whether it is "responsible" for the composition's outcome. These tests pin down that a
+    // *passing* composition never contributes a `diagnostics[]` entry (even when one of its
+    // children individually "did not hold"), and a *failing* composition always contributes
+    // exactly one composition-level entry (even when every child individually "held").
+
+    #[test]
+    fn passing_not_composition_with_a_failing_child_produces_no_diagnostics() {
+        // not { file "x" exists } passes because the file is genuinely missing, i.e. the
+        // child itself did not hold.
+        let case = CaseResult {
+            name: "not passes".to_string(),
+            source_path: Some(PathBuf::from("notpass.repor")),
+            status: CaseStatus::Pass,
+            actions: vec![passing_action()],
+            assertion_blocks: vec![AssertionBlockResult {
+                step_index: 1,
+                checkpoint_action_index: Some(0),
+                expectations: vec![ExpectationResult {
+                    kind: ExpectationKind::Logical {
+                        operator: reportage_core::model::LogicalOperator::Not,
+                        children: vec![ExpectationResult {
+                            kind: ExpectationKind::FileExists {
+                                path: "does-not-exist.txt".to_string(),
+                                observation: FileExistsObservation::Missing,
+                            },
+                            passed: false,
+                        }],
+                    },
+                    passed: true,
+                }],
+            }],
+            side_effects_executed: 0,
+        };
+        let report = report_with_cases(vec![case]);
+
+        let doc = build_document(&report, Path::new(".reportage/runs/1"));
+
+        assert_eq!(doc["status"], "passed");
+        assert!(
+            doc["diagnostics"].as_array().unwrap().is_empty(),
+            "a passing composition must not contribute any diagnostic, \
+             even when a child's own raw result is `failed`: {doc:#}"
+        );
+        assert!(
+            doc["tests"][0]["assertions"][0]
+                .get("diagnosticRef")
+                .is_none()
+        );
+        assert!(
+            doc["tests"][0]["assertions"][0]["expectation"]["children"][0]
+                .get("diagnosticRef")
+                .is_none(),
+            "children must never carry their own diagnosticRef"
+        );
+    }
+
+    #[test]
+    fn failing_not_composition_with_a_holding_child_produces_one_diagnostic() {
+        // not { file "x" exists } fails because the file genuinely exists, i.e. the child
+        // itself held (passed: true) — the opposite raw state from the case above, yet this
+        // is the one that must produce a diagnostic.
+        let case = CaseResult {
+            name: "not fails".to_string(),
+            source_path: Some(PathBuf::from("notfail.repor")),
+            status: CaseStatus::Fail,
+            actions: vec![passing_action()],
+            assertion_blocks: vec![AssertionBlockResult {
+                step_index: 1,
+                checkpoint_action_index: Some(0),
+                expectations: vec![ExpectationResult {
+                    kind: ExpectationKind::Logical {
+                        operator: reportage_core::model::LogicalOperator::Not,
+                        children: vec![ExpectationResult {
+                            kind: ExpectationKind::FileExists {
+                                path: "present.txt".to_string(),
+                                observation: FileExistsObservation::RegularFile,
+                            },
+                            passed: true,
+                        }],
+                    },
+                    passed: false,
+                }],
+            }],
+            side_effects_executed: 0,
+        };
+        let report = report_with_cases(vec![case]);
+
+        let doc = build_document(&report, Path::new(".reportage/runs/1"));
+
+        assert_eq!(doc["status"], "failed");
+        let diagnostics = doc["diagnostics"].as_array().unwrap();
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "a failing composition must contribute exactly one diagnostic, \
+             even when every child's own raw result is `passed`: {doc:#}"
+        );
+        assert_eq!(diagnostics[0]["category"], "assertion");
+        assert!(diagnostics[0].get("code").is_none());
+        assert_eq!(
+            doc["tests"][0]["assertions"][0]["diagnosticRef"],
+            "diagnostic-1"
+        );
+        assert!(
+            doc["tests"][0]["assertions"][0]["expectation"]["children"][0]
+                .get("diagnosticRef")
+                .is_none(),
+            "children must never carry their own diagnosticRef"
+        );
+    }
+
+    // --- expectation kind coverage ---
+
+    #[test]
+    fn exit_expectation_kind_json_shape() {
+        let case = CaseResult {
+            name: "exit".to_string(),
+            source_path: Some(PathBuf::from("exit.repor")),
+            status: CaseStatus::Fail,
+            actions: vec![passing_action()],
+            assertion_blocks: vec![AssertionBlockResult {
+                step_index: 1,
+                checkpoint_action_index: Some(0),
+                expectations: vec![ExpectationResult {
+                    kind: ExpectationKind::Exit {
+                        expected: 1,
+                        actual: 0,
+                    },
+                    passed: false,
+                }],
+            }],
+            side_effects_executed: 0,
+        };
+        let doc = build_document(
+            &report_with_cases(vec![case]),
+            Path::new(".reportage/runs/1"),
+        );
+
+        let expectation = &doc["tests"][0]["assertions"][0]["expectation"];
+        assert_eq!(expectation["kind"], "exit");
+        assert_eq!(expectation["expected"], 1);
+        assert_eq!(expectation["actual"], 0);
+        assert_eq!(doc["diagnostics"][0]["code"], "assertion.exit.mismatch");
+    }
+
+    #[test]
+    fn file_and_dir_expectation_kinds_json_shape() {
+        let case = CaseResult {
+            name: "file and dir".to_string(),
+            source_path: Some(PathBuf::from("filedir.repor")),
+            status: CaseStatus::Fail,
+            actions: vec![],
+            assertion_blocks: vec![AssertionBlockResult {
+                step_index: 0,
+                checkpoint_action_index: None,
+                expectations: vec![
+                    ExpectationResult {
+                        kind: ExpectationKind::FileContains {
+                            path: "out.txt".to_string(),
+                            expected: "ok".to_string(),
+                            observation: FileContentObservation::NotFound,
+                        },
+                        passed: false,
+                    },
+                    ExpectationResult {
+                        kind: ExpectationKind::DirExists {
+                            path: "out".to_string(),
+                            observation: DirExistsObservation::Missing,
+                        },
+                        passed: false,
+                    },
+                    ExpectationResult {
+                        kind: ExpectationKind::DirContains {
+                            path: "out".to_string(),
+                            expected_entry: "a.txt".to_string(),
+                            observation: DirContainsObservation::EntryMissing,
+                        },
+                        passed: false,
+                    },
+                ],
+            }],
+            side_effects_executed: 0,
+        };
+        let doc = build_document(
+            &report_with_cases(vec![case]),
+            Path::new(".reportage/runs/1"),
+        );
+
+        let assertions = doc["tests"][0]["assertions"].as_array().unwrap();
+        assert_eq!(assertions[0]["expectation"]["kind"], "fileContains");
+        assert_eq!(assertions[0]["expectation"]["observed"], "notFound");
+        assert_eq!(assertions[1]["expectation"]["kind"], "dirExists");
+        assert_eq!(assertions[1]["expectation"]["observed"], "missing");
+        assert_eq!(assertions[2]["expectation"]["kind"], "dirContains");
+        assert_eq!(assertions[2]["expectation"]["observed"], "entryMissing");
+
+        let diagnostics = doc["diagnostics"].as_array().unwrap();
+        assert_eq!(diagnostics.len(), 3);
+        assert_eq!(diagnostics[0]["code"], "assertion.file.contains_mismatch");
+        assert_eq!(diagnostics[1]["code"], "assertion.dir.exists_missing");
+        assert_eq!(
+            diagnostics[2]["code"],
+            "assertion.dir.contains_entry_missing"
+        );
+    }
+
+    #[test]
+    fn checkpoint_reflects_the_action_in_effect_at_each_assertion_block() {
+        // Two actions, two assertion blocks: the second block's checkpoint must reference the
+        // second action, not the first.
+        let case = CaseResult {
+            name: "two actions".to_string(),
+            source_path: Some(PathBuf::from("two.repor")),
+            status: CaseStatus::Pass,
+            actions: vec![passing_action(), passing_action()],
+            assertion_blocks: vec![
+                AssertionBlockResult {
+                    step_index: 1,
+                    checkpoint_action_index: Some(0),
+                    expectations: vec![ExpectationResult {
+                        kind: ExpectationKind::Exit {
+                            expected: 0,
+                            actual: 0,
+                        },
+                        passed: true,
+                    }],
+                },
+                AssertionBlockResult {
+                    step_index: 3,
+                    checkpoint_action_index: Some(1),
+                    expectations: vec![ExpectationResult {
+                        kind: ExpectationKind::Exit {
+                            expected: 0,
+                            actual: 0,
+                        },
+                        passed: true,
+                    }],
+                },
+            ],
+            side_effects_executed: 0,
+        };
+        let doc = build_document(
+            &report_with_cases(vec![case]),
+            Path::new(".reportage/runs/1"),
+        );
+
+        let assertions = doc["tests"][0]["assertions"].as_array().unwrap();
+        assert_eq!(assertions[0]["checkpoint"], "action-1");
+        assert_eq!(assertions[1]["checkpoint"], "action-2");
     }
 }
