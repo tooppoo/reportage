@@ -120,10 +120,16 @@ jobs:
 
       - name: extract archives
         run: |
-          tar -xzvf dist/reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.tar.gz
-          tar -xzvf dist/reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.tar.gz
-          tar -xzvf dist/reportage_${{ steps.get-version.outputs.version }}_Darwin_x86_64.tar.gz
-          tar -xzvf dist/reportage_${{ steps.get-version.outputs.version }}_Darwin_arm64.tar.gz
+          linux_x86_64="reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64"
+          linux_aarch64="reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64"
+          darwin_x86_64="reportage_${{ steps.get-version.outputs.version }}_Darwin_x86_64"
+          darwin_arm64="reportage_${{ steps.get-version.outputs.version }}_Darwin_arm64"
+
+          mkdir -p "dist/$linux_x86_64" "dist/$linux_aarch64" "dist/$darwin_x86_64" "dist/$darwin_arm64"
+          tar -xzvf "dist/$linux_x86_64.tar.gz" -C "dist/$linux_x86_64"
+          tar -xzvf "dist/$linux_aarch64.tar.gz" -C "dist/$linux_aarch64"
+          tar -xzvf "dist/$darwin_x86_64.tar.gz" -C "dist/$darwin_x86_64"
+          tar -xzvf "dist/$darwin_arm64.tar.gz" -C "dist/$darwin_arm64"
           find ./dist # debug
 
       - name: assert extracted files
@@ -204,13 +210,46 @@ jobs:
           find ./dist # debug
 
           target="reportage_${{ steps.get-version.outputs.version }}_${{ matrix.os }}_${{ matrix.arch }}"
-          tar -xzvf "./dist/${target}.tar.gz"
+          mkdir -p "dist/${target}"
+          tar -xzvf "./dist/${target}.tar.gz" -C "dist/${target}"
 
           mkdir bin
           cp "dist/${target}/reportage" ./bin/reportage
 
       - name: run smoke test
         run: ./bin/reportage --help
+
+  installer-smoke-test:
+    name: Installer smoke test for ${{ matrix.os }}(${{ matrix.arch }})
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            os: Linux
+            arch: x86_64
+
+          - runner: ubuntu-24.04-arm
+            os: Linux
+            arch: aarch64
+
+          - runner: macos-15-intel
+            os: Darwin
+            arch: x86_64
+
+          - runner: macos-15
+            os: Darwin
+            arch: arm64
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Install via install.sh
+        run: sh install.sh --version v0.0.0 --install-dir "$RUNNER_TEMP/reportage-installer-smoke-test"
+
+      - name: run smoke test
+        run: $RUNNER_TEMP/reportage-installer-smoke-test/reportage --help
 
   e2e:
     name: E2E(self testing)

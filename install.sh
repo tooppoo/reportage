@@ -1,3 +1,4 @@
+
 #!/bin/sh
 # Review this script before running it.
 # This generated installer is provided as-is, without any warranty.
@@ -594,7 +595,9 @@ install_binary() {
   cp -- "$extracted_binary" "$install_tmp" \
     || fail "failed to copy binary to temporary install path"
 
-  chmod 755 -- "$install_tmp" \
+  # -- must precede 755: BSD chmod (macOS) stops option parsing at the first
+  # operand, so "chmod 755 -- ..." treats -- as a filename, not a terminator.
+  chmod -- 755 "$install_tmp" \
     || fail "failed to set binary mode"
 
   mv -- "$install_tmp" "$INSTALL_DIR/$BINARY_NAME" \
