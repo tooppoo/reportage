@@ -57,7 +57,26 @@ case "invalid dir assertion path is rejected as a script error" {
   }
 }
 
+case "invalid dir assertion path with a bare '.' segment is rejected as a script error" {
+  write "tmp-dir-dot-path.repor" ```
+    case "inner" {
+      $ true
+      assert {
+        dir "." exists
+      }
+    }
+    ```
+  $ reportage tmp-dir-dot-path.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.workspace_path.dot_segment"
+  }
+}
+
 case "invalid dir contains entry name is rejected as a script error" {
+  # "a/b" is rejected as an entry name, not evaluated as a nested path:
+  # dir "artifacts" contains "a/b" is not equivalent to dir "artifacts/a" contains "b".
   write "tmp-dir-invalid-entry.repor" ```
     case "inner" {
       $ true
