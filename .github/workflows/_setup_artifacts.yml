@@ -160,6 +160,8 @@ jobs:
             "downloaded/checksum.$macos_arm64.txt" \
             > dist/checksums.txt
 
+          echo ${{ steps.get-version.outputs.version }} > dist/VERSION
+
       - name: upload artifact
         uses: actions/upload-artifact@v7
         with:
