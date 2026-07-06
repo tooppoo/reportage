@@ -22,13 +22,13 @@ pub enum SemanticError {
         path: String,
         reason: WorkspacePathError,
     },
-    /// A `dir "<path>" contains "<name>"` entry name was empty.
+    /// A `dir <"path"> contains "<name>"` entry name was empty.
     EmptyDirEntryName(String),
-    /// A `dir "<path>" contains "<name>"` entry name contained a path separator (`/`).
+    /// A `dir <"path"> contains "<name>"` entry name contained a path separator (`/`).
     PathSeparatorDirEntryName(String),
-    /// A `dir "<path>" contains "<name>"` entry name was `.` or `..`.
+    /// A `dir <"path"> contains "<name>"` entry name was `.` or `..`.
     DotEntryDirEntryName(String),
-    /// A `dir "<path>" contains "<name>"` entry name contained a control character.
+    /// A `dir <"path"> contains "<name>"` entry name contained a control character.
     ControlCharDirEntryName(String),
 }
 
@@ -113,8 +113,8 @@ impl SemanticError {
             message: self.to_string(),
             location: None,
             details: DiagnosticDetails {
-                pest_message: None,
                 raw_value: Some(raw_value),
+                ..Default::default()
             },
         }
     }
@@ -125,7 +125,7 @@ impl SemanticError {
 /// - Absolute paths are rejected.
 /// - `.` and `..` path segments are rejected.
 ///
-/// This centralizes path policy validation for the `file "<path>"` subject so every predicate (`exists`, `contains`, and future predicates) shares the same rejection rule.
+/// This centralizes path policy validation for the `file <"path">` subject so every predicate (`exists`, `contains`, and future predicates) shares the same rejection rule.
 /// See docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
 pub fn validate_file_path(path: &str) -> Result<(), SemanticError> {
     if path.starts_with('/') {
@@ -154,7 +154,7 @@ pub fn validate_dir_path(path: &str) -> Result<(), SemanticError> {
         })
 }
 
-/// Validates a `dir "<path>" contains "<name>"` entry name.
+/// Validates a `dir <"path"> contains "<name>"` entry name.
 ///
 /// `name` must denote a single directory entry, not a nested path: it must be non-empty, must
 /// not contain a path separator (`/`), must not be `.` or `..`, and must not contain control

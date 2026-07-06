@@ -1,0 +1,6 @@
+case "file subject requires a workspace path literal, not a string literal" {
+  $ true
+  assert {
+    file "out.txt" exists
+  }
+}

@@ -134,7 +134,7 @@ impl ExpectationKind {
     }
 }
 
-/// What was observed on the filesystem for a `file "<path>" exists` expectation.
+/// What was observed on the filesystem for a `file <"path"> exists` expectation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileExistsObservation {
     /// `path` resolves (following symlinks) to a regular file.
@@ -145,7 +145,7 @@ pub enum FileExistsObservation {
     Missing,
 }
 
-/// What was observed on the filesystem for a `file "<path>" contains "<text>"` expectation.
+/// What was observed on the filesystem for a `file <"path"> contains "<text>"` expectation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileContentObservation {
     /// `path` is a readable UTF-8 regular file whose content contains the expected substring.
@@ -162,7 +162,7 @@ pub enum FileContentObservation {
     NotUtf8,
 }
 
-/// What was observed on the filesystem for a `dir "<path>" exists` expectation.
+/// What was observed on the filesystem for a `dir <"path"> exists` expectation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DirExistsObservation {
     /// `path` resolves (following symlinks) to a directory.
@@ -173,7 +173,7 @@ pub enum DirExistsObservation {
     Missing,
 }
 
-/// What was observed on the filesystem for a `dir "<path>" contains "<name>"` expectation.
+/// What was observed on the filesystem for a `dir <"path"> contains "<name>"` expectation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DirContainsObservation {
     /// `path` is a directory containing an entry named `name`, directly under `path`.

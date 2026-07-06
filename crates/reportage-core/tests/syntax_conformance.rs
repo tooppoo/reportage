@@ -489,6 +489,21 @@ fn invalid_syntax_fixtures_are_rejected() {
                 assert!(matches!(err, ParseError::ShallowHeredocIndent { .. }));
                 assert_eq!(err.code().as_str(), "parse.raw_block.shallow_indent");
             }
+            // Literal kind mismatches parse at the grammar level and are
+            // rejected as semantic invalid cases with an actionable
+            // diagnostic. See docs/semantic-diagnostics.md and
+            // docs/adr/20260706T160000Z_workspace-path-literal-syntax.md.
+            "file_subject_string_literal"
+            | "file_subject_fixture_reference"
+            | "dir_subject_string_literal"
+            | "write_step_path_string_literal"
+            | "write_step_content_workspace_path_literal"
+            | "file_contains_expected_workspace_path_literal"
+            | "stdout_contains_workspace_path_literal"
+            | "dir_contains_entry_workspace_path_literal" => {
+                assert!(matches!(err, ParseError::LiteralKindMismatch { .. }));
+                assert_eq!(err.code().as_str(), "semantic.literal.kind_mismatch");
+            }
             // Remaining fixtures are rejected as plain pest syntax errors; they share the coarse-grained "parse.syntax" code and are not asserted individually here.
             // See docs/diagnostics.md.
             _ => {

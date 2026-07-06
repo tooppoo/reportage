@@ -49,7 +49,7 @@ pub enum SideEffectingStep {
     WriteFile(WriteFileStep),
 }
 
-/// A `write "<path>" <text_literal>` step: writes a text_literal's resolved
+/// A `write <"path"> <text_literal>` step: writes a text_literal's resolved
 /// content (dedented, in the heredoc-literal case) to a file in the concrete
 /// case workspace.
 ///
@@ -107,6 +107,68 @@ impl WorkspacePath {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+/// The surface kind of a parsed `value_literal`: which of the three
+/// single-line literal syntaxes a script actually wrote.
+///
+/// Each kind maps to exactly one semantic domain, independent of context:
+/// `"..."` is always a text-domain value, `<"...">` is always a case-workspace
+/// filesystem reference, and `@"..."` is always a fixture reference (reserved
+/// for #92; no argument position accepts it yet). The parser keeps this kind
+/// so an argument position can check it against its signature and reject a
+/// mismatch as an actionable semantic diagnostic
+/// (`semantic.literal.kind_mismatch`) instead of a bare syntax error.
+/// See docs/adr/20260706T160000Z_workspace-path-literal-syntax.md.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueLiteralKind {
+    /// An ordinary `"..."` string literal (text domain).
+    StringLiteral,
+    /// A `<"...">` workspace path literal (case-workspace filesystem reference).
+    WorkspacePath,
+    /// An `@"..."` fixture reference literal (test-definition-side file reference).
+    FixtureReference,
+}
+
+impl ValueLiteralKind {
+    /// The stable, user-facing name of this kind, as used in diagnostics.
+    pub const fn name(self) -> &'static str {
+        match self {
+            ValueLiteralKind::StringLiteral => "StringLiteral",
+            ValueLiteralKind::WorkspacePath => "WorkspacePath",
+            ValueLiteralKind::FixtureReference => "FixtureReference",
+        }
+    }
+}
+
+/// The literal kind an argument position's signature requires.
+///
+/// Unlike [`ValueLiteralKind`], which names what a script actually wrote,
+/// this names what a position accepts — so `TextValue` exists as a
+/// requirement (satisfied by a string literal or a heredoc literal) even
+/// though it is not itself a surface literal kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequiredLiteralKind {
+    /// The position requires a `<"...">` workspace path literal.
+    WorkspacePath,
+    /// The position requires a text-domain value: a `"..."` string literal
+    /// or a heredoc literal.
+    TextValue,
+    /// The position requires a plain `"..."` string literal specifically
+    /// (e.g. a `dir contains` entry name, which is a single entry name, not
+    /// general text content).
+    StringLiteral,
+}
+
+impl RequiredLiteralKind {
+    /// The stable, user-facing name of this requirement, as used in diagnostics.
+    pub const fn name(self) -> &'static str {
+        match self {
+            RequiredLiteralKind::WorkspacePath => "WorkspacePath",
+            RequiredLiteralKind::TextValue => "TextValue",
+            RequiredLiteralKind::StringLiteral => "StringLiteral",
+        }
     }
 }
 
@@ -388,7 +450,7 @@ pub struct FileExpectation {
 pub enum FileMatcher {
     Exists,
     NotExists,
-    /// `file "<path>" contains <text_literal>`: `text_literal` may be either
+    /// `file <"path"> contains <text_literal>`: `text_literal` may be either
     /// a string literal or a heredoc literal. See [`TextLiteral`].
     Contains(TextLiteral),
     Matches(String),
@@ -406,7 +468,7 @@ pub struct DirExpectation {
 pub enum DirMatcher {
     Exists,
     NotExists,
-    /// `dir "<path>" contains "<name>"`: `name` is a single directory entry
+    /// `dir <"path"> contains "<name>"`: `name` is a single directory entry
     /// name checked for exact match directly under `path`, never a nested
     /// path, a glob, or a recursive search.
     Contains(String),

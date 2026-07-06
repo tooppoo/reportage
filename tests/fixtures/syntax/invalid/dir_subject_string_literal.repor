@@ -1,0 +1,6 @@
+case "dir subject requires a workspace path literal, not a string literal" {
+  $ true
+  assert {
+    dir "out" exists
+  }
+}

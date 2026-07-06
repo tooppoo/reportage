@@ -42,7 +42,7 @@ case "composite logic blocks" {
           stdout contains "composite"
         }
         not {
-          file "nonexistent.file" exists
+          file <"nonexistent.file"> exists
         }
       }
       stdout empty

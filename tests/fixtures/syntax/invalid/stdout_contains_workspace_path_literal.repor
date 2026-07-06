@@ -1,0 +1,6 @@
+case "stdout contains expected text requires a text value, not a workspace path literal" {
+  $ true
+  assert {
+    stdout contains <"expected.stdout">
+  }
+}

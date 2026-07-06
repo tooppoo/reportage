@@ -1,0 +1,6 @@
+case "file subject requires a workspace path literal, not a fixture reference" {
+  $ true
+  assert {
+    file @"out.txt" exists
+  }
+}

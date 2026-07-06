@@ -1,0 +1,47 @@
+{
+  "cases": [
+    {
+      "name": "workspace path literals across path-taking constructs",
+      "steps": [
+        {
+          "kind": "write_file",
+          "path": "out.txt",
+          "content": {
+            "kind": "heredoc",
+            "value": "hello\n"
+          }
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "out.txt",
+              "matcher": {
+                "kind": "exists"
+              }
+            },
+            {
+              "kind": "file",
+              "path": "out.txt",
+              "matcher": {
+                "kind": "contains",
+                "value": {
+                  "kind": "quoted",
+                  "value": "hello"
+                }
+              }
+            },
+            {
+              "kind": "dir",
+              "path": "logs",
+              "matcher": {
+                "kind": "exists"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 case "single line assert heredoc file contains" {
   $ true
-  assert { file "out/result.json" contains ```
+  assert { file <"out/result.json"> contains ```
   hello
   ``` }
 }

@@ -40,7 +40,7 @@ case_block = {
 }
 
 // Silent: action_step, assertion_block, and the two write_step forms are
-// promoted directly into case_block. `write <path> <text_literal>` accepts
+// promoted directly into case_block. `write <"path"> <text_literal>` accepts
 // either a string literal or a heredoc literal (see "Text literals" below);
 // the string-literal form (write_step_string) is an ordinary single-line
 // construct and shares `trail` like action_step / assertion_block (so it
@@ -72,8 +72,8 @@ command     = @{ ("\\" ~ nl | (!nl ~ ANY))* }
 // A heredoc literal (the ``` ... ``` fenced block introduced by #67) is one
 // of the two forms of a `text_literal` (see "Text literals" below), the
 // other being an ordinary `quoted_string`. It is reusable wherever a
-// `text_literal` is accepted: `write "<path>" <text_literal>`
-// (write_step_heredoc) and `file "<path>" contains <text_literal>`
+// `text_literal` is accepted: `write <"path"> <text_literal>`
+// (write_step_heredoc) and `file <"path"> contains <text_literal>`
 // (file_exp_heredoc). See docs/semantics.md — Text literal and Write step.
 //
 // The opening fence's backtick run is pushed onto pest's match stack so the
@@ -116,15 +116,19 @@ heredoc_literal = {
 
 // ─── Write step ─────────────────────────────────────────────────────────────
 //
-// `write "<path>" <text_literal>` writes the text_literal's (dedented, in
-// the heredoc case) content to a file in the concrete case workspace. See
-// docs/semantics.md — Write step. Split into two grammar rules because the
-// two text_literal forms have different line-ending rules (see case_step
-// above and "Heredoc literal" above): write_step_string is an ordinary
-// single-line construct; write_step_heredoc consumes its own trailing line.
+// `write <"path"> <text_literal>` writes the text_literal's (dedented, in
+// the heredoc case) content to a file in the concrete case workspace. The
+// path is a workspace path literal and the content is a text_literal; both
+// positions are parsed as the kind-agnostic `value_literal` so a wrong-kind
+// literal is a semantic diagnostic, not a syntax error (see "Value literals"
+// below). See docs/semantics.md — Write step. Split into two grammar rules
+// because the two text_literal forms have different line-ending rules (see
+// case_step above and "Heredoc literal" above): write_step_string is an
+// ordinary single-line construct; write_step_heredoc consumes its own
+// trailing line.
 
-write_step_string  = { "write" ~ ws+ ~ quoted_string ~ ws+ ~ quoted_string }
-write_step_heredoc = { "write" ~ ws+ ~ quoted_string ~ ws* ~ heredoc_literal }
+write_step_string  = { "write" ~ ws+ ~ value_literal ~ ws+ ~ value_literal }
+write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ ws* ~ heredoc_literal }
 
 // ─── Assertion block ──────────────────────────────────────────────────────────
 
@@ -170,36 +174,37 @@ stdout_exp      = { "stdout" ~ ws+ ~ output_matcher }
 stderr_exp      = { "stderr" ~ ws+ ~ output_matcher }
 
 output_matcher  = { output_contains | output_empty }
-output_contains = { "contains" ~ ws+ ~ quoted_string }
+output_contains = { "contains" ~ ws+ ~ value_literal }
 output_empty    = { "empty" }
 
-// `file "<path>" exists` / `file "<path>" contains "<text>"`.
-// Subject-first: `file <path>` is the common subject, `exists` / `contains`
-// are predicates on that subject. See
+// `file <"path"> exists` / `file <"path"> contains "<text>"`.
+// Subject-first: `file <"path">` is the common subject, `exists` / `contains`
+// are predicates on that subject. The subject is a workspace path literal,
+// parsed as a kind-agnostic `value_literal` (see "Value literals" below). See
 // docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
-file_exp        = { "file" ~ ws+ ~ quoted_string ~ ws+ ~ file_predicate }
+file_exp        = { "file" ~ ws+ ~ value_literal ~ ws+ ~ file_predicate }
 file_predicate  = { file_contains | file_exists }
 file_exists     = { "exists" }
-file_contains   = { "contains" ~ ws+ ~ quoted_string }
+file_contains   = { "contains" ~ ws+ ~ value_literal }
 
-// `file "<path>" contains <heredoc literal>`: the heredoc-literal form of
+// `file <"path"> contains <heredoc literal>`: the heredoc-literal form of
 // file_contains. Deliberately a separate rule from file_exp/file_predicate,
 // not a variant folded into file_predicate, because it must not be followed
 // by the generic `trail` the way every other expectation is (see
 // heredoc_assertion_line above) — the heredoc literal already consumed its
 // own trailing line. Reachable only through multi_assert.
 heredoc_expectation = { file_exp_heredoc }
-file_exp_heredoc    = { "file" ~ ws+ ~ quoted_string ~ ws+ ~ "contains" ~ ws+ ~ heredoc_literal }
+file_exp_heredoc    = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "contains" ~ ws+ ~ heredoc_literal }
 
-// `dir "<path>" exists` / `dir "<path>" contains "<name>"`.
-// Subject-first, mirroring file_exp: `dir <path>` is the common subject,
+// `dir <"path"> exists` / `dir <"path"> contains "<name>"`.
+// Subject-first, mirroring file_exp: `dir <"path">` is the common subject,
 // `exists` / `contains` are predicates on that subject. `dir` is scoped to
 // directories only; `file` is scoped to regular files only (see file_exp
 // above). See docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
-dir_exp         = { "dir" ~ ws+ ~ quoted_string ~ ws+ ~ dir_predicate }
+dir_exp         = { "dir" ~ ws+ ~ value_literal ~ ws+ ~ dir_predicate }
 dir_predicate   = { dir_contains | dir_exists }
 dir_exists      = { "exists" }
-dir_contains    = { "contains" ~ ws+ ~ quoted_string }
+dir_contains    = { "contains" ~ ws+ ~ value_literal }
 
 // ─── Logical composition ──────────────────────────────────────────────────────
 //
@@ -222,6 +227,37 @@ all_block = { "all" ~ ws* ~ "{" ~ (single_assert | multi_assert | empty_composit
 any_block = { "any" ~ ws* ~ "{" ~ (single_assert | multi_assert | empty_composition_body) ~ ws* ~ "}" }
 
 empty_composition_body = { trail? ~ (blank_line | comment_line)* ~ ws* }
+
+// ─── Value literals ───────────────────────────────────────────────────────────
+//
+// The three single-line literal kinds, each mapping to exactly one semantic
+// domain regardless of context (see #93 and
+// docs/adr/20260706T160000Z_workspace-path-literal-syntax.md):
+//
+//   "..."     string literal            — text domain (a TextValue form)
+//   <"...">   workspace path literal    — case-workspace filesystem reference
+//   @"..."    fixture reference literal — test-definition-side file reference
+//                                         (reserved for #92; no position
+//                                         accepts it yet)
+//
+// Every step / expectation argument position parses the kind-agnostic
+// `value_literal` union; which kind the position's signature actually
+// requires is checked during parser construction. A wrong-kind literal
+// (e.g. `file "out.txt" exists`) is therefore a parse-able semantic invalid
+// case with an actionable diagnostic (semantic.literal.kind_mismatch) that
+// names the expected kind, the actual kind, and the suggested replacement —
+// never a bare syntax error.
+//
+// Both non-string kinds wrap an ordinary quoted_string, so all three kinds
+// share the same escape rules (see "String literals" below). Workspace path
+// validation (non-empty, relative, no `.` / `..` segments) applies to the
+// unescaped value afterwards, on the WorkspacePath side.
+// No whitespace is permitted between a kind marker (`<`, `>`, `@`) and the
+// quoted string it wraps.
+
+workspace_path_literal    = { "<" ~ quoted_string ~ ">" }
+fixture_reference_literal = { "@" ~ quoted_string }
+value_literal             = { workspace_path_literal | fixture_reference_literal | quoted_string }
 
 // ─── String literals ──────────────────────────────────────────────────────────
 

@@ -847,7 +847,7 @@ mod tests {
 
     #[test]
     fn passing_not_composition_with_a_failing_child_produces_no_diagnostics() {
-        // not { file "x" exists } passes because the file is genuinely missing, i.e. the
+        // not { file <"x"> exists } passes because the file is genuinely missing, i.e. the
         // child itself did not hold.
         let case = CaseResult {
             name: "not passes".to_string(),
@@ -898,7 +898,7 @@ mod tests {
 
     #[test]
     fn failing_not_composition_with_a_holding_child_produces_one_diagnostic() {
-        // not { file "x" exists } fails because the file genuinely exists, i.e. the child
+        // not { file <"x"> exists } fails because the file genuinely exists, i.e. the child
         // itself held (passed: true) — the opposite raw state from the case above, yet this
         // is the one that must produce a diagnostic.
         let case = CaseResult {

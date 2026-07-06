@@ -1,0 +1,6 @@
+case "dir contains entry name requires a string literal, not a workspace path literal" {
+  $ true
+  assert {
+    dir <"out"> contains <"entry">
+  }
+}

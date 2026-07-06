@@ -82,8 +82,8 @@ These self-tests should complement, not replace, Rust unit and integration tests
 
 1. runs a nested `reportage` invocation against a small inner script;
 2. asserts the nested run's process-level behavior (`exit 0`);
-3. asserts that the nested run's `result.json` artifact file exists, using `file "<path>" exists`;
-4. asserts that `result.json` contains a stable marker, using `file "<path>" contains "<text>"`.
+3. asserts that the nested run's `result.json` artifact file exists, using `file <"path"> exists`;
+4. asserts that `result.json` contains a stable marker, using `file <"path"> contains "<text>"`.
 
 The marker asserted (`"result": "pass"`) is a field name and enum-like value from the artifact schema, not a timestamp, absolute path, or platform-specific string, so it stays stable across runs and machines.
 
