@@ -90,7 +90,7 @@ pub enum DiagnosticCode {
     /// A heredoc literal (in a `write` step or a `file ... contains`
     /// expectation) contains a non-blank body line that is indented less
     /// than the closing fence.
-    ParseRawBlockShallowIndent,
+    ParseHeredocLiteralShallowIndent,
     /// A `write` step's target path already existed; create-only writes reject this.
     StepWriteTargetExists,
     /// A `write` step's target path had a regular file somewhere in its parent path.
@@ -143,7 +143,7 @@ impl DiagnosticCode {
             Self::SemanticWorkspacePathAbsolute => "semantic.workspace_path.absolute",
             Self::SemanticWorkspacePathDotSegment => "semantic.workspace_path.dot_segment",
             Self::SemanticLiteralKindMismatch => "semantic.literal.kind_mismatch",
-            Self::ParseRawBlockShallowIndent => "parse.raw_block.shallow_indent",
+            Self::ParseHeredocLiteralShallowIndent => "parse.heredoc_literal.shallow_indent",
             Self::StepWriteTargetExists => "step.write.target_exists",
             Self::StepWriteParentNotADirectory => "step.write.parent_not_a_directory",
             Self::StepWriteIoError => "step.write.io_error",
@@ -243,7 +243,7 @@ mod tests {
             DiagnosticCode::SemanticWorkspacePathAbsolute,
             DiagnosticCode::SemanticWorkspacePathDotSegment,
             DiagnosticCode::SemanticLiteralKindMismatch,
-            DiagnosticCode::ParseRawBlockShallowIndent,
+            DiagnosticCode::ParseHeredocLiteralShallowIndent,
             DiagnosticCode::StepWriteTargetExists,
             DiagnosticCode::StepWriteParentNotADirectory,
             DiagnosticCode::StepWriteIoError,

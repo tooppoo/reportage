@@ -159,7 +159,9 @@ impl ParseError {
                 WorkspacePathError::DotSegment => DiagnosticCode::SemanticWorkspacePathDotSegment,
             },
             ParseError::LiteralKindMismatch { .. } => DiagnosticCode::SemanticLiteralKindMismatch,
-            ParseError::ShallowHeredocIndent { .. } => DiagnosticCode::ParseRawBlockShallowIndent,
+            ParseError::ShallowHeredocIndent { .. } => {
+                DiagnosticCode::ParseHeredocLiteralShallowIndent
+            }
         }
     }
 
@@ -2273,7 +2275,7 @@ case "x" {
         let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    first\n  mid\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::ShallowHeredocIndent { .. }));
-        assert_eq!(err.code().as_str(), "parse.raw_block.shallow_indent");
+        assert_eq!(err.code().as_str(), "parse.heredoc_literal.shallow_indent");
     }
 
     #[test]

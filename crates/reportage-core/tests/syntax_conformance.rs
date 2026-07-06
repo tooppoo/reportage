@@ -487,7 +487,7 @@ fn invalid_syntax_fixtures_are_rejected() {
             }
             "write_step_shallow_indent" => {
                 assert!(matches!(err, ParseError::ShallowHeredocIndent { .. }));
-                assert_eq!(err.code().as_str(), "parse.raw_block.shallow_indent");
+                assert_eq!(err.code().as_str(), "parse.heredoc_literal.shallow_indent");
             }
             // Literal kind mismatches parse at the grammar level and are
             // rejected as semantic invalid cases with an actionable
