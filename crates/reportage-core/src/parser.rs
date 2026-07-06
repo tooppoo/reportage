@@ -384,6 +384,42 @@ struct ValueLiteral {
     line: usize,
 }
 
+/// The literal kind an argument position requires, together with which
+/// surface forms its grammar actually accepts — the extra bit
+/// [`RequiredLiteralKind`] alone doesn't carry. A kind mismatch's suggested
+/// replacement must only point at forms the position's grammar would accept,
+/// or the suggestion would steer the author into the very `parse.syntax`
+/// error the semantic diagnostic exists to avoid.
+#[derive(Clone, Copy)]
+enum RequiredKind {
+    /// The position requires a `<"...">` workspace path literal.
+    WorkspacePath,
+    /// The position requires a TextValue and its grammar accepts both the
+    /// string literal and heredoc literal forms (a `write` step's content,
+    /// `file contains` expected text).
+    TextValueStringOrHeredoc,
+    /// The position requires a TextValue but its grammar only wires up the
+    /// string literal form in v0 (`stdout contains` / `stderr contains`
+    /// expected text), so the suggestion must not mention a heredoc literal.
+    TextValueStringOnly,
+    /// The position requires a plain `"..."` string literal
+    /// (`dir contains` entry name).
+    StringLiteral,
+}
+
+impl RequiredKind {
+    /// The user-facing requirement this maps to in the diagnostic contract.
+    fn required_literal_kind(self) -> RequiredLiteralKind {
+        match self {
+            RequiredKind::WorkspacePath => RequiredLiteralKind::WorkspacePath,
+            RequiredKind::TextValueStringOrHeredoc | RequiredKind::TextValueStringOnly => {
+                RequiredLiteralKind::TextValue
+            }
+            RequiredKind::StringLiteral => RequiredLiteralKind::StringLiteral,
+        }
+    }
+}
+
 impl ValueLiteral {
     /// The literal exactly as written in source, e.g. `"out.txt"`,
     /// `<"out.txt">`, or `@"out.txt"`.
@@ -400,35 +436,37 @@ impl ValueLiteral {
     /// `LiteralKindMismatch` (semantic.literal.kind_mismatch) otherwise.
     fn expect_kind(
         self,
-        expected: RequiredLiteralKind,
+        expected: RequiredKind,
         position: &'static str,
     ) -> Result<String, ParseError> {
         let matches = match expected {
-            RequiredLiteralKind::WorkspacePath => self.kind == ValueLiteralKind::WorkspacePath,
+            RequiredKind::WorkspacePath => self.kind == ValueLiteralKind::WorkspacePath,
             // TextValue's other form, the heredoc literal, is a distinct
             // grammar rule and never reaches this check.
-            RequiredLiteralKind::TextValue | RequiredLiteralKind::StringLiteral => {
-                self.kind == ValueLiteralKind::StringLiteral
-            }
+            RequiredKind::TextValueStringOrHeredoc
+            | RequiredKind::TextValueStringOnly
+            | RequiredKind::StringLiteral => self.kind == ValueLiteralKind::StringLiteral,
         };
         if matches {
             return Ok(self.value);
         }
 
         let suggestion = match expected {
-            RequiredLiteralKind::WorkspacePath => format!("<{}>", self.quoted_source),
-            RequiredLiteralKind::TextValue => {
+            RequiredKind::WorkspacePath => format!("<{}>", self.quoted_source),
+            RequiredKind::TextValueStringOrHeredoc => {
                 format!(
                     "a string literal or heredoc literal (e.g. {})",
                     self.quoted_source
                 )
             }
-            RequiredLiteralKind::StringLiteral => self.quoted_source.clone(),
+            RequiredKind::TextValueStringOnly | RequiredKind::StringLiteral => {
+                self.quoted_source.clone()
+            }
         };
         Err(ParseError::LiteralKindMismatch {
             line: self.line,
             position,
-            expected,
+            expected: expected.required_literal_kind(),
             actual: self.kind,
             source: self.rendered(),
             suggestion,
@@ -645,7 +683,7 @@ fn parse_output_exp(
                 "`stderr contains` expected text"
             };
             let expected = parse_value_literal(literal_pair)
-                .expect_kind(RequiredLiteralKind::TextValue, position)?;
+                .expect_kind(RequiredKind::TextValueStringOnly, position)?;
             OutputMatcher::Contains(expected)
         }
         rule => unreachable!("unexpected rule in output_matcher: {rule:?}"),
@@ -663,10 +701,8 @@ fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Pars
     // file_exp = { "file" ~ ws+ ~ value_literal ~ ws+ ~ file_predicate }
     let mut inner = pair.into_inner();
     let path_pair = inner.next().expect("file_exp must have a path");
-    let path = parse_value_literal(path_pair).expect_kind(
-        RequiredLiteralKind::WorkspacePath,
-        "`file` checkpoint subject",
-    )?;
+    let path = parse_value_literal(path_pair)
+        .expect_kind(RequiredKind::WorkspacePath, "`file` checkpoint subject")?;
 
     let predicate_pair = inner.next().expect("file_exp must have a predicate");
     // file_predicate = { file_contains | file_exists }
@@ -684,7 +720,7 @@ fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Pars
                 .next()
                 .expect("file_contains must have value_literal");
             let expected = parse_value_literal(literal_pair).expect_kind(
-                RequiredLiteralKind::TextValue,
+                RequiredKind::TextValueStringOrHeredoc,
                 "`file contains` expected text",
             )?;
             FileMatcher::Contains(TextLiteral::Quoted(expected))
@@ -709,10 +745,8 @@ fn parse_heredoc_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expect
             // file_exp_heredoc = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "contains" ~ ws+ ~ heredoc_literal }
             let mut inner = inner.into_inner();
             let path_pair = inner.next().expect("file_exp_heredoc must have a path");
-            let path = parse_value_literal(path_pair).expect_kind(
-                RequiredLiteralKind::WorkspacePath,
-                "`file` checkpoint subject",
-            )?;
+            let path = parse_value_literal(path_pair)
+                .expect_kind(RequiredKind::WorkspacePath, "`file` checkpoint subject")?;
 
             let literal_pair = inner
                 .next()
@@ -732,10 +766,8 @@ fn parse_dir_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Parse
     // dir_exp = { "dir" ~ ws+ ~ value_literal ~ ws+ ~ dir_predicate }
     let mut inner = pair.into_inner();
     let path_pair = inner.next().expect("dir_exp must have a path");
-    let path = parse_value_literal(path_pair).expect_kind(
-        RequiredLiteralKind::WorkspacePath,
-        "`dir` checkpoint subject",
-    )?;
+    let path = parse_value_literal(path_pair)
+        .expect_kind(RequiredKind::WorkspacePath, "`dir` checkpoint subject")?;
 
     let predicate_pair = inner.next().expect("dir_exp must have a predicate");
     // dir_predicate = { dir_contains | dir_exists }
@@ -752,10 +784,8 @@ fn parse_dir_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Parse
                 .into_inner()
                 .next()
                 .expect("dir_contains must have value_literal");
-            let name = parse_value_literal(literal_pair).expect_kind(
-                RequiredLiteralKind::StringLiteral,
-                "`dir contains` entry name",
-            )?;
+            let name = parse_value_literal(literal_pair)
+                .expect_kind(RequiredKind::StringLiteral, "`dir contains` entry name")?;
             DirMatcher::Contains(name)
         }
         rule => unreachable!("unexpected rule in dir_predicate: {rule:?}"),
@@ -779,15 +809,15 @@ fn parse_write_step_string(pair: pest::iterators::Pair<Rule>) -> Result<Step, Pa
 
     let path_pair = inner.next().expect("write_step_string must have a path");
     let raw_path = parse_value_literal(path_pair)
-        .expect_kind(RequiredLiteralKind::WorkspacePath, "`write` step path")?;
+        .expect_kind(RequiredKind::WorkspacePath, "`write` step path")?;
 
     let content_pair = inner
         .next()
         .expect("write_step_string must have content value_literal");
-    let content = TextLiteral::Quoted(
-        parse_value_literal(content_pair)
-            .expect_kind(RequiredLiteralKind::TextValue, "`write` step content")?,
-    );
+    let content = TextLiteral::Quoted(parse_value_literal(content_pair).expect_kind(
+        RequiredKind::TextValueStringOrHeredoc,
+        "`write` step content",
+    )?);
 
     let path =
         WorkspacePath::parse(&raw_path).map_err(|reason| ParseError::InvalidWorkspacePath {
@@ -808,7 +838,7 @@ fn parse_write_step_heredoc(pair: pest::iterators::Pair<Rule>) -> Result<Step, P
 
     let path_pair = inner.next().expect("write_step_heredoc must have a path");
     let raw_path = parse_value_literal(path_pair)
-        .expect_kind(RequiredLiteralKind::WorkspacePath, "`write` step path")?;
+        .expect_kind(RequiredKind::WorkspacePath, "`write` step path")?;
 
     let literal_pair = inner
         .next()
@@ -2506,7 +2536,11 @@ case "x" {
         let message = err.to_string();
         assert!(message.contains("`stdout contains` expected text"));
         assert!(message.contains("TextValue"));
-        assert!(message.contains("string literal or heredoc literal"));
+        // v0's grammar only wires the heredoc TextValue form into `write`
+        // content and `file contains`; the suggestion here must not steer
+        // the author toward a heredoc literal the grammar would reject.
+        assert!(message.contains("use \"expected.stdout\" instead"));
+        assert!(!message.contains("heredoc"));
     }
 
     #[test]
@@ -2523,6 +2557,8 @@ case "x" {
         ));
         let message = err.to_string();
         assert!(message.contains("`stderr contains` expected text"));
+        assert!(message.contains("use \"expected.stderr\" instead"));
+        assert!(!message.contains("heredoc"));
     }
 
     #[test]

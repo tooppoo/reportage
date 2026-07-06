@@ -233,7 +233,15 @@ assertion.dir.contains_entry_missing:
   stable details:
     path: string
     expected_entry: string
+
+semantic.literal.kind_mismatch:
+  stable details:
+    raw_value: string       # the offending literal as written, e.g. "out.txt" or <"out.txt">
+    expected_kind: string   # WorkspacePath | TextValue | StringLiteral
+    actual_kind: string     # StringLiteral | WorkspacePath | FixtureReference
 ```
+
+`semantic.literal.kind_mismatch` also carries a `suggestion` detail (the suggested replacement, e.g. `<"out.txt">`). Like `message`, `suggestion` is free-form, human-facing text that may be improved over time; it is **not** part of the stable details contract. The `expected_kind` / `actual_kind` names above are the stable kind identifiers.
 
 Structured `expected` / `actual` values such as the above **are** part of the stable contract for the codes that define them.
 

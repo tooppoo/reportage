@@ -414,8 +414,10 @@ stdout contains <"expected.stdout">
 ```
 
 ```text
-`stdout contains` expected text requires a TextValue, but <"expected.stdout"> is a WorkspacePath; use a string literal or heredoc literal (e.g. "expected.stdout") instead
+`stdout contains` expected text requires a TextValue, but <"expected.stdout"> is a WorkspacePath; use "expected.stdout" instead
 ```
+
+The suggested replacement only names forms the position's grammar actually accepts: `write` content and `file contains` expected text suggest "a string literal or heredoc literal", while `stdout contains` / `stderr contains` — whose grammar only wires up the string literal form in v0 — suggest just the string literal, so following the suggestion can never itself produce a syntax error.
 
 Literal kind validation and value validation are separate layers: `<"">`, `<"/abs">`, and `<"../up">` are correctly-kinded workspace path literals whose unescaped values still fail the existing workspace path policy (`semantic.workspace_path.*`). The inner quoted content of `<"...">` reuses the string literal escape rules; the workspace path policy applies to the value after unescaping.
 
