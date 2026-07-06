@@ -26,7 +26,11 @@ archive_reportage() {
   mkdir -p "$archive_dir"
   cp target/release/reportage "$archive_dir/reportage"
 
-  tar -acf "$archive_path" "$archive_dir"
+  # archive from within "$archive_dir" so the archive contains "reportage"
+  # at its root (matching install.sh's binary.pathInArchive), instead of
+  # leaking the staging directory name into the packaged paths (same
+  # reasoning as the checksum step below).
+  tar -acf "$archive_path" -C "$archive_dir" reportage
 
   checksum_path="$($script_path/checksum_name.sh)"
   (
