@@ -102,10 +102,15 @@ self-install:
 vscode-install:
   sh scripts/dev/setup-reportage-vscode-extension.sh
 
-# create release tags(version pin and latest) for the given version
+# create release tag(version pin) for the given version
 [group('release')]
 release-tag version:
   rellog ready {{ version }}
+  git tag -a {{ version }} -m "Release {{ version }}"
+
+# create release tag(latest) for the given version
+[group('release')]
+release-latest version:
+  rellog ready {{ version }}
   git tag -d latest || true
   git tag -a latest -m "Release latest({{ version }})"
-  git tag -a {{ version }} -m "Release {{ version }}"
