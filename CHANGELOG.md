@@ -1,0 +1,13 @@
+# CHANGELOG
+
+## v0.0.0
+
+### added
+
+#### docs
+
+<!-- rellog:entry:start -->
+<!-- rellog:body:start -->
+setup rellog changelog
+<!-- rellog:body:end -->
+<!-- rellog:entry:end -->
