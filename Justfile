@@ -114,3 +114,9 @@ release-latest version:
   rellog ready {{ version }}
   git tag -d latest || true
   git tag -a latest -m "Release latest({{ version }})"
+
+# [dev] delete release tag for the given version
+[private]
+release-delete version:
+  git tag -d {{ version }} || true
+  git tag -d latest || true
