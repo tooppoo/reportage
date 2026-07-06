@@ -162,8 +162,11 @@ jobs:
       - name: Extract archive
         run: |
           find ./dist # debug
+
           target="reportage_${{ steps.get-version.outputs.version }}_Linux_${{ matrix.name }}"
           tar -xzvf "./dist/${target}.tar.gz"
+
+          mkdir bin
           cp "dist/${target}/reportage" ./bin/reportage
 
       - name: run smoke test
