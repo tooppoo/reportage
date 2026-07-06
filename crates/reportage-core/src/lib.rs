@@ -3,6 +3,7 @@ pub mod config;
 pub mod diagnostic;
 pub mod evaluator;
 pub mod executor;
+pub mod fixture;
 pub mod model;
 pub mod parser;
 pub mod result;

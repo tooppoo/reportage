@@ -1,0 +1,13 @@
+case "fixture reference and contents_equals / text_equals literal positions" {
+  write <"actual.txt"> "content"
+
+  $ true
+
+  assert {
+    file <"actual.txt"> contents_equals <"expected-workspace.txt">
+    file <"actual.txt"> contents_equals @"expected-fixture.txt"
+    file <"actual.txt"> text_equals "expected text"
+    stdout contents_equals @"stdout.snapshot"
+    stderr contents_equals <"expected-workspace.txt">
+  }
+}

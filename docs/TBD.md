@@ -6,6 +6,14 @@ Items listed here are not accepted v0 requirements unless another document expli
 
 ## Semantic assertions
 
+### `contents_equals` / `text_equals` comparison evaluation
+
+#92 implements the `contents_equals` (`file` / `stdout` / `stderr`) and `text_equals` (`file`) grammar, AST construction, and literal-kind validation, plus the fixture reference resolution and materialization mechanism (`fixture::resolve_fixture_source`, `fixture::materialize_fixture`) that a live `contents_equals` evaluation will call to read expected `FixtureReference` bytes.
+
+Actually comparing observed evidence against the expected value — reading actual and expected bytes, reporting pass/fail, and rendering a bounded mismatch diagnostic — is intentionally out of scope for #92. `evaluator::evaluate_file_expectation`'s `FileMatcher::ContentsEquals` / `FileMatcher::TextEquals` arms, and the `stdout` / `stderr` `OutputMatcher::ContentsEquals` arm, currently `todo!()`.
+
+This is deferred to #87 (`contents_equals`) and #88 (`text_equals`), which own wiring the comparison itself, including threading the referencing `*.repor` file's source path into evaluation so a `FixtureReference` expected value can actually be resolved and materialized during a live run.
+
 ### Encoding-aware assertions
 
 `stdout contains <string>` and `stderr contains <string>` perform byte-level substring matching in v0. The expected string literal is treated as UTF-8 bytes and matched against the raw output bytes without any encoding conversion.

@@ -378,7 +378,7 @@ Reportage separates its single-line literal syntaxes by semantic domain. Each su
 "..."      = StringLiteral        (text domain)
 ```...```  = HeredocLiteral       (text domain)
 <"...">    = WorkspacePath        (case-workspace filesystem reference)
-@"..."     = FixtureReference     (test-definition-side file reference; reserved for #92)
+@"..."     = FixtureReference     (test-definition-side file reference)
 ````
 
 These kinds group into two value categories:
@@ -390,8 +390,8 @@ FileContentReference = WorkspacePath | FixtureReference
 
 - A **`TextValue`** is text content: something to write, or something to compare against. See "Text literal" below.
 - A **`WorkspacePath`** is a filesystem path resolved against the current concrete case's workspace root — the subject of `file` / `dir` checkpoints and the output path of `write`.
-- A **`FixtureReference`** refers to a static fixture / snapshot file near the `*.repor` file itself. Its syntax is reserved by this grammar, but no argument position accepts it yet; it is introduced by #92.
-- A **`FileContentReference`** is a reference that provides expected file content. No v0 expectation consumes one yet; it is the expected-value category for the future `contents_equals` family (#87).
+- A **`FixtureReference`** refers to a static fixture / snapshot file near the `*.repor` file itself, resolved relative to that file's directory (see "Fixture reference value" below).
+- A **`FileContentReference`** is a reference that provides expected file content: a `WorkspacePath` or a `FixtureReference`. It is the expected-value category for `file <"path"> contents_equals` and `stdout` / `stderr contents_equals` (#92); the comparison behavior itself is #87's scope.
 
 There is **no implicit conversion** between these domains: a `TextValue` never converts to a `WorkspacePath` or `FixtureReference`, and vice versa. A `WorkspacePath` and a `FixtureReference` may hold the same string data internally, but they are distinct semantic types.
 
@@ -439,26 +439,38 @@ dir <WorkspacePath> contains <existing-dir-contains-expected>
 
 The `file` / `dir` checkpoint subject accepts a `WorkspacePath` **only** — never a `FixtureReference`. A fixture reference will be usable as expected content (`FileContentReference`), not as a checkpoint subject: assertions observe the workspace under test, while fixtures supply what to compare it against.
 
-### Design constraints for future expectations
+### `text_equals` and `contents_equals` positions
 
-Future `text_equals` / `contents_equals` expectations (#87, #88) must follow these type rules:
+`text_equals` and `contents_equals` follow these type rules:
 
 ```text
 file <WorkspacePath> text_equals <TextValue>
 file <WorkspacePath> contents_equals <FileContentReference>
 
 stdout contains <TextValue>
-stdout text_equals <TextValue>
 stdout contents_equals <FileContentReference>
 
 stderr contains <TextValue>
-stderr text_equals <TextValue>
 stderr contents_equals <FileContentReference>
 ```
 
-`contents_equals` takes a `FileContentReference` as its expected value uniformly, regardless of subject — a reader who sees `contents_equals` always knows the expected side is `<"...">` or `@"..."`. `text_equals`, like `contains`, always takes a `TextValue`. The conformance cases for these expectations are added by their own introducing issues.
+`contents_equals` takes a `FileContentReference` as its expected value uniformly, regardless of subject — a reader who sees `contents_equals` always knows the expected side is `<"...">` or `@"..."`. `text_equals`, like `contains`, always takes a `TextValue`; v0 only wires `text_equals` for `file`, not `stdout` / `stderr`.
 
-See [ADR: Workspace Path Literal Syntax](adr/20260706T160000Z_workspace-path-literal-syntax.md) for why the surface syntaxes are separated rather than contextually typed.
+#92 implements parsing, AST construction, and literal-kind validation for both positions (so a wrong-kind literal, e.g. `file <"out.txt"> text_equals @"expected.txt"`, is already a `semantic.literal.kind_mismatch`), and the fixture reference resolution/materialization mechanism described below. The comparison behavior itself — reading actual and expected bytes and reporting a match/mismatch — is `#87`'s scope for `contents_equals` and `#88`'s scope for `text_equals`; until they land, evaluating one of these expectations is not yet implemented.
+
+See [ADR: Workspace Path Literal Syntax](adr/20260706T160000Z_workspace-path-literal-syntax.md) for why the surface syntaxes are separated rather than contextually typed, and [ADR: Fixture Reference Value Syntax](adr/20260706T170000Z_fixture-reference-value-syntax.md) for the fixture reference literal itself.
+
+### Fixture reference value
+
+A `FixtureReference` (`@"<path>"`) names a static snapshot / fixture file kept alongside the referencing `*.repor` source file, for use as expected file contents in an assertion. It is only ever valid in a `FileContentsReference` expected position (`contents_equals`); everywhere else, including a `file` / `dir` checkpoint subject, `text_equals`, `write`, or a `*.repor` context outside any assertion block (e.g. an action line), it is rejected — either as a `semantic.literal.kind_mismatch` (a wrong-kind literal in a real argument position) or, for an action line, not interpreted as a fixture reference at all: `$ cat @"expected.json"` passes `@"expected.json"` to the shell verbatim, since Reportage never parses action bodies for embedded literals.
+
+**Path resolution.** A fixture path resolves relative to the directory containing the referencing `*.repor` file — never the repository root, and never the case workspace. `@"expected.json"` next to `cases/cli-json/run.repor` resolves to `cases/cli-json/expected.json`, regardless of where the suite is invoked from.
+
+**Path policy.** The same lexical policy as `WorkspacePath` applies to the raw fixture path: it must be non-empty and relative, and must not contain a `.` or `..` path segment. This is checked at AST construction time (`semantic.fixture_reference.empty` / `.absolute` / `.dot_segment`), exactly like `WorkspacePath`'s own policy.
+
+**Symlink / traversal defense.** A lexical dot-segment ban alone cannot stop an escape through a symlink planted under the `*.repor` directory. Resolution therefore canonicalizes both the `*.repor` directory and the candidate fixture path and verifies the latter still lies under the former before treating it as valid (`semantic.fixture_reference.escapes_repor_directory`); a missing source or a non-regular-file source (e.g. a directory) are separate, equally rejected outcomes (`semantic.fixture_reference.missing`, `.not_a_regular_file`). See `fixture::resolve_fixture_source`.
+
+**Validation vs. materialization timing.** Fixture validation (path resolution, containment, regular-file-ness) may run as early as parse or semantic validation, or as late as case planning. Materialization — copying the validated fixture's bytes into a runner-reserved area — happens only during assertion evaluation, never during the action phase: a fixture is never placed at an ordinary sandbox path, and its runner-reserved destination is not a path a script can address. See `fixture::materialize_fixture`.
 
 ## Text literal
 

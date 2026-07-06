@@ -1,0 +1,79 @@
+{
+  "cases": [
+    {
+      "name": "fixture reference and contents_equals / text_equals literal positions",
+      "steps": [
+        {
+          "kind": "write_file",
+          "path": "actual.txt",
+          "content": {
+            "kind": "quoted",
+            "value": "content"
+          }
+        },
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "actual.txt",
+              "matcher": {
+                "kind": "contents_equals",
+                "value": {
+                  "kind": "workspace",
+                  "path": "expected-workspace.txt"
+                }
+              }
+            },
+            {
+              "kind": "file",
+              "path": "actual.txt",
+              "matcher": {
+                "kind": "contents_equals",
+                "value": {
+                  "kind": "fixture",
+                  "path": "expected-fixture.txt"
+                }
+              }
+            },
+            {
+              "kind": "file",
+              "path": "actual.txt",
+              "matcher": {
+                "kind": "text_equals",
+                "value": {
+                  "kind": "quoted",
+                  "value": "expected text"
+                }
+              }
+            },
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "contents_equals",
+                "value": {
+                  "kind": "fixture",
+                  "path": "stdout.snapshot"
+                }
+              }
+            },
+            {
+              "kind": "stderr",
+              "matcher": {
+                "kind": "contents_equals",
+                "value": {
+                  "kind": "workspace",
+                  "path": "expected-workspace.txt"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

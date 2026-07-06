@@ -1,0 +1,6 @@
+case "file checkpoint subject requires a workspace path literal, not a fixture reference, regardless of predicate" {
+  $ true
+  assert {
+    file @"actual.txt" contents_equals @"expected.txt"
+  }
+}

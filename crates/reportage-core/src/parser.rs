@@ -4,9 +4,10 @@ use pest_derive::Parser;
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, DiagnosticLocation};
 use crate::model::{
     ActionStep, AssertionBlock, Case, DirExpectation, DirMatcher, ExitExpectation, Expectation,
-    FileExpectation, FileMatcher, LogicalExpectation, LogicalOperator, OutputExpectation,
-    OutputMatcher, RequiredLiteralKind, Script, SideEffectingStep, Step, TextLiteral,
-    ValueLiteralKind, WorkspacePath, WorkspacePathError, WriteFileStep,
+    FileContentsReference, FileExpectation, FileMatcher, FixtureReference, FixtureReferenceError,
+    LogicalExpectation, LogicalOperator, OutputExpectation, OutputMatcher, RequiredLiteralKind,
+    Script, SideEffectingStep, Step, TextLiteral, ValueLiteralKind, WorkspacePath,
+    WorkspacePathError, WriteFileStep,
 };
 
 #[derive(Parser)]
@@ -42,6 +43,13 @@ pub enum ParseError {
         line: usize,
         raw: String,
         reason: WorkspacePathError,
+    },
+    /// An `@"<path>"` fixture reference literal failed `FixtureReference::parse`
+    /// lexical validation (empty, absolute, or a `.` / `..` segment).
+    InvalidFixtureReference {
+        line: usize,
+        raw: String,
+        reason: FixtureReferenceError,
     },
     /// A literal of the wrong kind appeared in an argument position whose
     /// signature requires a different kind (e.g. `file "out.txt" exists`,
@@ -115,6 +123,19 @@ impl std::fmt::Display for ParseError {
                     "parse error at line {line}: write step path '{raw}' {reason_text}"
                 )
             }
+            ParseError::InvalidFixtureReference { line, raw, reason } => {
+                let reason_text = match reason {
+                    FixtureReferenceError::Empty => "must not be empty",
+                    FixtureReferenceError::Absolute => {
+                        "must be relative; absolute paths are rejected"
+                    }
+                    FixtureReferenceError::DotSegment => "must not contain '.' or '..' segments",
+                };
+                write!(
+                    f,
+                    "parse error at line {line}: fixture reference path '{raw}' {reason_text}"
+                )
+            }
             ParseError::LiteralKindMismatch {
                 line,
                 position,
@@ -157,6 +178,13 @@ impl ParseError {
                 WorkspacePathError::Empty => DiagnosticCode::SemanticWorkspacePathEmpty,
                 WorkspacePathError::Absolute => DiagnosticCode::SemanticWorkspacePathAbsolute,
                 WorkspacePathError::DotSegment => DiagnosticCode::SemanticWorkspacePathDotSegment,
+            },
+            ParseError::InvalidFixtureReference { reason, .. } => match reason {
+                FixtureReferenceError::Empty => DiagnosticCode::SemanticFixtureReferenceEmpty,
+                FixtureReferenceError::Absolute => DiagnosticCode::SemanticFixtureReferenceAbsolute,
+                FixtureReferenceError::DotSegment => {
+                    DiagnosticCode::SemanticFixtureReferenceDotSegment
+                }
             },
             ParseError::LiteralKindMismatch { .. } => DiagnosticCode::SemanticLiteralKindMismatch,
             ParseError::ShallowHeredocIndent { .. } => {
@@ -231,6 +259,16 @@ impl ParseError {
                 },
             ),
             ParseError::InvalidWorkspacePath { line, raw, .. } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails {
+                    raw_value: Some(raw.clone()),
+                    ..Default::default()
+                },
+            ),
+            ParseError::InvalidFixtureReference { line, raw, .. } => (
                 Some(DiagnosticLocation {
                     line: *line,
                     column: None,
@@ -407,6 +445,10 @@ enum RequiredKind {
     /// The position requires a plain `"..."` string literal
     /// (`dir contains` entry name).
     StringLiteral,
+    /// The position requires a `FileContentsReference`: a `<"...">`
+    /// workspace path literal or an `@"..."` fixture reference literal
+    /// (a `contents_equals` expected value). See #92.
+    FileContentsReference,
 }
 
 impl RequiredKind {
@@ -418,6 +460,7 @@ impl RequiredKind {
                 RequiredLiteralKind::TextValue
             }
             RequiredKind::StringLiteral => RequiredLiteralKind::StringLiteral,
+            RequiredKind::FileContentsReference => RequiredLiteralKind::FileContentsReference,
         }
     }
 }
@@ -448,6 +491,12 @@ impl ValueLiteral {
             RequiredKind::TextValueStringOrHeredoc
             | RequiredKind::TextValueStringOnly
             | RequiredKind::StringLiteral => self.kind == ValueLiteralKind::StringLiteral,
+            RequiredKind::FileContentsReference => {
+                matches!(
+                    self.kind,
+                    ValueLiteralKind::WorkspacePath | ValueLiteralKind::FixtureReference
+                )
+            }
         };
         if matches {
             return Ok(self.value);
@@ -463,6 +512,12 @@ impl ValueLiteral {
             }
             RequiredKind::TextValueStringOnly | RequiredKind::StringLiteral => {
                 self.quoted_source.clone()
+            }
+            RequiredKind::FileContentsReference => {
+                format!(
+                    "a workspace path literal or fixture reference literal (e.g. <{0}> or @{0})",
+                    self.quoted_source
+                )
             }
         };
         Err(ParseError::LiteralKindMismatch {
@@ -511,6 +566,39 @@ fn parse_value_literal(pair: pest::iterators::Pair<Rule>) -> ValueLiteral {
         value: extract_string_inner(quoted),
         quoted_source,
         line,
+    }
+}
+
+/// Parses a `value_literal` pair into a [`FileContentsReference`] (a
+/// `contents_equals` expected value): a `<"...">` workspace path literal or
+/// an `@"..."` fixture reference literal, each validated against its own
+/// lexical policy at construction time. Any other literal kind (a plain
+/// `"..."` string literal) is rejected as a `LiteralKindMismatch` via
+/// [`ValueLiteral::expect_kind`]. See #92 and
+/// docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+fn parse_file_contents_reference(
+    literal_pair: pest::iterators::Pair<Rule>,
+    position: &'static str,
+) -> Result<FileContentsReference, ParseError> {
+    let literal = parse_value_literal(literal_pair);
+    let kind = literal.kind;
+    let line = literal.line;
+    let raw = literal.expect_kind(RequiredKind::FileContentsReference, position)?;
+
+    match kind {
+        ValueLiteralKind::WorkspacePath => {
+            let path = WorkspacePath::parse(&raw)
+                .map_err(|reason| ParseError::InvalidWorkspacePath { line, raw, reason })?;
+            Ok(FileContentsReference::Workspace(path))
+        }
+        ValueLiteralKind::FixtureReference => {
+            let fixture = FixtureReference::parse(&raw)
+                .map_err(|reason| ParseError::InvalidFixtureReference { line, raw, reason })?;
+            Ok(FileContentsReference::Fixture(fixture))
+        }
+        ValueLiteralKind::StringLiteral => {
+            unreachable!("expect_kind already rejected StringLiteral for FileContentsReference")
+        }
     }
 }
 
@@ -688,6 +776,19 @@ fn parse_output_exp(
                 .expect_kind(RequiredKind::TextValueStringOnly, position)?;
             OutputMatcher::Contains(expected)
         }
+        Rule::output_contents_equals => {
+            // output_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
+            let literal_pair = inner
+                .into_inner()
+                .next()
+                .expect("output_contents_equals must have value_literal");
+            let position = if is_stdout {
+                "`stdout contents_equals` expected value"
+            } else {
+                "`stderr contents_equals` expected value"
+            };
+            OutputMatcher::ContentsEquals(parse_file_contents_reference(literal_pair, position)?)
+        }
         rule => unreachable!("unexpected rule in output_matcher: {rule:?}"),
     };
 
@@ -707,7 +808,7 @@ fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Pars
         .expect_kind(RequiredKind::WorkspacePath, "`file` checkpoint subject")?;
 
     let predicate_pair = inner.next().expect("file_exp must have a predicate");
-    // file_predicate = { file_contains | file_exists }
+    // file_predicate = { file_contains | file_contents_equals | file_text_equals | file_exists }
     let predicate = predicate_pair
         .into_inner()
         .next()
@@ -726,6 +827,30 @@ fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Pars
                 "`file contains` expected text",
             )?;
             FileMatcher::Contains(TextLiteral::Quoted(expected))
+        }
+        Rule::file_contents_equals => {
+            // file_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
+            let literal_pair = predicate
+                .into_inner()
+                .next()
+                .expect("file_contents_equals must have value_literal");
+            let expected = parse_file_contents_reference(
+                literal_pair,
+                "`file contents_equals` expected value",
+            )?;
+            FileMatcher::ContentsEquals(expected)
+        }
+        Rule::file_text_equals => {
+            // file_text_equals = { "text_equals" ~ ws+ ~ value_literal }
+            let literal_pair = predicate
+                .into_inner()
+                .next()
+                .expect("file_text_equals must have value_literal");
+            let expected = parse_value_literal(literal_pair).expect_kind(
+                RequiredKind::TextValueStringOnly,
+                "`file text_equals` expected text",
+            )?;
+            FileMatcher::TextEquals(TextLiteral::Quoted(expected))
         }
         rule => unreachable!("unexpected rule in file_predicate: {rule:?}"),
     };
@@ -2634,6 +2759,217 @@ case "x" {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\" > exists\n  }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    // ─── Fixture reference literal / contents_equals / text_equals (#92) ───
+
+    #[test]
+    fn file_contents_equals_accepts_workspace_path_literal() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals <\"expected.txt\">\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected assertion block");
+        };
+        let Expectation::File(file_exp) = &block.expectations()[0] else {
+            panic!("expected file expectation");
+        };
+        assert!(matches!(
+            file_exp.matcher,
+            FileMatcher::ContentsEquals(FileContentsReference::Workspace(_))
+        ));
+    }
+
+    #[test]
+    fn file_contents_equals_accepts_fixture_reference_literal() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"expected.txt\"\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected assertion block");
+        };
+        let Expectation::File(file_exp) = &block.expectations()[0] else {
+            panic!("expected file expectation");
+        };
+        match &file_exp.matcher {
+            FileMatcher::ContentsEquals(FileContentsReference::Fixture(fixture)) => {
+                assert_eq!(fixture.as_str(), "expected.txt");
+            }
+            other => panic!("expected fixture contents_equals, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn file_contents_equals_rejects_string_literal() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals \"expected.txt\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::FileContentsReference,
+                actual: ValueLiteralKind::StringLiteral,
+                ..
+            }
+        ));
+        let message = err.to_string();
+        assert!(message.contains("`file contents_equals` expected value"));
+        assert!(message.contains("workspace path literal or fixture reference literal"));
+    }
+
+    #[test]
+    fn file_contents_equals_subject_fixture_reference_is_kind_mismatch() {
+        // The `file` checkpoint subject requires a WorkspacePath, never a
+        // FixtureReference, regardless of which predicate follows it.
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file @\"actual.txt\" contents_equals @\"expected.txt\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::WorkspacePath,
+                actual: ValueLiteralKind::FixtureReference,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn file_text_equals_accepts_string_literal() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> text_equals \"expected\"\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected assertion block");
+        };
+        let Expectation::File(file_exp) = &block.expectations()[0] else {
+            panic!("expected file expectation");
+        };
+        match &file_exp.matcher {
+            FileMatcher::TextEquals(TextLiteral::Quoted(value)) => {
+                assert_eq!(value, "expected");
+            }
+            other => panic!("expected quoted text_equals, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn file_text_equals_rejects_fixture_reference() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> text_equals @\"expected.txt\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::TextValue,
+                actual: ValueLiteralKind::FixtureReference,
+                ..
+            }
+        ));
+        let message = err.to_string();
+        assert!(message.contains("`file text_equals` expected text"));
+    }
+
+    #[test]
+    fn stdout_contents_equals_accepts_fixture_reference_literal() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contents_equals @\"stdout.snapshot\"\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected assertion block");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Stdout(OutputExpectation {
+                matcher: OutputMatcher::ContentsEquals(FileContentsReference::Fixture(_)),
+            })
+        ));
+    }
+
+    #[test]
+    fn stderr_contents_equals_accepts_workspace_path_literal() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stderr contents_equals <\"expected.txt\">\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected assertion block");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Stderr(OutputExpectation {
+                matcher: OutputMatcher::ContentsEquals(FileContentsReference::Workspace(_)),
+            })
+        ));
+    }
+
+    #[test]
+    fn fixture_reference_empty_path_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::InvalidFixtureReference {
+                reason: FixtureReferenceError::Empty,
+                ..
+            }
+        ));
+        assert_eq!(err.code().as_str(), "semantic.fixture_reference.empty");
+    }
+
+    #[test]
+    fn fixture_reference_absolute_path_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"/etc/passwd\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::InvalidFixtureReference {
+                reason: FixtureReferenceError::Absolute,
+                ..
+            }
+        ));
+        assert_eq!(err.code().as_str(), "semantic.fixture_reference.absolute");
+    }
+
+    #[test]
+    fn fixture_reference_dot_segment_path_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"../escape.txt\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::InvalidFixtureReference {
+                reason: FixtureReferenceError::DotSegment,
+                ..
+            }
+        ));
+        assert_eq!(
+            err.code().as_str(),
+            "semantic.fixture_reference.dot_segment"
+        );
+    }
+
+    #[test]
+    fn write_step_content_fixture_reference_is_kind_mismatch() {
+        // Outside an assertion block, a fixture reference literal is still
+        // just a value_literal whose kind never matches a write step's
+        // TextValue content requirement: fixture references are only valid
+        // in a FileContentsReference expected position (#92).
+        let src = "case \"x\" {\n  write <\"out.txt\"> @\"expected.txt\"\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::TextValue,
+                actual: ValueLiteralKind::FixtureReference,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn write_step_path_fixture_reference_is_kind_mismatch() {
+        let src =
+            "case \"x\" {\n  write @\"out.txt\" \"content\"\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::WorkspacePath,
+                actual: ValueLiteralKind::FixtureReference,
+                ..
+            }
+        ));
     }
 
     #[test]

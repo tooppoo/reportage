@@ -1,0 +1,7 @@
+case "write step content requires a text value, not a fixture reference" {
+  write <"out.txt"> @"expected.txt"
+  $ true
+  assert {
+    exit 0
+  }
+}

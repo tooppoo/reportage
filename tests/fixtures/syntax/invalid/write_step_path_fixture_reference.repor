@@ -1,0 +1,7 @@
+case "write step path requires a workspace path literal, not a fixture reference" {
+  write @"out.txt" "content"
+  $ true
+  assert {
+    exit 0
+  }
+}
