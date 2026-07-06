@@ -1,4 +1,3 @@
-
 #!/bin/sh
 # Review this script before running it.
 # This generated installer is provided as-is, without any warranty.
@@ -21,7 +20,7 @@ fi
 #   versionResolver.fileName: VERSION
 #   archive.format: tar.gz
 #   archive.nameTemplate: {repo}_{version}_{os}_{arch}.tar.gz
-#   archive.osCase: lowercase
+#   archive.osCase: capitalized
 #   checksum.fileName: checksums.txt
 #   checksum.algorithm: sha256
 #   defaults.installDir: $HOME/.local/bin
@@ -511,6 +510,10 @@ render_archive_asset_name() {
   version=$1
   os=$2
   asset_arch_label=$3
+  case "$os" in
+    linux) os=Linux ;;
+    darwin) os=Darwin ;;
+  esac
   target="${os}_${asset_arch_label}"
   printf '%s' "$REPO" '_' "$version" '_' "$os" '_' "$asset_arch_label" '.tar.gz'
   printf '\n'
