@@ -87,7 +87,7 @@
             }
           },
           "contentName": "source.shell.embedded.reportage",
-          "end": "$",
+          "end": "(?<!\\\\)$",
           "patterns": [
             {
               "name": "entity.name.function.command.reportage",

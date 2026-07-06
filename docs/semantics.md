@@ -220,6 +220,13 @@ $ rellog check --json | jq .
 
 The runner does not rewrite arbitrary shell syntax in v0. The shell is responsible for interpreting pipelines, redirections, variable expansion, conditionals, filesystem operations, and other shell constructs.
 
+A `$` action can span multiple physical lines: a line ending in `\` immediately before the line break continues into the next physical line, with the `\` and the line break preserved verbatim in the command handed to the shell. See [`docs/syntax.md`](syntax.md) and [the ADR](adr/20260706T150000Z_action-line-continuation.md) for the exact continuation rule.
+
+```reportage
+$ echo one \
+  two
+```
+
 For fixture copying and ordinary file operations, use shell commands:
 
 ```reportage

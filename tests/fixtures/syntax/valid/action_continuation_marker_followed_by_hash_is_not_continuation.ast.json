@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "name": "trailing hash after marker is not a continuation",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "echo hi \\# comment"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

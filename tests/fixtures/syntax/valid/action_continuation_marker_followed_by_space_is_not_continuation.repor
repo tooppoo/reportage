@@ -1,0 +1,4 @@
+case "trailing space after marker is not a continuation" {
+  $ echo hi \ 
+  assert { exit 0 }
+}

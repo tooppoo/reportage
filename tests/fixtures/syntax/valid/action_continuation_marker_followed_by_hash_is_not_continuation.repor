@@ -1,0 +1,4 @@
+case "trailing hash after marker is not a continuation" {
+  $ echo hi \# comment
+  assert { exit 0 }
+}

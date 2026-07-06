@@ -1,0 +1,6 @@
+case "action continuation swallows only the next line" {
+  $ true \
+  assert {
+    exit 0
+  }
+}

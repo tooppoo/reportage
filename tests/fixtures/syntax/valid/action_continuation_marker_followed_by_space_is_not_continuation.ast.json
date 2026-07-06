@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "name": "trailing space after marker is not a continuation",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "echo hi \\"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
