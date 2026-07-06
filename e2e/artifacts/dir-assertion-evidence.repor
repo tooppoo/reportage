@@ -41,7 +41,15 @@ case "dir contains is not recursive, not a glob, and not a file content search" 
 }
 
 case "invalid dir assertion path is rejected as a script error" {
-  $ printf '%s\n' 'case "inner" {' '  $ true' '  assert {' '    dir "../escape" exists' '  }' '}' > tmp-dir-invalid-path.repor && reportage tmp-dir-invalid-path.repor
+  write "tmp-dir-invalid-path.repor" ```
+    case "inner" {
+      $ true
+      assert {
+        dir "../escape" exists
+      }
+    }
+    ```
+  $ reportage tmp-dir-invalid-path.repor
 
   assert {
     exit 2
@@ -50,7 +58,15 @@ case "invalid dir assertion path is rejected as a script error" {
 }
 
 case "invalid dir contains entry name is rejected as a script error" {
-  $ printf '%s\n' 'case "inner" {' '  $ true' '  assert {' '    dir "artifacts" contains "a/b"' '  }' '}' > tmp-dir-invalid-entry.repor && reportage tmp-dir-invalid-entry.repor
+  write "tmp-dir-invalid-entry.repor" ```
+    case "inner" {
+      $ true
+      assert {
+        dir "artifacts" contains "a/b"
+      }
+    }
+    ```
+  $ reportage tmp-dir-invalid-entry.repor
 
   assert {
     exit 2
