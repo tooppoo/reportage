@@ -44,12 +44,9 @@ jobs:
           path: dist
 
       - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/* --clobber
-          else
-            gh release create "$TAG" --title "$TAG" --generate-notes dist/*
-          fi
+        uses: tooppoo/rellog/actions/create-release-note@aa5a54faf97db603961e391f70c8063afe4775aa # v0.1.0
+        with:
+          release-id: ${{ github.ref_name }}
+          files: |
+            dist/*.tar.gz
+            dist/checksums.txt
