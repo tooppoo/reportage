@@ -78,6 +78,13 @@ pub enum ExpectationKind {
 impl ExpectationKind {
     /// The stable diagnostic code for a failing expectation of this kind, if one is defined.
     /// Passing expectations, and expectation kinds without a dedicated diagnostic code, return `None`.
+    ///
+    /// `Exit` / `StdoutContains` / `StderrContains` / `StdoutEmpty` / `StderrEmpty` are not
+    /// covered here: unlike `File*`/`Dir*`, they carry no independent "observation" enum that
+    /// already encodes pass/fail, so determining their code requires the sibling
+    /// `ExpectationResult.passed` computed during evaluation. See
+    /// `ExpectationResult::failure_diagnostic_code`.
+    ///
     /// See docs/semantic-diagnostics.md.
     pub fn failure_diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
@@ -191,6 +198,33 @@ pub struct ExpectationResult {
     pub passed: bool,
 }
 
+impl ExpectationResult {
+    /// The stable diagnostic code for this expectation, if it failed and one is defined.
+    ///
+    /// Delegates to [`ExpectationKind::failure_diagnostic_code`] for kinds whose own
+    /// observation already encodes pass/fail (`File*`/`Dir*`). For `Exit` / `StdoutContains` /
+    /// `StderrContains` / `StdoutEmpty` / `StderrEmpty`, which carry no such observation, this
+    /// gates on `passed` directly instead of re-deriving pass/fail from `expected`/`actual`
+    /// (that comparison already happened once, in the evaluator).
+    pub fn failure_diagnostic_code(&self) -> Option<DiagnosticCode> {
+        if self.passed {
+            return None;
+        }
+        match &self.kind {
+            ExpectationKind::Exit { .. } => Some(DiagnosticCode::AssertionExitMismatch),
+            ExpectationKind::StdoutContains { .. } => {
+                Some(DiagnosticCode::AssertionStdoutContainsMismatch)
+            }
+            ExpectationKind::StderrContains { .. } => {
+                Some(DiagnosticCode::AssertionStderrContainsMismatch)
+            }
+            ExpectationKind::StdoutEmpty { .. } => Some(DiagnosticCode::AssertionStdoutNotEmpty),
+            ExpectationKind::StderrEmpty { .. } => Some(DiagnosticCode::AssertionStderrNotEmpty),
+            other => other.failure_diagnostic_code(),
+        }
+    }
+}
+
 /// The result of evaluating one assertion block.
 ///
 /// All expectations within the block are evaluated; `has_failures` reflects whether any of them failed.
@@ -200,6 +234,13 @@ pub struct AssertionBlockResult {
     /// Index of this assertion block's step within the case body.
     pub step_index: usize,
     pub expectations: Vec<ExpectationResult>,
+    /// Index into the case's `actions` of the checkpoint this block evaluated process
+    /// expectations against, i.e. how many `$` actions had run by this point minus one.
+    /// `None` means the block ran at the initial checkpoint (no action has run yet), which
+    /// is only possible when the block has no process expectations (`exit`/`stdout`/`stderr`)
+    /// — see `evaluate_case`'s "assertion block ... uses a process expectation ... but no '$'
+    /// action has run yet" check.
+    pub checkpoint_action_index: Option<usize>,
 }
 
 impl AssertionBlockResult {
@@ -215,18 +256,35 @@ pub enum CaseStatus {
     Pass,
     Fail,
     /// A structural problem with the test script itself: empty assertion block, process expectation at the initial checkpoint, etc.
-    ScriptError(String),
+    ScriptError(ScriptError),
     /// A runtime infrastructure failure: cannot spawn the shell, cannot create the case workspace, a side-effecting step (`write`) failed at runtime, etc.
     RuntimeError(RuntimeError),
 }
 
+/// Structured detail for a [`CaseStatus::ScriptError`].
+///
+/// Covers both parse-domain problems detected at evaluation time (e.g. a missing
+/// assertion block, which reuses `DiagnosticCode::ParseMissingAssertionBlock`) and
+/// semantic errors (e.g. a path policy violation, or a process expectation used
+/// before any action has run). `diagnostic_code` and `step_index` let callers
+/// (CLI rendering, the `--format=json` renderer) surface the failure structurally
+/// instead of parsing it back out of `message`.
+#[derive(Debug)]
+pub struct ScriptError {
+    pub message: String,
+    /// The stable diagnostic code for this failure, when one is defined.
+    pub diagnostic_code: Option<DiagnosticCode>,
+    /// The case-body step index this failure occurred at, when applicable.
+    /// `None` for case-level problems not tied to one step (e.g. a missing assertion block).
+    pub step_index: Option<usize>,
+}
+
 /// Structured detail for a [`CaseStatus::RuntimeError`].
 ///
-/// Unlike `ScriptError`, which is still a plain message, a runtime error can
-/// originate from a side-effecting step with its own stable diagnostic code
-/// (e.g. `step.write.target_exists`); `diagnostic_code` and `step_index`
-/// let callers (CLI rendering, the `result.json` artifact) surface that
-/// structurally instead of parsing it back out of `message`.
+/// A runtime error can originate from a side-effecting step with its own stable
+/// diagnostic code (e.g. `step.write.target_exists`); `diagnostic_code` and
+/// `step_index` let callers (CLI rendering, the `result.json` artifact) surface
+/// that structurally instead of parsing it back out of `message`.
 #[derive(Debug)]
 pub struct RuntimeError {
     pub message: String,
@@ -255,8 +313,15 @@ pub struct CaseResult {
 /// Kind of a file-level error encountered during the pre-execution validation phase.
 #[derive(Debug)]
 pub enum FileErrorKind {
+    /// The file could not be read (e.g. missing, permission denied). Carries no diagnostic
+    /// code: this predates parsing, so no `parse.*` / `semantic.*` code applies.
     ReadError(String),
-    ParseError(String),
+    /// The file was read but failed to parse. `diagnostic_code` is the stable code the parser
+    /// attached to this failure (see `parser::ParseError::code`).
+    ParseError {
+        message: String,
+        diagnostic_code: DiagnosticCode,
+    },
 }
 
 /// A file-level error: a test file that could not be read or parsed.

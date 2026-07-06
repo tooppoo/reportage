@@ -84,14 +84,12 @@ pub fn load_and_validate(paths: &[PathBuf]) -> (Vec<ValidatedFile>, Vec<FileErro
             }
             Ok(source) => match parser::parse(&source) {
                 Err(e) => {
-                    // Embed the stable diagnostic code alongside the message, the
-                    // same way `evaluate_case`'s `ScriptError` messages do, so a
-                    // fine-grained parse-domain code (e.g.
-                    // `semantic.workspace_path.absolute`) is visible in CLI
-                    // output and not just in `ParseError::code()`.
                     errors.push(FileError {
                         source_path: path.clone(),
-                        kind: FileErrorKind::ParseError(format!("{e} [{}]", e.code().as_str())),
+                        kind: FileErrorKind::ParseError {
+                            diagnostic_code: e.code(),
+                            message: e.to_string(),
+                        },
                     });
                 }
                 Ok(script) => {

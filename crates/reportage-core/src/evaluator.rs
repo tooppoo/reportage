@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use crate::diagnostic::DiagnosticCode;
 use crate::executor::{ExecutionEnvironment, execute_action};
 use crate::model::{
     Case, DirExpectation, DirMatcher, Expectation, FileExpectation, FileMatcher, LogicalOperator,
@@ -8,7 +9,7 @@ use crate::model::{
 use crate::result::{
     ActionResult, AssertionBlockResult, CaseResult, CaseStatus, DirContainsObservation,
     DirExistsObservation, ExecutionReport, ExpectationKind, ExpectationResult,
-    FileContentObservation, FileExistsObservation, RuntimeError,
+    FileContentObservation, FileExistsObservation, RuntimeError, ScriptError,
 };
 use crate::semantic::{
     SemanticError, validate_dir_entry_name, validate_dir_path, validate_file_path,
@@ -73,10 +74,14 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
         return CaseResult {
             name: case.name.clone(),
             source_path: None,
-            status: CaseStatus::ScriptError(format!(
-                "case '{}' has no assertion block; every case requires at least one assert {{ ... }} block",
-                case.name
-            )),
+            status: CaseStatus::ScriptError(ScriptError {
+                message: format!(
+                    "case '{}' has no assertion block; every case requires at least one assert {{ ... }} block",
+                    case.name
+                ),
+                diagnostic_code: Some(DiagnosticCode::ParseMissingAssertionBlock),
+                step_index: None,
+            }),
             actions: vec![],
             assertion_blocks: vec![],
             side_effects_executed: 0,
@@ -189,13 +194,19 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                         return CaseResult {
                             name: case.name.clone(),
                             source_path: None,
-                            status: CaseStatus::ScriptError(format!(
-                                "case '{}': assertion block at step {} uses a process expectation \
-                                 (exit, stdout, stderr) but no '$' action has run yet; \
-                                 the initial checkpoint has no last action result",
-                                case.name,
-                                step_idx + 1,
-                            )),
+                            status: CaseStatus::ScriptError(ScriptError {
+                                message: format!(
+                                    "case '{}': assertion block at step {} uses a process expectation \
+                                     (exit, stdout, stderr) but no '$' action has run yet; \
+                                     the initial checkpoint has no last action result",
+                                    case.name,
+                                    step_idx + 1,
+                                ),
+                                diagnostic_code: Some(
+                                    DiagnosticCode::SemanticExpectationRequiresAction,
+                                ),
+                                step_index: Some(step_idx),
+                            }),
                             actions: action_results,
                             assertion_blocks: assertion_block_results,
                             side_effects_executed,
@@ -216,13 +227,16 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                         return CaseResult {
                             name: case.name.clone(),
                             source_path: None,
-                            status: CaseStatus::ScriptError(format!(
-                                "case '{}': assertion block at step {} has an invalid \
-                                 expectation: {semantic_err} [{}]",
-                                case.name,
-                                step_idx + 1,
-                                semantic_err.code().as_str(),
-                            )),
+                            status: CaseStatus::ScriptError(ScriptError {
+                                message: format!(
+                                    "case '{}': assertion block at step {} has an invalid \
+                                     expectation: {semantic_err}",
+                                    case.name,
+                                    step_idx + 1,
+                                ),
+                                diagnostic_code: Some(semantic_err.code()),
+                                step_index: Some(step_idx),
+                            }),
                             actions: action_results,
                             assertion_blocks: assertion_block_results,
                             side_effects_executed,
@@ -240,6 +254,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                 let block_result = AssertionBlockResult {
                     step_index: step_idx,
                     expectations: expectation_results,
+                    checkpoint_action_index: action_results.len().checked_sub(1),
                 };
 
                 if block_result.has_failures() {

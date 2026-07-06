@@ -119,14 +119,60 @@ impl ArtifactWriter {
         Ok(ArtifactWriter { run_dir })
     }
 
+    /// The run directory this writer writes into (e.g. `.reportage/runs/<id>`).
+    ///
+    /// This is the `artifactRoot` that `--format=json` output resolves `artifactRef` values
+    /// against. See [`test_id`] / [`action_id`] for the path segments used underneath it.
+    pub fn run_dir(&self) -> &Path {
+        &self.run_dir
+    }
+
     pub fn write(&self, result: &ExecutionReport) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.run_dir)?;
         let value = build_json(result);
         let json = serde_json::to_string_pretty(&value)
             .expect("result JSON serialization should not fail");
         std::fs::write(self.run_dir.join("result.json"), json)?;
+        self.write_captured_output(result)?;
         Ok(())
     }
+
+    /// Writes each action's captured stdout/stderr as raw bytes under
+    /// `<run-dir>/<test_id>/<action_id>/{stdout,stderr}.bin`.
+    ///
+    /// This is the artifact-file side of the "captured stdout/stderr are not inlined in
+    /// `--format=json`" policy: the JSON renderer references these files by relative path
+    /// (`artifactRef`) instead of embedding raw bytes. See `reportage-cli::render::json` and
+    /// docs/adr candidate "Captured stdout/stderr are v0 artifact references, not inline data".
+    fn write_captured_output(&self, result: &ExecutionReport) -> std::io::Result<()> {
+        for (case_index, case) in result.cases.iter().enumerate() {
+            for (action_index, action) in case.actions.iter().enumerate() {
+                let dir = self
+                    .run_dir
+                    .join(test_id(case_index))
+                    .join(action_id(action_index));
+                std::fs::create_dir_all(&dir)?;
+                std::fs::write(dir.join("stdout.bin"), &action.stdout)?;
+                std::fs::write(dir.join("stderr.bin"), &action.stderr)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The document-local id for the case at `case_index` (0-based) within an `ExecutionReport`.
+///
+/// Shared between artifact file paths (`<run-dir>/<test_id>/...`) and the `--format=json`
+/// renderer's `tests[].id`, so a JSON `artifactRef` and the file it names always agree.
+pub fn test_id(case_index: usize) -> String {
+    format!("test-{}", case_index + 1)
+}
+
+/// The document-local id for the action at `action_index` (0-based) within one case.
+///
+/// See [`test_id`].
+pub fn action_id(action_index: usize) -> String {
+    format!("action-{}", action_index + 1)
 }
 
 fn build_json(result: &ExecutionReport) -> serde_json::Value {
@@ -165,15 +211,22 @@ fn build_json(result: &ExecutionReport) -> serde_json::Value {
                 .file_errors
                 .iter()
                 .map(|e| {
-                    let (kind_str, message) = match &e.kind {
-                        FileErrorKind::ReadError(msg) => ("read_error", msg.as_str()),
-                        FileErrorKind::ParseError(msg) => ("parse_error", msg.as_str()),
+                    let (kind_str, message, diagnostic_code) = match &e.kind {
+                        FileErrorKind::ReadError(msg) => ("read_error", msg.as_str(), None),
+                        FileErrorKind::ParseError {
+                            message,
+                            diagnostic_code,
+                        } => ("parse_error", message.as_str(), Some(*diagnostic_code)),
                     };
-                    json!({
+                    let mut entry = json!({
                         "source_path": e.source_path.display().to_string(),
                         "kind": kind_str,
                         "message": message
-                    })
+                    });
+                    if let Some(code) = diagnostic_code {
+                        entry["diagnostic_code"] = json!(code.as_str());
+                    }
+                    entry
                 })
                 .collect::<Vec<_>>()
         );
@@ -302,7 +355,7 @@ fn expectation_result_json(e: &ExpectationResult) -> serde_json::Value {
             "result": result_str,
         }),
     };
-    if let Some(code) = e.kind.failure_diagnostic_code() {
+    if let Some(code) = e.failure_diagnostic_code() {
         value["diagnostic_code"] = json!(code.as_str());
     }
     value
@@ -317,7 +370,12 @@ fn case_json(case: &CaseResult) -> serde_json::Value {
     ) = match &case.status {
         CaseStatus::Pass => ("pass", None, None, None),
         CaseStatus::Fail => ("fail", None, None, None),
-        CaseStatus::ScriptError(msg) => ("script_error", Some(msg), None, None),
+        CaseStatus::ScriptError(err) => (
+            "script_error",
+            Some(err.message.as_str()),
+            err.diagnostic_code.map(|c| c.as_str()),
+            err.step_index,
+        ),
         CaseStatus::RuntimeError(err) => (
             "runtime_error",
             Some(err.message.as_str()),
@@ -454,6 +512,42 @@ mod tests {
         assert!(matches!(err, ArtifactWriterError::RunDirectoryExists(_)));
     }
 
+    #[test]
+    fn write_captures_action_stdout_and_stderr_as_artifact_files() {
+        let base = TempDir::new().unwrap();
+        let run_id = RunId::new("captured-output").unwrap();
+        let writer = ArtifactWriter::for_fixed_run(base.path(), &run_id).unwrap();
+
+        let case = CaseResult {
+            name: "one action".to_string(),
+            source_path: None,
+            status: CaseStatus::Pass,
+            actions: vec![ActionResult {
+                command: "echo hello".to_string(),
+                exit_code: 0,
+                stdout: b"hello\n".to_vec(),
+                stderr: b"".to_vec(),
+                shim_invocations: vec![],
+                shim_event_parse_warnings: vec![],
+            }],
+            assertion_blocks: vec![],
+            side_effects_executed: 0,
+        };
+        writer
+            .write(&ExecutionReport {
+                cases: vec![case],
+                file_errors: vec![],
+            })
+            .unwrap();
+
+        let action_dir = writer.run_dir().join(test_id(0)).join(action_id(0));
+        assert_eq!(
+            std::fs::read(action_dir.join("stdout.bin")).unwrap(),
+            b"hello\n"
+        );
+        assert_eq!(std::fs::read(action_dir.join("stderr.bin")).unwrap(), b"");
+    }
+
     use crate::model::LogicalOperator;
     use crate::result::AssertionBlockResult;
 
@@ -461,6 +555,7 @@ mod tests {
     fn logical_expectation_result_renders_operator_and_children() {
         let block = AssertionBlockResult {
             step_index: 0,
+            checkpoint_action_index: Some(0),
             expectations: vec![ExpectationResult {
                 kind: ExpectationKind::Logical {
                     operator: LogicalOperator::Any,

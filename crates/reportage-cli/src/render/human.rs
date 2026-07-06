@@ -27,13 +27,20 @@ fn print_results(result: &ExecutionReport) {
     for error in &result.file_errors {
         let kind = match &error.kind {
             FileErrorKind::ReadError(_) => "READ ERROR",
-            FileErrorKind::ParseError(_) => "PARSE ERROR",
+            FileErrorKind::ParseError { .. } => "PARSE ERROR",
         };
         eprintln!("{kind}  {}", error.source_path.display());
-        let message = match &error.kind {
-            FileErrorKind::ReadError(msg) | FileErrorKind::ParseError(msg) => msg,
+        let (message, diagnostic_code) = match &error.kind {
+            FileErrorKind::ReadError(msg) => (msg.as_str(), None),
+            FileErrorKind::ParseError {
+                message,
+                diagnostic_code,
+            } => (message.as_str(), Some(*diagnostic_code)),
         };
         eprintln!("  {message}");
+        if let Some(code) = diagnostic_code {
+            eprintln!("    diagnostic code: {}", code.as_str());
+        }
     }
 
     for case in &result.cases {
@@ -51,8 +58,11 @@ fn print_results(result: &ExecutionReport) {
         println!("{label}");
 
         match &case.status {
-            CaseStatus::ScriptError(msg) => {
-                eprintln!("  {msg}");
+            CaseStatus::ScriptError(err) => {
+                eprintln!("  {}", err.message);
+                if let Some(code) = err.diagnostic_code {
+                    eprintln!("    diagnostic code: {}", code.as_str());
+                }
             }
             CaseStatus::RuntimeError(err) => {
                 eprintln!("  {}", err.message);
@@ -101,7 +111,7 @@ fn print_results(result: &ExecutionReport) {
 /// Always recursing into every child, described in its own held/did-not-hold terms, keeps `all` / `any` failures explainable too, without needing a separate per-operator rule for which children are "responsible".
 fn print_failed_expectation(step_index: usize, expectation: &ExpectationResult) {
     print_expectation_detail(step_index, expectation);
-    if let Some(code) = expectation.kind.failure_diagnostic_code() {
+    if let Some(code) = expectation.failure_diagnostic_code() {
         eprintln!("    diagnostic code: {}", code.as_str());
     }
 }
