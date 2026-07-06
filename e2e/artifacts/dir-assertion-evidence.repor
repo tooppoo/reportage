@@ -19,6 +19,38 @@ case "dir exists fails against a regular file" {
   }
 }
 
+case "dir exists succeeds through a symlink to a directory" {
+  $ mkdir real && ln -s real link
+
+  assert {
+    exit 0
+    dir "link" exists
+  }
+}
+
+case "dir exists fails through a symlink to a regular file" {
+  $ touch real.txt && ln -s real.txt link
+
+  assert {
+    exit 0
+    file "link" exists
+    not {
+      dir "link" exists
+    }
+  }
+}
+
+case "dir exists fails for a broken symlink" {
+  $ ln -s does-not-exist link
+
+  assert {
+    exit 0
+    not {
+      dir "link" exists
+    }
+  }
+}
+
 case "dir contains succeeds for a directory entry" {
   $ mkdir -p artifacts && touch artifacts/result.json
 
