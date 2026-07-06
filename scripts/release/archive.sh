@@ -46,7 +46,7 @@ archive_reportage() {
   rm -r "$archive_dir"
 
   echo "$archive_path"
-  echo "$checksum_path"
+  echo "dist/$checksum_path"
 }
 
 cleanup() {

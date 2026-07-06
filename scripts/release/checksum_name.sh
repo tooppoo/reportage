@@ -8,4 +8,4 @@ version="$($script_path/../get-version.sh)"
 os="$(uname -s)"
 arch="$(uname -m)"
 
-echo "$($script_path/template/checksum.sh $version $os $arch)"
+echo "$($script_path/template/template_checksum.sh $version $os $arch)"
