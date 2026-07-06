@@ -155,11 +155,14 @@ jobs:
         with:
           name: ${{ needs.setup-artifacts.outputs.artifact_name }}
           path: dist
+      - name: Get current version
+        id: get-version
+        run: echo "version=$(just get-version)" >> $GITHUB_OUTPUT
 
       - name: Extract archive
         run: |
           find ./dist # debug
-          target="reportage_${{ needs.setup-artifacts.outputs.version }}_Linux_${{ matrix.name }}"
+          target="reportage_${{ steps.get-version.outputs.version }}_Linux_${{ matrix.name }}"
           tar -xzvf "./dist/${target}.tar.gz"
           cp "dist/${target}/reportage" ../bin/reportage
 
