@@ -83,22 +83,24 @@ jobs:
         with:
           root: dist
           manifest: |
-            - path: checksums.txt
-              assertions:
-                - exists
-                - is_regular_file
-                - line_count:
-                    equals: 2
-            - path: reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.tar.gz
-              assertions:
-                - exists
-                - is_regular_file
-                - is_tarball
-            - path: reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.tar.gz
-              assertions:
-                - exists
-                - is_regular_file
-                - is_tarball
+            version: 1
+            subjects:
+              - path: checksums.txt
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - line_count:
+                      equals: 2
+              - path: reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.tar.gz
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - is_tarball
+              - path: reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.tar.gz
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - is_tarball
 
       - name: extract archives
         run: |
@@ -110,16 +112,18 @@ jobs:
         with:
           root: dist
           manifest: |
-            - path: reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64/reportage
-              assertions:
-                - exists
-                - is_regular_file
-                - is_executable
-            - path: reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64/reportage
-              assertions:
-                - exists
-                - is_regular_file
-                - is_executable
+            version: 1
+            subjects:
+              - path: reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64/reportage
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - is_executable
+              - path: reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64/reportage
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - is_executable
 
   smoke-test:
     name: Smoke test for ${{ matrix.name }}
