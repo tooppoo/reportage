@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "name": "marker-only line continues further",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "echo one \\\n\\\ntwo"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "name": "action continuation across two lines",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "echo one \\\n    two"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

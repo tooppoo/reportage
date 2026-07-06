@@ -48,8 +48,19 @@ case_step = _{ ws* ~ ((action_step | assertion_block) ~ trail | write_step) }
 // ─── Action step ──────────────────────────────────────────────────────────────
 
 action_step = { "$" ~ ws* ~ command }
-// Captures everything up to the newline; Rust trims trailing whitespace.
-command     = @{ (!nl ~ ANY)* }
+// Captures the action body, across one or more physical lines. `\` is a
+// line continuation marker only when it is the last character immediately
+// before the line break (no trailing whitespace or comment after it); the
+// marker and the line break are both consumed as part of `command`, and
+// matching carries on into the next physical line. A `\` not immediately
+// followed by a line break, or a line break not immediately preceded by
+// `\`, is ordinary command text / the end of the command, respectively.
+// Reportage does not interpret the continuation further — it only decides
+// where the action body ends; the shell re-reads `\` + newline itself. Rust
+// trims leading/trailing spaces and tabs (never newlines, so a preserved
+// trailing marker-newline pair is never split back apart).
+// See #80 / docs/adr/20260706T150000Z_action-line-continuation.md.
+command     = @{ ("\\" ~ nl | (!nl ~ ANY))* }
 
 // ─── Write step (fenced raw text block) ────────────────────────────────────────
 //

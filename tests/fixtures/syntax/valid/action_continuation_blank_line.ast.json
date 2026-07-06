@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "name": "blank line ends continuation",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "echo one \\\n"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

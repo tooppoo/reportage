@@ -1,0 +1,6 @@
+case "marker-only line continues further" {
+  $ echo one \
+\
+two
+  assert { exit 0 }
+}

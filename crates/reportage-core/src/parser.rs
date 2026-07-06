@@ -307,12 +307,16 @@ fn unescape_string(raw: &str) -> String {
 fn parse_action_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
     // action_step = { "$" ~ ws* ~ command }
     let line = pair.line_col().0;
+    // Only space/tab are trimmed, never newlines: a continuation-preserving
+    // command can legitimately end in a `\` + newline pair (see the grammar's
+    // `command` rule), and trimming newlines would strip the newline half of
+    // that pair while leaving the `\` behind.
     let command = pair
         .into_inner()
         .next()
         .expect("action_step must have command")
         .as_str()
-        .trim()
+        .trim_matches(|c: char| c == ' ' || c == '\t')
         .to_string();
 
     if command.is_empty() {
@@ -1177,6 +1181,108 @@ case "x" { # case open
             panic!("expected Action step");
         };
         assert_eq!(action.command, "echo hello # passed to shell");
+    }
+
+    // ─── Action line continuation (#80) ────────────────────────────────────
+
+    #[test]
+    fn action_continuation_joins_two_physical_lines() {
+        let src = "case \"x\" {\n  $ echo one \\\n  two\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        assert_eq!(script.cases[0].steps.len(), 2);
+        let Step::Action(action) = &script.cases[0].steps[0] else {
+            panic!("expected Action step");
+        };
+        // The marker and the line break are preserved verbatim, as is the
+        // continued line's own indentation.
+        assert_eq!(action.command, "echo one \\\n  two");
+    }
+
+    #[test]
+    fn action_continuation_marker_only_line_continues_further() {
+        let src = "case \"x\" {\n  $ echo one \\\n\\\ntwo\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        assert_eq!(script.cases[0].steps.len(), 2);
+        let Step::Action(action) = &script.cases[0].steps[0] else {
+            panic!("expected Action step");
+        };
+        assert_eq!(action.command, "echo one \\\n\\\ntwo");
+    }
+
+    #[test]
+    fn action_continuation_includes_blank_line_then_resumes_normal_syntax() {
+        let src = "case \"x\" {\n  $ echo one \\\n\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        assert_eq!(script.cases[0].steps.len(), 2);
+        let Step::Action(action) = &script.cases[0].steps[0] else {
+            panic!("expected Action step");
+        };
+        // The blank line itself is consumed as part of this action step (its
+        // own newline ends the step, not a further continuation), and the
+        // next line resumes as an ordinary case_step.
+        assert_eq!(action.command, "echo one \\\n");
+    }
+
+    // Per the review note on #80, an action line immediately followed by an
+    // `assert {` line is a caution/invalid example, not a valid one: only the
+    // `assert {` line is swallowed into the action body (it does not itself
+    // end in a marker), so the block's real contents are left dangling as
+    // bare `Reportage` syntax and fail to parse.
+    #[test]
+    fn action_continuation_swallows_only_the_next_line_before_ending() {
+        let src = "case \"x\" {\n  $ true \\\n  assert {\n    exit 0\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn action_continuation_marker_followed_by_space_is_not_continuation() {
+        let src = "case \"x\" {\n  $ echo hi \\ \n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        assert_eq!(script.cases[0].steps.len(), 2);
+        let Step::Action(action) = &script.cases[0].steps[0] else {
+            panic!("expected Action step");
+        };
+        // The trailing space after `\` is trimmed like any other trailing
+        // whitespace, but the `\` itself is ordinary command text, not a
+        // continuation marker, since it wasn't the line's last character.
+        assert_eq!(action.command, "echo hi \\");
+    }
+
+    #[test]
+    fn action_continuation_marker_followed_by_hash_is_not_continuation() {
+        let src = "case \"x\" {\n  $ echo hi \\# comment\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        assert_eq!(script.cases[0].steps.len(), 2);
+        let Step::Action(action) = &script.cases[0].steps[0] else {
+            panic!("expected Action step");
+        };
+        assert_eq!(action.command, "echo hi \\# comment");
+    }
+
+    #[test]
+    fn action_continuation_marker_immediately_before_eof_is_plain_syntax_error() {
+        // No dedicated "unterminated continuation" error: EOF right after a
+        // marker just leaves the enclosing case block unclosed, the same
+        // generic `parse.syntax` failure as any other unclosed block.
+        let src = "case \"x\" {\n  $ echo hi \\";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+        assert_eq!(err.code().as_str(), "parse.syntax");
+    }
+
+    #[test]
+    fn action_continuation_marker_is_a_literal_last_char_check_not_shell_unescaping() {
+        // Reportage does not reinterpret shell escaping: only the physical
+        // character immediately before the line break decides continuation,
+        // so two consecutive backslashes still continue (the first is
+        // ordinary command text; the second is the marker).
+        let src = "case \"x\" {\n  $ echo hi \\\\\ntwo\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::Action(action) = &script.cases[0].steps[0] else {
+            panic!("expected Action step");
+        };
+        assert_eq!(action.command, "echo hi \\\\\ntwo");
     }
 
     #[test]

@@ -1,0 +1,10 @@
+case "long pipeline split across lines with backslash continuation" {
+  $ printf 'one\ntwo\nthree\n' \
+    | grep 'two' \
+    | tr 'a-z' 'A-Z'
+
+  assert {
+    exit 0
+    stdout contains "TWO"
+  }
+}

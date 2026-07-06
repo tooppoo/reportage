@@ -1,0 +1,2 @@
+case "unterminated case after continuation marker" {
+  $ echo hi \

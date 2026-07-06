@@ -1,0 +1,5 @@
+case "blank line ends continuation" {
+  $ echo one \
+
+  assert { exit 0 }
+}
