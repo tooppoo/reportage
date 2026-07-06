@@ -15,6 +15,12 @@ reportage is inspired by Go's `testscript`, especially its lightweight script-or
 
 reportage is in early design. The documents in this repository describe the intended v0 direction and may change as implementation work validates or rejects specific choices.
 
+## Quick Start
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/tooppoo/rellog/refs/heads/main/install.sh | sh
+```
+
 ## Documentation
 
 - [Philosophy](docs/philosophy.md): design principles and scope boundaries.
