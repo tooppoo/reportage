@@ -575,7 +575,12 @@ fn invalid_syntax_fixtures_are_rejected() {
                 assert!(matches!(err, ParseError::InvalidFixtureReference { .. }));
                 assert_eq!(err.code().as_str(), "semantic.fixture_reference.absolute");
             }
-            "fixture_reference_dot_segment_path" => {
+            // Covers every dot-segment shape: a leading `.` / `..` segment,
+            // and a `.` / `..` segment in the middle of the path.
+            "fixture_reference_dot_segment_leading_parent_path"
+            | "fixture_reference_dot_segment_leading_current_path"
+            | "fixture_reference_dot_segment_middle_current_path"
+            | "fixture_reference_dot_segment_middle_parent_path" => {
                 assert!(matches!(err, ParseError::InvalidFixtureReference { .. }));
                 assert_eq!(
                     err.code().as_str(),

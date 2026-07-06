@@ -1,0 +1,6 @@
+case "fixture reference path must not contain a .. segment in the middle" {
+  $ true
+  assert {
+    file <"out.txt"> contents_equals @"snapshots/../stdout.json"
+  }
+}

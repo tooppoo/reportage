@@ -2923,8 +2923,59 @@ case "x" {
     }
 
     #[test]
-    fn fixture_reference_dot_segment_path_is_rejected() {
+    fn fixture_reference_dot_segment_leading_parent_path_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"../escape.txt\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::InvalidFixtureReference {
+                reason: FixtureReferenceError::DotSegment,
+                ..
+            }
+        ));
+        assert_eq!(
+            err.code().as_str(),
+            "semantic.fixture_reference.dot_segment"
+        );
+    }
+
+    #[test]
+    fn fixture_reference_dot_segment_leading_current_path_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"./escape.txt\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::InvalidFixtureReference {
+                reason: FixtureReferenceError::DotSegment,
+                ..
+            }
+        ));
+        assert_eq!(
+            err.code().as_str(),
+            "semantic.fixture_reference.dot_segment"
+        );
+    }
+
+    #[test]
+    fn fixture_reference_dot_segment_middle_current_path_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"snapshots/./stdout.json\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::InvalidFixtureReference {
+                reason: FixtureReferenceError::DotSegment,
+                ..
+            }
+        ));
+        assert_eq!(
+            err.code().as_str(),
+            "semantic.fixture_reference.dot_segment"
+        );
+    }
+
+    #[test]
+    fn fixture_reference_dot_segment_middle_parent_path_is_rejected() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"snapshots/../stdout.json\"\n  }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(
             err,
