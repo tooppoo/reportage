@@ -280,7 +280,7 @@ pub struct ValidatedFile {
 
 /// The result of a complete run (all concrete cases from all files).
 #[derive(Debug)]
-pub struct RunResult {
+pub struct ExecutionReport {
     pub cases: Vec<CaseResult>,
     /// File-level errors from the pre-execution validation phase.
     pub file_errors: Vec<FileError>,
@@ -296,7 +296,7 @@ pub struct RunSummary {
     pub assertions_total: usize,
 }
 
-impl RunResult {
+impl ExecutionReport {
     /// A no-op run has valid selected input but no concrete cases to execute.
     pub fn is_noop(&self) -> bool {
         self.file_errors.is_empty() && self.cases.is_empty()

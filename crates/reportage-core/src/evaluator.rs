@@ -7,8 +7,8 @@ use crate::model::{
 };
 use crate::result::{
     ActionResult, AssertionBlockResult, CaseResult, CaseStatus, DirContainsObservation,
-    DirExistsObservation, ExpectationKind, ExpectationResult, FileContentObservation,
-    FileExistsObservation, RunResult, RuntimeError,
+    DirExistsObservation, ExecutionReport, ExpectationKind, ExpectationResult,
+    FileContentObservation, FileExistsObservation, RuntimeError,
 };
 use crate::semantic::{
     SemanticError, validate_dir_entry_name, validate_dir_path, validate_file_path,
@@ -56,8 +56,8 @@ pub struct WorkspaceState {
     pub root: PathBuf,
 }
 
-pub fn evaluate(script: &Script, env: &ExecutionEnvironment) -> RunResult {
-    RunResult {
+pub fn evaluate(script: &Script, env: &ExecutionEnvironment) -> ExecutionReport {
+    ExecutionReport {
         cases: script.cases.iter().map(|c| evaluate_case(c, env)).collect(),
         file_errors: vec![],
     }
