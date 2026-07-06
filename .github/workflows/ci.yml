@@ -104,8 +104,9 @@ jobs:
 
       - name: extract archives
         run: |
-          tar -xzf dist/reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.tar.gz -C dist
-          tar -xzf dist/reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.tar.gz -C dist
+          cd dist
+          tar -xzvf reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.tar.gz
+          tar -xzvf reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.tar.gz
 
       - name: assert extracted files
         uses: tooppoo/fs-assert-action@latest
@@ -158,8 +159,9 @@ jobs:
       - name: Extract archive
         run: |
           target="reportage_${{ needs.setup-artifacts.outputs.version }}_Linux_${{ matrix.name }}"
-          tar -xzf dist/${target}.tar.gz -C dist
-          cp "dist/${target}/reportage" ./bin/reportage
+          cd dist
+          tar -xzvf ${target}.tar.gz -C .
+          cp "${target}/reportage" ../bin/reportage
 
       - name: run smoke test
         run: ./bin/reportage --help
