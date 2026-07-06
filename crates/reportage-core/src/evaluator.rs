@@ -158,7 +158,8 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                 if case_failed {
                     break;
                 }
-                match workspace.write_file(&write_step.path, write_step.content.as_str()) {
+                let content = write_step.content.to_text_value();
+                match workspace.write_file(&write_step.path, content.as_str()) {
                     Ok(()) => side_effects_executed += 1,
                     Err(e) => {
                         return CaseResult {
@@ -452,12 +453,14 @@ fn evaluate_file_expectation(exp: &FileExpectation, workspace_root: &Path) -> Ex
             }
         }
         FileMatcher::Contains(expected) => {
-            let observation = observe_file_contains(workspace_root, &exp.path, expected);
+            let expected_value = expected.to_text_value();
+            let observation =
+                observe_file_contains(workspace_root, &exp.path, expected_value.as_str());
             let passed = matches!(observation, FileContentObservation::Found);
             ExpectationResult {
                 kind: ExpectationKind::FileContains {
                     path: exp.path.clone(),
-                    expected: expected.clone(),
+                    expected: expected_value.as_str().to_string(),
                     observation,
                 },
                 passed,

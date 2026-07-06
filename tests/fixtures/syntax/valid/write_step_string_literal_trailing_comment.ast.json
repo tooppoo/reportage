@@ -1,14 +1,14 @@
 {
   "cases": [
     {
-      "name": "write step empty block",
+      "name": "write step string literal trailing comment",
       "steps": [
         {
           "kind": "write_file",
-          "path": "empty.txt",
+          "path": "expected/stdout.txt",
           "content": {
-            "kind": "heredoc",
-            "value": ""
+            "kind": "quoted",
+            "value": "hello"
           }
         },
         {

@@ -1,0 +1,7 @@
+case "write step string literal trailing comment" {
+  write "expected/stdout.txt" "hello" # comment
+  $ true
+  assert {
+    exit 0
+  }
+}

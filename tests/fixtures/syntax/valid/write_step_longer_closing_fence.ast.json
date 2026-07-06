@@ -6,7 +6,10 @@
         {
           "kind": "write_file",
           "path": "a.txt",
-          "content": "hello\n"
+          "content": {
+            "kind": "heredoc",
+            "value": "hello\n"
+          }
         },
         {
           "kind": "action",

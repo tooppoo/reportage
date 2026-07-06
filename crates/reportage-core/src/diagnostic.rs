@@ -81,8 +81,9 @@ pub enum DiagnosticCode {
     SemanticWorkspacePathAbsolute,
     /// A `write` step's workspace path contained a `.` or `..` segment.
     SemanticWorkspacePathDotSegment,
-    /// A `write` step's fenced raw text block contains a non-blank body line
-    /// that is indented less than the closing fence.
+    /// A heredoc literal (in a `write` step or a `file ... contains`
+    /// expectation) contains a non-blank body line that is indented less
+    /// than the closing fence.
     ParseRawBlockShallowIndent,
     /// A `write` step's target path already existed; create-only writes reject this.
     StepWriteTargetExists,

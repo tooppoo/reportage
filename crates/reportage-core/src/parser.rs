@@ -5,8 +5,8 @@ use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, Diagnosti
 use crate::model::{
     ActionStep, AssertionBlock, Case, DirExpectation, DirMatcher, ExitExpectation, Expectation,
     FileExpectation, FileMatcher, LogicalExpectation, LogicalOperator, OutputExpectation,
-    OutputMatcher, RawTextBlock, Script, SideEffectingStep, Step, WorkspacePath,
-    WorkspacePathError, WriteFileStep,
+    OutputMatcher, Script, SideEffectingStep, Step, TextLiteral, WorkspacePath, WorkspacePathError,
+    WriteFileStep,
 };
 
 #[derive(Parser)]
@@ -43,9 +43,10 @@ pub enum ParseError {
         raw: String,
         reason: WorkspacePathError,
     },
-    /// A `write` step's fenced raw text block has a non-blank body line
-    /// indented less than the closing fence's indentation.
-    ShallowRawBlockIndent { line: usize },
+    /// A heredoc literal (in a `write` step or a `file ... contains`
+    /// expectation) has a non-blank body line indented less than the
+    /// closing fence's indentation.
+    ShallowHeredocIndent { line: usize },
 }
 
 impl std::fmt::Display for ParseError {
@@ -97,9 +98,9 @@ impl std::fmt::Display for ParseError {
                     "parse error at line {line}: write step path '{raw}' {reason_text}"
                 )
             }
-            ParseError::ShallowRawBlockIndent { line } => write!(
+            ParseError::ShallowHeredocIndent { line } => write!(
                 f,
-                "parse error at line {line}: raw text block body line is indented less than its closing fence"
+                "parse error at line {line}: heredoc literal body line is indented less than its closing fence"
             ),
         }
     }
@@ -127,7 +128,7 @@ impl ParseError {
                 WorkspacePathError::Absolute => DiagnosticCode::SemanticWorkspacePathAbsolute,
                 WorkspacePathError::DotSegment => DiagnosticCode::SemanticWorkspacePathDotSegment,
             },
-            ParseError::ShallowRawBlockIndent { .. } => DiagnosticCode::ParseRawBlockShallowIndent,
+            ParseError::ShallowHeredocIndent { .. } => DiagnosticCode::ParseRawBlockShallowIndent,
         }
     }
 
@@ -206,7 +207,7 @@ impl ParseError {
                     raw_value: Some(raw.clone()),
                 },
             ),
-            ParseError::ShallowRawBlockIndent { line } => (
+            ParseError::ShallowHeredocIndent { line } => (
                 Some(DiagnosticLocation {
                     line: *line,
                     column: None,
@@ -268,7 +269,9 @@ fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseErro
                 has_assertion_block = true;
                 steps.push(parse_assertion_block(pair)?);
             }
-            Rule::write_step => steps.push(parse_write_step(pair)?),
+            Rule::write_step_string | Rule::write_step_heredoc => {
+                steps.push(parse_write_step(pair)?)
+            }
             rule => unreachable!("unexpected rule in case_block: {rule:?}"),
         }
     }
@@ -370,10 +373,16 @@ fn parse_expectation_body(
             Ok(vec![parse_expectation(exp_pair)?])
         }
         Rule::multi_assert => {
-            // multi_assert = { trail ~ assertion_line+ ~ ws* }
-            // assertion_line is silent, so its child (expectation) is promoted.
+            // multi_assert = { trail ~ assertion_or_heredoc_line+ ~ ws* }
+            // assertion_line / heredoc_assertion_line are silent, so their
+            // children (expectation / heredoc_expectation respectively) are
+            // promoted directly here as a mix of the two rule kinds.
             body.into_inner()
-                .map(parse_expectation)
+                .map(|pair| match pair.as_rule() {
+                    Rule::expectation => parse_expectation(pair),
+                    Rule::heredoc_expectation => parse_heredoc_expectation(pair),
+                    rule => unreachable!("unexpected rule in multi_assert: {rule:?}"),
+                })
                 .collect::<Result<Vec<_>, _>>()
         }
         Rule::empty_composition_body => Ok(vec![]),
@@ -511,12 +520,42 @@ fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Pars
                 .into_inner()
                 .next()
                 .expect("file_contains must have quoted_string");
-            FileMatcher::Contains(extract_string_inner(qs))
+            FileMatcher::Contains(TextLiteral::Quoted(extract_string_inner(qs)))
         }
         rule => unreachable!("unexpected rule in file_predicate: {rule:?}"),
     };
 
     Ok(Expectation::File(FileExpectation { path, matcher }))
+}
+
+/// Parses the heredoc-literal form of `file ... contains`, reachable only
+/// through `multi_assert` (see `heredoc_assertion_line` in the grammar).
+fn parse_heredoc_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
+    // heredoc_expectation = { file_exp_heredoc }
+    let inner = pair
+        .into_inner()
+        .next()
+        .expect("heredoc_expectation must have inner rule");
+
+    match inner.as_rule() {
+        Rule::file_exp_heredoc => {
+            // file_exp_heredoc = { "file" ~ ws+ ~ quoted_string ~ ws+ ~ "contains" ~ ws+ ~ heredoc_literal }
+            let mut inner = inner.into_inner();
+            let path_pair = inner.next().expect("file_exp_heredoc must have a path");
+            let path = extract_string_inner(path_pair);
+
+            let literal_pair = inner
+                .next()
+                .expect("file_exp_heredoc must have a heredoc_literal");
+            let content = parse_heredoc_literal(literal_pair)?;
+
+            Ok(Expectation::File(FileExpectation {
+                path,
+                matcher: FileMatcher::Contains(TextLiteral::Heredoc(content)),
+            }))
+        }
+        rule => unreachable!("unexpected rule in heredoc_expectation: {rule:?}"),
+    }
 }
 
 fn parse_dir_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
@@ -549,33 +588,25 @@ fn parse_dir_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Parse
 }
 
 fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
-    // write_step = { "write" ~ ws+ ~ quoted_string ~ ws* ~ PUSH(opening_fence) ~ ws* ~ nl
-    //                ~ raw_block_body ~ closing_fence_line ~ DROP }
+    match pair.as_rule() {
+        Rule::write_step_string => parse_write_step_string(pair),
+        Rule::write_step_heredoc => parse_write_step_heredoc(pair),
+        rule => unreachable!("unexpected rule in write step: {rule:?}"),
+    }
+}
+
+fn parse_write_step_string(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
+    // write_step_string = { "write" ~ ws+ ~ quoted_string ~ ws+ ~ quoted_string }
     let line = pair.line_col().0;
     let mut inner = pair.into_inner();
 
-    let path_pair = inner.next().expect("write_step must have a path");
+    let path_pair = inner.next().expect("write_step_string must have a path");
     let raw_path = extract_string_inner(path_pair);
 
-    let _opening_fence = inner
+    let content_pair = inner
         .next()
-        .expect("write_step must have an opening_fence (pushed onto the pest match stack)");
-
-    let body_pair = inner.next().expect("write_step must have raw_block_body");
-    let body_start_line = body_pair.line_col().0;
-    let body_text = body_pair.as_str();
-
-    let closing_pair = inner
-        .next()
-        .expect("write_step must have closing_fence_line");
-    // closing_fence_line = { closing_fence_indent ~ PEEK ~ "`"* ~ ws* ~ (nl | EOI) }
-    let indent = closing_pair
-        .into_inner()
-        .next()
-        .expect("closing_fence_line must have closing_fence_indent")
-        .as_str();
-
-    let content = dedent_raw_block(body_text, indent, body_start_line)?;
+        .expect("write_step_string must have content quoted_string");
+    let content = TextLiteral::Quoted(extract_string_inner(content_pair));
 
     let path =
         WorkspacePath::parse(&raw_path).map_err(|reason| ParseError::InvalidWorkspacePath {
@@ -585,14 +616,67 @@ fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseErro
         })?;
 
     Ok(Step::SideEffect(SideEffectingStep::WriteFile(
-        WriteFileStep {
-            path,
-            content: RawTextBlock::new(content),
-        },
+        WriteFileStep { path, content },
     )))
 }
 
-/// Dedents a fenced raw text block body against its closing fence's indentation.
+fn parse_write_step_heredoc(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
+    // write_step_heredoc = { "write" ~ ws+ ~ quoted_string ~ ws* ~ heredoc_literal }
+    let line = pair.line_col().0;
+    let mut inner = pair.into_inner();
+
+    let path_pair = inner.next().expect("write_step_heredoc must have a path");
+    let raw_path = extract_string_inner(path_pair);
+
+    let literal_pair = inner
+        .next()
+        .expect("write_step_heredoc must have a heredoc_literal");
+    let content = TextLiteral::Heredoc(parse_heredoc_literal(literal_pair)?);
+
+    let path =
+        WorkspacePath::parse(&raw_path).map_err(|reason| ParseError::InvalidWorkspacePath {
+            line,
+            raw: raw_path,
+            reason,
+        })?;
+
+    Ok(Step::SideEffect(SideEffectingStep::WriteFile(
+        WriteFileStep { path, content },
+    )))
+}
+
+/// Parses a `heredoc_literal` pair into its dedented `String` content.
+/// Shared by `write_step_heredoc` and `file_exp_heredoc` — the fence and
+/// dedent rules are identical regardless of which construct the heredoc
+/// literal appears in.
+fn parse_heredoc_literal(pair: pest::iterators::Pair<Rule>) -> Result<String, ParseError> {
+    // heredoc_literal = { PUSH(opening_fence) ~ ws* ~ nl ~ heredoc_body ~ closing_fence_line ~ DROP }
+    let mut inner = pair.into_inner();
+
+    let _opening_fence = inner
+        .next()
+        .expect("heredoc_literal must have an opening_fence (pushed onto the pest match stack)");
+
+    let body_pair = inner
+        .next()
+        .expect("heredoc_literal must have heredoc_body");
+    let body_start_line = body_pair.line_col().0;
+    let body_text = body_pair.as_str();
+
+    let closing_pair = inner
+        .next()
+        .expect("heredoc_literal must have closing_fence_line");
+    // closing_fence_line = { closing_fence_indent ~ PEEK ~ "`"* ~ ws* ~ (nl | EOI) }
+    let indent = closing_pair
+        .into_inner()
+        .next()
+        .expect("closing_fence_line must have closing_fence_indent")
+        .as_str();
+
+    dedent_heredoc_body(body_text, indent, body_start_line)
+}
+
+/// Dedents a heredoc literal body against its closing fence's indentation.
 ///
 /// Every non-blank line must start with `indent` as a literal string prefix
 /// (no tab/space width normalization); that prefix is stripped. Blank and
@@ -602,7 +686,7 @@ fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseErro
 ///
 /// `body_start_line` is the source line number of `body`'s first line, used
 /// to report the correct line for a shallow-indentation error.
-fn dedent_raw_block(
+fn dedent_heredoc_body(
     body: &str,
     indent: &str,
     body_start_line: usize,
@@ -620,7 +704,7 @@ fn dedent_raw_block(
                 result.push_str(ending);
             }
             None => {
-                return Err(ParseError::ShallowRawBlockIndent {
+                return Err(ParseError::ShallowHeredocIndent {
                     line: body_start_line + i,
                 });
             }
@@ -632,7 +716,7 @@ fn dedent_raw_block(
 /// Splits `s` into `(line_content, line_ending)` pairs without normalizing
 /// line endings. `line_ending` is `"\n"`, `"\r\n"`, or `""` for a trailing
 /// line with no terminator (not produced by the grammar, which requires
-/// every raw block body line to end in an actual newline, but handled here
+/// every heredoc body line to end in an actual newline, but handled here
 /// defensively).
 fn split_lines_keep_ending(s: &str) -> Vec<(&str, &str)> {
     let mut result = Vec::new();
@@ -1505,7 +1589,8 @@ case "x" {
         assert!(matches!(
             &block.expectations()[0],
             Expectation::File(f) if f.path == "out/result.json"
-                && matches!(&f.matcher, FileMatcher::Contains(s) if s == "\"status\":\"passed\"")
+                && matches!(&f.matcher, FileMatcher::Contains(s)
+                    if s.to_text_value().as_str() == "\"status\":\"passed\"")
         ));
     }
 
@@ -1869,7 +1954,7 @@ case "x" {
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
-    // ─── Write step / fenced raw text block (#67) ─────────────────────────
+    // ─── Write step: string literal / heredoc literal (#67, #86) ──────────
 
     fn write_file_step(script: &Script) -> &WriteFileStep {
         let Step::SideEffect(SideEffectingStep::WriteFile(step)) = &script.cases[0].steps[0] else {
@@ -1884,7 +1969,7 @@ case "x" {
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.path.as_str(), "a.txt");
-        assert_eq!(step.content.as_str(), "hello\n");
+        assert_eq!(step.content.to_text_value().as_str(), "hello\n");
         assert_eq!(script.cases[0].steps.len(), 3);
     }
 
@@ -1896,7 +1981,7 @@ case "x" {
             panic!("expected second step to be a write step");
         };
         assert_eq!(step.path.as_str(), "a.txt");
-        assert_eq!(step.content.as_str(), "hello\n");
+        assert_eq!(step.content.to_text_value().as_str(), "hello\n");
     }
 
     #[test]
@@ -1905,7 +1990,7 @@ case "x" {
             "case \"x\" {\n  write \"empty.txt\" ```\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
-        assert_eq!(step.content.as_str(), "");
+        assert_eq!(step.content.to_text_value().as_str(), "");
     }
 
     #[test]
@@ -1913,7 +1998,7 @@ case "x" {
         let src = "case \"x\" {\n  write \"a.txt\" ```\n    first\n\n    third\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
-        assert_eq!(step.content.as_str(), "first\n\nthird\n");
+        assert_eq!(step.content.to_text_value().as_str(), "first\n\nthird\n");
     }
 
     #[test]
@@ -1923,7 +2008,7 @@ case "x" {
         let src = "case \"x\" {\n  write \"a.txt\" ```\n    first\n  \n    third\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
-        assert_eq!(step.content.as_str(), "first\n\nthird\n");
+        assert_eq!(step.content.to_text_value().as_str(), "first\n\nthird\n");
     }
 
     #[test]
@@ -1933,7 +2018,7 @@ case "x" {
         let src = "case \"x\" {\n  write \"a.txt\" ```\n\thello\n\t```\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
-        assert_eq!(step.content.as_str(), "hello\n");
+        assert_eq!(step.content.to_text_value().as_str(), "hello\n");
     }
 
     #[test]
@@ -1941,7 +2026,7 @@ case "x" {
         let src = "case \"x\" {\r\n  write \"a.txt\" ```\r\n    hello\r\n    ```\r\n  $ true\r\n  assert { exit 0 }\r\n}\r\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
-        assert_eq!(step.content.as_str(), "hello\r\n");
+        assert_eq!(step.content.to_text_value().as_str(), "hello\r\n");
     }
 
     #[test]
@@ -1949,7 +2034,7 @@ case "x" {
         let src = "case \"x\" {\n  write \"a.txt\" ```\n    ${ENTRY_KIND}\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
-        assert_eq!(step.content.as_str(), "${ENTRY_KIND}\n");
+        assert_eq!(step.content.to_text_value().as_str(), "${ENTRY_KIND}\n");
     }
 
     #[test]
@@ -1957,7 +2042,7 @@ case "x" {
         let src = "case \"x\" {\n  write \"a.txt\" ```\n    hello\n    ````\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
-        assert_eq!(step.content.as_str(), "hello\n");
+        assert_eq!(step.content.to_text_value().as_str(), "hello\n");
     }
 
     #[test]
@@ -1965,7 +2050,10 @@ case "x" {
         let src = "case \"x\" {\n  write \"a.md\" ````\n    ```ts\n    console.log(1)\n    ```\n    ````\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
-        assert_eq!(step.content.as_str(), "```ts\nconsole.log(1)\n```\n");
+        assert_eq!(
+            step.content.to_text_value().as_str(),
+            "```ts\nconsole.log(1)\n```\n"
+        );
     }
 
     #[test]
@@ -1973,7 +2061,7 @@ case "x" {
         // "mid" is indented less than the closing fence's 4 spaces.
         let src = "case \"x\" {\n  write \"a.txt\" ```\n    first\n  mid\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let err = parse(src).unwrap_err();
-        assert!(matches!(err, ParseError::ShallowRawBlockIndent { .. }));
+        assert!(matches!(err, ParseError::ShallowHeredocIndent { .. }));
         assert_eq!(err.code().as_str(), "parse.raw_block.shallow_indent");
     }
 
@@ -2082,7 +2170,7 @@ case "x" {
         let step = write_file_step(&script);
         assert_eq!(step.path.as_str(), "a.txt");
         assert_eq!(
-            step.content.as_str(),
+            step.content.to_text_value().as_str(),
             "first\nwrite \"b.txt\" ```\nsecond\n"
         );
 

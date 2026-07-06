@@ -6,7 +6,10 @@
         {
           "kind": "write_file",
           "path": "expected/stdout.txt",
-          "content": "expected output\n"
+          "content": {
+            "kind": "heredoc",
+            "value": "expected output\n"
+          }
         },
         {
           "kind": "action",
