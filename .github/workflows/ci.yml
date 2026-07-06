@@ -104,9 +104,9 @@ jobs:
 
       - name: extract archives
         run: |
-          find ./dist # debug
           tar -xzvf dist/reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.tar.gz
           tar -xzvf dist/reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.tar.gz
+          find ./dist # debug
 
       - name: assert extracted files
         uses: tooppoo/fs-assert-action@latest
