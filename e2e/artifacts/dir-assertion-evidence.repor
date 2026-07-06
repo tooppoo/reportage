@@ -20,7 +20,8 @@ case "dir exists fails against a regular file" {
 }
 
 case "dir exists succeeds through a symlink to a directory" {
-  $ mkdir real && ln -s real link
+  $ mkdir real
+  $ ln -s real link
 
   assert {
     exit 0
@@ -29,7 +30,8 @@ case "dir exists succeeds through a symlink to a directory" {
 }
 
 case "dir exists fails through a symlink to a regular file" {
-  $ touch real.txt && ln -s real.txt link
+  $ touch real.txt
+  $ ln -s real.txt link
 
   assert {
     exit 0
@@ -52,7 +54,8 @@ case "dir exists fails for a broken symlink" {
 }
 
 case "dir contains succeeds for a directory entry" {
-  $ mkdir -p artifacts && touch artifacts/result.json
+  $ mkdir -p artifacts
+  $ touch artifacts/result.json
 
   assert {
     exit 0
@@ -61,7 +64,9 @@ case "dir contains succeeds for a directory entry" {
 }
 
 case "dir contains is not recursive, not a glob, and not a file content search" {
-  $ mkdir -p artifacts/nested && touch artifacts/nested/result.json && printf 'result.json' > artifacts/marker.txt
+  $ mkdir -p artifacts/nested
+  $ touch artifacts/nested/result.json
+  $ printf 'result.json' > artifacts/marker.txt
 
   assert {
     exit 0
@@ -122,5 +127,71 @@ case "invalid dir contains entry name is rejected as a script error" {
   assert {
     exit 2
     stderr contains "semantic.dir_entry_name.path_separator"
+  }
+}
+
+case "dir-exist subject must not be empty" {
+  write "tmp-dir-missing-subject.repor" ```
+    case "inner" {
+      $ true
+      assert {
+        dir "" exists
+      }
+    }
+    ```
+  $ reportage tmp-dir-missing-subject.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.workspace_path.empty"
+  }
+}
+case "dir-contains subject must not be empty" {
+  write "tmp-dir-missing-subject.repor" ```
+    case "inner" {
+      $ true
+      assert {
+        dir "" contains "entry"
+      }
+    }
+    ```
+  $ reportage tmp-dir-missing-subject.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.workspace_path.empty"
+  }
+}
+
+case "dir-exists subject could not be omitted" {
+  write "tmp-dir-missing-subject.repor" ```
+    case "inner" {
+      $ true
+      assert {
+        dir exists
+      }
+    }
+    ```
+  $ reportage tmp-dir-missing-subject.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.syntax"
+  }
+}
+case "dir-contains subject could not be omitted" {
+  write "tmp-dir-missing-subject.repor" ```
+    case "inner" {
+      $ true
+      assert {
+        dir contains "entry"
+      }
+    }
+    ```
+  $ reportage tmp-dir-missing-subject.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.syntax"
   }
 }
