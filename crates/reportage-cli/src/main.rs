@@ -379,6 +379,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
                 DirContainsObservation::SubjectNotADirectory => {
                     "it is not a directory (e.g. a regular file)".to_string()
                 }
+                DirContainsObservation::SubjectUnreadable => "it could not be read".to_string(),
             };
             eprintln!(
                 "  assertion block at step {}: dir {:?} — {reason}",

@@ -118,6 +118,9 @@ impl ExpectationKind {
                 DirContainsObservation::SubjectNotADirectory => {
                     Some(DiagnosticCode::AssertionDirContainsSubjectNotADirectory)
                 }
+                DirContainsObservation::SubjectUnreadable => {
+                    Some(DiagnosticCode::AssertionDirContainsSubjectUnreadable)
+                }
             },
             _ => None,
         }
@@ -174,6 +177,8 @@ pub enum DirContainsObservation {
     SubjectMissing,
     /// `path` exists but is not a directory (e.g. a regular file).
     SubjectNotADirectory,
+    /// `path` is a directory, but its entries could not be read (e.g. a permission error).
+    SubjectUnreadable,
 }
 
 /// The result of evaluating one expectation within an assertion block.

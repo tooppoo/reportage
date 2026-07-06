@@ -1673,6 +1673,103 @@ case "cd does not affect dir assertion root" {
     reportage(&dir).arg(script).assert().code(0);
 }
 
+#[test]
+#[cfg(unix)]
+fn dir_exists_follows_symlink_to_directory() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "symlink to directory" {
+  $ mkdir real && ln -s real link
+  assert {
+    dir "link" exists
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+#[cfg(unix)]
+fn dir_exists_fails_for_a_broken_symlink() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "broken symlink" {
+  $ ln -s does-not-exist link
+  assert {
+    dir "link" exists
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains("assertion.dir.exists_missing"));
+}
+
+#[test]
+fn dir_assertion_nested_in_not_block_with_invalid_path_is_still_a_script_error() {
+    // A `not { ... }` (or `all`/`any`) block combines assertion *outcomes*; it must not let an
+    // invalid subject path bypass semantic validation and reach the real filesystem just because
+    // it is nested. Regression test: this previously reported an ordinary assertion pass/fail
+    // (having actually stat'd the escaped path) instead of a script error.
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "nested invalid dir path is still rejected" {
+  $ true
+  assert {
+    not {
+      dir "../escape" exists
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains(
+            "semantic.workspace_path.dot_segment",
+        ));
+}
+
+#[test]
+fn file_assertion_nested_in_not_block_with_invalid_path_is_still_a_script_error() {
+    // Same regression as above, for the `file` subject.
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "nested invalid file path is still rejected" {
+  $ true
+  assert {
+    not {
+      file "/etc/passwd" exists
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains("semantic.file_path.absolute"));
+}
+
 // --- write step (#67) ---
 
 #[test]

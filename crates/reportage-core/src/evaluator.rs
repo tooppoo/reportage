@@ -10,7 +10,9 @@ use crate::result::{
     DirExistsObservation, ExpectationKind, ExpectationResult, FileContentObservation,
     FileExistsObservation, RunResult, RuntimeError,
 };
-use crate::semantic::{validate_dir_entry_name, validate_dir_path, validate_file_path};
+use crate::semantic::{
+    SemanticError, validate_dir_entry_name, validate_dir_path, validate_file_path,
+};
 use crate::workspace::Workspace;
 
 /// Observable evidence available at a point in case execution.
@@ -200,18 +202,23 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                         };
                     }
 
-                    // A file assertion path must satisfy reportage's path policy before evidence comparison begins.
-                    // This is a semantic error, not an assertion failure.
-                    // See docs/semantic-diagnostics.md and docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
-                    if let Expectation::File(file_exp) = expectation
-                        && let Err(semantic_err) = validate_file_path(&file_exp.path)
-                    {
+                    // A file assertion path, a dir assertion subject path, and (for `dir`
+                    // `contains`) its entry name, must all satisfy reportage's path / entry-name
+                    // policy before evidence comparison begins. This is a semantic error, not an
+                    // assertion failure. Recurses into `not` / `all` / `any` children so a
+                    // `file`/`dir` assertion nested inside a logical composition is validated the
+                    // same as a bare one — a composition combines assertion outcomes, it must
+                    // never let an unvalidated path reach the filesystem.
+                    // See docs/semantic-diagnostics.md,
+                    // docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md, and
+                    // docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
+                    if let Err(semantic_err) = validate_expectation_paths(expectation) {
                         return CaseResult {
                             name: case.name.clone(),
                             source_path: None,
                             status: CaseStatus::ScriptError(format!(
-                                "case '{}': assertion block at step {} has an invalid file \
-                                 assertion path: {semantic_err} [{}]",
+                                "case '{}': assertion block at step {} has an invalid \
+                                 expectation: {semantic_err} [{}]",
                                 case.name,
                                 step_idx + 1,
                                 semantic_err.code().as_str(),
@@ -220,48 +227,6 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                             assertion_blocks: assertion_block_results,
                             side_effects_executed,
                         };
-                    }
-
-                    // A dir assertion subject path, and (for `contains`) its entry name, must
-                    // satisfy reportage's path / entry-name policy before evidence comparison
-                    // begins. Both are semantic errors, not assertion failures.
-                    // See docs/semantic-diagnostics.md and
-                    // docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
-                    if let Expectation::Dir(dir_exp) = expectation {
-                        if let Err(semantic_err) = validate_dir_path(&dir_exp.path) {
-                            return CaseResult {
-                                name: case.name.clone(),
-                                source_path: None,
-                                status: CaseStatus::ScriptError(format!(
-                                    "case '{}': assertion block at step {} has an invalid dir \
-                                     assertion path: {semantic_err} [{}]",
-                                    case.name,
-                                    step_idx + 1,
-                                    semantic_err.code().as_str(),
-                                )),
-                                actions: action_results,
-                                assertion_blocks: assertion_block_results,
-                                side_effects_executed,
-                            };
-                        }
-                        if let DirMatcher::Contains(name) = &dir_exp.matcher
-                            && let Err(semantic_err) = validate_dir_entry_name(name)
-                        {
-                            return CaseResult {
-                                name: case.name.clone(),
-                                source_path: None,
-                                status: CaseStatus::ScriptError(format!(
-                                    "case '{}': assertion block at step {} has an invalid dir \
-                                     entry name: {semantic_err} [{}]",
-                                    case.name,
-                                    step_idx + 1,
-                                    semantic_err.code().as_str(),
-                                )),
-                                actions: action_results,
-                                assertion_blocks: assertion_block_results,
-                                side_effects_executed,
-                            };
-                        }
                     }
                 }
 
@@ -297,6 +262,36 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
         actions: action_results,
         assertion_blocks: assertion_block_results,
         side_effects_executed,
+    }
+}
+
+/// Validates every `file` / `dir` subject path (and `dir` `contains` entry name) reachable from
+/// `expectation`, recursing into `not` / `all` / `any` children.
+///
+/// A logical composition combines assertion *outcomes*; it must never let an invalid path or
+/// entry name bypass semantic validation just because it is nested inside `not { ... }` — that
+/// would let a path escape the case workspace sandbox (e.g. `not { dir "../../etc" exists }`)
+/// while merely looking like an ordinary assertion failure.
+/// See docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md and
+/// docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
+fn validate_expectation_paths(expectation: &Expectation) -> Result<(), SemanticError> {
+    match expectation {
+        Expectation::File(file_exp) => validate_file_path(&file_exp.path),
+        Expectation::Dir(dir_exp) => {
+            validate_dir_path(&dir_exp.path)?;
+            if let DirMatcher::Contains(name) = &dir_exp.matcher {
+                validate_dir_entry_name(name)?;
+            }
+            Ok(())
+        }
+        Expectation::Logical(l) => {
+            for child in l.children() {
+                validate_expectation_paths(child)?;
+            }
+            Ok(())
+        }
+        Expectation::Exit(_) | Expectation::Stdout(_) | Expectation::Stderr(_) => Ok(()),
+        _ => unreachable!("expectation variant not implemented in v0 parser"),
     }
 }
 
@@ -573,7 +568,7 @@ fn observe_dir_contains(
     }
     let entries = match std::fs::read_dir(&resolved) {
         Ok(entries) => entries,
-        Err(_) => return DirContainsObservation::SubjectMissing,
+        Err(_) => return DirContainsObservation::SubjectUnreadable,
     };
     let found = entries
         .filter_map(Result::ok)

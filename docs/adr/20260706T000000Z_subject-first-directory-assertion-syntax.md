@@ -59,19 +59,28 @@ Both the `dir` subject path and the `contains` entry name are validated in `eval
 
 This also matters operationally: a parser-level rejection (like `write`'s) fails the whole file during the pre-execution validation phase, before any case in *any* selected file runs. A `dir` assertion with a bad path is scoped to the one case that uses it, reported as that case's `script_error`, exactly like an invalid `file` assertion path.
 
+### Semantic validation recurses into logical composition
+
+`not` / `all` / `any` (#25) combine assertion *outcomes*; they must never let an invalid `file`/`dir` path or entry name bypass semantic validation just because it is nested inside a composition block, since that would let a path escape the case workspace sandbox (e.g. `not { dir "../../etc" exists }`) while merely looking like an ordinary, sandboxed assertion failure.
+
+Implementing `dir` surfaced that this recursion was missing for `file` too: `evaluate_case`'s pre-evidence-comparison validation loop checked only the top-level expectations in a block, not each block's `Logical` children, so a `file`/`dir` assertion nested inside `not { ... }` reached the real filesystem unvalidated. This issue fixes it for both subjects at once with a single recursive helper (`validate_expectation_paths` in `evaluator.rs`) that walks `Logical` children the same way `Expectation::required_evidence` already does for the action-result requirement — rather than shipping a `dir`-only fix that left the identical `file` gap in place.
+
 ### Assertion failure diagnostic codes
 
-Distinct codes exist per predicate and per failure shape, so tooling can distinguish "the directory does not exist" from "the directory is something else" from "the entry inside it is missing":
+Distinct codes exist per predicate and per failure shape, so tooling can distinguish "the directory does not exist" from "the directory is something else" from "the entry inside it is missing" from "the entry list could not be read":
 
 ```text
 assertion.dir.exists_missing
 assertion.dir.exists_not_directory
 assertion.dir.contains_subject_missing
 assertion.dir.contains_subject_not_directory
+assertion.dir.contains_subject_unreadable
 assertion.dir.contains_entry_missing
 ```
 
 `contains_subject_missing` and `contains_subject_not_directory` are separate from `exists_missing` / `exists_not_directory` even though they describe the same underlying subject-path observation: a failing `contains` should be identifiable as "the subject wasn't even a directory" without conflating it with a bare `exists` failure, so tooling can tell which expectation actually failed from the code alone.
+
+`contains_subject_unreadable` is separate from `contains_subject_missing`: a `read_dir` failure (e.g. a permission error) on a path that `metadata` already confirmed is a directory is not "the path does not exist" — conflating the two would misreport a permission problem as a missing directory. This mirrors `file "<path>" contains "<text>"`'s existing `Unreadable` observation for a regular file that cannot be read.
 
 ### Symlink policy
 

@@ -57,6 +57,8 @@ pub enum DiagnosticCode {
     AssertionDirContainsSubjectNotADirectory,
     /// `dir "<path>" contains "<name>"` observed a directory that does not contain an entry named `<name>`.
     AssertionDirContainsEntryMissing,
+    /// `dir "<path>" contains "<name>"` observed a directory whose entries could not be read (e.g. a permission error).
+    AssertionDirContainsSubjectUnreadable,
     /// A `not` / `all` / `any` logical composition block contains zero expectation expressions.
     /// See docs/semantic-diagnostics.md.
     SemanticExpectationEmptyBlock,
@@ -107,6 +109,9 @@ impl DiagnosticCode {
                 "assertion.dir.contains_subject_not_directory"
             }
             Self::AssertionDirContainsEntryMissing => "assertion.dir.contains_entry_missing",
+            Self::AssertionDirContainsSubjectUnreadable => {
+                "assertion.dir.contains_subject_unreadable"
+            }
             Self::SemanticExpectationEmptyBlock => "semantic.expectation.empty_block",
             Self::SemanticWorkspacePathEmpty => "semantic.workspace_path.empty",
             Self::SemanticWorkspacePathAbsolute => "semantic.workspace_path.absolute",
@@ -193,6 +198,7 @@ mod tests {
             DiagnosticCode::AssertionDirContainsSubjectMissing,
             DiagnosticCode::AssertionDirContainsSubjectNotADirectory,
             DiagnosticCode::AssertionDirContainsEntryMissing,
+            DiagnosticCode::AssertionDirContainsSubjectUnreadable,
             DiagnosticCode::SemanticExpectationEmptyBlock,
             DiagnosticCode::SemanticWorkspacePathEmpty,
             DiagnosticCode::SemanticWorkspacePathAbsolute,
