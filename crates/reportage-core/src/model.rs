@@ -181,8 +181,8 @@ impl AssertionBlock {
 #[derive(Debug)]
 pub enum Expectation {
     Exit(ExitExpectation),
-    // v0 parser produces only Exit, Stdout, Stderr, and Logical.
-    // The remaining variants are defined for conceptual completeness; they are not yet parsed or evaluated.
+    // v0 parser produces Exit, Stdout, Stderr, File, Dir, and Logical.
+    // FileCount and Jq (jq expression form) are defined for conceptual completeness; they are not yet parsed or evaluated.
     // See docs/TBD.md for planned additions.
     Stdout(OutputExpectation),
     Stderr(OutputExpectation),
@@ -352,7 +352,7 @@ pub enum FileMatcher {
     Matches(String),
 }
 
-/// Directory existence expectation.
+/// Directory existence / entry expectation.
 #[derive(Debug)]
 pub struct DirExpectation {
     pub path: String,
@@ -364,6 +364,10 @@ pub struct DirExpectation {
 pub enum DirMatcher {
     Exists,
     NotExists,
+    /// `dir "<path>" contains "<name>"`: `name` is a single directory entry
+    /// name checked for exact match directly under `path`, never a nested
+    /// path, a glob, or a recursive search.
+    Contains(String),
 }
 
 /// File count expectation: `file-count <glob> <op> <n>`.

@@ -58,6 +58,15 @@ pub enum ExpectationKind {
         expected: String,
         observation: FileContentObservation,
     },
+    DirExists {
+        path: String,
+        observation: DirExistsObservation,
+    },
+    DirContains {
+        path: String,
+        expected_entry: String,
+        observation: DirContainsObservation,
+    },
     /// A `not` / `all` / `any` logical composition.
     /// `children` holds each nested expectation's own result (independently evaluated, never flipped by a `not`), so which child passed or failed is never lost — see docs/semantics.md — Logical composition.
     Logical {
@@ -91,6 +100,25 @@ impl ExpectationKind {
                     Some(DiagnosticCode::AssertionFileContainsPreconditionUnmet)
                 }
             },
+            ExpectationKind::DirExists { observation, .. } => match observation {
+                DirExistsObservation::Directory => None,
+                DirExistsObservation::Missing => Some(DiagnosticCode::AssertionDirExistsMissing),
+                DirExistsObservation::NotADirectory => {
+                    Some(DiagnosticCode::AssertionDirExistsNotADirectory)
+                }
+            },
+            ExpectationKind::DirContains { observation, .. } => match observation {
+                DirContainsObservation::Found => None,
+                DirContainsObservation::EntryMissing => {
+                    Some(DiagnosticCode::AssertionDirContainsEntryMissing)
+                }
+                DirContainsObservation::SubjectMissing => {
+                    Some(DiagnosticCode::AssertionDirContainsSubjectMissing)
+                }
+                DirContainsObservation::SubjectNotADirectory => {
+                    Some(DiagnosticCode::AssertionDirContainsSubjectNotADirectory)
+                }
+            },
             _ => None,
         }
     }
@@ -122,6 +150,30 @@ pub enum FileContentObservation {
     Unreadable,
     /// `path` is a regular file, but its content is not valid UTF-8.
     NotUtf8,
+}
+
+/// What was observed on the filesystem for a `dir "<path>" exists` expectation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirExistsObservation {
+    /// `path` resolves (following symlinks) to a directory.
+    Directory,
+    /// `path` resolves to something other than a directory (e.g. a regular file).
+    NotADirectory,
+    /// `path` does not exist (including a broken symlink).
+    Missing,
+}
+
+/// What was observed on the filesystem for a `dir "<path>" contains "<name>"` expectation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirContainsObservation {
+    /// `path` is a directory containing an entry named `name`, directly under `path`.
+    Found,
+    /// `path` is a directory, but it has no entry named `name` directly under it.
+    EntryMissing,
+    /// `path` does not exist.
+    SubjectMissing,
+    /// `path` exists but is not a directory (e.g. a regular file).
+    SubjectNotADirectory,
 }
 
 /// The result of evaluating one expectation within an assertion block.

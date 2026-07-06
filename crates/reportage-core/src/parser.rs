@@ -3,9 +3,10 @@ use pest_derive::Parser;
 
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, DiagnosticLocation};
 use crate::model::{
-    ActionStep, AssertionBlock, Case, ExitExpectation, Expectation, FileExpectation, FileMatcher,
-    LogicalExpectation, LogicalOperator, OutputExpectation, OutputMatcher, RawTextBlock, Script,
-    SideEffectingStep, Step, WorkspacePath, WorkspacePathError, WriteFileStep,
+    ActionStep, AssertionBlock, Case, DirExpectation, DirMatcher, ExitExpectation, Expectation,
+    FileExpectation, FileMatcher, LogicalExpectation, LogicalOperator, OutputExpectation,
+    OutputMatcher, RawTextBlock, Script, SideEffectingStep, Step, WorkspacePath,
+    WorkspacePathError, WriteFileStep,
 };
 
 #[derive(Parser)]
@@ -363,7 +364,7 @@ fn parse_expectation_body(
 }
 
 fn parse_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
-    // expectation = { exit_exp | stdout_exp | stderr_exp | file_exp | logical_composition }
+    // expectation = { exit_exp | stdout_exp | stderr_exp | file_exp | dir_exp | logical_composition }
     let inner = pair
         .into_inner()
         .next()
@@ -374,6 +375,7 @@ fn parse_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, P
         Rule::stdout_exp => parse_output_exp(inner, true),
         Rule::stderr_exp => parse_output_exp(inner, false),
         Rule::file_exp => parse_file_exp(inner),
+        Rule::dir_exp => parse_dir_exp(inner),
         Rule::logical_composition => parse_logical_composition(inner),
         rule => unreachable!("unexpected rule in expectation: {rule:?}"),
     }
@@ -497,6 +499,35 @@ fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Pars
     };
 
     Ok(Expectation::File(FileExpectation { path, matcher }))
+}
+
+fn parse_dir_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
+    // dir_exp = { "dir" ~ ws+ ~ quoted_string ~ ws+ ~ dir_predicate }
+    let mut inner = pair.into_inner();
+    let path_pair = inner.next().expect("dir_exp must have a path");
+    let path = extract_string_inner(path_pair);
+
+    let predicate_pair = inner.next().expect("dir_exp must have a predicate");
+    // dir_predicate = { dir_contains | dir_exists }
+    let predicate = predicate_pair
+        .into_inner()
+        .next()
+        .expect("dir_predicate must have a variant");
+
+    let matcher = match predicate.as_rule() {
+        Rule::dir_exists => DirMatcher::Exists,
+        Rule::dir_contains => {
+            // dir_contains = { "contains" ~ ws+ ~ quoted_string }
+            let qs = predicate
+                .into_inner()
+                .next()
+                .expect("dir_contains must have quoted_string");
+            DirMatcher::Contains(extract_string_inner(qs))
+        }
+        rule => unreachable!("unexpected rule in dir_predicate: {rule:?}"),
+    };
+
+    Ok(Expectation::Dir(DirExpectation { path, matcher }))
 }
 
 fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
@@ -1407,14 +1438,105 @@ case "x" {
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
+    // ─── dir assertions (#66) ───────────────────────────────────────────────
+
     #[test]
-    fn dir_subject_is_not_v0_syntax() {
-        // `dir` is out of scope for #24; see #66.
+    fn parse_dir_exists() {
         let src = r#"
 case "x" {
   $ true
   assert {
+    dir "out" exists
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Dir(d) if d.path == "out" && matches!(d.matcher, DirMatcher::Exists)
+        ));
+    }
+
+    #[test]
+    fn parse_dir_contains() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    dir "artifacts" contains "result.json"
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Dir(d) if d.path == "artifacts"
+                && matches!(&d.matcher, DirMatcher::Contains(s) if s == "result.json")
+        ));
+    }
+
+    #[test]
+    fn dir_exists_and_contains_combine_with_process_expectations() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    exit 0
     dir "a" exists
+    dir "a" contains "b"
+  }
+}
+"#;
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected AssertionBlock");
+        };
+        assert_eq!(block.expectations().len(), 3);
+    }
+
+    // `dir <expectation> <path> <...args>` (expectation-first) is not the v0 syntax; only the subject-first `dir "<path>" <predicate>` form parses.
+    // See docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
+    #[test]
+    fn expectation_first_dir_form_is_rejected() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    dir exists "a"
+  }
+}
+"#;
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn dir_predicate_without_path_is_rejected() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    dir exists
+  }
+}
+"#;
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn dir_contains_without_name_is_rejected() {
+        let src = r#"
+case "x" {
+  $ true
+  assert {
+    dir "a" contains
   }
 }
 "#;

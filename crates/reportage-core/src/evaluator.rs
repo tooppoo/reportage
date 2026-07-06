@@ -2,14 +2,15 @@ use std::path::{Path, PathBuf};
 
 use crate::executor::{ExecutionEnvironment, execute_action};
 use crate::model::{
-    Case, Expectation, FileExpectation, FileMatcher, LogicalOperator, OutputMatcher, Script,
-    SideEffectingStep, Step,
+    Case, DirExpectation, DirMatcher, Expectation, FileExpectation, FileMatcher, LogicalOperator,
+    OutputMatcher, Script, SideEffectingStep, Step,
 };
 use crate::result::{
-    ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind, ExpectationResult,
-    FileContentObservation, FileExistsObservation, RunResult, RuntimeError,
+    ActionResult, AssertionBlockResult, CaseResult, CaseStatus, DirContainsObservation,
+    DirExistsObservation, ExpectationKind, ExpectationResult, FileContentObservation,
+    FileExistsObservation, RunResult, RuntimeError,
 };
-use crate::semantic::validate_file_path;
+use crate::semantic::{validate_dir_entry_name, validate_dir_path, validate_file_path};
 use crate::workspace::Workspace;
 
 /// Observable evidence available at a point in case execution.
@@ -220,6 +221,48 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                             side_effects_executed,
                         };
                     }
+
+                    // A dir assertion subject path, and (for `contains`) its entry name, must
+                    // satisfy reportage's path / entry-name policy before evidence comparison
+                    // begins. Both are semantic errors, not assertion failures.
+                    // See docs/semantic-diagnostics.md and
+                    // docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
+                    if let Expectation::Dir(dir_exp) = expectation {
+                        if let Err(semantic_err) = validate_dir_path(&dir_exp.path) {
+                            return CaseResult {
+                                name: case.name.clone(),
+                                source_path: None,
+                                status: CaseStatus::ScriptError(format!(
+                                    "case '{}': assertion block at step {} has an invalid dir \
+                                     assertion path: {semantic_err} [{}]",
+                                    case.name,
+                                    step_idx + 1,
+                                    semantic_err.code().as_str(),
+                                )),
+                                actions: action_results,
+                                assertion_blocks: assertion_block_results,
+                                side_effects_executed,
+                            };
+                        }
+                        if let DirMatcher::Contains(name) = &dir_exp.matcher
+                            && let Err(semantic_err) = validate_dir_entry_name(name)
+                        {
+                            return CaseResult {
+                                name: case.name.clone(),
+                                source_path: None,
+                                status: CaseStatus::ScriptError(format!(
+                                    "case '{}': assertion block at step {} has an invalid dir \
+                                     entry name: {semantic_err} [{}]",
+                                    case.name,
+                                    step_idx + 1,
+                                    semantic_err.code().as_str(),
+                                )),
+                                actions: action_results,
+                                assertion_blocks: assertion_block_results,
+                                side_effects_executed,
+                            };
+                        }
+                    }
                 }
 
                 // Evaluate all expectations in the block independently.
@@ -336,6 +379,7 @@ pub fn evaluate_expectation_at_checkpoint(
             }
         }
         Expectation::File(exp) => evaluate_file_expectation(exp, &checkpoint.workspace.root),
+        Expectation::Dir(exp) => evaluate_dir_expectation(exp, &checkpoint.workspace.root),
         Expectation::Logical(l) => {
             // Evaluate every child regardless of earlier results, so a failing composition still reports each child's own outcome.
             // See docs/semantics.md — Logical composition.
@@ -454,6 +498,90 @@ fn observe_file_contains(
         FileContentObservation::Found
     } else {
         FileContentObservation::NotFound
+    }
+}
+
+/// Evaluates a `dir "<path>" ...` expectation against the real filesystem.
+///
+/// The subject path policy (relative, no `.`/`..` segments, non-empty), and for `contains` the
+/// entry name policy, are checked earlier, in `evaluate_case`, before this function runs.
+///
+/// `exp.path` is resolved relative to `workspace_root`, the current concrete case's isolated
+/// workspace, exactly like `file` assertion paths. See docs/semantics.md.
+fn evaluate_dir_expectation(exp: &DirExpectation, workspace_root: &Path) -> ExpectationResult {
+    match &exp.matcher {
+        DirMatcher::Exists => {
+            let observation = observe_dir_exists(workspace_root, &exp.path);
+            let passed = matches!(observation, DirExistsObservation::Directory);
+            ExpectationResult {
+                kind: ExpectationKind::DirExists {
+                    path: exp.path.clone(),
+                    observation,
+                },
+                passed,
+            }
+        }
+        DirMatcher::Contains(entry_name) => {
+            let observation = observe_dir_contains(workspace_root, &exp.path, entry_name);
+            let passed = matches!(observation, DirContainsObservation::Found);
+            ExpectationResult {
+                kind: ExpectationKind::DirContains {
+                    path: exp.path.clone(),
+                    expected_entry: entry_name.clone(),
+                    observation,
+                },
+                passed,
+            }
+        }
+        DirMatcher::NotExists => {
+            unreachable!("dir matcher variant not implemented in v0 parser or evaluator")
+        }
+    }
+}
+
+/// Observes whether `path`, resolved against `workspace_root`, is a directory, following symlinks.
+///
+/// A regular file (or any other non-directory type) is observed as `NotADirectory`, not
+/// `Missing`: the path does exist, but it does not satisfy the `dir` subject's directory
+/// requirement.
+fn observe_dir_exists(workspace_root: &Path, path: &str) -> DirExistsObservation {
+    match std::fs::metadata(workspace_root.join(path)) {
+        Ok(meta) if meta.is_dir() => DirExistsObservation::Directory,
+        Ok(_) => DirExistsObservation::NotADirectory,
+        Err(_) => DirExistsObservation::Missing,
+    }
+}
+
+/// Observes whether `path`, resolved against `workspace_root`, is a directory containing an
+/// entry named `entry_name` directly under it.
+///
+/// Never recurses, never glob-matches, and never inspects file content: `entry_name` is compared
+/// against each direct child's raw entry name for an exact match, regardless of that entry's file
+/// type. See docs/semantics.md.
+fn observe_dir_contains(
+    workspace_root: &Path,
+    path: &str,
+    entry_name: &str,
+) -> DirContainsObservation {
+    let resolved = workspace_root.join(path);
+    let meta = match std::fs::metadata(&resolved) {
+        Ok(meta) => meta,
+        Err(_) => return DirContainsObservation::SubjectMissing,
+    };
+    if !meta.is_dir() {
+        return DirContainsObservation::SubjectNotADirectory;
+    }
+    let entries = match std::fs::read_dir(&resolved) {
+        Ok(entries) => entries,
+        Err(_) => return DirContainsObservation::SubjectMissing,
+    };
+    let found = entries
+        .filter_map(Result::ok)
+        .any(|entry| entry.file_name() == std::ffi::OsStr::new(entry_name));
+    if found {
+        DirContainsObservation::Found
+    } else {
+        DirContainsObservation::EntryMissing
     }
 }
 

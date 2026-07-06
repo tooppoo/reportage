@@ -1449,6 +1449,230 @@ case "cd does not affect file assertion root" {
     reportage(&dir).arg(script).assert().code(0);
 }
 
+// --- dir assertions (#66) ---
+
+#[test]
+fn dir_exists_succeeds_for_an_existing_directory() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "dir exists" {
+  $ mkdir out
+  assert {
+    dir "out" exists
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn dir_exists_fails_against_a_regular_file() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "dir exists against a file" {
+  $ touch marker
+  assert {
+    dir "marker" exists
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "it is not a directory (e.g. a regular file)",
+        ))
+        .stderr(predicates::str::contains(
+            "assertion.dir.exists_not_directory",
+        ));
+}
+
+#[test]
+fn dir_exists_fails_for_a_missing_path() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "dir exists missing" {
+  $ true
+  assert {
+    dir "nope" exists
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains("assertion.dir.exists_missing"));
+}
+
+#[test]
+fn dir_contains_succeeds_for_a_direct_entry() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "dir contains" {
+  $ mkdir -p artifacts && touch artifacts/result.json
+  assert {
+    dir "artifacts" contains "result.json"
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn dir_contains_is_not_recursive_glob_or_content_search() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "dir contains is not recursive" {
+  $ mkdir -p artifacts/nested && touch artifacts/nested/result.json && printf 'result.json' > artifacts/marker.txt
+  assert {
+    dir "artifacts" contains "nested"
+    not {
+      dir "artifacts" contains "result.json"
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn absolute_dir_assertion_path_is_a_script_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "absolute dir path rejected" {
+  $ true
+  assert {
+    dir "/etc" exists
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stdout(predicates::str::contains("test.repor"))
+        .stderr(predicates::str::contains(
+            "semantic.workspace_path.absolute",
+        ));
+}
+
+#[test]
+fn dot_segment_dir_assertion_path_is_a_script_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "dot segment dir path rejected" {
+  $ true
+  assert {
+    dir "../secret" exists
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stdout(predicates::str::contains("test.repor"))
+        .stderr(predicates::str::contains(
+            "semantic.workspace_path.dot_segment",
+        ));
+}
+
+#[test]
+fn empty_dir_assertion_path_is_a_script_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "empty dir path rejected" {
+  $ true
+  assert {
+    dir "" exists
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains("semantic.workspace_path.empty"));
+}
+
+#[test]
+fn dir_contains_path_separator_entry_name_is_a_script_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "invalid entry name rejected" {
+  $ mkdir artifacts
+  assert {
+    dir "artifacts" contains "a/b"
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains(
+            "semantic.dir_entry_name.path_separator",
+        ));
+}
+
+#[test]
+fn dir_assertion_path_resolves_against_workspace_root_not_action_cd() {
+    // A `cd` performed inside a `$` action must not change how the following dir assertion's path is resolved.
+    // See docs/semantics.md.
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "cd does not affect dir assertion root" {
+  $ mkdir -p subdir && cd subdir && mkdir moved
+  assert {
+    dir "subdir/moved" exists
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
 // --- write step (#67) ---
 
 #[test]

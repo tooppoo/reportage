@@ -1,0 +1,59 @@
+case "dir exists succeeds for an existing directory" {
+  $ mkdir artifacts
+
+  assert {
+    exit 0
+    dir "artifacts" exists
+  }
+}
+
+case "dir exists fails against a regular file" {
+  $ touch marker
+
+  assert {
+    exit 0
+    file "marker" exists
+    not {
+      dir "marker" exists
+    }
+  }
+}
+
+case "dir contains succeeds for a directory entry" {
+  $ mkdir -p artifacts && touch artifacts/result.json
+
+  assert {
+    exit 0
+    dir "artifacts" contains "result.json"
+  }
+}
+
+case "dir contains is not recursive, not a glob, and not a file content search" {
+  $ mkdir -p artifacts/nested && touch artifacts/nested/result.json && printf 'result.json' > artifacts/marker.txt
+
+  assert {
+    exit 0
+    dir "artifacts" contains "nested"
+    not {
+      dir "artifacts" contains "result.json"
+    }
+  }
+}
+
+case "invalid dir assertion path is rejected as a script error" {
+  $ printf '%s\n' 'case "inner" {' '  $ true' '  assert {' '    dir "../escape" exists' '  }' '}' > tmp-dir-invalid-path.repor && reportage tmp-dir-invalid-path.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.workspace_path.dot_segment"
+  }
+}
+
+case "invalid dir contains entry name is rejected as a script error" {
+  $ printf '%s\n' 'case "inner" {' '  $ true' '  assert {' '    dir "artifacts" contains "a/b"' '  }' '}' > tmp-dir-invalid-entry.repor && reportage tmp-dir-invalid-entry.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.dir_entry_name.path_separator"
+  }
+}

@@ -1,0 +1,15 @@
+case "dir exists" {
+  $ mkdir out
+
+  assert {
+    dir "out" exists
+  }
+}
+
+case "dir contains an entry" {
+  $ mkdir out && touch out/result.json
+
+  assert {
+    dir "out" contains "result.json"
+  }
+}

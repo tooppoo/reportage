@@ -1,0 +1,26 @@
+{
+  "cases": [
+    {
+      "name": "dir contains",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "dir",
+              "path": "artifacts",
+              "matcher": {
+                "kind": "contains",
+                "value": "result.json"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
