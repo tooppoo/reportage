@@ -16,6 +16,12 @@
       "include": "#assertion-block"
     },
     {
+      "include": "#workspace-path"
+    },
+    {
+      "include": "#fixture-reference"
+    },
+    {
       "include": "#strings"
     },
     {
@@ -46,6 +52,53 @@
         }
       ]
     },
+    "workspace-path": {
+      "patterns": [
+        {
+          "name": "meta.workspace-path.reportage",
+          "match": "(<)(\"(?:[^\"\\\\]|\\\\.)*\")(>)",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.workspace-path.begin.reportage"
+            },
+            "2": {
+              "name": "string.quoted.double.workspace-path.reportage",
+              "patterns": [
+                {
+                  "name": "constant.character.escape.reportage",
+                  "match": "\\\\."
+                }
+              ]
+            },
+            "3": {
+              "name": "punctuation.definition.workspace-path.end.reportage"
+            }
+          }
+        }
+      ]
+    },
+    "fixture-reference": {
+      "patterns": [
+        {
+          "name": "meta.fixture-reference.reportage",
+          "match": "(@)(\"(?:[^\"\\\\]|\\\\.)*\")",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.fixture-reference.reportage"
+            },
+            "2": {
+              "name": "string.quoted.double.fixture-reference.reportage",
+              "patterns": [
+                {
+                  "name": "constant.character.escape.reportage",
+                  "match": "\\\\."
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
     "write-step": {
       "patterns": [
         {
@@ -57,6 +110,12 @@
             },
             "3": {
               "patterns": [
+                {
+                  "include": "#workspace-path"
+                },
+                {
+                  "include": "#fixture-reference"
+                },
                 {
                   "include": "#strings"
                 }
@@ -143,6 +202,12 @@
             {
               "name": "keyword.operator.expectation.reportage",
               "match": "\\b(contains|equals|matches|exists)\\b"
+            },
+            {
+              "include": "#workspace-path"
+            },
+            {
+              "include": "#fixture-reference"
             },
             {
               "include": "#strings"

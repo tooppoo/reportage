@@ -1,6 +1,6 @@
 case "file exists" {
   $ true
   assert {
-    file "out/result.json" exists
+    file <"out/result.json"> exists
   }
 }

@@ -1,5 +1,5 @@
 case "write step fence length for embedded backticks" {
-  write "expected/markdown.md" ````
+  write <"expected/markdown.md"> ````
     ```ts
     console.log("hello")
     ```

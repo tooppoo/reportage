@@ -1,5 +1,5 @@
 case "write step absolute path is rejected" {
-  write "/etc/passwd" ```
+  write <"/etc/passwd"> ```
     x
     ```
   $ true

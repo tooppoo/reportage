@@ -54,6 +54,7 @@ semantic.expectation.empty_block
 semantic.workspace_path.empty
 semantic.workspace_path.absolute
 semantic.workspace_path.dot_segment
+semantic.literal.kind_mismatch
 step.write.target_exists
 step.write.parent_not_a_directory
 step.write.io_error
@@ -78,13 +79,14 @@ Assertion failures **are** diagnostics. They are represented in the same diagnos
 Classification examples:
 
 - `exit 0` observed with actual exit code `1` — assertion failure.
-- A path policy violation such as `file "../secret.txt" exists` — semantic error.
+- A path policy violation such as `file <"../secret.txt"> exists` — semantic error.
 - An unsupported expectation form — semantic error, or a parse-domain validation error depending on where it is detected.
-- A valid path whose target does not exist for `file "path" exists` — assertion failure.
-- A valid path whose target does not exist for `file "path" contains "text"` — assertion failure.
-- A valid path whose target is a directory or has non-UTF-8 content for `file "path" contains "text"` — assertion failure in principle, because the expectation itself is valid and the observed evidence fails the predicate's requirement.
-- An invalid entry name such as `dir "artifacts" contains "a/b"` — semantic error, for the same reason as a path policy violation: the value violates a policy the evaluator must reject before evidence comparison.
-- A valid `dir "path" exists` whose target does not exist, or is a regular file rather than a directory — assertion failure.
+- A valid path whose target does not exist for `file <"path"> exists` — assertion failure.
+- A valid path whose target does not exist for `file <"path"> contains "text"` — assertion failure.
+- A valid path whose target is a directory or has non-UTF-8 content for `file <"path"> contains "text"` — assertion failure in principle, because the expectation itself is valid and the observed evidence fails the predicate's requirement.
+- An invalid entry name such as `dir <"artifacts"> contains "a/b"` — semantic error, for the same reason as a path policy violation: the value violates a policy the evaluator must reject before evidence comparison.
+- A literal of the wrong kind, such as `file "out.txt" exists` (a `StringLiteral` where the `file` subject requires a `WorkspacePath`) — semantic error (`semantic.literal.kind_mismatch`), detected during AST construction. The script parses at the grammar level; the diagnostic names the expected kind, the actual kind, and the suggested replacement (`use <"out.txt"> instead`). See [`docs/semantics.md`](semantics.md) — Value literals.
+- A valid `dir <"path"> exists` whose target does not exist, or is a regular file rather than a directory — assertion failure.
 
 This classification is a premise for the diagnostic design of file assertions (#24), logical composition (#25), and directory assertions (#66).
 

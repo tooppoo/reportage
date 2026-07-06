@@ -1,0 +1,9 @@
+case "write path requires a workspace path literal, not a string literal" {
+  write "out.txt" ```
+    hello
+    ```
+  $ true
+  assert {
+    exit 0
+  }
+}

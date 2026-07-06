@@ -286,7 +286,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
 ///
 /// A logical composition combines assertion *outcomes*; it must never let an invalid path or
 /// entry name bypass semantic validation just because it is nested inside `not { ... }` — that
-/// would let a path escape the case workspace sandbox (e.g. `not { dir "../../etc" exists }`)
+/// would let a path escape the case workspace sandbox (e.g. `not { dir <"../../etc"> exists }`)
 /// while merely looking like an ordinary assertion failure.
 /// See docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md and
 /// docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
@@ -431,7 +431,7 @@ fn bytes_contains(haystack: &[u8], needle: &[u8]) -> bool {
     needle.is_empty() || haystack.windows(needle.len()).any(|w| w == needle)
 }
 
-/// Evaluates a `file "<path>" ...` expectation against the real filesystem.
+/// Evaluates a `file <"path"> ...` expectation against the real filesystem.
 ///
 /// The path policy (relative, no `.`/`..` segments) is checked earlier, in `evaluate_case`, before this function runs.
 /// By the time this function is called, `exp.path` is known to be policy-valid.
@@ -514,7 +514,7 @@ fn observe_file_contains(
     }
 }
 
-/// Evaluates a `dir "<path>" ...` expectation against the real filesystem.
+/// Evaluates a `dir <"path"> ...` expectation against the real filesystem.
 ///
 /// The subject path policy (relative, no `.`/`..` segments, non-empty), and for `contains` the
 /// entry name policy, are checked earlier, in `evaluate_case`, before this function runs.

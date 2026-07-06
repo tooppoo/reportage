@@ -1,5 +1,5 @@
 case "write step unterminated fence is rejected" {
-  write "a.txt" ```
+  write <"a.txt"> ```
     hello
   $ true
   assert {

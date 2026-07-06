@@ -1,6 +1,6 @@
 case "dir exists" {
   $ true
   assert {
-    dir "out" exists
+    dir <"out"> exists
   }
 }

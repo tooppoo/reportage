@@ -5,8 +5,8 @@ use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, Diagnosti
 use crate::model::{
     ActionStep, AssertionBlock, Case, DirExpectation, DirMatcher, ExitExpectation, Expectation,
     FileExpectation, FileMatcher, LogicalExpectation, LogicalOperator, OutputExpectation,
-    OutputMatcher, Script, SideEffectingStep, Step, TextLiteral, WorkspacePath, WorkspacePathError,
-    WriteFileStep,
+    OutputMatcher, RequiredLiteralKind, Script, SideEffectingStep, Step, TextLiteral,
+    ValueLiteralKind, WorkspacePath, WorkspacePathError, WriteFileStep,
 };
 
 #[derive(Parser)]
@@ -42,6 +42,23 @@ pub enum ParseError {
         line: usize,
         raw: String,
         reason: WorkspacePathError,
+    },
+    /// A literal of the wrong kind appeared in an argument position whose
+    /// signature requires a different kind (e.g. `file "out.txt" exists`,
+    /// whose subject requires a workspace path literal `<"out.txt">`).
+    /// Grammar-wise the script parses; this is a semantic invalid case with
+    /// an actionable diagnostic. See docs/semantic-diagnostics.md.
+    LiteralKindMismatch {
+        line: usize,
+        /// Human-readable name of the argument position, e.g. "`file` checkpoint subject".
+        position: &'static str,
+        expected: RequiredLiteralKind,
+        actual: ValueLiteralKind,
+        /// The offending literal as written in source, e.g. `"out.txt"` or `<"out.txt">`.
+        source: String,
+        /// The suggested replacement, e.g. `<"out.txt">`, or a description
+        /// such as "a string literal or heredoc literal".
+        suggestion: String,
     },
     /// A heredoc literal (in a `write` step or a `file ... contains`
     /// expectation) has a non-blank body line indented less than the
@@ -98,6 +115,19 @@ impl std::fmt::Display for ParseError {
                     "parse error at line {line}: write step path '{raw}' {reason_text}"
                 )
             }
+            ParseError::LiteralKindMismatch {
+                line,
+                position,
+                expected,
+                actual,
+                source,
+                suggestion,
+            } => write!(
+                f,
+                "parse error at line {line}: {position} requires a {expected}, but {source} is a {actual}; use {suggestion} instead",
+                expected = expected.name(),
+                actual = actual.name(),
+            ),
             ParseError::ShallowHeredocIndent { line } => write!(
                 f,
                 "parse error at line {line}: heredoc literal body line is indented less than its closing fence"
@@ -128,6 +158,7 @@ impl ParseError {
                 WorkspacePathError::Absolute => DiagnosticCode::SemanticWorkspacePathAbsolute,
                 WorkspacePathError::DotSegment => DiagnosticCode::SemanticWorkspacePathDotSegment,
             },
+            ParseError::LiteralKindMismatch { .. } => DiagnosticCode::SemanticLiteralKindMismatch,
             ParseError::ShallowHeredocIndent { .. } => DiagnosticCode::ParseRawBlockShallowIndent,
         }
     }
@@ -147,7 +178,7 @@ impl ParseError {
                 }),
                 DiagnosticDetails {
                     pest_message: Some(message.clone()),
-                    raw_value: None,
+                    ..Default::default()
                 },
             ),
             ParseError::EmptyCase { line, name } => (
@@ -156,8 +187,8 @@ impl ParseError {
                     column: None,
                 }),
                 DiagnosticDetails {
-                    pest_message: None,
                     raw_value: Some(name.clone()),
+                    ..Default::default()
                 },
             ),
             ParseError::MissingAssertionBlock { line, name } => (
@@ -166,8 +197,8 @@ impl ParseError {
                     column: None,
                 }),
                 DiagnosticDetails {
-                    pest_message: None,
                     raw_value: Some(name.clone()),
+                    ..Default::default()
                 },
             ),
             ParseError::EmptyAction { line } => (
@@ -183,8 +214,8 @@ impl ParseError {
                     column: None,
                 }),
                 DiagnosticDetails {
-                    pest_message: None,
                     raw_value: Some(value.clone()),
+                    ..Default::default()
                 },
             ),
             ParseError::EmptyLogicalCompositionBlock { line, operator } => (
@@ -193,8 +224,8 @@ impl ParseError {
                     column: None,
                 }),
                 DiagnosticDetails {
-                    pest_message: None,
                     raw_value: Some(operator.keyword().to_string()),
+                    ..Default::default()
                 },
             ),
             ParseError::InvalidWorkspacePath { line, raw, .. } => (
@@ -203,8 +234,28 @@ impl ParseError {
                     column: None,
                 }),
                 DiagnosticDetails {
-                    pest_message: None,
                     raw_value: Some(raw.clone()),
+                    ..Default::default()
+                },
+            ),
+            ParseError::LiteralKindMismatch {
+                line,
+                expected,
+                actual,
+                source,
+                suggestion,
+                ..
+            } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails {
+                    raw_value: Some(source.clone()),
+                    expected_kind: Some(expected.name().to_string()),
+                    actual_kind: Some(actual.name().to_string()),
+                    suggestion: Some(suggestion.clone()),
+                    ..Default::default()
                 },
             ),
             ParseError::ShallowHeredocIndent { line } => (
@@ -319,6 +370,108 @@ fn unescape_string(raw: &str) -> String {
         }
     }
     result
+}
+
+/// A parsed `value_literal`: its surface kind, its unescaped inner value,
+/// and enough source context to build an actionable kind-mismatch diagnostic.
+struct ValueLiteral {
+    kind: ValueLiteralKind,
+    /// The unescaped inner string value.
+    value: String,
+    /// The inner quoted string exactly as written in source, including its
+    /// surrounding quotes (e.g. `"out.txt"`), used to render suggestions.
+    quoted_source: String,
+    line: usize,
+}
+
+impl ValueLiteral {
+    /// The literal exactly as written in source, e.g. `"out.txt"`,
+    /// `<"out.txt">`, or `@"out.txt"`.
+    fn rendered(&self) -> String {
+        match self.kind {
+            ValueLiteralKind::StringLiteral => self.quoted_source.clone(),
+            ValueLiteralKind::WorkspacePath => format!("<{}>", self.quoted_source),
+            ValueLiteralKind::FixtureReference => format!("@{}", self.quoted_source),
+        }
+    }
+
+    /// Checks this literal against the kind `position` requires, returning
+    /// the unescaped inner value on a match and an actionable
+    /// `LiteralKindMismatch` (semantic.literal.kind_mismatch) otherwise.
+    fn expect_kind(
+        self,
+        expected: RequiredLiteralKind,
+        position: &'static str,
+    ) -> Result<String, ParseError> {
+        let matches = match expected {
+            RequiredLiteralKind::WorkspacePath => self.kind == ValueLiteralKind::WorkspacePath,
+            // TextValue's other form, the heredoc literal, is a distinct
+            // grammar rule and never reaches this check.
+            RequiredLiteralKind::TextValue | RequiredLiteralKind::StringLiteral => {
+                self.kind == ValueLiteralKind::StringLiteral
+            }
+        };
+        if matches {
+            return Ok(self.value);
+        }
+
+        let suggestion = match expected {
+            RequiredLiteralKind::WorkspacePath => format!("<{}>", self.quoted_source),
+            RequiredLiteralKind::TextValue => {
+                format!(
+                    "a string literal or heredoc literal (e.g. {})",
+                    self.quoted_source
+                )
+            }
+            RequiredLiteralKind::StringLiteral => self.quoted_source.clone(),
+        };
+        Err(ParseError::LiteralKindMismatch {
+            line: self.line,
+            position,
+            expected,
+            actual: self.kind,
+            source: self.rendered(),
+            suggestion,
+        })
+    }
+}
+
+/// Parses a `value_literal` pair into its kind, unescaped value, and source
+/// rendering. Infallible: which kinds a position accepts is checked
+/// separately via [`ValueLiteral::expect_kind`].
+fn parse_value_literal(pair: pest::iterators::Pair<Rule>) -> ValueLiteral {
+    // value_literal = { workspace_path_literal | fixture_reference_literal | quoted_string }
+    debug_assert_eq!(pair.as_rule(), Rule::value_literal);
+    let line = pair.line_col().0;
+    let variant = pair
+        .into_inner()
+        .next()
+        .expect("value_literal must have a variant");
+
+    let (kind, quoted) = match variant.as_rule() {
+        Rule::quoted_string => (ValueLiteralKind::StringLiteral, variant),
+        Rule::workspace_path_literal | Rule::fixture_reference_literal => {
+            let kind = if variant.as_rule() == Rule::workspace_path_literal {
+                ValueLiteralKind::WorkspacePath
+            } else {
+                ValueLiteralKind::FixtureReference
+            };
+            let quoted = variant
+                .into_inner()
+                .next()
+                .expect("path/fixture literal must wrap a quoted_string");
+            (kind, quoted)
+        }
+        rule => unreachable!("unexpected rule in value_literal: {rule:?}"),
+    };
+
+    let quoted_source = quoted.as_str().to_string();
+    ValueLiteral {
+        kind,
+        value: extract_string_inner(quoted),
+        quoted_source,
+        line,
+    }
 }
 
 fn parse_action_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
@@ -481,12 +634,19 @@ fn parse_output_exp(
     let matcher = match inner.as_rule() {
         Rule::output_empty => OutputMatcher::Empty,
         Rule::output_contains => {
-            // output_contains = { "contains" ~ ws+ ~ quoted_string }
-            let qs = inner
+            // output_contains = { "contains" ~ ws+ ~ value_literal }
+            let literal_pair = inner
                 .into_inner()
                 .next()
-                .expect("output_contains must have quoted_string");
-            OutputMatcher::Contains(extract_string_inner(qs))
+                .expect("output_contains must have value_literal");
+            let position = if is_stdout {
+                "`stdout contains` expected text"
+            } else {
+                "`stderr contains` expected text"
+            };
+            let expected = parse_value_literal(literal_pair)
+                .expect_kind(RequiredLiteralKind::TextValue, position)?;
+            OutputMatcher::Contains(expected)
         }
         rule => unreachable!("unexpected rule in output_matcher: {rule:?}"),
     };
@@ -500,10 +660,13 @@ fn parse_output_exp(
 }
 
 fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
-    // file_exp = { "file" ~ ws+ ~ quoted_string ~ ws+ ~ file_predicate }
+    // file_exp = { "file" ~ ws+ ~ value_literal ~ ws+ ~ file_predicate }
     let mut inner = pair.into_inner();
     let path_pair = inner.next().expect("file_exp must have a path");
-    let path = extract_string_inner(path_pair);
+    let path = parse_value_literal(path_pair).expect_kind(
+        RequiredLiteralKind::WorkspacePath,
+        "`file` checkpoint subject",
+    )?;
 
     let predicate_pair = inner.next().expect("file_exp must have a predicate");
     // file_predicate = { file_contains | file_exists }
@@ -515,12 +678,16 @@ fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Pars
     let matcher = match predicate.as_rule() {
         Rule::file_exists => FileMatcher::Exists,
         Rule::file_contains => {
-            // file_contains = { "contains" ~ ws+ ~ quoted_string }
-            let qs = predicate
+            // file_contains = { "contains" ~ ws+ ~ value_literal }
+            let literal_pair = predicate
                 .into_inner()
                 .next()
-                .expect("file_contains must have quoted_string");
-            FileMatcher::Contains(TextLiteral::Quoted(extract_string_inner(qs)))
+                .expect("file_contains must have value_literal");
+            let expected = parse_value_literal(literal_pair).expect_kind(
+                RequiredLiteralKind::TextValue,
+                "`file contains` expected text",
+            )?;
+            FileMatcher::Contains(TextLiteral::Quoted(expected))
         }
         rule => unreachable!("unexpected rule in file_predicate: {rule:?}"),
     };
@@ -539,10 +706,13 @@ fn parse_heredoc_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expect
 
     match inner.as_rule() {
         Rule::file_exp_heredoc => {
-            // file_exp_heredoc = { "file" ~ ws+ ~ quoted_string ~ ws+ ~ "contains" ~ ws+ ~ heredoc_literal }
+            // file_exp_heredoc = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "contains" ~ ws+ ~ heredoc_literal }
             let mut inner = inner.into_inner();
             let path_pair = inner.next().expect("file_exp_heredoc must have a path");
-            let path = extract_string_inner(path_pair);
+            let path = parse_value_literal(path_pair).expect_kind(
+                RequiredLiteralKind::WorkspacePath,
+                "`file` checkpoint subject",
+            )?;
 
             let literal_pair = inner
                 .next()
@@ -559,10 +729,13 @@ fn parse_heredoc_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expect
 }
 
 fn parse_dir_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
-    // dir_exp = { "dir" ~ ws+ ~ quoted_string ~ ws+ ~ dir_predicate }
+    // dir_exp = { "dir" ~ ws+ ~ value_literal ~ ws+ ~ dir_predicate }
     let mut inner = pair.into_inner();
     let path_pair = inner.next().expect("dir_exp must have a path");
-    let path = extract_string_inner(path_pair);
+    let path = parse_value_literal(path_pair).expect_kind(
+        RequiredLiteralKind::WorkspacePath,
+        "`dir` checkpoint subject",
+    )?;
 
     let predicate_pair = inner.next().expect("dir_exp must have a predicate");
     // dir_predicate = { dir_contains | dir_exists }
@@ -574,12 +747,16 @@ fn parse_dir_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Parse
     let matcher = match predicate.as_rule() {
         Rule::dir_exists => DirMatcher::Exists,
         Rule::dir_contains => {
-            // dir_contains = { "contains" ~ ws+ ~ quoted_string }
-            let qs = predicate
+            // dir_contains = { "contains" ~ ws+ ~ value_literal }
+            let literal_pair = predicate
                 .into_inner()
                 .next()
-                .expect("dir_contains must have quoted_string");
-            DirMatcher::Contains(extract_string_inner(qs))
+                .expect("dir_contains must have value_literal");
+            let name = parse_value_literal(literal_pair).expect_kind(
+                RequiredLiteralKind::StringLiteral,
+                "`dir contains` entry name",
+            )?;
+            DirMatcher::Contains(name)
         }
         rule => unreachable!("unexpected rule in dir_predicate: {rule:?}"),
     };
@@ -596,17 +773,21 @@ fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseErro
 }
 
 fn parse_write_step_string(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
-    // write_step_string = { "write" ~ ws+ ~ quoted_string ~ ws+ ~ quoted_string }
+    // write_step_string = { "write" ~ ws+ ~ value_literal ~ ws+ ~ value_literal }
     let line = pair.line_col().0;
     let mut inner = pair.into_inner();
 
     let path_pair = inner.next().expect("write_step_string must have a path");
-    let raw_path = extract_string_inner(path_pair);
+    let raw_path = parse_value_literal(path_pair)
+        .expect_kind(RequiredLiteralKind::WorkspacePath, "`write` step path")?;
 
     let content_pair = inner
         .next()
-        .expect("write_step_string must have content quoted_string");
-    let content = TextLiteral::Quoted(extract_string_inner(content_pair));
+        .expect("write_step_string must have content value_literal");
+    let content = TextLiteral::Quoted(
+        parse_value_literal(content_pair)
+            .expect_kind(RequiredLiteralKind::TextValue, "`write` step content")?,
+    );
 
     let path =
         WorkspacePath::parse(&raw_path).map_err(|reason| ParseError::InvalidWorkspacePath {
@@ -621,12 +802,13 @@ fn parse_write_step_string(pair: pest::iterators::Pair<Rule>) -> Result<Step, Pa
 }
 
 fn parse_write_step_heredoc(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
-    // write_step_heredoc = { "write" ~ ws+ ~ quoted_string ~ ws* ~ heredoc_literal }
+    // write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ ws* ~ heredoc_literal }
     let line = pair.line_col().0;
     let mut inner = pair.into_inner();
 
     let path_pair = inner.next().expect("write_step_heredoc must have a path");
-    let raw_path = extract_string_inner(path_pair);
+    let raw_path = parse_value_literal(path_pair)
+        .expect_kind(RequiredLiteralKind::WorkspacePath, "`write` step path")?;
 
     let literal_pair = inner
         .next()
@@ -1558,7 +1740,7 @@ case "x" {
 case "x" {
   $ true
   assert {
-    file "out/result.json" exists
+    file <"out/result.json"> exists
   }
 }
 "#;
@@ -1578,7 +1760,7 @@ case "x" {
 case "x" {
   $ true
   assert {
-    file "out/result.json" contains "\"status\":\"passed\""
+    file <"out/result.json"> contains "\"status\":\"passed\""
   }
 }
 "#;
@@ -1601,8 +1783,8 @@ case "x" {
   $ true
   assert {
     exit 0
-    file "a.txt" exists
-    file "a.txt" contains "hi"
+    file <"a.txt"> exists
+    file <"a.txt"> contains "hi"
   }
 }
 "#;
@@ -1613,7 +1795,7 @@ case "x" {
         assert_eq!(block.expectations().len(), 3);
     }
 
-    // `file <expectation> <path> <...args>` (expectation-first) is not the v0 syntax; only the subject-first `file "<path>" <predicate>` form parses.
+    // `file <expectation> <path> <...args>` (expectation-first) is not the v0 syntax; only the subject-first `file <"path"> <predicate>` form parses.
     // See docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
     #[test]
     fn expectation_first_file_form_is_rejected() {
@@ -1649,7 +1831,7 @@ case "x" {
 case "x" {
   $ true
   assert {
-    file "a.txt" contains
+    file <"a.txt"> contains
   }
 }
 "#;
@@ -1665,7 +1847,7 @@ case "x" {
 case "x" {
   $ true
   assert {
-    dir "out" exists
+    dir <"out"> exists
   }
 }
 "#;
@@ -1685,7 +1867,7 @@ case "x" {
 case "x" {
   $ true
   assert {
-    dir "artifacts" contains "result.json"
+    dir <"artifacts"> contains "result.json"
   }
 }
 "#;
@@ -1707,8 +1889,8 @@ case "x" {
   $ true
   assert {
     exit 0
-    dir "a" exists
-    dir "a" contains "b"
+    dir <"a"> exists
+    dir <"a"> contains "b"
   }
 }
 "#;
@@ -1719,7 +1901,7 @@ case "x" {
         assert_eq!(block.expectations().len(), 3);
     }
 
-    // `dir <expectation> <path> <...args>` (expectation-first) is not the v0 syntax; only the subject-first `dir "<path>" <predicate>` form parses.
+    // `dir <expectation> <path> <...args>` (expectation-first) is not the v0 syntax; only the subject-first `dir <"path"> <predicate>` form parses.
     // See docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
     #[test]
     fn expectation_first_dir_form_is_rejected() {
@@ -1755,7 +1937,7 @@ case "x" {
 case "x" {
   $ true
   assert {
-    dir "a" contains
+    dir <"a"> contains
   }
 }
 "#;
@@ -1965,7 +2147,7 @@ case "x" {
 
     #[test]
     fn parse_basic_write_step() {
-        let src = "case \"x\" {\n  write \"a.txt\" ```\n    hello\n    ```\n  $ true\n  assert {\n    exit 0\n  }\n}\n";
+        let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    hello\n    ```\n  $ true\n  assert {\n    exit 0\n  }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.path.as_str(), "a.txt");
@@ -1975,7 +2157,7 @@ case "x" {
 
     #[test]
     fn write_step_can_follow_an_action_in_source_order() {
-        let src = "case \"x\" {\n  $ true\n  write \"a.txt\" ```\n    hello\n    ```\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  $ true\n  write <\"a.txt\"> ```\n    hello\n    ```\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let Step::SideEffect(SideEffectingStep::WriteFile(step)) = &script.cases[0].steps[1] else {
             panic!("expected second step to be a write step");
@@ -1986,8 +2168,7 @@ case "x" {
 
     #[test]
     fn write_step_empty_block_content_is_empty_string() {
-        let src =
-            "case \"x\" {\n  write \"empty.txt\" ```\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write <\"empty.txt\"> ```\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "");
@@ -1995,7 +2176,7 @@ case "x" {
 
     #[test]
     fn write_step_blank_line_is_preserved_as_empty_line_after_dedent() {
-        let src = "case \"x\" {\n  write \"a.txt\" ```\n    first\n\n    third\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    first\n\n    third\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "first\n\nthird\n");
@@ -2005,7 +2186,7 @@ case "x" {
     fn write_step_whitespace_only_line_is_dedented_to_empty_line() {
         // The blank line has trailing spaces shallower than the closing fence's indent;
         // it must still be exempt from the shallow-indent check and dedent to empty.
-        let src = "case \"x\" {\n  write \"a.txt\" ```\n    first\n  \n    third\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    first\n  \n    third\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "first\n\nthird\n");
@@ -2015,7 +2196,7 @@ case "x" {
     fn write_step_tab_indent_is_treated_as_literal_prefix_not_width() {
         // Closing fence indented with a tab; body lines must match that exact
         // tab character as a string prefix, not a width-equivalent number of spaces.
-        let src = "case \"x\" {\n  write \"a.txt\" ```\n\thello\n\t```\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write <\"a.txt\"> ```\n\thello\n\t```\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "hello\n");
@@ -2023,7 +2204,7 @@ case "x" {
 
     #[test]
     fn write_step_crlf_line_endings_are_preserved() {
-        let src = "case \"x\" {\r\n  write \"a.txt\" ```\r\n    hello\r\n    ```\r\n  $ true\r\n  assert { exit 0 }\r\n}\r\n";
+        let src = "case \"x\" {\r\n  write <\"a.txt\"> ```\r\n    hello\r\n    ```\r\n  $ true\r\n  assert { exit 0 }\r\n}\r\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "hello\r\n");
@@ -2031,7 +2212,7 @@ case "x" {
 
     #[test]
     fn write_step_content_preserves_variable_looking_text_literally() {
-        let src = "case \"x\" {\n  write \"a.txt\" ```\n    ${ENTRY_KIND}\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    ${ENTRY_KIND}\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "${ENTRY_KIND}\n");
@@ -2039,7 +2220,7 @@ case "x" {
 
     #[test]
     fn write_step_closing_fence_longer_than_opening_is_accepted() {
-        let src = "case \"x\" {\n  write \"a.txt\" ```\n    hello\n    ````\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    hello\n    ````\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "hello\n");
@@ -2047,7 +2228,7 @@ case "x" {
 
     #[test]
     fn write_step_longer_opening_fence_allows_embedded_triple_backticks() {
-        let src = "case \"x\" {\n  write \"a.md\" ````\n    ```ts\n    console.log(1)\n    ```\n    ````\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write <\"a.md\"> ````\n    ```ts\n    console.log(1)\n    ```\n    ````\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(
@@ -2059,7 +2240,7 @@ case "x" {
     #[test]
     fn write_step_shallow_indent_is_rejected() {
         // "mid" is indented less than the closing fence's 4 spaces.
-        let src = "case \"x\" {\n  write \"a.txt\" ```\n    first\n  mid\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    first\n  mid\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::ShallowHeredocIndent { .. }));
         assert_eq!(err.code().as_str(), "parse.raw_block.shallow_indent");
@@ -2068,21 +2249,21 @@ case "x" {
     #[test]
     fn write_step_unterminated_fence_is_a_syntax_error() {
         let src =
-            "case \"x\" {\n  write \"a.txt\" ```\n    hello\n  $ true\n  assert { exit 0 }\n}\n";
+            "case \"x\" {\n  write <\"a.txt\"> ```\n    hello\n  $ true\n  assert { exit 0 }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn write_step_opening_fence_inline_comment_is_rejected() {
-        let src = "case \"x\" {\n  write \"a.txt\" ``` # comment\n    hello\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write <\"a.txt\"> ``` # comment\n    hello\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn write_step_absolute_path_is_rejected() {
-        let src = "case \"x\" {\n  write \"/etc/passwd\" ```\n    x\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write <\"/etc/passwd\"> ```\n    x\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(
             err,
@@ -2096,7 +2277,7 @@ case "x" {
 
     #[test]
     fn write_step_dot_segment_path_is_rejected() {
-        let src = "case \"x\" {\n  write \"../a.txt\" ```\n    x\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write <\"../a.txt\"> ```\n    x\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(
             err,
@@ -2111,7 +2292,7 @@ case "x" {
     #[test]
     fn write_step_empty_path_is_rejected() {
         let src =
-            "case \"x\" {\n  write \"\" ```\n    x\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+            "case \"x\" {\n  write <\"\"> ```\n    x\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let err = parse(src).unwrap_err();
         assert!(matches!(
             err,
@@ -2125,7 +2306,7 @@ case "x" {
 
     #[test]
     fn multiple_write_steps_are_kept_in_source_order() {
-        let src = "case \"x\" {\n  write \"a.txt\" ```\n    a\n    ```\n  write \"b.txt\" ```\n    b\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    a\n    ```\n  write <\"b.txt\"> ```\n    b\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
         let script = parse(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 4);
         let Step::SideEffect(SideEffectingStep::WriteFile(first)) = &script.cases[0].steps[0]
@@ -2144,7 +2325,7 @@ case "x" {
     // `write` step missing its own closing fence does not always produce a
     // syntax error. The grammar scans forward for the next line shaped like
     // a valid closing fence, which here belongs to what the author intended
-    // as a *separate* `write "b.txt"` step. That step's opening line is
+    // as a *separate* `write <"b.txt">` step. That step's opening line is
     // silently absorbed as literal content of `a.txt`, and `b.txt`'s write
     // step disappears from the AST entirely — this test pins that exact
     // behavior so a future grammar change cannot silently alter it further
@@ -2153,9 +2334,9 @@ case "x" {
     fn missing_closing_fence_silently_absorbs_a_later_write_step_as_content() {
         let src = concat!(
             "case \"x\" {\n",
-            "  write \"a.txt\" ```\n",
+            "  write <\"a.txt\"> ```\n",
             "    first\n",
-            "    write \"b.txt\" ```\n",
+            "    write <\"b.txt\"> ```\n",
             "    second\n",
             "    ```\n",
             "  $ true\n",
@@ -2164,17 +2345,274 @@ case "x" {
         );
         let script = parse(src).unwrap();
 
-        // Only 3 steps: the intended `write "b.txt"` step never materializes.
+        // Only 3 steps: the intended `write <"b.txt">` step never materializes.
         assert_eq!(script.cases[0].steps.len(), 3);
 
         let step = write_file_step(&script);
         assert_eq!(step.path.as_str(), "a.txt");
         assert_eq!(
             step.content.to_text_value().as_str(),
-            "first\nwrite \"b.txt\" ```\nsecond\n"
+            "first\nwrite <\"b.txt\"> ```\nsecond\n"
         );
 
         assert!(matches!(script.cases[0].steps[1], Step::Action(_)));
         assert!(matches!(script.cases[0].steps[2], Step::AssertionBlock(_)));
+    }
+
+    // ─── Workspace path literal / literal kind mismatch (#93) ──────────────
+
+    #[test]
+    fn workspace_path_literal_reuses_string_literal_escape_rules() {
+        // The inner quoted content of <"..."> shares quoted_string's escape
+        // rules; the unescaped value is what reaches the AST.
+        let src =
+            "case \"x\" {\n  write <\"a\\tb.txt\"> \"content\"\n  $ true\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap();
+        let step = write_file_step(&script);
+        assert_eq!(step.path.as_str(), "a\tb.txt");
+    }
+
+    #[test]
+    fn file_subject_string_literal_is_kind_mismatch() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file \"out.txt\" exists\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::WorkspacePath,
+                actual: ValueLiteralKind::StringLiteral,
+                ..
+            }
+        ));
+        assert_eq!(err.code().as_str(), "semantic.literal.kind_mismatch");
+
+        // The message must be actionable: expected kind, actual kind, and
+        // the suggested replacement.
+        let message = err.to_string();
+        assert!(message.contains("`file` checkpoint subject"));
+        assert!(message.contains("WorkspacePath"));
+        assert!(message.contains("StringLiteral"));
+        assert!(message.contains("<\"out.txt\">"));
+    }
+
+    #[test]
+    fn file_subject_fixture_reference_is_kind_mismatch() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file @\"out.txt\" exists\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::WorkspacePath,
+                actual: ValueLiteralKind::FixtureReference,
+                ..
+            }
+        ));
+
+        let message = err.to_string();
+        assert!(message.contains("FixtureReference"));
+        assert!(message.contains("@\"out.txt\""));
+        assert!(message.contains("<\"out.txt\">"));
+    }
+
+    #[test]
+    fn heredoc_file_contains_subject_string_literal_is_kind_mismatch() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file \"out.txt\" contains ```\n    hi\n    ```\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::WorkspacePath,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn dir_subject_string_literal_is_kind_mismatch() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    dir \"out\" exists\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::WorkspacePath,
+                actual: ValueLiteralKind::StringLiteral,
+                ..
+            }
+        ));
+        let message = err.to_string();
+        assert!(message.contains("`dir` checkpoint subject"));
+        assert!(message.contains("<\"out\">"));
+    }
+
+    #[test]
+    fn write_path_string_literal_is_kind_mismatch() {
+        let src = "case \"x\" {\n  write \"a.txt\" \"content\"\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::WorkspacePath,
+                actual: ValueLiteralKind::StringLiteral,
+                ..
+            }
+        ));
+        let message = err.to_string();
+        assert!(message.contains("`write` step path"));
+    }
+
+    #[test]
+    fn write_heredoc_path_string_literal_is_kind_mismatch() {
+        let src = "case \"x\" {\n  write \"a.txt\" ```\n    hello\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::WorkspacePath,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn write_content_workspace_path_literal_is_kind_mismatch() {
+        let src =
+            "case \"x\" {\n  write <\"a.txt\"> <\"b.txt\">\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::TextValue,
+                actual: ValueLiteralKind::WorkspacePath,
+                ..
+            }
+        ));
+        let message = err.to_string();
+        assert!(message.contains("`write` step content"));
+        assert!(message.contains("string literal or heredoc literal"));
+    }
+
+    #[test]
+    fn stdout_contains_workspace_path_literal_is_kind_mismatch() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains <\"expected.stdout\">\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::TextValue,
+                actual: ValueLiteralKind::WorkspacePath,
+                ..
+            }
+        ));
+        let message = err.to_string();
+        assert!(message.contains("`stdout contains` expected text"));
+        assert!(message.contains("TextValue"));
+        assert!(message.contains("string literal or heredoc literal"));
+    }
+
+    #[test]
+    fn stderr_contains_fixture_reference_is_kind_mismatch() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stderr contains @\"expected.stderr\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::TextValue,
+                actual: ValueLiteralKind::FixtureReference,
+                ..
+            }
+        ));
+        let message = err.to_string();
+        assert!(message.contains("`stderr contains` expected text"));
+    }
+
+    #[test]
+    fn file_contains_expected_workspace_path_literal_is_kind_mismatch() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contains <\"expected.txt\">\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::TextValue,
+                actual: ValueLiteralKind::WorkspacePath,
+                ..
+            }
+        ));
+        let message = err.to_string();
+        assert!(message.contains("`file contains` expected text"));
+    }
+
+    #[test]
+    fn dir_contains_entry_workspace_path_literal_is_kind_mismatch() {
+        let src =
+            "case \"x\" {\n  $ true\n  assert {\n    dir <\"out\"> contains <\"entry\">\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::StringLiteral,
+                actual: ValueLiteralKind::WorkspacePath,
+                ..
+            }
+        ));
+        // The suggestion for a StringLiteral requirement is the same quoted
+        // content without the workspace path wrapper.
+        let message = err.to_string();
+        assert!(message.contains("`dir contains` entry name"));
+        assert!(message.contains("use \"entry\" instead"));
+    }
+
+    #[test]
+    fn literal_kind_mismatch_diagnostic_carries_expected_actual_and_suggestion() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file \"out.txt\" exists\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        let diagnostic = err.to_diagnostic();
+
+        assert_eq!(diagnostic.code.as_str(), "semantic.literal.kind_mismatch");
+        assert_eq!(
+            diagnostic.location.expect("location must be present").line,
+            4
+        );
+        assert_eq!(diagnostic.details.raw_value.as_deref(), Some("\"out.txt\""));
+        assert_eq!(
+            diagnostic.details.expected_kind.as_deref(),
+            Some("WorkspacePath")
+        );
+        assert_eq!(
+            diagnostic.details.actual_kind.as_deref(),
+            Some("StringLiteral")
+        );
+        assert_eq!(
+            diagnostic.details.suggestion.as_deref(),
+            Some("<\"out.txt\">")
+        );
+    }
+
+    #[test]
+    fn whitespace_between_path_marker_and_quote_is_syntax_error() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file < \"out.txt\"> exists\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\" > exists\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn workspace_path_literal_value_validation_still_applies_to_write_path() {
+        // Kind and value validation are separate layers: a correctly-kinded
+        // workspace path literal whose unescaped value violates the
+        // workspace path policy still fails with the existing
+        // semantic.workspace_path.* diagnostics.
+        let src =
+            "case \"x\" {\n  write <\"/etc/passwd\"> \"x\"\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::InvalidWorkspacePath {
+                reason: WorkspacePathError::Absolute,
+                ..
+            }
+        ));
     }
 }

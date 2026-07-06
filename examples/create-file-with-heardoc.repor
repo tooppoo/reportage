@@ -1,6 +1,6 @@
 
 case "create file with heredoc" {
-  write "test.txt" ```
+  write <"test.txt"> ```
     Hello, Rerpotage!
     Indentation is deindented relative to the terminating character
 

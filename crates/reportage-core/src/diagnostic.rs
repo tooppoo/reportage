@@ -31,33 +31,33 @@ pub enum DiagnosticCode {
     SemanticFilePathAbsolute,
     /// A file assertion path contains a `.` or `..` segment.
     SemanticFilePathDotSegment,
-    /// `file "<path>" exists` observed a missing path.
+    /// `file <"path"> exists` observed a missing path.
     AssertionFileExistsMissing,
-    /// `file "<path>" exists` observed a path that is not a regular file (e.g. a directory).
+    /// `file <"path"> exists` observed a path that is not a regular file (e.g. a directory).
     AssertionFileExistsNotAFile,
-    /// `file "<path>" contains "<text>"` observed a path that is not a readable UTF-8 regular file (missing, a directory, unreadable, or non-UTF-8 content).
+    /// `file <"path"> contains "<text>"` observed a path that is not a readable UTF-8 regular file (missing, a directory, unreadable, or non-UTF-8 content).
     AssertionFileContainsPreconditionUnmet,
-    /// `file "<path>" contains "<text>"` observed a readable UTF-8 regular file that does not contain the expected substring.
+    /// `file <"path"> contains "<text>"` observed a readable UTF-8 regular file that does not contain the expected substring.
     AssertionFileContainsMismatch,
-    /// A `dir "<path>" contains "<name>"` entry name was empty.
+    /// A `dir <"path"> contains "<name>"` entry name was empty.
     SemanticDirEntryNameEmpty,
-    /// A `dir "<path>" contains "<name>"` entry name contained a path separator (`/`).
+    /// A `dir <"path"> contains "<name>"` entry name contained a path separator (`/`).
     SemanticDirEntryNamePathSeparator,
-    /// A `dir "<path>" contains "<name>"` entry name was `.` or `..`.
+    /// A `dir <"path"> contains "<name>"` entry name was `.` or `..`.
     SemanticDirEntryNameDotEntry,
-    /// A `dir "<path>" contains "<name>"` entry name contained a control character.
+    /// A `dir <"path"> contains "<name>"` entry name contained a control character.
     SemanticDirEntryNameControlChar,
-    /// `dir "<path>" exists` observed a missing path.
+    /// `dir <"path"> exists` observed a missing path.
     AssertionDirExistsMissing,
-    /// `dir "<path>" exists` observed a path that is not a directory (e.g. a regular file).
+    /// `dir <"path"> exists` observed a path that is not a directory (e.g. a regular file).
     AssertionDirExistsNotADirectory,
-    /// `dir "<path>" contains "<name>"` observed a subject path that does not exist.
+    /// `dir <"path"> contains "<name>"` observed a subject path that does not exist.
     AssertionDirContainsSubjectMissing,
-    /// `dir "<path>" contains "<name>"` observed a subject path that is not a directory.
+    /// `dir <"path"> contains "<name>"` observed a subject path that is not a directory.
     AssertionDirContainsSubjectNotADirectory,
-    /// `dir "<path>" contains "<name>"` observed a directory that does not contain an entry named `<name>`.
+    /// `dir <"path"> contains "<name>"` observed a directory that does not contain an entry named `<name>`.
     AssertionDirContainsEntryMissing,
-    /// `dir "<path>" contains "<name>"` observed a directory whose entries could not be read (e.g. a permission error).
+    /// `dir <"path"> contains "<name>"` observed a directory whose entries could not be read (e.g. a permission error).
     AssertionDirContainsSubjectUnreadable,
     /// A `not` / `all` / `any` logical composition block contains zero expectation expressions.
     /// See docs/semantic-diagnostics.md.
@@ -81,6 +81,12 @@ pub enum DiagnosticCode {
     SemanticWorkspacePathAbsolute,
     /// A `write` step's workspace path contained a `.` or `..` segment.
     SemanticWorkspacePathDotSegment,
+    /// A literal of one kind (string literal / workspace path literal /
+    /// fixture reference literal) appeared in an argument position whose
+    /// signature requires a different kind, e.g. `file "out.txt" exists`
+    /// where the `file` subject requires a workspace path literal.
+    /// See docs/semantic-diagnostics.md.
+    SemanticLiteralKindMismatch,
     /// A heredoc literal (in a `write` step or a `file ... contains`
     /// expectation) contains a non-blank body line that is indented less
     /// than the closing fence.
@@ -136,6 +142,7 @@ impl DiagnosticCode {
             Self::SemanticWorkspacePathEmpty => "semantic.workspace_path.empty",
             Self::SemanticWorkspacePathAbsolute => "semantic.workspace_path.absolute",
             Self::SemanticWorkspacePathDotSegment => "semantic.workspace_path.dot_segment",
+            Self::SemanticLiteralKindMismatch => "semantic.literal.kind_mismatch",
             Self::ParseRawBlockShallowIndent => "parse.raw_block.shallow_indent",
             Self::StepWriteTargetExists => "step.write.target_exists",
             Self::StepWriteParentNotADirectory => "step.write.parent_not_a_directory",
@@ -173,6 +180,12 @@ pub struct DiagnosticDetails {
     pub pest_message: Option<String>,
     /// The offending raw value (e.g. an out-of-range exit code literal or a case name), when relevant to the diagnostic.
     pub raw_value: Option<String>,
+    /// The literal kind the position's signature requires (e.g. `WorkspacePath`), for literal kind mismatch diagnostics.
+    pub expected_kind: Option<String>,
+    /// The literal kind the script actually wrote (e.g. `StringLiteral`), for literal kind mismatch diagnostics.
+    pub actual_kind: Option<String>,
+    /// The suggested replacement (e.g. `<"out.txt">`, or a description such as "a string literal or heredoc literal"), for literal kind mismatch diagnostics.
+    pub suggestion: Option<String>,
 }
 
 /// A machine-readable diagnostic produced by parsing or validating a script.
@@ -229,6 +242,7 @@ mod tests {
             DiagnosticCode::SemanticWorkspacePathEmpty,
             DiagnosticCode::SemanticWorkspacePathAbsolute,
             DiagnosticCode::SemanticWorkspacePathDotSegment,
+            DiagnosticCode::SemanticLiteralKindMismatch,
             DiagnosticCode::ParseRawBlockShallowIndent,
             DiagnosticCode::StepWriteTargetExists,
             DiagnosticCode::StepWriteParentNotADirectory,

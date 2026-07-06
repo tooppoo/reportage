@@ -201,7 +201,7 @@ assert {
 `write` steps (see "Write step" below) never expand variable bindings, whether or not the case is parameterized:
 
 ```reportage
-write ".rellog/entries/001.kdl" ```
+write <".rellog/entries/001.kdl"> ```
   entry "entry" {
     kind "${ENTRY_KIND}"
   }
@@ -370,6 +370,94 @@ Semantics:
 - After a block failure, the same concrete case does not proceed to its next action. The runner may proceed to the next concrete case.
 - An assertion block is side-effect-free. It does not modify the checkpoint.
 
+## Value literals
+
+Reportage separates its single-line literal syntaxes by semantic domain. Each surface form maps to exactly one kind of value, independent of the position it appears in:
+
+````text
+"..."      = StringLiteral        (text domain)
+```...```  = HeredocLiteral       (text domain)
+<"...">    = WorkspacePath        (case-workspace filesystem reference)
+@"..."     = FixtureReference     (test-definition-side file reference; reserved for #92)
+````
+
+These kinds group into two value categories:
+
+```text
+TextValue            = StringLiteral | HeredocLiteral
+FileContentReference = WorkspacePath | FixtureReference
+```
+
+- A **`TextValue`** is text content: something to write, or something to compare against. See "Text literal" below.
+- A **`WorkspacePath`** is a filesystem path resolved against the current concrete case's workspace root — the subject of `file` / `dir` checkpoints and the output path of `write`.
+- A **`FixtureReference`** refers to a static fixture / snapshot file near the `*.repor` file itself. Its syntax is reserved by this grammar, but no argument position accepts it yet; it is introduced by #92.
+- A **`FileContentReference`** is a reference that provides expected file content. No v0 expectation consumes one yet; it is the expected-value category for the future `contents_equals` family (#87).
+
+There is **no implicit conversion** between these domains: a `TextValue` never converts to a `WorkspacePath` or `FixtureReference`, and vice versa. A `WorkspacePath` and a `FixtureReference` may hold the same string data internally, but they are distinct semantic types.
+
+### Literal kind mismatch
+
+Grammar-wise, every argument position accepts any single-line literal kind. Which kind a position's signature requires is checked while the AST is constructed, so a wrong-kind literal is a parse-able **semantic invalid case** with an actionable diagnostic (`semantic.literal.kind_mismatch`), never a bare syntax error. The diagnostic names the expected kind, the actual kind, and the suggested replacement:
+
+```reportage
+file "out.txt" exists
+```
+
+```text
+`file` checkpoint subject requires a WorkspacePath, but "out.txt" is a StringLiteral; use <"out.txt"> instead
+```
+
+Conversely, a `WorkspacePath` in a text position:
+
+```reportage
+stdout contains <"expected.stdout">
+```
+
+```text
+`stdout contains` expected text requires a TextValue, but <"expected.stdout"> is a WorkspacePath; use a string literal or heredoc literal (e.g. "expected.stdout") instead
+```
+
+Literal kind validation and value validation are separate layers: `<"">`, `<"/abs">`, and `<"../up">` are correctly-kinded workspace path literals whose unescaped values still fail the existing workspace path policy (`semantic.workspace_path.*`). The inner quoted content of `<"...">` reuses the string literal escape rules; the workspace path policy applies to the value after unescaping.
+
+### Signatures of path-taking constructs
+
+The v0 constructs that take a path take a `WorkspacePath`:
+
+```text
+write <WorkspacePath> <TextValue>
+
+file <WorkspacePath> exists
+file <WorkspacePath> contains <TextValue>
+
+dir <WorkspacePath> exists
+dir <WorkspacePath> contains <existing-dir-contains-expected>
+```
+
+`dir contains`'s expected side keeps its existing semantics (a single entry name as a string literal); only the `dir` subject is a `WorkspacePath`.
+
+The `file` / `dir` checkpoint subject accepts a `WorkspacePath` **only** — never a `FixtureReference`. A fixture reference will be usable as expected content (`FileContentReference`), not as a checkpoint subject: assertions observe the workspace under test, while fixtures supply what to compare it against.
+
+### Design constraints for future expectations
+
+Future `text_equals` / `contents_equals` expectations (#87, #88) must follow these type rules:
+
+```text
+file <WorkspacePath> text_equals <TextValue>
+file <WorkspacePath> contents_equals <FileContentReference>
+
+stdout contains <TextValue>
+stdout text_equals <TextValue>
+stdout contents_equals <FileContentReference>
+
+stderr contains <TextValue>
+stderr text_equals <TextValue>
+stderr contents_equals <FileContentReference>
+```
+
+`contents_equals` takes a `FileContentReference` as its expected value uniformly, regardless of subject — a reader who sees `contents_equals` always knows the expected side is `<"...">` or `@"..."`. `text_equals`, like `contains`, always takes a `TextValue`. The conformance cases for these expectations are added by their own introducing issues.
+
+See [ADR: Workspace Path Literal Syntax](adr/20260706T160000Z_workspace-path-literal-syntax.md) for why the surface syntaxes are separated rather than contextually typed.
+
 ## Text literal
 
 A `text_literal` is the syntax category `string literal | heredoc literal` — the two interchangeable ways v0 accepts multi-purpose text. Both a `write` step's content and a `file ... contains` expectation's expected text are written as a `text_literal`.
@@ -382,7 +470,7 @@ Both forms resolve to the same `TextValue` at the semantic level: a `write` step
 ### Heredoc literal
 
 ```reportage
-write "expected/stdout.txt" ```
+write <"expected/stdout.txt"> ```
   expected output
   ```
 ```
@@ -398,18 +486,18 @@ Grammar and semantics:
 
 A heredoc literal missing its own closing fence does not always fail with a syntax error: like a heredoc missing its terminator, the parser scans forward for the next line shaped like a valid closing fence, which may belong to a different, later heredoc literal. When that happens, everything in between — including that later literal's own opening line — is silently absorbed as literal content, with no diagnostic. Keep each heredoc literal's opening and closing fence visually paired to avoid this.
 
-Because a heredoc literal spans multiple physical lines and its closing fence line consumes its own trailing line ending (with no inline comment allowed), it cannot appear in a single-line `assert { ... }` body — only in the multi-line form. It can, however, be used directly after `write "<path>"` (which is inherently a multi-line construct already).
+Because a heredoc literal spans multiple physical lines and its closing fence line consumes its own trailing line ending (with no inline comment allowed), it cannot appear in a single-line `assert { ... }` body — only in the multi-line form. It can, however, be used directly after `write <"path">` (which is inherently a multi-line construct already).
 
 ## Write step
 
 A `write` step writes a `text_literal`'s resolved content to a file in the current concrete case's isolated workspace:
 
 ```reportage
-write "expected/stdout.txt" "expected output\n"
+write <"expected/stdout.txt"> "expected output\n"
 ```
 
 ```reportage
-write "expected/stdout.txt" ```
+write <"expected/stdout.txt"> ```
   expected output
   ```
 ```
@@ -418,7 +506,7 @@ write "expected/stdout.txt" ```
 
 Semantics:
 
-- `write "<path>" <text_literal>` is create-only. If `<path>` already exists (as a file, directory, or symlink), the step fails rather than silently overwriting it.
+- `write <"path"> <text_literal>` is create-only. If `<path>` already exists (as a file, directory, or symlink), the step fails rather than silently overwriting it.
 - `<path>` is resolved relative to the current concrete case's workspace root, never the repository root. See "Repository root and workspace boundary" below.
 - Parent directories are created automatically. If a regular file, a symlink, or any other non-directory entry already occupies part of the parent path, the step fails — a symlink is rejected rather than followed, so a symlink planted by an earlier `$` action (e.g. `$ ln -s /tmp escape`) cannot be used to make a later `write` step escape the isolated workspace.
 - When `<text_literal>` is a string literal, the step is an ordinary single-line construct and may carry a trailing `#` comment, like every other single-line step. When it is a heredoc literal, see "Heredoc literal" above for its own line-ending and dedent rules.
@@ -441,13 +529,13 @@ A `write` step's path is always relative to the current concrete case's workspac
 
 An expectation is an individual expected condition within an assertion block.
 
-Examples: `exit 0`, `stderr empty`, `dir ".rellog" exists`, `file ".rellog/config.yml" exists`.
+Examples: `exit 0`, `stderr empty`, `dir <".rellog"> exists`, `file <".rellog/config.yml"> exists`.
 
 Each expectation has an evidence requirement that determines what checkpoint state must be available for it to be evaluated. Expectations are side-effect-free. Failures are reported per expectation, independently of other expectations in the same block.
 
 ## Logical composition
 
-`not { ... }`, `all { ... }`, and `any { ... }` compose expectation expressions into a single expectation expression, block-form only. See ADR 20260704T150000Z_block-form-logical-composition for why v0 rejects infix `A and B` / `A or B`, `and { ... }` / `or { ... }` aliases, and predicate-level negation (`file "path" not exists`) in favor of this form.
+`not { ... }`, `all { ... }`, and `any { ... }` compose expectation expressions into a single expectation expression, block-form only. See ADR 20260704T150000Z_block-form-logical-composition for why v0 rejects infix `A and B` / `A or B`, `and { ... }` / `or { ... }` aliases, and predicate-level negation (`file <"path"> not exists`) in favor of this form.
 
 A logical composition block's body accepts the same single-line or multi-line expectation forms as `assert { ... }`, and may contain nested `not` / `all` / `any` blocks in addition to atomic expectations.
 
@@ -479,7 +567,7 @@ The initial checkpoint has:
 - workspace state (the current case workspace, including any files written by `before_each`);
 - no last action result.
 
-Workspace expectations (`dir "<path>" exists`, `file "<path>" exists`, etc.) are valid at the initial checkpoint.
+Workspace expectations (`dir <"path"> exists`, `file <"path"> exists`, etc.) are valid at the initial checkpoint.
 
 Process expectations (`exit`, `stdout`, `stderr`) require a last action result. Using a process expectation in an assertion block at the initial checkpoint is a **script error**.
 
@@ -500,13 +588,13 @@ Different expectations require different evidence from the current checkpoint.
 
 Require only workspace state. Valid at the initial checkpoint.
 
-- `dir "<path>" exists`
-- `dir "<path>" contains "<name>"`
-- `file "<path>" exists`
-- `file "<path>" contains "<text>"`
+- `dir <"path"> exists`
+- `dir <"path"> contains "<name>"`
+- `file <"path"> exists`
+- `file <"path"> contains "<text>"`
 - `file-count <glob> <op> <n>`
 
-`file-count` is conceptual / future syntax and is not part of v0. `dir "<path>" exists`, `dir "<path>" contains "<name>"`, `file "<path>" exists`, and `file "<path>" contains "<text>"` are implemented in v0; see "File assertions" and "Directory assertions" below.
+`file-count` is conceptual / future syntax and is not part of v0. `dir <"path"> exists`, `dir <"path"> contains "<name>"`, `file <"path"> exists`, and `file <"path"> contains "<text>"` are implemented in v0; see "File assertions" and "Directory assertions" below.
 
 ### Process expectations
 
@@ -537,12 +625,12 @@ In v0, structured output expectations use external `jq`.
 
 ## File assertions
 
-`file "<path>" exists` and `file "<path>" contains <text_literal>` are v0 workspace expectations. `file "<path>"` is the subject; `exists` and `contains <text_literal>` are predicates on that subject. See [ADR: Adopt Subject-First File Assertion Syntax](adr/20260704T112155Z_subject-first-file-assertion-syntax.md) for why this shape was chosen over an expectation-first form.
+`file <"path"> exists` and `file <"path"> contains <text_literal>` are v0 workspace expectations. `file <"path">` is the subject; `exists` and `contains <text_literal>` are predicates on that subject. See [ADR: Adopt Subject-First File Assertion Syntax](adr/20260704T112155Z_subject-first-file-assertion-syntax.md) for why this shape was chosen over an expectation-first form.
 
 ```reportage
 assert {
-  file ".reportage/runs/self-test/result.json" exists
-  file ".reportage/runs/self-test/result.json" contains "\"result\""
+  file <".reportage/runs/self-test/result.json"> exists
+  file <".reportage/runs/self-test/result.json"> contains "\"result\""
 }
 ```
 
@@ -550,7 +638,7 @@ assert {
 
 ```reportage
 assert {
-  file "out/report.html" contains ```
+  file <"out/report.html"> contains ```
     <li>expected row</li>
     ```
 }
@@ -581,12 +669,12 @@ Path resolution:
 
 ## Directory assertions
 
-`dir "<path>" exists` and `dir "<path>" contains "<name>"` are v0 workspace expectations. `dir "<path>"` is the subject; `exists` and `contains "<name>"` are predicates on that subject, mirroring the `file` subject's shape. See [ADR: Adopt Subject-First Directory Assertion Syntax](adr/20260706T000000Z_subject-first-directory-assertion-syntax.md) for why this shape was chosen, and for how it relates to the `file` subject.
+`dir <"path"> exists` and `dir <"path"> contains "<name>"` are v0 workspace expectations. `dir <"path">` is the subject; `exists` and `contains "<name>"` are predicates on that subject, mirroring the `file` subject's shape. See [ADR: Adopt Subject-First Directory Assertion Syntax](adr/20260706T000000Z_subject-first-directory-assertion-syntax.md) for why this shape was chosen, and for how it relates to the `file` subject.
 
 ```reportage
 assert {
-  dir "artifacts" exists
-  dir "artifacts" contains "result.json"
+  dir <"artifacts"> exists
+  dir <"artifacts"> contains "result.json"
 }
 ```
 
@@ -614,7 +702,7 @@ Path resolution:
 case "init creates workspace" {
   assert {
     not {
-      dir ".rellog" exists
+      dir <".rellog"> exists
     }
   }
 
@@ -622,8 +710,8 @@ case "init creates workspace" {
 
   assert {
     exit 0
-    dir ".rellog" exists
-    file ".rellog/config.yml" exists
+    dir <".rellog"> exists
+    file <".rellog/config.yml"> exists
   }
 }
 ```
@@ -631,11 +719,11 @@ case "init creates workspace" {
 Walkthrough:
 
 - The first `assert { ... }` block evaluates the **initial checkpoint**.
-- `not { dir ".rellog" exists }` is a workspace expectation and is valid at the initial checkpoint.
+- `not { dir <".rellog"> exists }` is a workspace expectation and is valid at the initial checkpoint.
 - `$ rellog init` executes the action and updates the checkpoint with the action result and post-action workspace state.
 - The second `assert { ... }` block evaluates the **action-updated checkpoint**.
 - `exit 0` is a process expectation and requires the last action result — valid because `$ rellog init` has run.
-- `dir ".rellog" exists` and `file ".rellog/config.yml" exists` are workspace expectations and observe the post-action workspace state.
+- `dir <".rellog"> exists` and `file <".rellog/config.yml"> exists` are workspace expectations and observe the post-action workspace state.
 
 ## Example: script error — process expectation at initial checkpoint
 

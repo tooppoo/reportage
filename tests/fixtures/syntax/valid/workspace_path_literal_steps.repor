@@ -1,0 +1,11 @@
+case "workspace path literals across path-taking constructs" {
+  write <"out.txt"> ```
+    hello
+    ```
+
+  assert {
+    file <"out.txt"> exists
+    file <"out.txt"> contains "hello"
+    dir <"logs"> exists
+  }
+}

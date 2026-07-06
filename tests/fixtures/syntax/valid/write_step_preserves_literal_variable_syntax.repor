@@ -1,5 +1,5 @@
 case "write step preserves literal variable syntax" {
-  write ".rellog/entries/001.kdl" ```
+  write <".rellog/entries/001.kdl"> ```
     entry "entry" {
       kind "${ENTRY_KIND}"
     }

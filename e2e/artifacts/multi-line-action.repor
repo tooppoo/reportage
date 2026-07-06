@@ -1,6 +1,6 @@
 
 case "it is enable to define action with new-line escape" {
-  write "tmp.txt" ```
+  write <"tmp.txt"> ```
     123
     456
     789
@@ -13,19 +13,19 @@ case "it is enable to define action with new-line escape" {
 
   assert {
     exit 0
-    file "tmp2.txt" exists
-    file "tmp2.txt" contains "abc"
-    file "tmp2.txt" contains "789"
+    file <"tmp2.txt"> exists
+    file <"tmp2.txt"> contains "abc"
+    file <"tmp2.txt"> contains "789"
     not {
-      file "tmp2.txt" contains "456"
+      file <"tmp2.txt"> contains "456"
     }
   }
 }
 
 case "when blank line exists between new-line escape, parse error(same behavior with shell)" {
-  write "test.repor" ``````
+  write <"test.repor"> ``````
     case "inner" {
-      write "tmp.txt" ```
+      write <"tmp.txt"> ```
         123
         456
         789

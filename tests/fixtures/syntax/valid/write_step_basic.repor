@@ -1,5 +1,5 @@
 case "write step basic" {
-  write "expected/stdout.txt" ```
+  write <"expected/stdout.txt"> ```
     expected output
     ```
   $ true

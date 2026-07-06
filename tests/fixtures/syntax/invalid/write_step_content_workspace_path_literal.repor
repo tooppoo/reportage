@@ -1,0 +1,7 @@
+case "write content requires a text value, not a workspace path literal" {
+  write <"out.txt"> <"content.txt">
+  $ true
+  assert {
+    exit 0
+  }
+}

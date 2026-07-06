@@ -1,6 +1,6 @@
 
 case "file-exist requir subject" {
-  write "tmp-file-missing-subject.repor" ```
+  write <"tmp-file-missing-subject.repor"> ```
     case "inner" {
       $ true
       assert {
@@ -23,7 +23,7 @@ case "file assertion verifies artifact evidence" {
     .reportage/tmp-file-assertion-selftest
   $ mkdir -p .reportage/tmp-file-assertion-selftest
 
-  write ".reportage/tmp-file-assertion-selftest/inner.repor" ```
+  write <".reportage/tmp-file-assertion-selftest/inner.repor"> ```
     case "inner" {
       $ true
       assert {
@@ -36,7 +36,7 @@ case "file assertion verifies artifact evidence" {
 
   assert {
     exit 0
-    file ".reportage/runs/file-assertion-selftest/result.json" exists
-    file ".reportage/runs/file-assertion-selftest/result.json" contains "\"result\": \"pass\""
+    file <".reportage/runs/file-assertion-selftest/result.json"> exists
+    file <".reportage/runs/file-assertion-selftest/result.json"> contains "\"result\": \"pass\""
   }
 }

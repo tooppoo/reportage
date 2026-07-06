@@ -1172,12 +1172,12 @@ fn file_exists_passes_for_a_regular_file() {
         "test.repor",
         r#"
 case "file exists" {
-  write "evidence.txt" ```
+  write <"evidence.txt"> ```
     hello
     ```
   $ true
   assert {
-    file "evidence.txt" exists
+    file <"evidence.txt"> exists
   }
 }
 "#,
@@ -1195,7 +1195,7 @@ fn file_exists_fails_for_a_missing_file() {
 case "file missing" {
   $ true
   assert {
-    file "does-not-exist.txt" exists
+    file <"does-not-exist.txt"> exists
   }
 }
 "#,
@@ -1213,7 +1213,7 @@ fn file_exists_fails_for_a_directory() {
 case "directory is not a file" {
   $ mkdir -p a-directory
   assert {
-    file "a-directory" exists
+    file <"a-directory"> exists
   }
 }
 "#,
@@ -1237,12 +1237,12 @@ fn file_exists_follows_symlink_to_regular_file() {
             "test.repor",
             r#"
 case "symlink to file" {
-  write "real.txt" ```
+  write <"real.txt"> ```
     hi
     ```
   $ ln -s real.txt link.txt
   assert {
-    file "link.txt" exists
+    file <"link.txt"> exists
   }
 }
 "#,
@@ -1259,12 +1259,12 @@ fn file_contains_passes_when_substring_present() {
         "test.repor",
         r#"
 case "file contains" {
-  write "result.json" ```
+  write <"result.json"> ```
     {"status":"passed"}
     ```
   $ true
   assert {
-    file "result.json" contains "\"status\":\"passed\""
+    file <"result.json"> contains "\"status\":\"passed\""
   }
 }
 "#,
@@ -1280,12 +1280,12 @@ fn file_contains_fails_when_substring_absent() {
         "test.repor",
         r#"
 case "file contains mismatch" {
-  write "result.json" ```
+  write <"result.json"> ```
     {"status":"fail"}
     ```
   $ true
   assert {
-    file "result.json" contains "passed"
+    file <"result.json"> contains "passed"
   }
 }
 "#,
@@ -1307,7 +1307,7 @@ fn file_contains_fails_for_missing_file() {
 case "file contains missing" {
   $ true
   assert {
-    file "missing.txt" contains "anything"
+    file <"missing.txt"> contains "anything"
   }
 }
 "#,
@@ -1325,7 +1325,7 @@ fn file_contains_fails_for_directory() {
 case "file contains directory" {
   $ mkdir -p a-directory
   assert {
-    file "a-directory" contains "anything"
+    file <"a-directory"> contains "anything"
   }
 }
 "#,
@@ -1350,7 +1350,7 @@ fn file_contains_fails_for_non_utf8_content() {
 case "file contains non-utf8" {
   $ printf '\377\376\000\377' > binary.dat
   assert {
-    file "binary.dat" contains "anything"
+    file <"binary.dat"> contains "anything"
   }
 }
 "#,
@@ -1373,8 +1373,8 @@ case "combined evidence" {
   $ sh -c 'echo done > out.txt'
   assert {
     exit 0
-    file "out.txt" exists
-    file "out.txt" contains "done"
+    file <"out.txt"> exists
+    file <"out.txt"> contains "done"
   }
 }
 "#,
@@ -1392,7 +1392,7 @@ fn absolute_file_assertion_path_is_a_script_error() {
 case "absolute path rejected" {
   $ true
   assert {
-    file "/etc/passwd" exists
+    file <"/etc/passwd"> exists
   }
 }
 "#,
@@ -1416,7 +1416,7 @@ fn dot_segment_file_assertion_path_is_a_script_error() {
 case "dot segment rejected" {
   $ true
   assert {
-    file "../secret.txt" exists
+    file <"../secret.txt"> exists
   }
 }
 "#,
@@ -1441,7 +1441,7 @@ fn file_assertion_path_resolves_against_workspace_root_not_action_cd() {
 case "cd does not affect file assertion root" {
   $ mkdir -p subdir && cd subdir && echo hi > moved.txt
   assert {
-    file "subdir/moved.txt" exists
+    file <"subdir/moved.txt"> exists
   }
 }
 "#,
@@ -1461,7 +1461,7 @@ fn dir_exists_succeeds_for_an_existing_directory() {
 case "dir exists" {
   $ mkdir out
   assert {
-    dir "out" exists
+    dir <"out"> exists
   }
 }
 "#,
@@ -1479,7 +1479,7 @@ fn dir_exists_fails_against_a_regular_file() {
 case "dir exists against a file" {
   $ touch marker
   assert {
-    dir "marker" exists
+    dir <"marker"> exists
   }
 }
 "#,
@@ -1506,7 +1506,7 @@ fn dir_exists_fails_for_a_missing_path() {
 case "dir exists missing" {
   $ true
   assert {
-    dir "nope" exists
+    dir <"nope"> exists
   }
 }
 "#,
@@ -1528,7 +1528,7 @@ fn dir_contains_succeeds_for_a_direct_entry() {
 case "dir contains" {
   $ mkdir -p artifacts && touch artifacts/result.json
   assert {
-    dir "artifacts" contains "result.json"
+    dir <"artifacts"> contains "result.json"
   }
 }
 "#,
@@ -1546,9 +1546,9 @@ fn dir_contains_is_not_recursive_glob_or_content_search() {
 case "dir contains is not recursive" {
   $ mkdir -p artifacts/nested && touch artifacts/nested/result.json && printf 'result.json' > artifacts/marker.txt
   assert {
-    dir "artifacts" contains "nested"
+    dir <"artifacts"> contains "nested"
     not {
-      dir "artifacts" contains "result.json"
+      dir <"artifacts"> contains "result.json"
     }
   }
 }
@@ -1567,7 +1567,7 @@ fn absolute_dir_assertion_path_is_a_script_error() {
 case "absolute dir path rejected" {
   $ true
   assert {
-    dir "/etc" exists
+    dir <"/etc"> exists
   }
 }
 "#,
@@ -1592,7 +1592,7 @@ fn dot_segment_dir_assertion_path_is_a_script_error() {
 case "dot segment dir path rejected" {
   $ true
   assert {
-    dir "../secret" exists
+    dir <"../secret"> exists
   }
 }
 "#,
@@ -1617,7 +1617,7 @@ fn empty_dir_assertion_path_is_a_script_error() {
 case "empty dir path rejected" {
   $ true
   assert {
-    dir "" exists
+    dir <""> exists
   }
 }
 "#,
@@ -1639,7 +1639,7 @@ fn dir_contains_path_separator_entry_name_is_a_script_error() {
 case "invalid entry name rejected" {
   $ mkdir artifacts
   assert {
-    dir "artifacts" contains "a/b"
+    dir <"artifacts"> contains "a/b"
   }
 }
 "#,
@@ -1665,7 +1665,7 @@ fn dir_assertion_path_resolves_against_workspace_root_not_action_cd() {
 case "cd does not affect dir assertion root" {
   $ mkdir -p subdir && cd subdir && mkdir moved
   assert {
-    dir "subdir/moved" exists
+    dir <"subdir/moved"> exists
   }
 }
 "#,
@@ -1684,7 +1684,7 @@ fn dir_exists_follows_symlink_to_directory() {
 case "symlink to directory" {
   $ mkdir real && ln -s real link
   assert {
-    dir "link" exists
+    dir <"link"> exists
   }
 }
 "#,
@@ -1703,7 +1703,7 @@ fn dir_exists_fails_for_a_broken_symlink() {
 case "broken symlink" {
   $ ln -s does-not-exist link
   assert {
-    dir "link" exists
+    dir <"link"> exists
   }
 }
 "#,
@@ -1730,7 +1730,7 @@ case "nested invalid dir path is still rejected" {
   $ true
   assert {
     not {
-      dir "../escape" exists
+      dir <"../escape"> exists
     }
   }
 }
@@ -1757,7 +1757,7 @@ case "nested invalid file path is still rejected" {
   $ true
   assert {
     not {
-      file "/etc/passwd" exists
+      file <"/etc/passwd"> exists
     }
   }
 }
@@ -1780,11 +1780,11 @@ fn write_step_creates_file_seen_by_subsequent_file_assertion() {
         "test.repor",
         r#"
 case "write then assert" {
-  write "config.yml" ```
+  write <"config.yml"> ```
     key: value
     ```
   assert {
-    file "config.yml" contains "key: value"
+    file <"config.yml"> contains "key: value"
   }
 }
 "#,
@@ -1800,11 +1800,11 @@ fn write_step_creates_parent_directories_automatically() {
         "test.repor",
         r#"
 case "write into nested directory" {
-  write "expected/nested/stdout.txt" ```
+  write <"expected/nested/stdout.txt"> ```
     ok
     ```
   assert {
-    file "expected/nested/stdout.txt" exists
+    file <"expected/nested/stdout.txt"> exists
   }
 }
 "#,
@@ -1820,10 +1820,10 @@ fn write_step_target_already_exists_is_a_runtime_step_error() {
         "test.repor",
         r#"
 case "write twice to same path" {
-  write "a.txt" ```
+  write <"a.txt"> ```
     first
     ```
-  write "a.txt" ```
+  write <"a.txt"> ```
     second
     ```
   assert {
@@ -1847,10 +1847,10 @@ fn write_step_parent_path_has_regular_file_is_a_runtime_step_error() {
         "test.repor",
         r#"
 case "parent is a regular file" {
-  write "blocker" ```
+  write <"blocker"> ```
     i am a file
     ```
-  write "blocker/child.txt" ```
+  write <"blocker/child.txt"> ```
     unreachable
     ```
   assert {
@@ -1884,7 +1884,7 @@ fn write_step_rejects_symlink_parent_instead_of_escaping_the_workspace() {
             r#"
 case "escape via symlink parent" {{
   $ ln -s {outside} escape
-  write "escape/leaked.txt" ```
+  write <"escape/leaked.txt"> ```
     leaked
     ```
   assert {{
@@ -1919,10 +1919,10 @@ fn write_step_failure_stops_subsequent_steps_in_the_same_case() {
         "test.repor",
         r#"
 case "write error stops the case" {
-  write "a.txt" ```
+  write <"a.txt"> ```
     first
     ```
-  write "a.txt" ```
+  write <"a.txt"> ```
     second
     ```
   $ false
@@ -1943,7 +1943,7 @@ fn write_step_absolute_path_is_a_script_error() {
         "test.repor",
         r#"
 case "write step absolute path" {
-  write "/etc/passwd" ```
+  write <"/etc/passwd"> ```
     x
     ```
   assert {
@@ -1953,7 +1953,7 @@ case "write step absolute path" {
 "#,
     );
     // A `write` step's path is validated at parse time via `WorkspacePath::parse`
-    // (a `ParseError`), unlike the checkpoint-time `file "<path>" ...` path
+    // (a `ParseError`), unlike the checkpoint-time `file <"path"> ...` path
     // policy. Both now render their stable diagnostic code inline in CLI output.
     reportage(&dir)
         .arg(script)
@@ -1977,20 +1977,20 @@ fn concrete_cases_have_isolated_workspaces_and_do_not_collide_on_the_same_write_
         "test.repor",
         r#"
 case "first case writes a.txt" {
-  write "a.txt" ```
+  write <"a.txt"> ```
     from first case
     ```
   assert {
-    file "a.txt" contains "from first case"
+    file <"a.txt"> contains "from first case"
   }
 }
 
 case "second case writes a.txt" {
-  write "a.txt" ```
+  write <"a.txt"> ```
     from second case
     ```
   assert {
-    file "a.txt" contains "from second case"
+    file <"a.txt"> contains "from second case"
   }
 }
 "#,
@@ -2123,10 +2123,10 @@ fn json_format_runtime_error_has_error_status_and_matching_exit_code() {
         "test.repor",
         r#"
 case "write twice to same path" {
-  write "a.txt" ```
+  write <"a.txt"> ```
     first
     ```
-  write "a.txt" ```
+  write <"a.txt"> ```
     second
     ```
   assert {

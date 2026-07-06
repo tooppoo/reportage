@@ -3,7 +3,7 @@ case "dir exists succeeds for an existing directory" {
 
   assert {
     exit 0
-    dir "artifacts" exists
+    dir <"artifacts"> exists
   }
 }
 
@@ -12,9 +12,9 @@ case "dir exists fails against a regular file" {
 
   assert {
     exit 0
-    file "marker" exists
+    file <"marker"> exists
     not {
-      dir "marker" exists
+      dir <"marker"> exists
     }
   }
 }
@@ -25,7 +25,7 @@ case "dir exists succeeds through a symlink to a directory" {
 
   assert {
     exit 0
-    dir "link" exists
+    dir <"link"> exists
   }
 }
 
@@ -35,9 +35,9 @@ case "dir exists fails through a symlink to a regular file" {
 
   assert {
     exit 0
-    file "link" exists
+    file <"link"> exists
     not {
-      dir "link" exists
+      dir <"link"> exists
     }
   }
 }
@@ -48,7 +48,7 @@ case "dir exists fails for a broken symlink" {
   assert {
     exit 0
     not {
-      dir "link" exists
+      dir <"link"> exists
     }
   }
 }
@@ -59,7 +59,7 @@ case "dir contains succeeds for a directory entry" {
 
   assert {
     exit 0
-    dir "artifacts" contains "result.json"
+    dir <"artifacts"> contains "result.json"
   }
 }
 
@@ -70,19 +70,19 @@ case "dir contains is not recursive, not a glob, and not a file content search" 
 
   assert {
     exit 0
-    dir "artifacts" contains "nested"
+    dir <"artifacts"> contains "nested"
     not {
-      dir "artifacts" contains "result.json"
+      dir <"artifacts"> contains "result.json"
     }
   }
 }
 
 case "invalid dir assertion path is rejected as a script error" {
-  write "tmp-dir-invalid-path.repor" ```
+  write <"tmp-dir-invalid-path.repor"> ```
     case "inner" {
       $ true
       assert {
-        dir "../escape" exists
+        dir <"../escape"> exists
       }
     }
     ```
@@ -95,11 +95,11 @@ case "invalid dir assertion path is rejected as a script error" {
 }
 
 case "invalid dir assertion path with a bare '.' segment is rejected as a script error" {
-  write "tmp-dir-dot-path.repor" ```
+  write <"tmp-dir-dot-path.repor"> ```
     case "inner" {
       $ true
       assert {
-        dir "." exists
+        dir <"."> exists
       }
     }
     ```
@@ -113,12 +113,12 @@ case "invalid dir assertion path with a bare '.' segment is rejected as a script
 
 case "invalid dir contains entry name is rejected as a script error" {
   # "a/b" is rejected as an entry name, not evaluated as a nested path:
-  # dir "artifacts" contains "a/b" is not equivalent to dir "artifacts/a" contains "b".
-  write "tmp-dir-invalid-entry.repor" ```
+  # dir <"artifacts"> contains "a/b" is not equivalent to dir <"artifacts/a"> contains "b".
+  write <"tmp-dir-invalid-entry.repor"> ```
     case "inner" {
       $ true
       assert {
-        dir "artifacts" contains "a/b"
+        dir <"artifacts"> contains "a/b"
       }
     }
     ```
@@ -131,11 +131,11 @@ case "invalid dir contains entry name is rejected as a script error" {
 }
 
 case "dir-exist subject must not be empty" {
-  write "tmp-dir-missing-subject.repor" ```
+  write <"tmp-dir-missing-subject.repor"> ```
     case "inner" {
       $ true
       assert {
-        dir "" exists
+        dir <""> exists
       }
     }
     ```
@@ -147,11 +147,11 @@ case "dir-exist subject must not be empty" {
   }
 }
 case "dir-contains subject must not be empty" {
-  write "tmp-dir-missing-subject.repor" ```
+  write <"tmp-dir-missing-subject.repor"> ```
     case "inner" {
       $ true
       assert {
-        dir "" contains "entry"
+        dir <""> contains "entry"
       }
     }
     ```
@@ -164,7 +164,7 @@ case "dir-contains subject must not be empty" {
 }
 
 case "dir-exists subject could not be omitted" {
-  write "tmp-dir-missing-subject.repor" ```
+  write <"tmp-dir-missing-subject.repor"> ```
     case "inner" {
       $ true
       assert {
@@ -180,7 +180,7 @@ case "dir-exists subject could not be omitted" {
   }
 }
 case "dir-contains subject could not be omitted" {
-  write "tmp-dir-missing-subject.repor" ```
+  write <"tmp-dir-missing-subject.repor"> ```
     case "inner" {
       $ true
       assert {

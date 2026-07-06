@@ -3,7 +3,7 @@ case "file exists" {
   $ echo "file exists" > test.txt
 
   assert {
-    file "test.txt" exists
+    file <"test.txt"> exists
   }
 }
 
@@ -11,6 +11,6 @@ case "file contains text" {
   $ echo "FizzBuzz" > test.txt
 
   assert {
-    file "test.txt" contains "FizzBuzz"
+    file <"test.txt"> contains "FizzBuzz"
   }
 }

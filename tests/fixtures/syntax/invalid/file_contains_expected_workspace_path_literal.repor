@@ -1,0 +1,6 @@
+case "file contains expected text requires a text value, not a workspace path literal" {
+  $ true
+  assert {
+    file <"out.txt"> contains <"expected.txt">
+  }
+}
