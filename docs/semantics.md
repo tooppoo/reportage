@@ -370,9 +370,43 @@ Semantics:
 - After a block failure, the same concrete case does not proceed to its next action. The runner may proceed to the next concrete case.
 - An assertion block is side-effect-free. It does not modify the checkpoint.
 
+## Text literal
+
+A `text_literal` is the syntax category `string literal | heredoc literal` — the two interchangeable ways v0 accepts multi-purpose text. Both a `write` step's content and a `file ... contains` expectation's expected text are written as a `text_literal`.
+
+- A **string literal** is an ordinary `"..."` string, subject to v0's escape rules (`\\`, `\"`, `\n`, `\t`; no raw newlines). See [ADR: String Literal Escape Sequences](adr/20260701T214658Z_string-literal-escape-sequences.md).
+- A **heredoc literal** is a dedented, fenced ` ``` ... ``` ` block, introduced for the `write` step and now reusable wherever a `text_literal` is accepted. See "Heredoc literal" below for its grammar, and [ADR: Heredoc Literal and TextValue](adr/20260706T104151Z_heredoc-literal-and-text-value.md) for why this construct is named "heredoc literal" (superseding the earlier internal names "fenced raw text block" / "fenced text literal") and how it relates to `text_literal`.
+
+Both forms resolve to the same `TextValue` at the semantic level: a `write` step writes a `TextValue`'s UTF-8 bytes to a file, and a `file ... contains` expectation checks whether a `TextValue`'s UTF-8 bytes occur as a substring of a file's bytes. Neither `write` nor `file ... contains` branches on which literal form produced the `TextValue` — the two forms are chosen for readability (a heredoc literal avoids `\n`-escaping multi-line content), not for any difference in runtime behavior.
+
+### Heredoc literal
+
+```reportage
+write "expected/stdout.txt" ```
+  expected output
+  ```
+```
+
+Grammar and semantics:
+
+- The opening fence is three or more backticks; the closing fence uses the same character and must be at least as long as the opening fence. Use a longer opening fence to embed a shorter run of backticks (e.g. an embedded ` ``` ` Markdown block) as literal content.
+- Neither the opening nor the closing fence line accepts an inline `#` comment.
+- The content is dedented against the closing fence's indentation: every non-blank body line must start with that indentation as a literal string prefix (not a tab/space width equivalence), and that prefix is stripped. Blank and whitespace-only lines are exempt from this check and are dedented to an empty line. A non-blank line indented less than the closing fence is a parse error.
+- Line endings (LF or CRLF) are preserved exactly as written; they are never normalized.
+- An empty block (opening fence immediately followed by a closing fence) resolves to an empty string. Otherwise, the block's final line ending is included in the resolved content.
+- A heredoc literal performs no parameter or variable expansion. `${VAR}`-shaped text inside the block is preserved verbatim. See "Parameter bindings" above.
+
+A heredoc literal missing its own closing fence does not always fail with a syntax error: like a heredoc missing its terminator, the parser scans forward for the next line shaped like a valid closing fence, which may belong to a different, later heredoc literal. When that happens, everything in between — including that later literal's own opening line — is silently absorbed as literal content, with no diagnostic. Keep each heredoc literal's opening and closing fence visually paired to avoid this.
+
+Because a heredoc literal spans multiple physical lines and its closing fence line consumes its own trailing line ending (with no inline comment allowed), it cannot appear in a single-line `assert { ... }` body — only in the multi-line form. It can, however, be used directly after `write "<path>"` (which is inherently a multi-line construct already).
+
 ## Write step
 
-A `write` step writes a dedented fenced raw text block to a file in the current concrete case's isolated workspace:
+A `write` step writes a `text_literal`'s resolved content to a file in the current concrete case's isolated workspace:
+
+```reportage
+write "expected/stdout.txt" "expected output\n"
+```
 
 ```reportage
 write "expected/stdout.txt" ```
@@ -384,17 +418,10 @@ write "expected/stdout.txt" ```
 
 Semantics:
 
-- `write "<path>" ``` ... ``` ` is create-only. If `<path>` already exists (as a file, directory, or symlink), the step fails rather than silently overwriting it.
+- `write "<path>" <text_literal>` is create-only. If `<path>` already exists (as a file, directory, or symlink), the step fails rather than silently overwriting it.
 - `<path>` is resolved relative to the current concrete case's workspace root, never the repository root. See "Repository root and workspace boundary" below.
 - Parent directories are created automatically. If a regular file, a symlink, or any other non-directory entry already occupies part of the parent path, the step fails — a symlink is rejected rather than followed, so a symlink planted by an earlier `$` action (e.g. `$ ln -s /tmp escape`) cannot be used to make a later `write` step escape the isolated workspace.
-- The fenced raw text block performs no parameter or variable expansion. `${VAR}`-shaped text inside the block is written verbatim. See "Parameter bindings" above.
-- The content is dedented against the closing fence's indentation: every non-blank body line must start with that indentation as a literal string prefix (not a tab/space width equivalence), and that prefix is stripped. Blank and whitespace-only lines are exempt from this check and are dedented to an empty line. A non-blank line indented less than the closing fence is a parse error.
-- Line endings (LF or CRLF) are preserved exactly as written; they are never normalized.
-- An empty block (opening fence immediately followed by a closing fence) writes an empty string. Otherwise, the block's final line ending is included in the written content.
-- The opening fence is three or more backticks; the closing fence uses the same character and must be at least as long as the opening fence. Use a longer opening fence to embed a shorter run of backticks (e.g. an embedded ` ``` ` Markdown block) as literal content.
-- Neither the opening nor the closing fence line accepts an inline `#` comment.
-
-A `write` step missing its own closing fence does not always fail with a syntax error: like a heredoc missing its terminator, the parser scans forward for the next line shaped like a valid closing fence, which may belong to a different, later `write` step. When that happens, everything in between — including that later step's own opening line — is silently absorbed as literal content, and the later step disappears from the case body with no diagnostic. Keep each `write` step's opening and closing fence visually paired to avoid this.
+- When `<text_literal>` is a string literal, the step is an ordinary single-line construct and may carry a trailing `#` comment, like every other single-line step. When it is a heredoc literal, see "Heredoc literal" above for its own line-ending and dedent rules.
 
 ### Side-effecting step failure classification
 
@@ -510,7 +537,7 @@ In v0, structured output expectations use external `jq`.
 
 ## File assertions
 
-`file "<path>" exists` and `file "<path>" contains "<text>"` are v0 workspace expectations. `file "<path>"` is the subject; `exists` and `contains "<text>"` are predicates on that subject. See [ADR: Adopt Subject-First File Assertion Syntax](adr/20260704T112155Z_subject-first-file-assertion-syntax.md) for why this shape was chosen over an expectation-first form.
+`file "<path>" exists` and `file "<path>" contains <text_literal>` are v0 workspace expectations. `file "<path>"` is the subject; `exists` and `contains <text_literal>` are predicates on that subject. See [ADR: Adopt Subject-First File Assertion Syntax](adr/20260704T112155Z_subject-first-file-assertion-syntax.md) for why this shape was chosen over an expectation-first form.
 
 ```reportage
 assert {
@@ -518,6 +545,18 @@ assert {
   file ".reportage/runs/self-test/result.json" contains "\"result\""
 }
 ```
+
+`contains`'s expected text is a [`text_literal`](#text-literal): either an ordinary string literal (as above) or a heredoc literal, useful for multi-line expected content:
+
+```reportage
+assert {
+  file "out/report.html" contains ```
+    <li>expected row</li>
+    ```
+}
+```
+
+A heredoc literal here follows the same grammar, dedent, and line-ending rules described in "Heredoc literal" above (it can only be used inside the multi-line `assert { ... }` form, for the same reason it cannot appear in a single-line assertion block). `write` and `file ... contains` share this one heredoc literal implementation; neither behaves differently based on which `text_literal` form produced the value being written or compared.
 
 Path resolution:
 

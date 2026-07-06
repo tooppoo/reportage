@@ -1,0 +1,13 @@
+case "file contains heredoc literal" {
+  write "out/result.json" ```
+    hello
+    world
+    ```
+  $ true
+  assert {
+    file "out/result.json" contains ```
+    hello
+    world
+    ```
+  }
+}

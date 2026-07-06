@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use reportage_core::model::{
     Case, CountOp, DirMatcher, Expectation, FileMatcher, LogicalOperator, OutputMatcher,
-    OutputSource, Script, SideEffectingStep, Step,
+    OutputSource, Script, SideEffectingStep, Step, TextLiteral,
 };
 use reportage_core::parser::{ParseError, parse};
 use serde::Serialize;
@@ -120,7 +120,7 @@ enum SnapshotStep<'a> {
     },
     WriteFile {
         path: &'a str,
-        content: &'a str,
+        content: SnapshotTextLiteral<'a>,
     },
 }
 
@@ -139,8 +139,27 @@ impl<'a> From<&'a Step> for SnapshotStep<'a> {
             },
             Step::SideEffect(SideEffectingStep::WriteFile(write_step)) => Self::WriteFile {
                 path: write_step.path.as_str(),
-                content: write_step.content.as_str(),
+                content: SnapshotTextLiteral::from(&write_step.content),
             },
+        }
+    }
+}
+
+/// Mirrors `model::TextLiteral`, keeping the literal kind (`quoted` vs.
+/// `heredoc`) visible in the AST snapshot rather than flattening straight to
+/// the resolved value.
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum SnapshotTextLiteral<'a> {
+    Quoted { value: &'a str },
+    Heredoc { value: &'a str },
+}
+
+impl<'a> From<&'a TextLiteral> for SnapshotTextLiteral<'a> {
+    fn from(literal: &'a TextLiteral) -> Self {
+        match literal {
+            TextLiteral::Quoted(value) => Self::Quoted { value },
+            TextLiteral::Heredoc(value) => Self::Heredoc { value },
         }
     }
 }
@@ -260,7 +279,7 @@ impl<'a> From<&'a OutputMatcher> for SnapshotOutputMatcher<'a> {
 enum SnapshotFileMatcher<'a> {
     Exists,
     NotExists,
-    Contains { value: &'a str },
+    Contains { value: SnapshotTextLiteral<'a> },
     Matches { value: &'a str },
 }
 
@@ -269,7 +288,9 @@ impl<'a> From<&'a FileMatcher> for SnapshotFileMatcher<'a> {
         match matcher {
             FileMatcher::Exists => Self::Exists,
             FileMatcher::NotExists => Self::NotExists,
-            FileMatcher::Contains(value) => Self::Contains { value },
+            FileMatcher::Contains(value) => Self::Contains {
+                value: SnapshotTextLiteral::from(value),
+            },
             FileMatcher::Matches(value) => Self::Matches { value },
         }
     }
@@ -465,7 +486,7 @@ fn invalid_syntax_fixtures_are_rejected() {
                 assert_eq!(err.code().as_str(), "semantic.workspace_path.empty");
             }
             "write_step_shallow_indent" => {
-                assert!(matches!(err, ParseError::ShallowRawBlockIndent { .. }));
+                assert!(matches!(err, ParseError::ShallowHeredocIndent { .. }));
                 assert_eq!(err.code().as_str(), "parse.raw_block.shallow_indent");
             }
             // Remaining fixtures are rejected as plain pest syntax errors; they share the coarse-grained "parse.syntax" code and are not asserted individually here.

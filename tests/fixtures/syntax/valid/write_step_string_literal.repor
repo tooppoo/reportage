@@ -1,0 +1,7 @@
+case "write step string literal" {
+  write "expected/stdout.txt" "hello\nworld\n"
+  $ true
+  assert {
+    exit 0
+  }
+}

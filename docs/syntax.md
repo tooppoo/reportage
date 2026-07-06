@@ -61,11 +61,16 @@ case_block = {
     ~ ws* ~ "}" ~ trail
 }
 
-// Silent: action_step, assertion_block, and write_step are promoted directly
-// into case_block. write_step consumes its own trailing line ending (the
-// closing fence line, per its own no-inline-comment rule) so it does not
-// share the `trail` suffix that action_step / assertion_block rely on.
-case_step = _{ ws* ~ ((action_step | assertion_block) ~ trail | write_step) }
+// Silent: action_step, assertion_block, and the two write_step forms are
+// promoted directly into case_block. `write <path> <text_literal>` accepts
+// either a string literal or a heredoc literal (see "Text literals" below);
+// the string-literal form (write_step_string) is an ordinary single-line
+// construct and shares `trail` like action_step / assertion_block (so it
+// also gains an optional trailing comment). The heredoc-literal form
+// (write_step_heredoc) consumes its own trailing line ending (the closing
+// fence line, per its own no-inline-comment rule) so it does not share the
+// `trail` suffix.
+case_step = _{ ws* ~ ((action_step | assertion_block | write_step_string) ~ trail | write_step_heredoc) }
 
 // ─── Action step ──────────────────────────────────────────────────────────────
 
@@ -84,24 +89,31 @@ action_step = { "$" ~ ws* ~ command }
 // See #80 / docs/adr/20260706T150000Z_action-line-continuation.md.
 command     = @{ ("\\" ~ nl | (!nl ~ ANY))* }
 
-// ─── Write step (fenced raw text block) ────────────────────────────────────────
+// ─── Heredoc literal ────────────────────────────────────────────────────────
 //
-// `write "<path>" ``` ... ``` ` writes a dedented raw text block to a file in
-// the concrete case workspace. See docs/semantics.md — Write step.
+// A heredoc literal (the ``` ... ``` fenced block introduced by #67) is one
+// of the two forms of a `text_literal` (see "Text literals" below), the
+// other being an ordinary `quoted_string`. It is reusable wherever a
+// `text_literal` is accepted: `write "<path>" <text_literal>`
+// (write_step_heredoc) and `file "<path>" contains <text_literal>`
+// (file_exp_heredoc). See docs/semantics.md — Text literal and Write step.
 //
 // The opening fence's backtick run is pushed onto pest's match stack so the
 // closing fence can be recognized dynamically: PEEK requires at least that
 // many backticks (same character), and DROP clears the stack entry once the
 // block is fully matched. Neither the opening nor closing fence line accepts
-// an inline comment, unlike ordinary steps' `trail`.
+// an inline comment, unlike ordinary steps' `trail` — a heredoc literal
+// always consumes its own trailing line ending itself, so any rule that
+// embeds it must not also apply `trail` afterward (see write_step_heredoc /
+// heredoc_expectation below).
 
 opening_fence = @{ "`"{3,} }
 
 // A body line is ordinary content; it must end in an actual newline, never
-// EOI, so an unterminated fenced block cannot be silently accepted as an
-// empty tail — the mandatory closing_fence_line after raw_block_body then
+// EOI, so an unterminated heredoc literal cannot be silently accepted as an
+// empty tail — the mandatory closing_fence_line after heredoc_body then
 // fails to match, surfacing as a syntax error.
-raw_block_line = _{ (!nl ~ ANY)* ~ nl }
+heredoc_body_line = _{ (!nl ~ ANY)* ~ nl }
 
 // Indentation is captured verbatim (not `ws`, which is silent) so the parser
 // can dedent body lines by literal string prefix, without tab/space width
@@ -116,13 +128,25 @@ closing_fence_line = { closing_fence_indent ~ PEEK ~ "`"* ~ ws* ~ (nl | EOI) }
 // Atomic: the whole span between the opening fence's line ending and the
 // closing fence line is captured as one raw string, preserving original
 // whitespace and line endings exactly.
-raw_block_body = @{ (!closing_fence_line ~ raw_block_line)* }
+heredoc_body = @{ (!closing_fence_line ~ heredoc_body_line)* }
 
-write_step = {
-    "write" ~ ws+ ~ quoted_string ~ ws* ~ PUSH(opening_fence) ~ ws* ~ nl
-    ~ raw_block_body
+heredoc_literal = {
+    PUSH(opening_fence) ~ ws* ~ nl
+    ~ heredoc_body
     ~ closing_fence_line ~ DROP
 }
+
+// ─── Write step ─────────────────────────────────────────────────────────────
+//
+// `write "<path>" <text_literal>` writes the text_literal's (dedented, in
+// the heredoc case) content to a file in the concrete case workspace. See
+// docs/semantics.md — Write step. Split into two grammar rules because the
+// two text_literal forms have different line-ending rules (see case_step
+// above and "Heredoc literal" above): write_step_string is an ordinary
+// single-line construct; write_step_heredoc consumes its own trailing line.
+
+write_step_string  = { "write" ~ ws+ ~ quoted_string ~ ws+ ~ quoted_string }
+write_step_heredoc = { "write" ~ ws+ ~ quoted_string ~ ws* ~ heredoc_literal }
 
 // ─── Assertion block ──────────────────────────────────────────────────────────
 
@@ -143,8 +167,19 @@ single_assert = { ws* ~ expectation ~ ws* }
 // not satisfy the block: at least one assertion_line is required, so a
 // comment-only assertion block (no real expectation) is rejected the same
 // way an empty assertion block is.
-multi_assert   = { trail ~ comment_line* ~ assertion_line ~ (comment_line | assertion_line)* ~ ws* }
-assertion_line = _{ ws* ~ expectation ~ trail }
+//
+// A heredoc literal (see "Heredoc literal" above) cannot fit inside
+// single_assert's one-physical-line span, so `file ... contains
+// <heredoc literal>` is only reachable via multi_assert, through the
+// heredoc_assertion_line alternative below — never through single_assert.
+// `not` / `all` / `any` blocks get this for free since they already reuse
+// multi_assert. assertion_line is tried first (the common case, every other
+// expectation and the quoted_string form of file contains) so an ordinary
+// line never pays for a heredoc backtrack.
+multi_assert              = { trail ~ comment_line* ~ assertion_or_heredoc_line ~ (comment_line | assertion_or_heredoc_line)* ~ ws* }
+assertion_or_heredoc_line = _{ assertion_line | heredoc_assertion_line }
+assertion_line            = _{ ws* ~ expectation ~ trail }
+heredoc_assertion_line    = _{ ws* ~ heredoc_expectation }
 
 // ─── Expectations ─────────────────────────────────────────────────────────────
 
@@ -168,6 +203,15 @@ file_exp        = { "file" ~ ws+ ~ quoted_string ~ ws+ ~ file_predicate }
 file_predicate  = { file_contains | file_exists }
 file_exists     = { "exists" }
 file_contains   = { "contains" ~ ws+ ~ quoted_string }
+
+// `file "<path>" contains <heredoc literal>`: the heredoc-literal form of
+// file_contains. Deliberately a separate rule from file_exp/file_predicate,
+// not a variant folded into file_predicate, because it must not be followed
+// by the generic `trail` the way every other expectation is (see
+// heredoc_assertion_line above) — the heredoc literal already consumed its
+// own trailing line. Reachable only through multi_assert.
+heredoc_expectation = { file_exp_heredoc }
+file_exp_heredoc    = { "file" ~ ws+ ~ quoted_string ~ ws+ ~ "contains" ~ ws+ ~ heredoc_literal }
 
 // `dir "<path>" exists` / `dir "<path>" contains "<name>"`.
 // Subject-first, mirroring file_exp: `dir <path>` is the common subject,
@@ -206,6 +250,17 @@ empty_composition_body = { trail? ~ (blank_line | comment_line)* ~ ws* }
 // v0 forbids raw newlines (LF, CRLF, and bare CR) inside string literals and
 // allows exactly four escape sequences: \\, \", \n, \t. Any other backslash
 // sequence is rejected. See docs/adr/20260701T214658Z_string-literal-escape-sequences.md.
+//
+// A quoted_string is one of the two forms of a `text_literal` (conceptually,
+// text_literal = string literal | heredoc literal — see "Heredoc literal"
+// above), the syntax category accepted by `write` and `file ... contains`.
+// There is no single combined `text_literal` grammar rule: because the two
+// forms have different line-ending rules (a heredoc literal self-terminates
+// its own trailing line; a quoted_string relies on the surrounding `trail`),
+// every position that accepts a text_literal is expressed as two ordered
+// grammar alternatives instead (write_step_string / write_step_heredoc;
+// file_contains / file_exp_heredoc). Both forms resolve to the same
+// TextValue at the semantic level; see docs/semantics.md — Text literal.
 quoted_string = { "\"" ~ string_inner ~ "\"" }
 string_inner  = @{ string_char* }
 string_char   = _{ escape_seq | (!("\"" | "\\" | "\r" | "\n") ~ ANY) }

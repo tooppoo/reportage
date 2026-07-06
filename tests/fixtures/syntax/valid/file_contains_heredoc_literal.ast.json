@@ -1,8 +1,16 @@
 {
   "cases": [
     {
-      "name": "file contains",
+      "name": "file contains heredoc literal",
       "steps": [
+        {
+          "kind": "write_file",
+          "path": "out/result.json",
+          "content": {
+            "kind": "heredoc",
+            "value": "hello\nworld\n"
+          }
+        },
         {
           "kind": "action",
           "command": "true"
@@ -16,8 +24,8 @@
               "matcher": {
                 "kind": "contains",
                 "value": {
-                  "kind": "quoted",
-                  "value": "\"status\":\"passed\""
+                  "kind": "heredoc",
+                  "value": "hello\nworld\n"
                 }
               }
             }

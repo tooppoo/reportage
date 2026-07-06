@@ -49,15 +49,16 @@ pub enum SideEffectingStep {
     WriteFile(WriteFileStep),
 }
 
-/// A `write "<path>" ``` ... ``` ` step: writes a dedented raw text block to
-/// a file in the concrete case workspace.
+/// A `write "<path>" <text_literal>` step: writes a text_literal's resolved
+/// content (dedented, in the heredoc-literal case) to a file in the concrete
+/// case workspace.
 ///
 /// Create-only: rejected at runtime if `path` already exists.
 /// See docs/semantics.md — Write step.
 #[derive(Debug)]
 pub struct WriteFileStep {
     pub path: WorkspacePath,
-    pub content: RawTextBlock,
+    pub content: TextLiteral,
 }
 
 /// A path known to be safe to resolve against a concrete case workspace root.
@@ -109,20 +110,59 @@ impl WorkspacePath {
     }
 }
 
-/// The literal content of a fenced raw text block, already dedented against
-/// its closing fence's indentation.
+/// A `text_literal`: the syntax category `string literal | heredoc literal`,
+/// accepted by `write` and `file ... contains`. Kept as a syntax-preserving
+/// enum in the AST — rather than resolved to a plain value immediately at
+/// parse time — purely so diagnostics, AST snapshots, and docs generation
+/// can still tell which surface form a script used.
 ///
-/// No parameter expansion or variable expansion is ever performed on this
-/// content: `${VAR}`-shaped text inside a raw text block is preserved
-/// verbatim. See docs/semantics.md — Write step.
+/// Runtime evaluation must never match on this enum's variants: it should
+/// always go through [`TextLiteral::to_text_value`] and operate on the
+/// resulting [`TextValue`] instead, so that `write` and `file contains`
+/// behave identically regardless of which literal form produced the value.
+/// See docs/semantics.md — Text literal, and the accompanying ADR.
+///
+/// No parameter expansion or variable expansion is ever performed on either
+/// form's content: `${VAR}`-shaped text is preserved verbatim.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RawTextBlock(String);
+pub enum TextLiteral {
+    /// An ordinary `"..."` string literal, already unescaped.
+    Quoted(String),
+    /// A ``` ... ``` heredoc literal, already dedented against its closing
+    /// fence's indentation.
+    Heredoc(String),
+}
 
-impl RawTextBlock {
-    pub fn new(content: String) -> Self {
-        Self(content)
+impl TextLiteral {
+    /// Resolves this text_literal to its runtime [`TextValue`], erasing
+    /// which surface form (`Quoted` or `Heredoc`) produced it.
+    pub fn to_text_value(&self) -> TextValue {
+        match self {
+            TextLiteral::Quoted(value) | TextLiteral::Heredoc(value) => TextValue(value.clone()),
+        }
     }
+}
 
+/// The resolved runtime value of a `text_literal`, with its syntactic origin
+/// (string literal vs. heredoc literal) erased.
+///
+/// `TextValue` is not a display- or view-only wrapper: it is the actual
+/// value passed into runtime evaluation. `write` writes its UTF-8 bytes to
+/// the target file; `file ... contains` checks whether its UTF-8 bytes occur
+/// as a substring of the target file's bytes. Every text-consuming action or
+/// expectation is meant to share this one type as its input, rather than
+/// each defining its own representation of "the text the script wrote."
+///
+/// A `TextValue` is not, itself, an assertion-only comparison value: for
+/// `write` it is the content being written, and for `file contains` it is
+/// the expected content being compared against, and a future `file
+/// text_equals` or `stdout contains` could reuse the same type as either
+/// role requires. See docs/semantics.md — Text literal, and the
+/// accompanying ADR.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextValue(String);
+
+impl TextValue {
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -348,7 +388,9 @@ pub struct FileExpectation {
 pub enum FileMatcher {
     Exists,
     NotExists,
-    Contains(String),
+    /// `file "<path>" contains <text_literal>`: `text_literal` may be either
+    /// a string literal or a heredoc literal. See [`TextLiteral`].
+    Contains(TextLiteral),
     Matches(String),
 }
 

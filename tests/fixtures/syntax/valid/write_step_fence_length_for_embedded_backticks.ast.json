@@ -6,7 +6,10 @@
         {
           "kind": "write_file",
           "path": "expected/markdown.md",
-          "content": "```ts\nconsole.log(\"hello\")\n```\n"
+          "content": {
+            "kind": "heredoc",
+            "value": "```ts\nconsole.log(\"hello\")\n```\n"
+          }
         },
         {
           "kind": "action",
