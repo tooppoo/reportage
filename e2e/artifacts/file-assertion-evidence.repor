@@ -1,6 +1,38 @@
 
+case "file-exist requir subject" {
+  write "tmp-file-missing-subject.repor" ```
+    case "inner" {
+      $ true
+      assert {
+        file exists
+      }
+    }
+    ```
+
+  $ reportage tmp-file-missing-subject.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.syntax"
+  }
+}
+
 case "file assertion verifies artifact evidence" {
-  $ rm -rf .reportage/runs/file-assertion-selftest .reportage/tmp-file-assertion-selftest && mkdir -p .reportage/tmp-file-assertion-selftest && printf '%s\n' 'case "inner" {' '  $ true' '  assert {' '    exit 0' '  }' '}' > .reportage/tmp-file-assertion-selftest/inner.repor && reportage --debug-run-id file-assertion-selftest .reportage/tmp-file-assertion-selftest/inner.repor
+  $ rm -rf \
+    .reportage/runs/file-assertion-selftest \
+    .reportage/tmp-file-assertion-selftest
+  $ mkdir -p .reportage/tmp-file-assertion-selftest
+
+  write ".reportage/tmp-file-assertion-selftest/inner.repor" ```
+    case "inner" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --debug-run-id file-assertion-selftest .reportage/tmp-file-assertion-selftest/inner.repor
 
   assert {
     exit 0

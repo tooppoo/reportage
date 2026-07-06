@@ -1,0 +1,68 @@
+
+case "when nested heredocs have the same length fence, the parser should error" {
+  write "test.repor" ```````
+    case "inner" {
+      write "inner.repor" ```
+        case "inner-inner" {
+          write "same-length-fence.repor" ```
+            case "inner-inner-inner" {
+              $ true
+              assert {
+                exit 0
+              }
+            }
+            ```
+          $ reportage inner-inner.repor
+          assert {
+            exit 0
+          }
+        }
+        ```
+      $ reportage inner.repor
+      assert {
+        exit 0
+      }
+    }
+    ```````
+
+  $ reportage test.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.syntax"
+    # TODO: render more detail error message
+  }
+}
+
+case "when parent heredocs have longer fences than child, the parser should succeed" {
+  write "test.repor" ```````
+    case "inner" {
+      write "inner.repor" `````
+        case "inner-inner" {
+          write "inner-inner.repor" ```
+            case "inner-inner-inner" {
+              $ true
+              assert {
+                exit 0
+              }
+            }
+            ```
+          $ reportage inner-inner.repor
+          assert {
+            exit 0
+          }
+        }
+        `````
+      $ reportage inner.repor
+      assert {
+        exit 0
+      }
+    }
+    ```````
+
+  $ reportage test.repor
+
+  assert {
+    exit 0
+  }
+}
