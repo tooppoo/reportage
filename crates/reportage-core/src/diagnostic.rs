@@ -62,6 +62,19 @@ pub enum DiagnosticCode {
     /// A `not` / `all` / `any` logical composition block contains zero expectation expressions.
     /// See docs/semantic-diagnostics.md.
     SemanticExpectationEmptyBlock,
+    /// An assertion block evaluates a process expectation (`exit`, `stdout`, `stderr`) before
+    /// any `$` action has run, so there is no last action result to compare against.
+    SemanticExpectationRequiresAction,
+    /// `exit <code>` observed an actual exit code that did not match the expected code.
+    AssertionExitMismatch,
+    /// `stdout contains "<text>"` observed captured stdout that did not contain the expected substring.
+    AssertionStdoutContainsMismatch,
+    /// `stderr contains "<text>"` observed captured stderr that did not contain the expected substring.
+    AssertionStderrContainsMismatch,
+    /// `stdout is empty` observed non-empty captured stdout.
+    AssertionStdoutNotEmpty,
+    /// `stderr is empty` observed non-empty captured stderr.
+    AssertionStderrNotEmpty,
     /// A `write` step's workspace path was empty.
     SemanticWorkspacePathEmpty,
     /// A `write` step's workspace path was absolute.
@@ -113,6 +126,12 @@ impl DiagnosticCode {
                 "assertion.dir.contains_subject_unreadable"
             }
             Self::SemanticExpectationEmptyBlock => "semantic.expectation.empty_block",
+            Self::SemanticExpectationRequiresAction => "semantic.expectation.requires_action",
+            Self::AssertionExitMismatch => "assertion.exit.mismatch",
+            Self::AssertionStdoutContainsMismatch => "assertion.stdout.contains_mismatch",
+            Self::AssertionStderrContainsMismatch => "assertion.stderr.contains_mismatch",
+            Self::AssertionStdoutNotEmpty => "assertion.stdout.not_empty",
+            Self::AssertionStderrNotEmpty => "assertion.stderr.not_empty",
             Self::SemanticWorkspacePathEmpty => "semantic.workspace_path.empty",
             Self::SemanticWorkspacePathAbsolute => "semantic.workspace_path.absolute",
             Self::SemanticWorkspacePathDotSegment => "semantic.workspace_path.dot_segment",
@@ -200,6 +219,12 @@ mod tests {
             DiagnosticCode::AssertionDirContainsEntryMissing,
             DiagnosticCode::AssertionDirContainsSubjectUnreadable,
             DiagnosticCode::SemanticExpectationEmptyBlock,
+            DiagnosticCode::SemanticExpectationRequiresAction,
+            DiagnosticCode::AssertionExitMismatch,
+            DiagnosticCode::AssertionStdoutContainsMismatch,
+            DiagnosticCode::AssertionStderrContainsMismatch,
+            DiagnosticCode::AssertionStdoutNotEmpty,
+            DiagnosticCode::AssertionStderrNotEmpty,
             DiagnosticCode::SemanticWorkspacePathEmpty,
             DiagnosticCode::SemanticWorkspacePathAbsolute,
             DiagnosticCode::SemanticWorkspacePathDotSegment,

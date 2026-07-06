@@ -5,12 +5,12 @@
 //! the runner (`evaluator`, `executor`) never depends on this module and knows
 //! nothing about output formats.
 //!
-//! Today there is a single renderer, [`human::HumanRenderer`]. Future formats
-//! (`json`, `ndjson`, `junit`, `tap`, github annotations, ...) are added as new
-//! `OutputRenderer` implementations here, without changing how the report is
-//! produced.
+//! Today there are two renderers, [`human::HumanRenderer`] and [`json::JsonRenderer`].
+//! Future formats (`ndjson`, `junit`, `tap`, github annotations, ...) are added as new
+//! `OutputRenderer` implementations here, without changing how the report is produced.
 
 pub mod human;
+pub mod json;
 
 use reportage_core::result::ExecutionReport;
 

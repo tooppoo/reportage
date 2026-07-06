@@ -11,7 +11,19 @@ use reportage_core::{
     suite,
 };
 
-use render::{OutputRenderer, human::HumanRenderer};
+use render::{OutputRenderer, human::HumanRenderer, json::JsonRenderer};
+
+/// Output format for the run result.
+///
+/// `Json` is the structured execution report described in issue #75: a single JSON document
+/// on CLI stdout, distinct from the always-written `result.json` artifact file. See
+/// `render::json` for the document shape and the CLI-stdout-vs-captured-output contract.
+#[derive(Clone, Copy, Default, clap::ValueEnum)]
+enum OutputFormat {
+    #[default]
+    Human,
+    Json,
+}
 
 #[derive(Parser)]
 #[command(
@@ -26,6 +38,10 @@ struct Cli {
     /// Path to the config file. Defaults to ./reportage.kdl when no scripts are given.
     #[arg(long)]
     config: Option<PathBuf>,
+
+    /// Output format for the run result: `human` (default) or `json`.
+    #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
+    format: OutputFormat,
 
     /// Fixed artifact run id, for internal self-testing / development only.
     ///
@@ -91,7 +107,12 @@ fn main() {
         std::process::exit(3);
     }
 
-    HumanRenderer.render(&result);
+    // `--format=json` must print only the single JSON document to CLI stdout; nothing else
+    // (human log, ANSI color, progress output) may share stdout with it. See `render::json`.
+    match cli.format {
+        OutputFormat::Human => HumanRenderer.render(&result),
+        OutputFormat::Json => JsonRenderer::new(writer.run_dir().to_path_buf()).render(&result),
+    }
 
     std::process::exit(result.exit_code());
 }
