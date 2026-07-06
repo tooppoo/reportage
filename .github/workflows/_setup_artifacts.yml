@@ -9,14 +9,26 @@ on:
 
 jobs:
   create_archive:
-    name: Create archive for ${{ matrix.name }}
+    name: Create archive for ${{ matrix.os }} ${{ matrix.arch }}
     strategy:
       matrix:
         include:
-          - name: x86_64
-            runner: ubuntu-24.04
-          - name: aarch64
-            runner: ubuntu-24.04-arm
+          - runner: ubuntu-24.04
+            os: Linux
+            arch: x86_64
+
+          - runner: ubuntu-24.04-arm
+            os: Linux
+            arch: aarch64
+
+          - runner: macos-15-intel
+            os: Darwin
+            arch: x86_64
+
+          - runner: macos-15
+            os: Darwin
+            arch: arm64
+
     runs-on: ${{ matrix.runner }}
 
     steps:
@@ -40,7 +52,7 @@ jobs:
       - name: Upload archive and checksum
         uses: actions/upload-artifact@v7
         with:
-          name: reportage-archive-${{ matrix.name }}
+          name: reportage-archive-${{ matrix.os }}-${{ matrix.arch }}
           path: dist
           if-no-files-found: error
 
@@ -91,6 +103,7 @@ jobs:
                   - exists
                   - is_regular_file
                   - is_tarball
+
               - path: checksum.reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.txt
                 assertions:
                   - exists
@@ -103,18 +116,48 @@ jobs:
                   - is_regular_file
                   - is_tarball
 
+              - path: checksum.reportage_${{ steps.get-version.outputs.version }}_Darwin_x86_64.txt
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - line_count:
+                      equals: 1
+              - path: reportage_${{ steps.get-version.outputs.version }}_Darwin_x86_64.tar.gz
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - is_tarball
+
+              - path: checksum.reportage_${{ steps.get-version.outputs.version }}_Darwin_arm64.txt
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - line_count:
+                      equals: 1
+              - path: reportage_${{ steps.get-version.outputs.version }}_Darwin_arm64.tar.gz
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - is_tarball
+
       - name: collect files as artifact
         run: |
           mkdir -p dist
-          x86_64="reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64"
-          aarch64="reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64"
+          linux_x86_64="reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64"
+          linux_aarch64="reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64"
+          macos_x86_64="reportage_${{ steps.get-version.outputs.version }}_Darwin_x86_64"
+          macos_arm64="reportage_${{ steps.get-version.outputs.version }}_Darwin_arm64"
 
-          cp "downloaded/$x86_64.tar.gz" dist/
-          cp "downloaded/$aarch64.tar.gz" dist/
+          cp "downloaded/$linux_x86_64.tar.gz" dist/
+          cp "downloaded/$linux_aarch64.tar.gz" dist/
+          cp "downloaded/$macos_x86_64.tar.gz" dist/
+          cp "downloaded/$macos_arm64.tar.gz" dist/
 
           cat \
-            "downloaded/checksum.$x86_64.txt" \
-            "downloaded/checksum.$aarch64.txt" \
+            "downloaded/checksum.$linux_x86_64.txt" \
+            "downloaded/checksum.$linux_aarch64.txt" \
+            "downloaded/checksum.$macos_x86_64.txt" \
+            "downloaded/checksum.$macos_arm64.txt" \
             > dist/checksums.txt
 
       - name: upload artifact
