@@ -1,0 +1,6 @@
+case "dir contains" {
+  $ true
+  assert {
+    dir "artifacts" contains "result.json"
+  }
+}

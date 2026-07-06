@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "name": "dir exists",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "dir",
+              "path": "out",
+              "matcher": {
+                "kind": "exists"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -280,6 +280,21 @@ fn expectation_result_json(e: &ExpectationResult) -> serde_json::Value {
             "expected": expected,
             "result": result_str,
         }),
+        ExpectationKind::DirExists { path, .. } => json!({
+            "kind": "dir_exists",
+            "path": path,
+            "result": result_str,
+        }),
+        ExpectationKind::DirContains {
+            path,
+            expected_entry,
+            ..
+        } => json!({
+            "kind": "dir_contains",
+            "path": path,
+            "expected_entry": expected_entry,
+            "result": result_str,
+        }),
         ExpectationKind::Logical { operator, children } => json!({
             "kind": "logical",
             "operator": operator.keyword(),

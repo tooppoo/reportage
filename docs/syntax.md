@@ -137,7 +137,7 @@ assertion_line = _{ ws* ~ expectation ~ trail }
 
 // ─── Expectations ─────────────────────────────────────────────────────────────
 
-expectation     = { exit_exp | stdout_exp | stderr_exp | file_exp | logical_composition }
+expectation     = { exit_exp | stdout_exp | stderr_exp | file_exp | dir_exp | logical_composition }
 
 exit_exp        = { "exit" ~ ws+ ~ exit_code }
 exit_code       = @{ ASCII_DIGIT+ }
@@ -157,6 +157,16 @@ file_exp        = { "file" ~ ws+ ~ quoted_string ~ ws+ ~ file_predicate }
 file_predicate  = { file_contains | file_exists }
 file_exists     = { "exists" }
 file_contains   = { "contains" ~ ws+ ~ quoted_string }
+
+// `dir "<path>" exists` / `dir "<path>" contains "<name>"`.
+// Subject-first, mirroring file_exp: `dir <path>` is the common subject,
+// `exists` / `contains` are predicates on that subject. `dir` is scoped to
+// directories only; `file` is scoped to regular files only (see file_exp
+// above). See docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
+dir_exp         = { "dir" ~ ws+ ~ quoted_string ~ ws+ ~ dir_predicate }
+dir_predicate   = { dir_contains | dir_exists }
+dir_exists      = { "exists" }
+dir_contains    = { "contains" ~ ws+ ~ quoted_string }
 
 // ─── Logical composition ──────────────────────────────────────────────────────
 //

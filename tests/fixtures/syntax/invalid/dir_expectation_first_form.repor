@@ -1,0 +1,6 @@
+case "expectation-first dir form is rejected" {
+  $ true
+  assert {
+    dir exists "out"
+  }
+}

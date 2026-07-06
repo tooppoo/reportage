@@ -41,8 +41,14 @@ assertion.stdout.contains_mismatch
 assertion.stderr.contains_mismatch
 assertion.file.exists_missing
 assertion.file.contains_mismatch
+assertion.dir.exists_missing
+assertion.dir.contains_entry_missing
 semantic.file_path.absolute
 semantic.file_path.dot_segment
+semantic.dir_entry_name.empty
+semantic.dir_entry_name.path_separator
+semantic.dir_entry_name.dot_entry
+semantic.dir_entry_name.control_char
 semantic.expectation.unsupported
 semantic.expectation.empty_block
 semantic.workspace_path.empty
@@ -77,8 +83,10 @@ Classification examples:
 - A valid path whose target does not exist for `file "path" exists` — assertion failure.
 - A valid path whose target does not exist for `file "path" contains "text"` — assertion failure.
 - A valid path whose target is a directory or has non-UTF-8 content for `file "path" contains "text"` — assertion failure in principle, because the expectation itself is valid and the observed evidence fails the predicate's requirement.
+- An invalid entry name such as `dir "artifacts" contains "a/b"` — semantic error, for the same reason as a path policy violation: the value violates a policy the evaluator must reject before evidence comparison.
+- A valid `dir "path" exists` whose target does not exist, or is a regular file rather than a directory — assertion failure.
 
-This classification is a premise for the diagnostic design of file assertions (#24) and logical composition (#25).
+This classification is a premise for the diagnostic design of file assertions (#24), logical composition (#25), and directory assertions (#66).
 
 ## Severity
 
@@ -214,6 +222,15 @@ assertion.file.contains_mismatch:
   stable details:
     path: string
     expected_substring: string
+
+assertion.dir.exists_missing:
+  stable details:
+    path: string
+
+assertion.dir.contains_entry_missing:
+  stable details:
+    path: string
+    expected_entry: string
 ```
 
 Structured `expected` / `actual` values such as the above **are** part of the stable contract for the codes that define them.

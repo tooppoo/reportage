@@ -407,7 +407,7 @@ A `write` step's path is always relative to the current concrete case's workspac
 
 An expectation is an individual expected condition within an assertion block.
 
-Examples: `exit 0`, `stderr empty`, `dir exists .rellog`, `file ".rellog/config.yml" exists`.
+Examples: `exit 0`, `stderr empty`, `dir ".rellog" exists`, `file ".rellog/config.yml" exists`.
 
 Each expectation has an evidence requirement that determines what checkpoint state must be available for it to be evaluated. Expectations are side-effect-free. Failures are reported per expectation, independently of other expectations in the same block.
 
@@ -445,7 +445,7 @@ The initial checkpoint has:
 - workspace state (the current case workspace, including any files written by `before_each`);
 - no last action result.
 
-Workspace expectations (`dir exists`, `file exists`, etc.) are valid at the initial checkpoint.
+Workspace expectations (`dir "<path>" exists`, `file "<path>" exists`, etc.) are valid at the initial checkpoint.
 
 Process expectations (`exit`, `stdout`, `stderr`) require a last action result. Using a process expectation in an assertion block at the initial checkpoint is a **script error**.
 
@@ -466,13 +466,13 @@ Different expectations require different evidence from the current checkpoint.
 
 Require only workspace state. Valid at the initial checkpoint.
 
-- `dir exists <path>`
-- `dir not exists <path>`
+- `dir "<path>" exists`
+- `dir "<path>" contains "<name>"`
 - `file "<path>" exists`
 - `file "<path>" contains "<text>"`
 - `file-count <glob> <op> <n>`
 
-`dir` and `file-count` are conceptual / future syntax and are not part of v0 (`dir` is deferred to #66). `file "<path>" exists` and `file "<path>" contains "<text>"` are implemented in v0; see "File assertions" below.
+`file-count` is conceptual / future syntax and is not part of v0. `dir "<path>" exists`, `dir "<path>" contains "<name>"`, `file "<path>" exists`, and `file "<path>" contains "<text>"` are implemented in v0; see "File assertions" and "Directory assertions" below.
 
 ### Process expectations
 
@@ -531,21 +531,52 @@ Path resolution:
 - Fails when the file is readable UTF-8 but does not contain the expected substring.
 - The match is a plain byte/`str` substring match: no regex, no line-based matching, no newline or Unicode normalization.
 
-`file` is scoped to regular files in v0. Directory assertions (`dir`) are deferred to #66 and are not implemented.
+`file` is scoped to regular files in v0. Directory assertions use the separate `dir` subject; see "Directory assertions" below.
+
+## Directory assertions
+
+`dir "<path>" exists` and `dir "<path>" contains "<name>"` are v0 workspace expectations. `dir "<path>"` is the subject; `exists` and `contains "<name>"` are predicates on that subject, mirroring the `file` subject's shape. See [ADR: Adopt Subject-First Directory Assertion Syntax](adr/20260706T000000Z_subject-first-directory-assertion-syntax.md) for why this shape was chosen, and for how it relates to the `file` subject.
+
+```reportage
+assert {
+  dir "artifacts" exists
+  dir "artifacts" contains "result.json"
+}
+```
+
+Path resolution:
+
+- The path is resolved relative to the current concrete case's isolated workspace root, exactly like a `file` assertion path. A `cd` performed inside a `$` action never changes this.
+- The path must be relative, non-empty, and free of `.` / `..` segments — the same `WorkspacePath` subject path rule the `write` step and `file` assertions follow.
+- These path policy violations are semantic errors (`semantic.workspace_path.empty`, `semantic.workspace_path.absolute`, `semantic.workspace_path.dot_segment`), not assertion failures: the evaluator rejects them before attempting any filesystem evidence comparison. See [`docs/semantic-diagnostics.md`](semantic-diagnostics.md).
+
+`exists` semantics:
+
+- Succeeds when the path resolves (following symlinks) to a directory.
+- Fails when the path does not exist, or resolves to something other than a directory (e.g. a regular file).
+
+`contains` semantics:
+
+- `<name>` is a single directory entry name, not a path: it must be non-empty, must not contain a path separator (`/`), must not be `.` or `..`, and must not contain control characters. Violating this is a semantic error (`semantic.dir_entry_name.empty`, `.path_separator`, `.dot_entry`, `.control_char`), rejected the same way an invalid subject path is.
+- Succeeds when the subject path resolves to a directory and it has an entry named `<name>` directly under it, regardless of that entry's file type.
+- Fails when the subject path does not exist, is not a directory, or is a directory without an entry named `<name>` directly under it.
+- The check is never recursive, never a glob match, and never a file content search: only the exact entry name directly under the subject path is compared. A symlink entry's link target is not inspected.
 
 ## Example: checkpoint model in action
 
 ```reportage
 case "init creates workspace" {
   assert {
-    dir not exists .rellog
+    not {
+      dir ".rellog" exists
+    }
   }
 
   $ rellog init
 
   assert {
     exit 0
-    dir exists .rellog
+    dir ".rellog" exists
     file ".rellog/config.yml" exists
   }
 }
@@ -554,11 +585,11 @@ case "init creates workspace" {
 Walkthrough:
 
 - The first `assert { ... }` block evaluates the **initial checkpoint**.
-- `dir not exists .rellog` is a workspace expectation and is valid at the initial checkpoint.
+- `not { dir ".rellog" exists }` is a workspace expectation and is valid at the initial checkpoint.
 - `$ rellog init` executes the action and updates the checkpoint with the action result and post-action workspace state.
 - The second `assert { ... }` block evaluates the **action-updated checkpoint**.
 - `exit 0` is a process expectation and requires the last action result — valid because `$ rellog init` has run.
-- `dir exists .rellog` and `file ".rellog/config.yml" exists` are workspace expectations and observe the post-action workspace state.
+- `dir ".rellog" exists` and `file ".rellog/config.yml" exists` are workspace expectations and observe the post-action workspace state.
 
 ## Example: script error — process expectation at initial checkpoint
 

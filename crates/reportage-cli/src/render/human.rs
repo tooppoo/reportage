@@ -5,8 +5,8 @@
 //! over `ExecutionReport`, not a source of truth in its own right.
 
 use reportage_core::result::{
-    CaseStatus, ExecutionReport, ExpectationKind, ExpectationResult, FileContentObservation,
-    FileErrorKind, FileExistsObservation,
+    CaseStatus, DirContainsObservation, DirExistsObservation, ExecutionReport, ExpectationKind,
+    ExpectationResult, FileContentObservation, FileErrorKind, FileExistsObservation,
 };
 
 use super::OutputRenderer;
@@ -191,6 +191,44 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
             };
             eprintln!(
                 "  assertion block at step {}: file {:?} — {reason}",
+                step_index + 1,
+                path,
+            );
+        }
+        ExpectationKind::DirExists { path, observation } => {
+            let reason = match observation {
+                DirExistsObservation::Directory => "it exists",
+                DirExistsObservation::Missing => "it does not exist",
+                DirExistsObservation::NotADirectory => {
+                    "it is not a directory (e.g. a regular file)"
+                }
+            };
+            eprintln!(
+                "  assertion block at step {}: dir {:?} — {reason}",
+                step_index + 1,
+                path,
+            );
+        }
+        ExpectationKind::DirContains {
+            path,
+            expected_entry,
+            observation,
+        } => {
+            let reason = match observation {
+                DirContainsObservation::Found => {
+                    format!("it contains entry {expected_entry:?}")
+                }
+                DirContainsObservation::EntryMissing => {
+                    format!("it does not contain entry {expected_entry:?}")
+                }
+                DirContainsObservation::SubjectMissing => "it does not exist".to_string(),
+                DirContainsObservation::SubjectNotADirectory => {
+                    "it is not a directory (e.g. a regular file)".to_string()
+                }
+                DirContainsObservation::SubjectUnreadable => "it could not be read".to_string(),
+            };
+            eprintln!(
+                "  assertion block at step {}: dir {:?} — {reason}",
                 step_index + 1,
                 path,
             );
