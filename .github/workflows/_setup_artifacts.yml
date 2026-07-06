@@ -69,9 +69,53 @@ jobs:
           path: downloaded
           pattern: reportage-archive-*
           merge-multiple: true
+      - name: Get current version
+        id: get-version
+        run: echo "version=$(just get-version)" >> $GITHUB_OUTPUT
+
+      - name: assert artifacts
+        uses: tooppoo/fs-assert-action@latest
+        with:
+          root: dist
+          manifest: |
+            version: 1
+            subjects:
+              - path: downloaded/checksum.reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.txt
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - line_count:
+                      equals: 1
+              - path: downloaded/reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64.tar.gz
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - is_tarball
+              - path: downloaded/checksum.reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.txt
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - line_count:
+                      equals: 1
+              - path: downloaded/reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64.tar.gz
+                assertions:
+                  - exists
+                  - is_regular_file
+                  - is_tarball
 
       - name: collect files as artifact
-        run: just archive-collect downloaded dist
+        run: |
+          mkdir -p dist
+          x86_64="reportage_${{ steps.get-version.outputs.version }}_Linux_x86_64"
+          aarch64="reportage_${{ steps.get-version.outputs.version }}_Linux_aarch64"
+
+          cp "downloaded/$x86_64.tar.gz" dist/
+          cp "downloaded/$aarch64.tar.gz" dist/
+
+          cat \
+            "downloaded/checksum.$x86_64.txt" \
+            "downloaded/checksum.$aarch64.txt" \
+            > dist/checksums.txt
 
       - name: upload artifact
         uses: actions/upload-artifact@v7
