@@ -92,22 +92,6 @@ build:
 archive dist:
   @sh scripts/release/archive.sh {{ dist }}
 
-# check if archives are valid
-[group('build')]
-[group('check')]
-archive-assert dist:
-  @sh scripts/release/assertion/assert_archive.sh {{ dist }}
-
-# collect and extract archives as artifacts for release
-[group('build')]
-archive-collect src dist:
-  @sh scripts/release/collect.sh {{ src }} {{ dist }}
-
-# extract archives as artifacts for release and put into PATH
-[group('build')]
-archive-extract src dist:
-  @sh scripts/release/extract.sh {{ src }} {{ dist }}
-
 # install reportage-self into the current environment
 [group('check')]
 self-install:
