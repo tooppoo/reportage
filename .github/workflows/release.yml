@@ -44,7 +44,7 @@ jobs:
           path: dist
 
       - name: Create GitHub Release
-        uses: tooppoo/rellog/actions/create-release-note@latest
+        uses: tooppoo/rellog/actions/create-release-note@5828e3bca14652d2658bdd3375a574a52c86cb12 # v0.1.1
         with:
           release-id: ${{ github.ref_name }}
           files: |
