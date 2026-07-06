@@ -5,8 +5,8 @@ use base64::Engine as _;
 use serde_json::json;
 
 use crate::result::{
-    ActionResult, CaseResult, CaseStatus, ExpectationKind, ExpectationResult, FileErrorKind,
-    RunResult,
+    ActionResult, CaseResult, CaseStatus, ExecutionReport, ExpectationKind, ExpectationResult,
+    FileErrorKind,
 };
 
 /// Error rejecting an unsafe run id value.
@@ -119,7 +119,7 @@ impl ArtifactWriter {
         Ok(ArtifactWriter { run_dir })
     }
 
-    pub fn write(&self, result: &RunResult) -> std::io::Result<()> {
+    pub fn write(&self, result: &ExecutionReport) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.run_dir)?;
         let value = build_json(result);
         let json = serde_json::to_string_pretty(&value)
@@ -129,7 +129,7 @@ impl ArtifactWriter {
     }
 }
 
-fn build_json(result: &RunResult) -> serde_json::Value {
+fn build_json(result: &ExecutionReport) -> serde_json::Value {
     let summary = result.summary();
     let overall = if !result.file_errors.is_empty() {
         "script_error"
@@ -366,8 +366,8 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn empty_result() -> RunResult {
-        RunResult {
+    fn empty_result() -> ExecutionReport {
+        ExecutionReport {
             cases: vec![],
             file_errors: vec![],
         }

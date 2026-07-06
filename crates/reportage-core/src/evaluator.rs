@@ -6,8 +6,8 @@ use crate::model::{
     SideEffectingStep, Step,
 };
 use crate::result::{
-    ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind, ExpectationResult,
-    FileContentObservation, FileExistsObservation, RunResult, RuntimeError,
+    ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExecutionReport, ExpectationKind,
+    ExpectationResult, FileContentObservation, FileExistsObservation, RuntimeError,
 };
 use crate::semantic::validate_file_path;
 use crate::workspace::Workspace;
@@ -53,8 +53,8 @@ pub struct WorkspaceState {
     pub root: PathBuf,
 }
 
-pub fn evaluate(script: &Script, env: &ExecutionEnvironment) -> RunResult {
-    RunResult {
+pub fn evaluate(script: &Script, env: &ExecutionEnvironment) -> ExecutionReport {
+    ExecutionReport {
         cases: script.cases.iter().map(|c| evaluate_case(c, env)).collect(),
         file_errors: vec![],
     }

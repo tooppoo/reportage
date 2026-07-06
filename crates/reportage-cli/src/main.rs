@@ -1,3 +1,5 @@
+mod render;
+
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
@@ -5,12 +7,11 @@ use reportage_core::{
     artifact::{ArtifactWriter, RunId},
     config, evaluator,
     executor::ExecutionEnvironment,
-    result::{
-        CaseStatus, ExpectationKind, ExpectationResult, FileContentObservation, FileErrorKind,
-        FileExistsObservation, RunResult,
-    },
+    result::ExecutionReport,
     suite,
 };
+
+use render::{OutputRenderer, human::HumanRenderer};
 
 #[derive(Parser)]
 #[command(
@@ -90,7 +91,7 @@ fn main() {
         std::process::exit(3);
     }
 
-    print_results(&result);
+    HumanRenderer.render(&result);
 
     std::process::exit(result.exit_code());
 }
@@ -113,11 +114,11 @@ fn determine_mode(cli: &Cli) -> InvocationMode {
 }
 
 /// Runs one or more explicitly-specified scripts through the pre-execution validation phase.
-fn run_scripts(scripts: Vec<PathBuf>) -> RunResult {
+fn run_scripts(scripts: Vec<PathBuf>) -> ExecutionReport {
     let (validated, file_errors) = suite::load_and_validate(&scripts);
 
     if !file_errors.is_empty() {
-        return RunResult {
+        return ExecutionReport {
             cases: vec![],
             file_errors,
         };
@@ -133,14 +134,14 @@ fn run_scripts(scripts: Vec<PathBuf>) -> RunResult {
         all_cases.extend(run.cases);
     }
 
-    RunResult {
+    ExecutionReport {
         cases: all_cases,
         file_errors: vec![],
     }
 }
 
 /// Loads and validates a config file, discovers test files, then runs them.
-fn run_with_config(config_path: PathBuf) -> RunResult {
+fn run_with_config(config_path: PathBuf) -> ExecutionReport {
     let config_source = match std::fs::read_to_string(&config_path) {
         Ok(s) => s,
         Err(e) => {
@@ -171,194 +172,4 @@ fn run_with_config(config_path: PathBuf) -> RunResult {
     };
 
     run_scripts(discovered)
-}
-
-fn print_results(result: &RunResult) {
-    if result.is_noop() {
-        println!("NO-OP  no cases found; nothing was executed");
-    }
-
-    for error in &result.file_errors {
-        let kind = match &error.kind {
-            FileErrorKind::ReadError(_) => "READ ERROR",
-            FileErrorKind::ParseError(_) => "PARSE ERROR",
-        };
-        eprintln!("{kind}  {}", error.source_path.display());
-        let message = match &error.kind {
-            FileErrorKind::ReadError(msg) | FileErrorKind::ParseError(msg) => msg,
-        };
-        eprintln!("  {message}");
-    }
-
-    for case in &result.cases {
-        let tag = match &case.status {
-            CaseStatus::Pass => "PASS",
-            CaseStatus::Fail => "FAIL",
-            CaseStatus::ScriptError(_) => "ERROR",
-            CaseStatus::RuntimeError(_) => "ERROR",
-        };
-
-        let label = match &case.source_path {
-            Some(path) => format!("{}  {} :: {}", tag, path.display(), case.name),
-            None => format!("{tag}  {}", case.name),
-        };
-        println!("{label}");
-
-        match &case.status {
-            CaseStatus::ScriptError(msg) => {
-                eprintln!("  {msg}");
-            }
-            CaseStatus::RuntimeError(err) => {
-                eprintln!("  {}", err.message);
-                if let Some(code) = err.diagnostic_code {
-                    eprintln!("    diagnostic code: {}", code.as_str());
-                }
-            }
-            _ => {}
-        }
-
-        for block in &case.assertion_blocks {
-            for expectation in &block.expectations {
-                if !expectation.passed {
-                    print_failed_expectation(block.step_index, expectation);
-                }
-            }
-        }
-
-        // For failing cases, show observed shim invocations so the resolved shim path and target invocation are visible in diagnostics.
-        // See ADR 20260628T210000Z_shim-invocation-event-side-channel.
-        if matches!(&case.status, CaseStatus::Fail | CaseStatus::RuntimeError(_)) {
-            for action in &case.actions {
-                for ev in &action.shim_invocations {
-                    eprintln!(
-                        "  shim invoked for '{}': {} -> {}",
-                        ev.command_name,
-                        ev.shim_path.display(),
-                        ev.target.program.display()
-                    );
-                    if !ev.target.args.is_empty() {
-                        eprintln!("    target args: {:?}", ev.target.args);
-                    }
-                }
-                for warning in &action.shim_event_parse_warnings {
-                    eprintln!("  shim event warning: {warning}");
-                }
-            }
-        }
-    }
-}
-
-/// Prints why one failed top-level expectation within an assertion block did not hold.
-///
-/// Recurses into a `not` / `all` / `any` composition's children, printing every child's own detail rather than filtering by the child's own pass/fail state.
-/// This matters for `not`: when a `not` block fails, that means its (grouped) contents *held* — none of its children individually failed — so filtering for failed children would print nothing and lose the information needed to explain the negation's failure.
-/// Always recursing into every child, described in its own held/did-not-hold terms, keeps `all` / `any` failures explainable too, without needing a separate per-operator rule for which children are "responsible".
-fn print_failed_expectation(step_index: usize, expectation: &ExpectationResult) {
-    print_expectation_detail(step_index, expectation);
-    if let Some(code) = expectation.kind.failure_diagnostic_code() {
-        eprintln!("    diagnostic code: {}", code.as_str());
-    }
-}
-
-fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) {
-    let held = expectation.passed;
-    match &expectation.kind {
-        ExpectationKind::Exit { expected, actual } => {
-            eprintln!(
-                "  assertion block at step {}: expected exit {expected}, got {actual}",
-                step_index + 1,
-            );
-        }
-        ExpectationKind::StdoutContains { expected, actual } => {
-            let verb = if held { "contains" } else { "does not contain" };
-            eprintln!(
-                "  assertion block at step {}: stdout {verb} {:?}",
-                step_index + 1,
-                expected,
-            );
-            // Lossy decode is display-only here; the canonical actual value stays raw bytes.
-            eprintln!("    actual stdout: {:?}", String::from_utf8_lossy(actual));
-        }
-        ExpectationKind::StderrContains { expected, actual } => {
-            let verb = if held { "contains" } else { "does not contain" };
-            eprintln!(
-                "  assertion block at step {}: stderr {verb} {:?}",
-                step_index + 1,
-                expected,
-            );
-            eprintln!("    actual stderr: {:?}", String::from_utf8_lossy(actual));
-        }
-        ExpectationKind::StdoutEmpty { actual } => {
-            let phrase = if held {
-                "is empty"
-            } else {
-                "was expected to be empty"
-            };
-            eprintln!(
-                "  assertion block at step {}: stdout {phrase}",
-                step_index + 1,
-            );
-            eprintln!("    actual stdout: {:?}", String::from_utf8_lossy(actual));
-        }
-        ExpectationKind::StderrEmpty { actual } => {
-            let phrase = if held {
-                "is empty"
-            } else {
-                "was expected to be empty"
-            };
-            eprintln!(
-                "  assertion block at step {}: stderr {phrase}",
-                step_index + 1,
-            );
-            eprintln!("    actual stderr: {:?}", String::from_utf8_lossy(actual));
-        }
-        ExpectationKind::FileExists { path, observation } => {
-            let reason = match observation {
-                FileExistsObservation::RegularFile => "it exists",
-                FileExistsObservation::Missing => "it does not exist",
-                FileExistsObservation::NotRegularFile => {
-                    "it is not a regular file (e.g. a directory)"
-                }
-            };
-            eprintln!(
-                "  assertion block at step {}: file {:?} — {reason}",
-                step_index + 1,
-                path,
-            );
-        }
-        ExpectationKind::FileContains {
-            path,
-            expected,
-            observation,
-        } => {
-            let reason = match observation {
-                FileContentObservation::Found => format!("its content contains {expected:?}"),
-                FileContentObservation::NotFound => {
-                    format!("its content does not contain {expected:?}")
-                }
-                FileContentObservation::Missing => "it does not exist".to_string(),
-                FileContentObservation::NotRegularFile => {
-                    "it is not a regular file (e.g. a directory)".to_string()
-                }
-                FileContentObservation::Unreadable => "it could not be read".to_string(),
-                FileContentObservation::NotUtf8 => "its content is not valid UTF-8".to_string(),
-            };
-            eprintln!(
-                "  assertion block at step {}: file {:?} — {reason}",
-                step_index + 1,
-                path,
-            );
-        }
-        ExpectationKind::Logical { operator, children } => {
-            let status = if held { "held" } else { "did not hold" };
-            eprintln!(
-                "  assertion block at step {}: '{}' block {status}",
-                step_index + 1,
-                operator.keyword(),
-            );
-            for child in children {
-                print_failed_expectation(step_index, child);
-            }
-        }
-    }
 }
