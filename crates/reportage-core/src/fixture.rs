@@ -147,7 +147,32 @@ pub fn resolve_fixture_source(
 /// are expected to provide a fresh, single-purpose directory (e.g. a new
 /// `tempfile::TempDir`) per materialization, so no destination name can
 /// collide across unrelated fixtures.
+///
+/// `resolve_fixture_source` proved `resolved_source` was a regular file at
+/// the time it ran, but `resolved_source` is a plain path, not an open file
+/// handle: something could replace it with a symlink in the window between
+/// that check and this call (TOCTOU). `std::fs::copy` follows symlinks, so
+/// without a re-check here a swapped-in symlink would be copied from
+/// wherever it now points, silently defeating `resolve_fixture_source`'s
+/// containment guarantee. This function therefore re-inspects
+/// `resolved_source` with [`std::fs::symlink_metadata`] (which does not
+/// follow a symlink, unlike `std::fs::metadata`) immediately before copying,
+/// and refuses if it is no longer a plain regular file. This narrows the
+/// TOCTOU window to the gap between that re-check and the copy syscall
+/// itself; it does not close it entirely, since doing so would require an
+/// `O_NOFOLLOW` open and read via a file descriptor rather than `std::fs::copy`.
 pub fn materialize_fixture(resolved_source: &Path, reserved_dir: &Path) -> io::Result<PathBuf> {
+    let meta = std::fs::symlink_metadata(resolved_source)?;
+    if !meta.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "fixture source {} changed since resolution and is no longer a regular file",
+                resolved_source.display()
+            ),
+        ));
+    }
+
     let file_name = resolved_source
         .file_name()
         .expect("a resolved fixture source always has a file name");
@@ -266,5 +291,30 @@ mod tests {
             std::fs::read(repor_dir.path().join("expected.txt")).unwrap(),
             b"expected content"
         );
+    }
+
+    // Simulates a TOCTOU swap: `resolve_fixture_source` validated this path
+    // as a regular file, but by the time `materialize_fixture` runs, it has
+    // been replaced with a symlink pointing outside `repor_dir`. Without a
+    // re-check immediately before the copy, `std::fs::copy` would follow the
+    // symlink and silently defeat the containment guarantee already proved.
+    #[test]
+    #[cfg(unix)]
+    fn materialize_fixture_rejects_source_swapped_for_a_symlink_after_resolution() {
+        let repor_dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(repor_dir.path().join("expected.txt"), b"expected content").unwrap();
+        let fixture = FixtureReference::parse("expected.txt").unwrap();
+        let resolved = resolve_fixture_source(repor_dir.path(), &fixture).unwrap();
+
+        let outside = tempfile::TempDir::new().unwrap();
+        std::fs::write(outside.path().join("secret.txt"), b"top secret").unwrap();
+        std::fs::remove_file(&resolved).unwrap();
+        std::os::unix::fs::symlink(outside.path().join("secret.txt"), &resolved).unwrap();
+
+        let reserved_dir = tempfile::TempDir::new().unwrap();
+        let err = materialize_fixture(&resolved, reserved_dir.path()).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        // Nothing was copied from outside the fixture directory.
+        assert!(!reserved_dir.path().join("expected.txt").exists());
     }
 }
