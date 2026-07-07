@@ -61,6 +61,15 @@ semantic.fixture_reference.dot_segment
 semantic.fixture_reference.missing
 semantic.fixture_reference.not_a_regular_file
 semantic.fixture_reference.escapes_repor_directory
+semantic.file_contents_reference.missing
+semantic.file_contents_reference.not_regular_file
+semantic.file_contents_reference.read_error
+assertion.file.contents_equals_mismatch
+assertion.file.contents_equals_actual_missing
+assertion.file.contents_equals_actual_not_a_regular_file
+assertion.file.contents_equals_actual_unreadable
+assertion.stdout.contents_equals_mismatch
+assertion.stderr.contents_equals_mismatch
 step.write.target_exists
 step.write.parent_not_a_directory
 step.write.io_error
@@ -96,6 +105,9 @@ Classification examples:
 - A fixture reference literal whose raw path is empty, absolute, or contains a `.` / `..` segment — semantic error (`semantic.fixture_reference.empty` / `.absolute` / `.dot_segment`), detected during AST construction, mirroring `semantic.workspace_path.*`.
 - A fixture reference whose resolved source is missing, is not a regular file, or escapes the referencing `*.repor` file's directory once canonicalized (e.g. via a symlink) — semantic error (`semantic.fixture_reference.missing` / `.not_a_regular_file` / `.escapes_repor_directory`). See [`docs/semantics.md`](semantics.md) — Fixture reference value.
 - A valid `dir <"path"> exists` whose target does not exist, or is a regular file rather than a directory — assertion failure.
+- `file <"actual"> contents_equals <"expected">` whose *actual* side is missing, not a regular file, or unreadable — assertion failure (`assertion.file.contents_equals_actual_missing` / `.contents_equals_actual_not_a_regular_file` / `.contents_equals_actual_unreadable`): the subject under test did not produce the expected output.
+- `contents_equals`'s expected `WorkspacePath` side missing, not a regular file, or unreadable — semantic error (`semantic.file_contents_reference.missing` / `.not_regular_file` / `.read_error`), surfaced as `CaseStatus::ScriptError` (exit code 2): the expected value itself, not the subject under test, could not be sourced. An unresolvable expected `FixtureReference` is classified the same way, reusing `semantic.fixture_reference.*`.
+- `contents_equals` observing byte-for-byte equal actual and expected content — pass, no diagnostic; a mismatch — assertion failure (`assertion.file.contents_equals_mismatch` / `assertion.stdout.contents_equals_mismatch` / `assertion.stderr.contents_equals_mismatch`).
 
 This classification is a premise for the diagnostic design of file assertions (#24), logical composition (#25), and directory assertions (#66).
 

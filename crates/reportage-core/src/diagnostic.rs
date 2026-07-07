@@ -39,6 +39,23 @@ pub enum DiagnosticCode {
     AssertionFileContainsPreconditionUnmet,
     /// `file <"path"> contains "<text>"` observed a readable UTF-8 regular file that does not contain the expected substring.
     AssertionFileContainsMismatch,
+    /// `file <"path"> contents_equals <expected>` observed actual bytes that did not
+    /// byte-for-byte match the expected bytes.
+    AssertionFileContentsEqualsMismatch,
+    /// `file <"path"> contents_equals <expected>` observed a missing actual path.
+    AssertionFileContentsEqualsActualMissing,
+    /// `file <"path"> contents_equals <expected>` observed an actual path that is not a
+    /// regular file (e.g. a directory).
+    AssertionFileContentsEqualsActualNotARegularFile,
+    /// `file <"path"> contents_equals <expected>` observed an actual regular file that
+    /// could not be read.
+    AssertionFileContentsEqualsActualUnreadable,
+    /// `stdout contents_equals <expected>` observed captured stdout that did not
+    /// byte-for-byte match the expected bytes.
+    AssertionStdoutContentsEqualsMismatch,
+    /// `stderr contents_equals <expected>` observed captured stderr that did not
+    /// byte-for-byte match the expected bytes.
+    AssertionStderrContentsEqualsMismatch,
     /// A `dir <"path"> contains "<name>"` entry name was empty.
     SemanticDirEntryNameEmpty,
     /// A `dir <"path"> contains "<name>"` entry name contained a path separator (`/`).
@@ -105,6 +122,16 @@ pub enum DiagnosticCode {
     /// `*.repor` file's directory once canonicalized (e.g. escaped via a symlink),
     /// even though the raw path contained no `.` / `..` segment.
     SemanticFixtureReferenceEscapesReporDirectory,
+    /// A `contents_equals` expected `WorkspacePath` does not exist. Unlike a missing
+    /// `file` subject (an assertion failure), this is a test-definition error: the
+    /// expected value itself could not be sourced.
+    SemanticFileContentsReferenceMissing,
+    /// A `contents_equals` expected `WorkspacePath` exists but is not a regular file
+    /// (e.g. a directory). A test-definition error, not an assertion failure.
+    SemanticFileContentsReferenceNotARegularFile,
+    /// A `contents_equals` expected `WorkspacePath` is a regular file but could not
+    /// be read. A test-definition error, not an assertion failure.
+    SemanticFileContentsReferenceReadError,
     /// A `write` step's target path already existed; create-only writes reject this.
     StepWriteTargetExists,
     /// A `write` step's target path had a regular file somewhere in its parent path.
@@ -132,6 +159,22 @@ impl DiagnosticCode {
                 "assertion.file.contains_precondition_unmet"
             }
             Self::AssertionFileContainsMismatch => "assertion.file.contains_mismatch",
+            Self::AssertionFileContentsEqualsMismatch => "assertion.file.contents_equals_mismatch",
+            Self::AssertionFileContentsEqualsActualMissing => {
+                "assertion.file.contents_equals_actual_missing"
+            }
+            Self::AssertionFileContentsEqualsActualNotARegularFile => {
+                "assertion.file.contents_equals_actual_not_a_regular_file"
+            }
+            Self::AssertionFileContentsEqualsActualUnreadable => {
+                "assertion.file.contents_equals_actual_unreadable"
+            }
+            Self::AssertionStdoutContentsEqualsMismatch => {
+                "assertion.stdout.contents_equals_mismatch"
+            }
+            Self::AssertionStderrContentsEqualsMismatch => {
+                "assertion.stderr.contents_equals_mismatch"
+            }
             Self::SemanticDirEntryNameEmpty => "semantic.dir_entry_name.empty",
             Self::SemanticDirEntryNamePathSeparator => "semantic.dir_entry_name.path_separator",
             Self::SemanticDirEntryNameDotEntry => "semantic.dir_entry_name.dot_entry",
@@ -167,6 +210,15 @@ impl DiagnosticCode {
             }
             Self::SemanticFixtureReferenceEscapesReporDirectory => {
                 "semantic.fixture_reference.escapes_repor_directory"
+            }
+            Self::SemanticFileContentsReferenceMissing => {
+                "semantic.file_contents_reference.missing"
+            }
+            Self::SemanticFileContentsReferenceNotARegularFile => {
+                "semantic.file_contents_reference.not_regular_file"
+            }
+            Self::SemanticFileContentsReferenceReadError => {
+                "semantic.file_contents_reference.read_error"
             }
             Self::StepWriteTargetExists => "step.write.target_exists",
             Self::StepWriteParentNotADirectory => "step.write.parent_not_a_directory",
@@ -246,6 +298,12 @@ mod tests {
             DiagnosticCode::AssertionFileExistsNotAFile,
             DiagnosticCode::AssertionFileContainsPreconditionUnmet,
             DiagnosticCode::AssertionFileContainsMismatch,
+            DiagnosticCode::AssertionFileContentsEqualsMismatch,
+            DiagnosticCode::AssertionFileContentsEqualsActualMissing,
+            DiagnosticCode::AssertionFileContentsEqualsActualNotARegularFile,
+            DiagnosticCode::AssertionFileContentsEqualsActualUnreadable,
+            DiagnosticCode::AssertionStdoutContentsEqualsMismatch,
+            DiagnosticCode::AssertionStderrContentsEqualsMismatch,
             DiagnosticCode::SemanticDirEntryNameEmpty,
             DiagnosticCode::SemanticDirEntryNamePathSeparator,
             DiagnosticCode::SemanticDirEntryNameDotEntry,
@@ -274,6 +332,9 @@ mod tests {
             DiagnosticCode::SemanticFixtureReferenceMissing,
             DiagnosticCode::SemanticFixtureReferenceNotARegularFile,
             DiagnosticCode::SemanticFixtureReferenceEscapesReporDirectory,
+            DiagnosticCode::SemanticFileContentsReferenceMissing,
+            DiagnosticCode::SemanticFileContentsReferenceNotARegularFile,
+            DiagnosticCode::SemanticFileContentsReferenceReadError,
             DiagnosticCode::StepWriteTargetExists,
             DiagnosticCode::StepWriteParentNotADirectory,
             DiagnosticCode::StepWriteIoError,

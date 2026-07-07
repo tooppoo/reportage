@@ -1,0 +1,97 @@
+
+case "file contents_equals reports a script error for a missing expected workspace path" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > actual.txt
+      assert {
+        file <"actual.txt"> contents_equals <"does-not-exist.txt">
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.file_contents_reference.missing"
+  }
+}
+
+case "stdout contents_equals passes against a fixture reference" {
+  write <"expected.txt"> ```
+    hello
+    ```
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf 'hello\n'
+      assert {
+        # A fixture reference (@"...") is used here, not a workspace path (<"...">), so this
+        # case specifically exercises fixture resolution relative to the referencing *.repor
+        # file's own directory (here, the inner script's directory — the outer case's isolated
+        # workspace, where the `write` step above placed "expected.txt"). The missing-workspace-
+        # path case above already covers the <"..."> expected form.
+        stdout contents_equals @"expected.txt"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+  }
+}
+
+case "an unclosed workspace path literal is a syntax error" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > actual.txt
+      assert {
+        file <"actual.txt"> contents_equals <"expected.txt"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.syntax"
+  }
+}
+
+case "a workspace path literal missing its opening angle bracket is a syntax error" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > actual.txt
+      assert {
+        file <"actual.txt"> contents_equals "expected.txt">
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.syntax"
+  }
+}
+
+case "an unclosed fixture reference literal is a syntax error" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > actual.txt
+      assert {
+        file <"actual.txt"> contents_equals @"expected.txt
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.syntax"
+  }
+}

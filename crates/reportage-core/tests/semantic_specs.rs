@@ -227,6 +227,9 @@ fn checkpoint_for_case(case: &ConformanceCase) -> EvaluatorCheckpoint {
             shim_invocations: vec![],
             shim_event_parse_warnings: vec![],
         }),
+        // Inert for the same reason as `workspace.root`: these conformance cases never exercise
+        // `contents_equals`, so no fixture reference is ever resolved against this directory.
+        repor_dir: PathBuf::from("."),
     }
 }
 
@@ -794,7 +797,8 @@ fn conformance_case_expected_result_matches_v0_semantics() {
         for (i, case) in spec.conformance_cases.iter().enumerate() {
             let expectation = expectation_from_normalized_assertion(case);
             let checkpoint = checkpoint_for_case(case);
-            let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint);
+            let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint)
+                .expect("these conformance cases never exercise contents_equals");
             let computed = if result.passed {
                 ExpectedResult::Pass
             } else {

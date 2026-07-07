@@ -391,7 +391,7 @@ FileContentReference = WorkspacePath | FixtureReference
 - A **`TextValue`** is text content: something to write, or something to compare against. See "Text literal" below.
 - A **`WorkspacePath`** is a filesystem path resolved against the current concrete case's workspace root — the subject of `file` / `dir` checkpoints and the output path of `write`.
 - A **`FixtureReference`** refers to a static fixture / snapshot file near the `*.repor` file itself, resolved relative to that file's directory (see "Fixture reference value" below).
-- A **`FileContentReference`** is a reference that provides expected file content: a `WorkspacePath` or a `FixtureReference`. It is the expected-value category for `file <"path"> contents_equals` and `stdout` / `stderr contents_equals` (#92); the comparison behavior itself is #87's scope.
+- A **`FileContentReference`** is a reference that provides expected file content: a `WorkspacePath` or a `FixtureReference`. It is the expected-value category for `file <"path"> contents_equals` and `stdout` / `stderr contents_equals`.
 
 There is **no implicit conversion** between these domains: a `TextValue` never converts to a `WorkspacePath` or `FixtureReference`, and vice versa. A `WorkspacePath` and a `FixtureReference` may hold the same string data internally, but they are distinct semantic types.
 
@@ -456,9 +456,20 @@ stderr contents_equals <FileContentReference>
 
 `contents_equals` takes a `FileContentReference` as its expected value uniformly, regardless of subject — a reader who sees `contents_equals` always knows the expected side is `<"...">` or `@"..."`. `text_equals`, like `contains`, always takes a `TextValue`; v0 only wires `text_equals` for `file`, not `stdout` / `stderr`.
 
-#92 implements parsing, AST construction, and literal-kind validation for both positions (so a wrong-kind literal, e.g. `file <"out.txt"> text_equals @"expected.txt"`, is already a `semantic.literal.kind_mismatch`), and the fixture reference resolution/materialization mechanism described below. The comparison behavior itself — reading actual and expected bytes and reporting a match/mismatch — is `#87`'s scope for `contents_equals` and `#88`'s scope for `text_equals`; until they land, evaluating one of these expectations is not yet implemented.
+Both positions share parsing, AST construction, and literal-kind validation (so a wrong-kind literal, e.g. `file <"out.txt"> text_equals @"expected.txt"`, is already a `semantic.literal.kind_mismatch`), and `contents_equals` additionally shares the fixture reference resolution/materialization mechanism described below. `contents_equals` evaluation (`file` / `stdout` / `stderr`) is implemented; `file text_equals` evaluation is `#88`'s scope and not yet implemented.
 
-See [ADR: Workspace Path Literal Syntax](adr/20260706T160000Z_workspace-path-literal-syntax.md) for why the surface syntaxes are separated rather than contextually typed, and [ADR: Fixture Reference Value Syntax](adr/20260706T170000Z_fixture-reference-value-syntax.md) for the fixture reference literal itself.
+See [ADR: Workspace Path Literal Syntax](adr/20260706T160000Z_workspace-path-literal-syntax.md) for why the surface syntaxes are separated rather than contextually typed, [ADR: Fixture Reference Value Syntax](adr/20260706T170000Z_fixture-reference-value-syntax.md) for the fixture reference literal itself, and [ADR: `contents_equals` Comparison Evaluation](adr/20260707T012055Z_contents-equals-evaluation.md) for `contents_equals`'s comparison semantics and diagnostics.
+
+### `contents_equals` comparison semantics
+
+`contents_equals` compares actual and expected bytes byte-for-byte. No normalization is ever applied: trailing newlines, CRLF vs. LF, leading/trailing whitespace, and Unicode normalization all participate in the comparison exactly as captured. Two empty inputs are equal.
+
+The actual side and the expected side are classified differently when either cannot be read, because one names the subject under test and the other names the test definition's own expected value:
+
+- **Actual side** (`file`'s subject; `stdout` / `stderr`'s captured bytes): a missing, non-regular-file, or unreadable actual `file` is an **assertion failure** — the subject under test did not produce the expected output. `stdout` / `stderr` have no such failure mode; captured output is always available once an action has run.
+- **Expected side** (`contents_equals`'s `FileContentReference` operand): a missing, non-regular-file, or unreadable expected `WorkspacePath` is a **test-definition error** (`CaseStatus::ScriptError`, exit code 2, `semantic.file_contents_reference.*`), not an assertion failure — the expected value itself could not be sourced. An unresolvable `FixtureReference` is classified the same way, using the existing `semantic.fixture_reference.*` codes (see "Fixture reference value" below). A `contents_equals` expected-value error nested inside a `not` / `all` / `any` composition aborts the whole case immediately, exactly like a bare (non-composed) one — it is never swallowed as an ordinary failing child.
+
+A mismatch's diagnostic is bounded: CLI stdout/stderr (`--format=json` and the human renderer) never print the full actual/expected bytes, only the actual/expected byte lengths, the first differing byte offset, the byte-line number it falls on (LF-delimited, CRLF not normalized), and an escaped, size-capped context window around it (falling back from line-context to a fixed byte window for a huge single line or binary-like content). Persisting the full mismatch bytes as run evidence is not required; the `.reportage/runs/<id>/result.json` artifact does embed the full actual/expected bytes today, consistent with how it already records other expectations' captured output.
 
 ### Fixture reference value
 

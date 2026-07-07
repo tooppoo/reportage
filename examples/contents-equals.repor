@@ -1,0 +1,121 @@
+
+case "file contents_equals against a workspace file" {
+  $ printf 'hello\n' > expected.txt
+  $ printf 'hello\n' > actual.txt
+
+  assert {
+    file <"actual.txt"> contents_equals <"expected.txt">
+  }
+}
+
+case "file contents_equals against a fixture file" {
+  $ printf 'hello, fixture!\n' > actual.txt
+
+  assert {
+    file <"actual.txt"> contents_equals @"fixtures/expected.txt"
+  }
+}
+
+case "stdout contents_equals against a fixture file" {
+  $ printf 'hello, fixture!\n'
+
+  assert {
+    stdout contents_equals @"fixtures/expected.txt"
+  }
+}
+
+case "stdout contents_equals against a workspace file" {
+  $ printf 'hello\n' > expected.txt
+  $ printf 'hello\n'
+
+  assert {
+    stdout contents_equals <"expected.txt">
+  }
+}
+
+case "file contents_equals accepts dot-segment-like names, not just dot segments" {
+  # ".." / "." *segments* (a whole path component equal to ".." or ".") are rejected — see the
+  # invalid cases below — but a name that merely *starts* with dots is an ordinary file name and
+  # is accepted, for both <"..."> and @"...".
+  $ printf 'hello\n' > ..looks-like-parent.txt
+  $ printf 'hello\n' > .hidden-expected.txt
+
+  assert {
+    file <"..looks-like-parent.txt"> contents_equals <".hidden-expected.txt">
+    file <"..looks-like-parent.txt"> contents_equals @"fixtures/..looks-like-parent.txt"
+  }
+}
+
+case "file contents_equals rejects a fixture reference as the actual subject" {
+  # A fixture reference (@"...") names test-definition-side content; it can only ever be used as
+  # contents_equals's *expected* value, never as the `file` checkpoint subject (the actual side).
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > expected.txt
+      assert {
+        file @"actual.txt" contents_equals <"expected.txt">
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.literal.kind_mismatch"
+  }
+}
+
+case "file contents_equals rejects a dot segment in the actual path" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > expected.txt
+      assert {
+        file <"../escape.txt"> contents_equals <"expected.txt">
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.file_path.dot_segment"
+  }
+}
+
+case "contents_equals rejects a dot segment in a workspace-path expected value" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello
+      assert {
+        stdout contents_equals <"../escape.txt">
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.workspace_path.dot_segment"
+  }
+}
+
+case "contents_equals rejects a dot segment in a fixture-reference expected value" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > actual.txt
+      assert {
+        file <"actual.txt"> contents_equals @"../escape.txt"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.fixture_reference.dot_segment"
+  }
+}
