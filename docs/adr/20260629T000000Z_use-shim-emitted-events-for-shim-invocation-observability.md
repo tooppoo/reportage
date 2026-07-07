@@ -49,4 +49,4 @@ Negative:
 - [docs/shims.md](../shims.md)
 - [docs/shims/event-protocol.md](../shims/event-protocol.md)
 - [docs/execution-model.md](../execution-model.md)
-- [docs/self-testing.md](../self-testing.md)
+- [docs/testing/self-testing.md](../testing/self-testing.md)

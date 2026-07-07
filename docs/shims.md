@@ -51,7 +51,7 @@ Self-testing uses same-name command interception:
 4. The harness prepends the shim directory to `PATH`.
 5. The shell resolves `reportage` through the shim.
 
-For self-testing policy and representative cases, see [self-testing.md](self-testing.md).
+For self-testing policy and representative cases, see [testing/self-testing.md](testing/self-testing.md).
 
 ### Application E2E testing
 
@@ -131,5 +131,5 @@ These diagnostics remain observable stderr. reportage does not automatically fil
 ## Related documents
 
 - [execution-model.md](execution-model.md)
-- [self-testing.md](self-testing.md)
+- [testing/self-testing.md](testing/self-testing.md)
 - [shims/event-protocol.md](shims/event-protocol.md)
