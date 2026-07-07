@@ -219,8 +219,8 @@ jobs:
       - name: run smoke test
         run: ./bin/reportage --help
 
-  installer-smoke-test:
-    name: Installer smoke test for ${{ matrix.os }}(${{ matrix.arch }})
+  installer-smoke-test-pinned:
+    name: Installer smoke test (pinned version) for ${{ matrix.os }}(${{ matrix.arch }})
     strategy:
       matrix:
         include:
@@ -245,11 +245,74 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - name: Install via install.sh
-        run: sh install.sh --version v0.0.0 --install-dir "$RUNNER_TEMP/reportage-installer-smoke-test"
+      - name: Install via install.sh (pinned version)
+        run: sh install.sh --version v0.0.0 --install-dir "$RUNNER_TEMP/reportage-installer-smoke-test-pinned"
 
       - name: run smoke test
-        run: $RUNNER_TEMP/reportage-installer-smoke-test/reportage --help
+        run: $RUNNER_TEMP/reportage-installer-smoke-test-pinned/reportage --help
+
+  installer-smoke-test-latest:
+    name: Installer smoke test (latest resolution) for ${{ matrix.os }}(${{ matrix.arch }})
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            os: Linux
+            arch: x86_64
+
+          - runner: ubuntu-24.04-arm
+            os: Linux
+            arch: aarch64
+
+          - runner: macos-15-intel
+            os: Darwin
+            arch: x86_64
+
+          - runner: macos-15
+            os: Darwin
+            arch: arm64
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      # install.sh resolves "latest" through GitHub's "latest release" pointer, not a
+      # mutable "latest" Git tag; this step captures the concrete version it resolves to
+      # so later steps assert against that, not the literal string "latest".
+      - name: Install via install.sh (latest)
+        id: install
+        run: |
+          install_dir="$RUNNER_TEMP/reportage-installer-smoke-test-latest"
+          log="$RUNNER_TEMP/install-latest.log"
+
+          sh install.sh --install-dir "$install_dir" 2>&1 | tee "$log"
+
+          resolved_version=$(grep -o 'resolved latest version .*' "$log" | awk '{print $NF}')
+          [ -n "$resolved_version" ] || { echo "failed to capture resolved version from installer log"; exit 1; }
+
+          echo "requested version: latest"
+          echo "resolved version: $resolved_version"
+
+          echo "install_dir=$install_dir" >> "$GITHUB_OUTPUT"
+          echo "resolved_version=$resolved_version" >> "$GITHUB_OUTPUT"
+
+      - name: run smoke test
+        run: ${{ steps.install.outputs.install_dir }}/reportage --help
+
+      - name: verify installed binary matches the resolved version
+        run: |
+          resolved_version="${{ steps.install.outputs.resolved_version }}"
+          expected_version="${resolved_version#v}"
+          actual_version=$("${{ steps.install.outputs.install_dir }}/reportage" --version | awk '{print $NF}')
+
+          echo "resolved version (installer): $resolved_version"
+          echo "installed binary version: $actual_version"
+
+          [ "$expected_version" = "$actual_version" ] || {
+            echo "version mismatch: expected $expected_version, got $actual_version"
+            exit 1
+          }
 
   e2e:
     name: E2E(self testing)
