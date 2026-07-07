@@ -80,21 +80,6 @@ test:
     --fail-under-regions 80 \
     --ignore-filename-regex "cli/src/main|src/bin/gen_semantic_docs|model"
 
-# standalone aliases for the fixture suite self-tests; the same tests already run (and are
-# coverage-collected) inside `just test`'s nextest invocation, so these are not part of `test`
-[group('check')]
-test-fixtures: test-fixtures-valid test-fixtures-invalid
-
-# check that all valid fixtures do not produce parse errors
-[group('check')]
-test-fixtures-valid:
-  cargo nextest run --locked -p reportage-cli --test self_test -E 'test(=valid_syntax_fixtures_have_no_parse_errors_through_reportage_shim)'
-
-# check that all invalid fixtures produce parse errors
-[group('check')]
-test-fixtures-invalid:
-  cargo nextest run --locked -p reportage-cli --test self_test -E 'test(=invalid_syntax_fixtures_all_produce_parse_errors_through_reportage_shim)'
-
 # run all formatting checks
 [group('check')]
 fmt:
