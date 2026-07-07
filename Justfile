@@ -67,10 +67,18 @@ lang-docs-check:
 
 # run all tests and generate coverage report
 [group('check')]
-test: test-fixtures
-		cargo llvm-cov --locked --all-features --workspace --no-report nextest
-		cargo llvm-cov report --codecov --output-path cov.json --ignore-filename-regex "cli/src/main"
-		cargo llvm-cov report --fail-under-functions 80 --fail-under-lines 80 --fail-under-file-lines 80 --fail-under-regions 80 --ignore-filename-regex "cli/src/main|src/bin/gen_semantic_docs|model"
+test: && test-fixtures
+  #!/usr/bin/env sh
+  set -eu
+
+  cargo llvm-cov --locked --all-features --workspace --no-report nextest
+  cargo llvm-cov report --codecov --output-path cov.json --ignore-filename-regex "cli/src/main"
+  cargo llvm-cov report \
+    --fail-under-functions 80 \
+    --fail-under-lines 80 \
+    --fail-under-file-lines 80 \
+    --fail-under-regions 80 \
+    --ignore-filename-regex "cli/src/main|src/bin/gen_semantic_docs|model"
 
 [group('check')]
 test-fixtures:
