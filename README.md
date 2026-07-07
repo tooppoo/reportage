@@ -26,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/tooppoo/rellog/refs/heads/main/inst
 - [Philosophy](docs/philosophy.md): design principles and scope boundaries.
 - [Syntax](docs/syntax.md): normative v0 syntax grammar, generated from `crates/reportage-core/src/reportage.pest`.
 - [Semantics](docs/semantics.md): execution model, workspace lifecycle, parameter expansion, shell execution, PATH shims, and coverage adapter responsibilities.
-- [Self-testing](docs/self-testing.md): representative reportage-written E2E tests for reportage itself and their command-resolution model.
+- [Testing](docs/testing/README.md): how reportage tests itself, self-testing, Rust integration tests, and Rust unit tests, and how to choose between them.
 - [Why reportage? / Why not reportage?](docs/why-or-why-not.md): When does `reportage` work well, and when does it not?
 - [Design Principles](docs/design-principle.md): thin core, transparent shims, opt-in adapters, and evidence-first boundaries.
 - [v0 Technical Selection](docs/v0-technical-selection.md): implementation foundation and links to detailed technical specs.
