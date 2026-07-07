@@ -81,12 +81,11 @@ test: && test-fixtures
     --ignore-filename-regex "cli/src/main|src/bin/gen_semantic_docs|model"
 
 [group('check')]
-test-fixtures:
-  just test-fixtures-valid
-  just test-fixtures-invalid
+test-fixtures: test-fixtures-valid test-fixtures-invalid
 
+# check that all valid fixtures do not produce parse errors
 [group('check')]
-test-fixtures-valid:
+test-fixtures-valid: self-install
   #!/usr/bin/env sh
   set +e
   set -u
@@ -102,8 +101,9 @@ test-fixtures-valid:
 
   echo "No valid fixtures produced parse errors."
 
+# check that all invalid fixtures produce parse errors
 [group('check')]
-test-fixtures-invalid:
+test-fixtures-invalid: self-install
   #!/usr/bin/env sh
   set +e
   set -u
