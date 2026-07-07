@@ -8,6 +8,7 @@ use reportage_core::{
     config, evaluator,
     executor::ExecutionEnvironment,
     result::ExecutionReport,
+    shim::{CommandName, CommandRegistry, ExecutableInvocation},
     suite,
 };
 
@@ -77,7 +78,12 @@ fn main() {
     let mode = determine_mode(&cli);
 
     let result = match mode {
-        InvocationMode::ExplicitScripts(scripts) => run_scripts(scripts),
+        // Explicit script mode never reads a config file, so no commands are ever registered
+        // here. Config-based command registration requires `--config` or the default config
+        // mode. See docs/configuration.md — Commands.
+        InvocationMode::ExplicitScripts(scripts) => {
+            run_scripts(scripts, &CommandRegistry::default())
+        }
         InvocationMode::Config(config_path) => run_with_config(config_path),
     };
 
@@ -136,7 +142,7 @@ fn determine_mode(cli: &Cli) -> InvocationMode {
 }
 
 /// Runs one or more explicitly-specified scripts through the pre-execution validation phase.
-fn run_scripts(scripts: Vec<PathBuf>) -> ExecutionReport {
+fn run_scripts(scripts: Vec<PathBuf>, commands: &CommandRegistry) -> ExecutionReport {
     let (validated, file_errors) = suite::load_and_validate(&scripts);
 
     if !file_errors.is_empty() {
@@ -149,7 +155,7 @@ fn run_scripts(scripts: Vec<PathBuf>) -> ExecutionReport {
     let env = ExecutionEnvironment::default();
     let mut all_cases = Vec::new();
     for file in validated {
-        let run = evaluator::evaluate(&file.script, &env, &file.source_path);
+        let run = evaluator::evaluate(&file.script, &env, &file.source_path, commands);
         all_cases.extend(run.cases);
     }
 
@@ -182,6 +188,14 @@ fn run_with_config(config_path: PathBuf) -> ExecutionReport {
         .unwrap_or_else(|| Path::new("."))
         .to_path_buf();
 
+    let commands = match resolve_command_registry(&config.commands, &base_dir) {
+        Ok(registry) => registry,
+        Err(e) => {
+            eprintln!("error: {e}");
+            std::process::exit(3);
+        }
+    };
+
     let discovered = match suite::discover_files(&base_dir, &config.tests.paths) {
         Ok(files) => files,
         Err(e) => {
@@ -190,5 +204,38 @@ fn run_with_config(config_path: PathBuf) -> ExecutionReport {
         }
     };
 
-    run_scripts(discovered)
+    run_scripts(discovered, &commands)
+}
+
+/// Resolves each configured command's `exec` value into an absolute [`ExecutableInvocation`]
+/// target and builds the [`CommandRegistry`] used for this config-driven run.
+///
+/// `exec` is resolved relative to `base_dir` (the config file's directory) via a lexical
+/// absolutization ([`std::path::absolute`]): it does not touch the filesystem, so it neither
+/// requires the target executable to already exist nor resolves symlinks in the path. See
+/// docs/configuration.md — Commands.
+fn resolve_command_registry(
+    config: &config::CommandsConfig,
+    base_dir: &Path,
+) -> Result<CommandRegistry, String> {
+    let mut entries = Vec::with_capacity(config.commands.len());
+    for command in &config.commands {
+        // Command ids are already validated by `config::parse_config`.
+        let name = CommandName::new(command.id.clone())
+            .expect("command id was already validated during config parsing");
+
+        let relative = base_dir.join(&command.exec);
+        let absolute = std::path::absolute(&relative).map_err(|e| {
+            format!(
+                "failed to resolve exec path '{}' for command '{}': {e}",
+                command.exec, command.id
+            )
+        })?;
+
+        let invocation = ExecutableInvocation::new(absolute, vec![])
+            .map_err(|e| format!("invalid exec target for command '{}': {e}", command.id))?;
+
+        entries.push((name, invocation));
+    }
+    Ok(CommandRegistry::new(entries))
 }
