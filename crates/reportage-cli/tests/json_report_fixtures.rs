@@ -75,8 +75,25 @@ struct Diagnostic {
     severity: Severity,
     message: String,
     origin: Origin,
-    location: Option<Location>,
+    /// Deliberately not `Option<Location>`: with no `#[serde(default)]`, a required
+    /// non-`Option` field makes a *missing* `location` key a deserialization error, distinct
+    /// from a *present* `location: null`. An `Option<Location>` would silently accept both,
+    /// defeating the point of testing that this field is always present (see
+    /// `docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md`). Its shape
+    /// (`null` or a `Location`) is checked separately by `assert_location_shape_is_valid`.
+    location: Value,
     code: Option<String>,
+}
+
+/// Asserts `location` is JSON `null` or deserializes as a valid `Location`, without collapsing
+/// "missing key" and "present but null" the way an `Option<Location>` struct field would.
+fn assert_location_shape_is_valid(location: &Value) {
+    if location.is_null() {
+        return;
+    }
+    serde_json::from_value::<Location>(location.clone()).unwrap_or_else(|e| {
+        panic!("diagnostic location is neither null nor a valid Location: {e}\n{location}")
+    });
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -260,11 +277,20 @@ fn run_json(fixture: &Path) -> (Value, i32, TempDir) {
 
 /// Runs the same fixture through the default (human-readable) renderer, returning combined
 /// stdout+stderr text. Used only for the semantic-parity checks below.
-fn run_human(fixture: &Path, dir: &TempDir) -> String {
+///
+/// Uses its own fresh temp dir rather than reusing `run_json`'s: some fixtures use create-only
+/// `write` steps, so replaying the fixture a second time in a directory that already has the
+/// first run's output on disk would change which step fails and could mask a real regression in
+/// the parity check.
+fn run_human(fixture: &Path) -> String {
+    let dir = TempDir::new().unwrap();
     let name = fixture.file_name().unwrap().to_str().unwrap();
+    let content = std::fs::read_to_string(fixture).unwrap();
+    dir.child(name).write_str(&content).unwrap();
+
     let output = Command::cargo_bin("reportage")
         .unwrap()
-        .current_dir(dir)
+        .current_dir(&dir)
         .arg(name)
         .output()
         .unwrap();
@@ -338,12 +364,15 @@ fn every_fixture_produces_schema_valid_json() {
     for path in paths {
         let (json, _exit_code, _dir) = run_json(&path);
         let text = serde_json::to_string(&json).unwrap();
-        let _doc: JsonReportDocument = serde_json::from_str(&text).unwrap_or_else(|e| {
+        let doc: JsonReportDocument = serde_json::from_str(&text).unwrap_or_else(|e| {
             panic!(
                 "fixture {} produced JSON that does not conform to the typed schema: {e}\n{text}",
                 path.display()
             )
         });
+        for diagnostic in &doc.diagnostics {
+            assert_location_shape_is_valid(&diagnostic.location);
+        }
     }
 }
 
@@ -402,11 +431,11 @@ fn snapshots_for_json_report_fixtures_are_current() {
 #[test]
 fn passed_fixture_is_passed_in_both_renderers() {
     let path = fixture_dir().join("passed.repor");
-    let (json, exit_code, dir) = run_json(&path);
+    let (json, exit_code, _dir) = run_json(&path);
     assert_eq!(json["status"], "passed");
     assert_eq!(exit_code, 0);
 
-    let human = run_human(&path, &dir);
+    let human = run_human(&path);
     assert!(
         human.contains("PASS"),
         "human-readable output must also report a pass: {human}"
@@ -416,13 +445,13 @@ fn passed_fixture_is_passed_in_both_renderers() {
 #[test]
 fn assertion_failure_fixture_reports_the_same_diagnostic_code_in_both_renderers() {
     let path = fixture_dir().join("assertion_failure.repor");
-    let (json, exit_code, dir) = run_json(&path);
+    let (json, exit_code, _dir) = run_json(&path);
     assert_eq!(json["status"], "failed");
     assert_eq!(exit_code, 1);
     let code = json["diagnostics"][0]["code"].as_str().unwrap();
     assert_eq!(code, "assertion.stdout.contains_mismatch");
 
-    let human = run_human(&path, &dir);
+    let human = run_human(&path);
     assert!(
         human.contains(code),
         "human-readable output must surface the same diagnostic code '{code}': {human}"
@@ -432,7 +461,7 @@ fn assertion_failure_fixture_reports_the_same_diagnostic_code_in_both_renderers(
 #[test]
 fn parse_error_fixture_reports_the_same_diagnostic_code_and_has_a_location_in_json_only() {
     let path = fixture_dir().join("parse_error.repor");
-    let (json, exit_code, dir) = run_json(&path);
+    let (json, exit_code, _dir) = run_json(&path);
     assert_eq!(json["status"], "error");
     assert_eq!(exit_code, 2);
     let diagnostic = &json["diagnostics"][0];
@@ -444,7 +473,7 @@ fn parse_error_fixture_reports_the_same_diagnostic_code_and_has_a_location_in_js
     assert!(diagnostic["location"].is_object());
     assert!(diagnostic["location"]["line"].as_u64().unwrap() >= 1);
 
-    let human = run_human(&path, &dir);
+    let human = run_human(&path);
     assert!(
         human.contains(code),
         "human-readable output must surface the same diagnostic code '{code}': {human}"
@@ -454,7 +483,7 @@ fn parse_error_fixture_reports_the_same_diagnostic_code_and_has_a_location_in_js
 #[test]
 fn semantic_error_fixture_reports_the_same_diagnostic_code_with_null_location_in_json() {
     let path = fixture_dir().join("semantic_error.repor");
-    let (json, exit_code, dir) = run_json(&path);
+    let (json, exit_code, _dir) = run_json(&path);
     assert_eq!(json["status"], "error");
     assert_eq!(exit_code, 2);
     let diagnostic = &json["diagnostics"][0];
@@ -466,7 +495,7 @@ fn semantic_error_fixture_reports_the_same_diagnostic_code_with_null_location_in
     let code = diagnostic["code"].as_str().unwrap();
     assert_eq!(code, "semantic.expectation.requires_action");
 
-    let human = run_human(&path, &dir);
+    let human = run_human(&path);
     assert!(
         human.contains(code),
         "human-readable output must surface the same diagnostic code '{code}': {human}"
@@ -476,7 +505,7 @@ fn semantic_error_fixture_reports_the_same_diagnostic_code_with_null_location_in
 #[test]
 fn runtime_error_fixture_reports_the_same_diagnostic_code_with_empty_actions_and_assertions() {
     let path = fixture_dir().join("runtime_error.repor");
-    let (json, exit_code, dir) = run_json(&path);
+    let (json, exit_code, _dir) = run_json(&path);
     assert_eq!(json["status"], "error");
     assert_eq!(exit_code, 3);
     let diagnostic = &json["diagnostics"][0];
@@ -491,7 +520,7 @@ fn runtime_error_fixture_reports_the_same_diagnostic_code_with_empty_actions_and
             .is_empty()
     );
 
-    let human = run_human(&path, &dir);
+    let human = run_human(&path);
     assert!(
         human.contains(code),
         "human-readable output must surface the same diagnostic code '{code}': {human}"
@@ -501,7 +530,7 @@ fn runtime_error_fixture_reports_the_same_diagnostic_code_with_empty_actions_and
 #[test]
 fn partial_execution_fixture_has_error_status_but_retains_prior_action_and_assertion_evidence() {
     let path = fixture_dir().join("partial_execution_after_runtime_error.repor");
-    let (json, exit_code, dir) = run_json(&path);
+    let (json, exit_code, _dir) = run_json(&path);
     assert_eq!(json["status"], "error");
     assert_eq!(exit_code, 3);
     assert_eq!(json["diagnostics"][0]["category"], "runtime");
@@ -522,7 +551,7 @@ fn partial_execution_fixture_has_error_status_but_retains_prior_action_and_asser
     assert!(assertions.iter().all(|a| a["status"] == "passed"));
     assert_eq!(json["tests"][0]["status"], "error");
 
-    let human = run_human(&path, &dir);
+    let human = run_human(&path);
     assert!(
         human.contains("step.write.target_exists"),
         "human-readable output must surface the same diagnostic code: {human}"
