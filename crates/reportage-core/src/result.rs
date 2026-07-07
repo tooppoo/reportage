@@ -58,6 +58,19 @@ pub enum ExpectationKind {
         expected: String,
         observation: FileContentObservation,
     },
+    FileContentsEquals {
+        path: String,
+        expected_source: ContentsEqualsExpectedSource,
+        observation: ContentsEqualsObservation,
+    },
+    StdoutContentsEquals {
+        expected_source: ContentsEqualsExpectedSource,
+        comparison: ContentsEqualsComparison,
+    },
+    StderrContentsEquals {
+        expected_source: ContentsEqualsExpectedSource,
+        comparison: ContentsEqualsComparison,
+    },
     DirExists {
         path: String,
         observation: DirExistsObservation,
@@ -105,6 +118,35 @@ impl ExpectationKind {
                 | FileContentObservation::Unreadable
                 | FileContentObservation::NotUtf8 => {
                     Some(DiagnosticCode::AssertionFileContainsPreconditionUnmet)
+                }
+            },
+            ExpectationKind::FileContentsEquals { observation, .. } => match observation {
+                ContentsEqualsObservation::Compared(comparison) => match comparison.outcome {
+                    ContentsEqualsOutcome::Match => None,
+                    ContentsEqualsOutcome::Mismatch(_) => {
+                        Some(DiagnosticCode::AssertionFileContentsEqualsMismatch)
+                    }
+                },
+                ContentsEqualsObservation::ActualMissing => {
+                    Some(DiagnosticCode::AssertionFileContentsEqualsActualMissing)
+                }
+                ContentsEqualsObservation::ActualNotRegularFile => {
+                    Some(DiagnosticCode::AssertionFileContentsEqualsActualNotARegularFile)
+                }
+                ContentsEqualsObservation::ActualUnreadable => {
+                    Some(DiagnosticCode::AssertionFileContentsEqualsActualUnreadable)
+                }
+            },
+            ExpectationKind::StdoutContentsEquals { comparison, .. } => match comparison.outcome {
+                ContentsEqualsOutcome::Match => None,
+                ContentsEqualsOutcome::Mismatch(_) => {
+                    Some(DiagnosticCode::AssertionStdoutContentsEqualsMismatch)
+                }
+            },
+            ExpectationKind::StderrContentsEquals { comparison, .. } => match comparison.outcome {
+                ContentsEqualsOutcome::Match => None,
+                ContentsEqualsOutcome::Mismatch(_) => {
+                    Some(DiagnosticCode::AssertionStderrContentsEqualsMismatch)
                 }
             },
             ExpectationKind::DirExists { observation, .. } => match observation {
@@ -160,6 +202,104 @@ pub enum FileContentObservation {
     Unreadable,
     /// `path` is a regular file, but its content is not valid UTF-8.
     NotUtf8,
+}
+
+/// Where a `contents_equals` expected value came from, for display purposes only.
+///
+/// Carries the raw path/reference string as written in the script, not a resolved
+/// filesystem path: a `Fixture` reference resolves relative to the `*.repor` file's
+/// directory, which is not otherwise visible in an `ExpectationKind`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContentsEqualsExpectedSource {
+    /// A `<"...">` workspace path literal.
+    Workspace(String),
+    /// An `@"..."` fixture reference literal.
+    Fixture(String),
+}
+
+/// A completed byte-for-byte `contents_equals` comparison: the full actual and expected
+/// byte buffers (kept for artifact evidence, exactly like `ExpectationKind::StdoutContains`
+/// keeps full captured output), plus the resulting [`ContentsEqualsOutcome`].
+///
+/// CLI diagnostic rendering must never print `actual` / `expected` in full — only a
+/// bounded, escaped window derived from [`ContentsMismatch`]. See docs/semantic-diagnostics.md.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentsEqualsComparison {
+    pub actual: Vec<u8>,
+    pub expected: Vec<u8>,
+    pub outcome: ContentsEqualsOutcome,
+}
+
+impl ContentsEqualsComparison {
+    /// Compares `actual` and `expected` byte-for-byte, with no normalization of any kind.
+    pub fn compare(actual: Vec<u8>, expected: Vec<u8>) -> Self {
+        let outcome = match first_byte_diff(&actual, &expected) {
+            None => ContentsEqualsOutcome::Match,
+            Some(offset) => ContentsEqualsOutcome::Mismatch(ContentsMismatch {
+                actual_len: actual.len(),
+                expected_len: expected.len(),
+                first_diff_offset: offset,
+            }),
+        };
+        ContentsEqualsComparison {
+            actual,
+            expected,
+            outcome,
+        }
+    }
+}
+
+/// The outcome of a byte-for-byte `contents_equals` comparison. See docs/semantic-diagnostics.md.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContentsEqualsOutcome {
+    Match,
+    Mismatch(ContentsMismatch),
+}
+
+/// Bounded facts about a `contents_equals` byte mismatch, sufficient to render a bounded,
+/// escaped diagnostic without printing the full actual/expected byte buffers.
+/// See docs/semantic-diagnostics.md — `contents_equals` mismatch diagnostics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ContentsMismatch {
+    pub actual_len: usize,
+    pub expected_len: usize,
+    /// Byte offset of the first differing byte. When one buffer is a strict prefix of
+    /// the other, this is the shorter buffer's length (the point truncation begins).
+    pub first_diff_offset: usize,
+}
+
+/// The first byte offset at which `a` and `b` differ, or `None` if they are equal.
+/// A length mismatch where one is a prefix of the other counts as differing at the
+/// shorter buffer's length (e.g. a missing trailing newline).
+fn first_byte_diff(a: &[u8], b: &[u8]) -> Option<usize> {
+    let common_len = a.len().min(b.len());
+    for i in 0..common_len {
+        if a[i] != b[i] {
+            return Some(i);
+        }
+    }
+    if a.len() != b.len() {
+        Some(common_len)
+    } else {
+        None
+    }
+}
+
+/// What was observed for the actual side of a `file <"path"> contents_equals <expected>`
+/// expectation, once the expected side is already known to be resolvable.
+///
+/// Unlike the expected side (a test-definition error when unavailable), a missing /
+/// non-regular / unreadable actual `file` is the subject under test failing to produce
+/// the expected output, so it is always an assertion failure. See docs/semantic-diagnostics.md.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContentsEqualsObservation {
+    Compared(ContentsEqualsComparison),
+    /// The actual path does not exist.
+    ActualMissing,
+    /// The actual path exists but is not a regular file (e.g. a directory).
+    ActualNotRegularFile,
+    /// The actual path is a regular file but could not be read.
+    ActualUnreadable,
 }
 
 /// What was observed on the filesystem for a `dir <"path"> exists` expectation.

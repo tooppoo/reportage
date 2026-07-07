@@ -2,14 +2,16 @@ use std::path::{Path, PathBuf};
 
 use crate::diagnostic::DiagnosticCode;
 use crate::executor::{ExecutionEnvironment, execute_action};
+use crate::fixture;
 use crate::model::{
-    Case, DirExpectation, DirMatcher, Expectation, FileExpectation, FileMatcher, LogicalOperator,
-    OutputMatcher, Script, SideEffectingStep, Step,
+    Case, DirExpectation, DirMatcher, Expectation, FileContentsReference, FileExpectation,
+    FileMatcher, LogicalOperator, OutputMatcher, Script, SideEffectingStep, Step,
 };
 use crate::result::{
-    ActionResult, AssertionBlockResult, CaseResult, CaseStatus, DirContainsObservation,
-    DirExistsObservation, ExecutionReport, ExpectationKind, ExpectationResult,
-    FileContentObservation, FileExistsObservation, RuntimeError, ScriptError,
+    ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ContentsEqualsComparison,
+    ContentsEqualsExpectedSource, ContentsEqualsObservation, ContentsEqualsOutcome,
+    DirContainsObservation, DirExistsObservation, ExecutionReport, ExpectationKind,
+    ExpectationResult, FileContentObservation, FileExistsObservation, RuntimeError, ScriptError,
 };
 use crate::semantic::{
     SemanticError, validate_dir_entry_name, validate_dir_path, validate_file_path,
@@ -25,26 +27,118 @@ use crate::workspace::Workspace;
 pub struct Checkpoint {
     pub workspace: WorkspaceState,
     pub last_action: Option<ActionResult>,
+    /// Directory containing the `*.repor` file this case was loaded from, used to resolve a
+    /// `contents_equals` expected `FixtureReference` (`@"<path>"`) relative to it. See
+    /// `fixture::resolve_fixture_source`.
+    pub repor_dir: PathBuf,
 }
 
 impl Checkpoint {
     /// The initial checkpoint: workspace state present, no last action result.
-    pub fn initial(workspace_root: PathBuf) -> Self {
+    pub fn initial(workspace_root: PathBuf, repor_dir: PathBuf) -> Self {
         Self {
             workspace: WorkspaceState {
                 root: workspace_root,
             },
             last_action: None,
+            repor_dir,
         }
     }
 
     /// An action-updated checkpoint after `$ ...` completes.
-    pub fn after_action(action: ActionResult, workspace_root: PathBuf) -> Self {
+    pub fn after_action(action: ActionResult, workspace_root: PathBuf, repor_dir: PathBuf) -> Self {
         Self {
             workspace: WorkspaceState {
                 root: workspace_root,
             },
             last_action: Some(action),
+            repor_dir,
+        }
+    }
+}
+
+/// A `contents_equals` expected value could not be resolved to bytes: not a subject-under-test
+/// failure but a problem with the test definition itself (a missing / non-regular / unreadable
+/// expected `WorkspacePath`, or any `FixtureReference` resolution failure). Surfaces as
+/// `CaseStatus::ScriptError` (exit code 2), never as an assertion failure. See
+/// docs/adr/20260707T012055Z_contents-equals-evaluation.md.
+#[derive(Debug)]
+pub struct ExpectedContentsError {
+    pub message: String,
+    pub diagnostic_code: DiagnosticCode,
+}
+
+/// Resolves a `contents_equals` expected [`FileContentsReference`] to its bytes and a
+/// display-only [`ContentsEqualsExpectedSource`].
+///
+/// A `Workspace` reference reads directly from the case's isolated workspace; a `Fixture`
+/// reference is resolved against `repor_dir` and materialized into a fresh runner-reserved
+/// directory before being read, so evaluation never reads directly from the test-definition
+/// source tree. See `fixture::resolve_fixture_source` / `fixture::materialize_fixture`.
+fn resolve_expected_contents(
+    expected: &FileContentsReference,
+    workspace_root: &Path,
+    repor_dir: &Path,
+) -> Result<(Vec<u8>, ContentsEqualsExpectedSource), ExpectedContentsError> {
+    match expected {
+        FileContentsReference::Workspace(path) => {
+            let resolved = workspace_root.join(path.as_str());
+            let meta = std::fs::metadata(&resolved).map_err(|_| ExpectedContentsError {
+                message: format!("expected workspace path {:?} does not exist", path.as_str()),
+                diagnostic_code: DiagnosticCode::SemanticFileContentsReferenceMissing,
+            })?;
+            if !meta.is_file() {
+                return Err(ExpectedContentsError {
+                    message: format!(
+                        "expected workspace path {:?} is not a regular file",
+                        path.as_str()
+                    ),
+                    diagnostic_code: DiagnosticCode::SemanticFileContentsReferenceNotARegularFile,
+                });
+            }
+            let bytes = std::fs::read(&resolved).map_err(|e| ExpectedContentsError {
+                message: format!(
+                    "expected workspace path {:?} could not be read: {e}",
+                    path.as_str()
+                ),
+                diagnostic_code: DiagnosticCode::SemanticFileContentsReferenceReadError,
+            })?;
+            Ok((
+                bytes,
+                ContentsEqualsExpectedSource::Workspace(path.as_str().to_string()),
+            ))
+        }
+        FileContentsReference::Fixture(fixture_ref) => {
+            let resolved =
+                fixture::resolve_fixture_source(repor_dir, fixture_ref).map_err(|e| {
+                    ExpectedContentsError {
+                        message: e.to_string(),
+                        diagnostic_code: e.code(),
+                    }
+                })?;
+            let reserved_dir = tempfile::TempDir::new().map_err(|e| ExpectedContentsError {
+                message: format!("failed to create fixture materialization directory: {e}"),
+                diagnostic_code: DiagnosticCode::SemanticFixtureReferenceMissing,
+            })?;
+            let materialized = fixture::materialize_fixture(&resolved, reserved_dir.path())
+                .map_err(|e| ExpectedContentsError {
+                    message: format!(
+                        "fixture reference {:?} could not be materialized: {e}",
+                        fixture_ref.as_str()
+                    ),
+                    diagnostic_code: DiagnosticCode::SemanticFixtureReferenceMissing,
+                })?;
+            let bytes = std::fs::read(&materialized).map_err(|e| ExpectedContentsError {
+                message: format!(
+                    "fixture reference {:?} could not be read after materialization: {e}",
+                    fixture_ref.as_str()
+                ),
+                diagnostic_code: DiagnosticCode::SemanticFixtureReferenceMissing,
+            })?;
+            Ok((
+                bytes,
+                ContentsEqualsExpectedSource::Fixture(fixture_ref.as_str().to_string()),
+            ))
         }
     }
 }
@@ -57,14 +151,27 @@ pub struct WorkspaceState {
     pub root: PathBuf,
 }
 
-pub fn evaluate(script: &Script, env: &ExecutionEnvironment) -> ExecutionReport {
+/// Evaluates every case in `script`, loaded from the file at `source_path`.
+///
+/// `source_path` is recorded on every `CaseResult` and its parent directory is used to resolve
+/// a `contents_equals` expected `FixtureReference` (`@"<path>"`) relative to it — see
+/// `Checkpoint::repor_dir`.
+pub fn evaluate(
+    script: &Script,
+    env: &ExecutionEnvironment,
+    source_path: &Path,
+) -> ExecutionReport {
     ExecutionReport {
-        cases: script.cases.iter().map(|c| evaluate_case(c, env)).collect(),
+        cases: script
+            .cases
+            .iter()
+            .map(|c| evaluate_case(c, env, source_path))
+            .collect(),
         file_errors: vec![],
     }
 }
 
-fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
+fn evaluate_case(case: &Case, env: &ExecutionEnvironment, source_path: &Path) -> CaseResult {
     // Every case must contain at least one assertion block.
     let has_assertion_block = case
         .steps
@@ -73,7 +180,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
     if !has_assertion_block {
         return CaseResult {
             name: case.name.clone(),
-            source_path: None,
+            source_path: Some(source_path.to_path_buf()),
             status: CaseStatus::ScriptError(ScriptError {
                 message: format!(
                     "case '{}' has no assertion block; every case requires at least one assert {{ ... }} block",
@@ -95,7 +202,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
         Err(e) => {
             return CaseResult {
                 name: case.name.clone(),
-                source_path: None,
+                source_path: Some(source_path.to_path_buf()),
                 status: CaseStatus::RuntimeError(RuntimeError {
                     message: format!(
                         "case '{}': failed to create isolated case workspace: {e}",
@@ -116,10 +223,16 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
     // Successful `write` (and future side-effecting) step count, independent
     // of `action_results`. See `RunSummary::steps_executed`.
     let mut side_effects_executed: usize = 0;
+    // The directory containing the referencing `*.repor` file, used to resolve a
+    // `contents_equals` expected `FixtureReference` relative to it.
+    let repor_dir = source_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
     // Steps are processed in source order.
     // Assertion block failure stops execution before the next action.
     // See docs/semantics.md — Assertion block and the checkpoint-based assertion ADR.
-    let mut checkpoint = Checkpoint::initial(workspace.root().to_path_buf());
+    let mut checkpoint = Checkpoint::initial(workspace.root().to_path_buf(), repor_dir.clone());
     let mut case_failed = false;
 
     for (step_idx, step) in case.steps.iter().enumerate() {
@@ -134,13 +247,14 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                         checkpoint = Checkpoint::after_action(
                             result.clone(),
                             workspace.root().to_path_buf(),
+                            repor_dir.clone(),
                         );
                         action_results.push(result);
                     }
                     Err(e) => {
                         return CaseResult {
                             name: case.name.clone(),
-                            source_path: None,
+                            source_path: Some(source_path.to_path_buf()),
                             status: CaseStatus::RuntimeError(RuntimeError {
                                 message: e.message,
                                 diagnostic_code: None,
@@ -164,7 +278,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                     Err(e) => {
                         return CaseResult {
                             name: case.name.clone(),
-                            source_path: None,
+                            source_path: Some(source_path.to_path_buf()),
                             status: CaseStatus::RuntimeError(RuntimeError {
                                 message: format!(
                                     "case '{}': write step at step {} failed: {e}",
@@ -194,7 +308,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                     {
                         return CaseResult {
                             name: case.name.clone(),
-                            source_path: None,
+                            source_path: Some(source_path.to_path_buf()),
                             status: CaseStatus::ScriptError(ScriptError {
                                 message: format!(
                                     "case '{}': assertion block at step {} uses a process expectation \
@@ -227,7 +341,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                     if let Err(semantic_err) = validate_expectation_paths(expectation) {
                         return CaseResult {
                             name: case.name.clone(),
-                            source_path: None,
+                            source_path: Some(source_path.to_path_buf()),
                             status: CaseStatus::ScriptError(ScriptError {
                                 message: format!(
                                     "case '{}': assertion block at step {} has an invalid \
@@ -245,12 +359,40 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
                     }
                 }
 
-                // Evaluate all expectations in the block independently.
-                let expectation_results: Vec<ExpectationResult> = block
+                // Evaluate all expectations in the block independently. A `contents_equals`
+                // expected value that fails to resolve (a missing/non-regular/unreadable
+                // expected `WorkspacePath`, or a fixture reference error) is a test-definition
+                // problem, not an assertion outcome: it aborts the case immediately as a
+                // `ScriptError`, exactly like the path-policy check above.
+                // See docs/adr/20260707T012055Z_contents-equals-evaluation.md.
+                let expectation_results: Vec<ExpectationResult> = match block
                     .expectations()
                     .iter()
                     .map(|exp| evaluate_expectation_at_checkpoint(exp, &checkpoint))
-                    .collect();
+                    .collect()
+                {
+                    Ok(results) => results,
+                    Err(err) => {
+                        return CaseResult {
+                            name: case.name.clone(),
+                            source_path: Some(source_path.to_path_buf()),
+                            status: CaseStatus::ScriptError(ScriptError {
+                                message: format!(
+                                    "case '{}': assertion block at step {} has an unresolvable \
+                                     contents_equals expected value: {}",
+                                    case.name,
+                                    step_idx + 1,
+                                    err.message,
+                                ),
+                                diagnostic_code: Some(err.diagnostic_code),
+                                step_index: Some(step_idx),
+                            }),
+                            actions: action_results,
+                            assertion_blocks: assertion_block_results,
+                            side_effects_executed,
+                        };
+                    }
+                };
 
                 let block_result = AssertionBlockResult {
                     step_index: step_idx,
@@ -269,7 +411,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment) -> CaseResult {
 
     CaseResult {
         name: case.name.clone(),
-        source_path: None,
+        source_path: Some(source_path.to_path_buf()),
         status: if case_failed {
             CaseStatus::Fail
         } else {
@@ -315,10 +457,15 @@ fn validate_expectation_paths(expectation: &Expectation) -> Result<(), SemanticE
 ///
 /// This is the checkpoint-level semantic evaluator used by normal case execution.
 /// Semantic conformance tests call the same entry point with static JSON checkpoint fixtures so those specs validate the production evaluator behavior without running an external command.
+///
+/// Returns `Err` only when a `contents_equals` expected value fails to resolve to bytes — a
+/// test-definition problem, not an assertion outcome. See `evaluate_case`'s caller, which turns
+/// that into `CaseStatus::ScriptError` and aborts the case, exactly like the path-policy checks
+/// that run before this function is ever called.
 pub fn evaluate_expectation_at_checkpoint(
     expectation: &Expectation,
     checkpoint: &Checkpoint,
-) -> ExpectationResult {
+) -> Result<ExpectationResult, ExpectedContentsError> {
     match expectation {
         Expectation::Exit(exp) => {
             let actual = checkpoint
@@ -327,13 +474,13 @@ pub fn evaluate_expectation_at_checkpoint(
                 .map(|a| a.exit_code)
                 .unwrap_or(-1);
             let passed = actual == exp.expected as i32;
-            ExpectationResult {
+            Ok(ExpectationResult {
                 kind: ExpectationKind::Exit {
                     expected: exp.expected,
                     actual,
                 },
                 passed,
-            }
+            })
         }
         Expectation::Stdout(exp) => {
             let actual = checkpoint
@@ -344,25 +491,37 @@ pub fn evaluate_expectation_at_checkpoint(
             match &exp.matcher {
                 OutputMatcher::Contains(expected) => {
                     let passed = bytes_contains(&actual, expected.as_bytes());
-                    ExpectationResult {
+                    Ok(ExpectationResult {
                         kind: ExpectationKind::StdoutContains {
                             expected: expected.clone(),
                             actual,
                         },
                         passed,
-                    }
+                    })
                 }
                 OutputMatcher::Empty => {
                     let passed = actual.is_empty();
-                    ExpectationResult {
+                    Ok(ExpectationResult {
                         kind: ExpectationKind::StdoutEmpty { actual },
                         passed,
-                    }
+                    })
                 }
-                OutputMatcher::ContentsEquals(_) => todo!(
-                    "`stdout contents_equals` comparison evaluation lands in #87; #92 only \
-                     implements parsing, literal-kind validation, and fixture resolution/materialization"
-                ),
+                OutputMatcher::ContentsEquals(expected_ref) => {
+                    let (expected_bytes, expected_source) = resolve_expected_contents(
+                        expected_ref,
+                        &checkpoint.workspace.root,
+                        &checkpoint.repor_dir,
+                    )?;
+                    let comparison = ContentsEqualsComparison::compare(actual, expected_bytes);
+                    let passed = matches!(comparison.outcome, ContentsEqualsOutcome::Match);
+                    Ok(ExpectationResult {
+                        kind: ExpectationKind::StdoutContentsEquals {
+                            expected_source,
+                            comparison,
+                        },
+                        passed,
+                    })
+                }
                 _ => unreachable!("output matcher variant not implemented in v0 evaluator"),
             }
         }
@@ -375,38 +534,56 @@ pub fn evaluate_expectation_at_checkpoint(
             match &exp.matcher {
                 OutputMatcher::Contains(expected) => {
                     let passed = bytes_contains(&actual, expected.as_bytes());
-                    ExpectationResult {
+                    Ok(ExpectationResult {
                         kind: ExpectationKind::StderrContains {
                             expected: expected.clone(),
                             actual,
                         },
                         passed,
-                    }
+                    })
                 }
                 OutputMatcher::Empty => {
                     let passed = actual.is_empty();
-                    ExpectationResult {
+                    Ok(ExpectationResult {
                         kind: ExpectationKind::StderrEmpty { actual },
                         passed,
-                    }
+                    })
                 }
-                OutputMatcher::ContentsEquals(_) => todo!(
-                    "`stderr contents_equals` comparison evaluation lands in #87; #92 only \
-                     implements parsing, literal-kind validation, and fixture resolution/materialization"
-                ),
+                OutputMatcher::ContentsEquals(expected_ref) => {
+                    let (expected_bytes, expected_source) = resolve_expected_contents(
+                        expected_ref,
+                        &checkpoint.workspace.root,
+                        &checkpoint.repor_dir,
+                    )?;
+                    let comparison = ContentsEqualsComparison::compare(actual, expected_bytes);
+                    let passed = matches!(comparison.outcome, ContentsEqualsOutcome::Match);
+                    Ok(ExpectationResult {
+                        kind: ExpectationKind::StderrContentsEquals {
+                            expected_source,
+                            comparison,
+                        },
+                        passed,
+                    })
+                }
                 _ => unreachable!("output matcher variant not implemented in v0 evaluator"),
             }
         }
-        Expectation::File(exp) => evaluate_file_expectation(exp, &checkpoint.workspace.root),
-        Expectation::Dir(exp) => evaluate_dir_expectation(exp, &checkpoint.workspace.root),
+        Expectation::File(exp) => {
+            evaluate_file_expectation(exp, &checkpoint.workspace.root, &checkpoint.repor_dir)
+        }
+        Expectation::Dir(exp) => Ok(evaluate_dir_expectation(exp, &checkpoint.workspace.root)),
         Expectation::Logical(l) => {
-            // Evaluate every child regardless of earlier results, so a failing composition still reports each child's own outcome.
+            // Evaluate every child regardless of earlier results, so a failing composition still
+            // reports each child's own outcome. A child whose `contents_equals` expected value
+            // fails to resolve short-circuits the whole composition as a script error, the same
+            // as a bare (non-composed) expectation — a composition combines assertion outcomes,
+            // it must not mask a test-definition problem in one of its children.
             // See docs/semantics.md — Logical composition.
             let children: Vec<ExpectationResult> = l
                 .children()
                 .iter()
                 .map(|child| evaluate_expectation_at_checkpoint(child, checkpoint))
-                .collect();
+                .collect::<Result<Vec<_>, _>>()?;
 
             // `not` negates the implicit-`all` grouping of its children, not each child individually: `not { A B }` is `not(all(A, B))`, never `not(A) and not(B)`.
             let all_children_passed = children.iter().all(|c| c.passed);
@@ -416,13 +593,13 @@ pub fn evaluate_expectation_at_checkpoint(
                 LogicalOperator::Not => !all_children_passed,
             };
 
-            ExpectationResult {
+            Ok(ExpectationResult {
                 kind: ExpectationKind::Logical {
                     operator: l.operator(),
                     children,
                 },
                 passed,
-            }
+            })
         }
         _ => unreachable!("expectation variant not implemented in v0 evaluator"),
     }
@@ -447,37 +624,61 @@ fn bytes_contains(haystack: &[u8], needle: &[u8]) -> bool {
 /// `exp.path` is resolved relative to `workspace_root`, the current concrete case's isolated workspace.
 /// Actions never change that directory for the process (each `$` step runs in a fresh child shell), so file assertion paths are always resolved relative to the case workspace root, never affected by a `cd` performed inside an action.
 /// See docs/semantics.md.
-fn evaluate_file_expectation(exp: &FileExpectation, workspace_root: &Path) -> ExpectationResult {
+///
+/// `repor_dir` is only consulted for `ContentsEquals`, to resolve an expected
+/// `FixtureReference` relative to the referencing `*.repor` file's directory.
+fn evaluate_file_expectation(
+    exp: &FileExpectation,
+    workspace_root: &Path,
+    repor_dir: &Path,
+) -> Result<ExpectationResult, ExpectedContentsError> {
     match &exp.matcher {
         FileMatcher::Exists => {
             let observation = observe_file_exists(workspace_root, &exp.path);
             let passed = matches!(observation, FileExistsObservation::RegularFile);
-            ExpectationResult {
+            Ok(ExpectationResult {
                 kind: ExpectationKind::FileExists {
                     path: exp.path.clone(),
                     observation,
                 },
                 passed,
-            }
+            })
         }
         FileMatcher::Contains(expected) => {
             let expected_value = expected.to_text_value();
             let observation =
                 observe_file_contains(workspace_root, &exp.path, expected_value.as_str());
             let passed = matches!(observation, FileContentObservation::Found);
-            ExpectationResult {
+            Ok(ExpectationResult {
                 kind: ExpectationKind::FileContains {
                     path: exp.path.clone(),
                     expected: expected_value.as_str().to_string(),
                     observation,
                 },
                 passed,
-            }
+            })
         }
-        FileMatcher::ContentsEquals(_) => todo!(
-            "`file contents_equals` comparison evaluation lands in #87; #92 only implements \
-             parsing, literal-kind validation, and fixture resolution/materialization"
-        ),
+        FileMatcher::ContentsEquals(expected_ref) => {
+            let (expected_bytes, expected_source) =
+                resolve_expected_contents(expected_ref, workspace_root, repor_dir)?;
+            let observation =
+                observe_file_contents_equals(workspace_root, &exp.path, expected_bytes);
+            let passed = matches!(
+                observation,
+                ContentsEqualsObservation::Compared(ContentsEqualsComparison {
+                    outcome: ContentsEqualsOutcome::Match,
+                    ..
+                })
+            );
+            Ok(ExpectationResult {
+                kind: ExpectationKind::FileContentsEquals {
+                    path: exp.path.clone(),
+                    expected_source,
+                    observation,
+                },
+                passed,
+            })
+        }
         FileMatcher::TextEquals(_) => todo!(
             "`file text_equals` comparison evaluation lands in #88; #92 only implements \
              parsing and literal-kind validation"
@@ -497,6 +698,33 @@ fn observe_file_exists(workspace_root: &Path, path: &str) -> FileExistsObservati
         Ok(_) => FileExistsObservation::NotRegularFile,
         Err(_) => FileExistsObservation::Missing,
     }
+}
+
+/// Observes the actual side of a `file <"path"> contents_equals <expected>` expectation and, if
+/// `path` is a readable regular file, compares its bytes against `expected` byte-for-byte.
+///
+/// `expected` has already been resolved successfully by the time this runs (see
+/// `resolve_expected_contents`): a missing / non-regular / unreadable *actual* `path` is the
+/// subject under test failing to produce the expected output, so — unlike an unresolvable
+/// expected value — it is always an assertion failure, never a test-definition error.
+fn observe_file_contents_equals(
+    workspace_root: &Path,
+    path: &str,
+    expected: Vec<u8>,
+) -> ContentsEqualsObservation {
+    let resolved = workspace_root.join(path);
+    let meta = match std::fs::metadata(&resolved) {
+        Ok(meta) => meta,
+        Err(_) => return ContentsEqualsObservation::ActualMissing,
+    };
+    if !meta.is_file() {
+        return ContentsEqualsObservation::ActualNotRegularFile;
+    }
+    let actual = match std::fs::read(&resolved) {
+        Ok(bytes) => bytes,
+        Err(_) => return ContentsEqualsObservation::ActualUnreadable,
+    };
+    ContentsEqualsObservation::Compared(ContentsEqualsComparison::compare(actual, expected))
 }
 
 /// Observes whether `path`, resolved against `workspace_root`, is a readable UTF-8 regular file containing `expected` as a plain substring.
@@ -618,7 +846,10 @@ fn observe_dir_contains(
 mod tests {
     use super::*;
     use crate::executor::ExecutionEnvironment;
-    use crate::model::{ActionStep, AssertionBlock, Case, ExitExpectation, Expectation, Script};
+    use crate::model::{
+        ActionStep, AssertionBlock, Case, ExitExpectation, Expectation, Script, TextLiteral,
+        WorkspacePath, WriteFileStep,
+    };
 
     fn default_env() -> ExecutionEnvironment {
         ExecutionEnvironment::default()
@@ -653,7 +884,7 @@ mod tests {
             name: "pass".to_string(),
             steps: vec![action("true"), assert_exit(0)],
         }]);
-        let result = evaluate(&script, &default_env());
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
         assert_eq!(result.exit_code(), 0);
         assert!(matches!(result.cases[0].status, CaseStatus::Pass));
     }
@@ -664,7 +895,7 @@ mod tests {
             name: "fail".to_string(),
             steps: vec![action("false"), assert_exit(0)],
         }]);
-        let result = evaluate(&script, &default_env());
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
         assert_eq!(result.exit_code(), 1);
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
     }
@@ -675,7 +906,7 @@ mod tests {
             name: "nonzero pass".to_string(),
             steps: vec![action("false"), assert_exit(1)],
         }]);
-        let result = evaluate(&script, &default_env());
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
         assert_eq!(result.exit_code(), 0);
         assert!(matches!(result.cases[0].status, CaseStatus::Pass));
     }
@@ -686,7 +917,7 @@ mod tests {
             name: "no assert".to_string(),
             steps: vec![action("true")],
         }]);
-        let result = evaluate(&script, &default_env());
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
         assert_eq!(result.exit_code(), 2);
         assert!(matches!(result.cases[0].status, CaseStatus::ScriptError(_)));
     }
@@ -697,7 +928,7 @@ mod tests {
             name: "assert first".to_string(),
             steps: vec![assert_exit(0)],
         }]);
-        let result = evaluate(&script, &default_env());
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
         assert_eq!(result.exit_code(), 2);
         assert!(matches!(result.cases[0].status, CaseStatus::ScriptError(_)));
     }
@@ -708,7 +939,7 @@ mod tests {
             name: "multi expect".to_string(),
             steps: vec![action("true"), assert_exits(&[0, 0])],
         }]);
-        let result = evaluate(&script, &default_env());
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
         assert_eq!(result.exit_code(), 0);
         assert_eq!(result.cases[0].assertion_blocks.len(), 1);
         assert_eq!(result.cases[0].assertion_blocks[0].expectations.len(), 2);
@@ -720,7 +951,7 @@ mod tests {
             name: "two fails".to_string(),
             steps: vec![action("true"), assert_exits(&[1, 1])],
         }]);
-        let result = evaluate(&script, &default_env());
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
         let block = &result.cases[0].assertion_blocks[0];
         assert_eq!(block.expectations.len(), 2);
@@ -740,7 +971,7 @@ mod tests {
                 steps: vec![action("true")], // no assertion block -> script error
             },
         ]);
-        let result = evaluate(&script, &default_env());
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
         assert_eq!(result.exit_code(), 2); // script error beats assertion failure
     }
 
@@ -756,7 +987,7 @@ mod tests {
                 action("false"), // must not run
             ],
         }]);
-        let result = evaluate(&script, &default_env());
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
         // Only the first action should have executed.
         assert_eq!(result.cases[0].actions.len(), 1);
@@ -776,6 +1007,7 @@ mod tests {
                 shim_event_parse_warnings: vec![],
             },
             PathBuf::from("."),
+            PathBuf::from("."),
         )
     }
 
@@ -794,7 +1026,8 @@ mod tests {
     #[test]
     fn stdout_empty_passes_on_zero_bytes() {
         let checkpoint = checkpoint_after_output(vec![], vec![]);
-        let result = evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint);
+        let result =
+            evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint).unwrap();
         assert!(result.passed);
     }
 
@@ -803,42 +1036,48 @@ mod tests {
     #[test]
     fn stdout_empty_fails_on_single_space() {
         let checkpoint = checkpoint_after_output(b" ".to_vec(), vec![]);
-        let result = evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint);
+        let result =
+            evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint).unwrap();
         assert!(!result.passed);
     }
 
     #[test]
     fn stdout_empty_fails_on_tab() {
         let checkpoint = checkpoint_after_output(b"\t".to_vec(), vec![]);
-        let result = evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint);
+        let result =
+            evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint).unwrap();
         assert!(!result.passed);
     }
 
     #[test]
     fn stdout_empty_fails_on_lf() {
         let checkpoint = checkpoint_after_output(b"\n".to_vec(), vec![]);
-        let result = evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint);
+        let result =
+            evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint).unwrap();
         assert!(!result.passed);
     }
 
     #[test]
     fn stdout_empty_fails_on_crlf() {
         let checkpoint = checkpoint_after_output(b"\r\n".to_vec(), vec![]);
-        let result = evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint);
+        let result =
+            evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint).unwrap();
         assert!(!result.passed);
     }
 
     #[test]
     fn stdout_empty_fails_on_bare_cr() {
         let checkpoint = checkpoint_after_output(b"\r".to_vec(), vec![]);
-        let result = evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint);
+        let result =
+            evaluate_expectation_at_checkpoint(&stdout_empty_expectation(), &checkpoint).unwrap();
         assert!(!result.passed);
     }
 
     #[test]
     fn stderr_empty_fails_on_whitespace_only() {
         let checkpoint = checkpoint_after_output(vec![], b" \t\r\n".to_vec());
-        let result = evaluate_expectation_at_checkpoint(&stderr_empty_expectation(), &checkpoint);
+        let result =
+            evaluate_expectation_at_checkpoint(&stderr_empty_expectation(), &checkpoint).unwrap();
         assert!(!result.passed);
     }
 
@@ -852,7 +1091,7 @@ mod tests {
         let expectation = Expectation::Stdout(crate::model::OutputExpectation {
             matcher: OutputMatcher::Contains("ok".to_string()),
         });
-        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint);
+        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint).unwrap();
         assert!(result.passed);
     }
 
@@ -879,48 +1118,55 @@ mod tests {
                 shim_event_parse_warnings: vec![],
             },
             PathBuf::from("."),
+            PathBuf::from("."),
         )
     }
 
     #[test]
     fn all_passes_when_every_child_passes() {
         let expectation = logical(LogicalOperator::All, vec![exit_exp(0), exit_exp(0)]);
-        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0));
+        let result =
+            evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
         assert!(result.passed);
     }
 
     #[test]
     fn all_fails_when_one_child_fails() {
         let expectation = logical(LogicalOperator::All, vec![exit_exp(0), exit_exp(1)]);
-        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0));
+        let result =
+            evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
         assert!(!result.passed);
     }
 
     #[test]
     fn any_passes_when_one_child_passes() {
         let expectation = logical(LogicalOperator::Any, vec![exit_exp(1), exit_exp(0)]);
-        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0));
+        let result =
+            evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
         assert!(result.passed);
     }
 
     #[test]
     fn any_fails_when_every_child_fails() {
         let expectation = logical(LogicalOperator::Any, vec![exit_exp(1), exit_exp(2)]);
-        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0));
+        let result =
+            evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
         assert!(!result.passed);
     }
 
     #[test]
     fn not_passes_when_single_child_fails() {
         let expectation = logical(LogicalOperator::Not, vec![exit_exp(1)]);
-        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0));
+        let result =
+            evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
         assert!(result.passed);
     }
 
     #[test]
     fn not_fails_when_single_child_passes() {
         let expectation = logical(LogicalOperator::Not, vec![exit_exp(0)]);
-        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0));
+        let result =
+            evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
         assert!(!result.passed);
     }
 
@@ -929,7 +1175,8 @@ mod tests {
         // not { A B } is not(all(A, B)), not not(A) and not(B).
         // Here A passes (exit 0) and B fails (exit 1): all(A, B) is false, so not(all(A, B)) is true — the block passes as a whole, even though per-child negation (not(A) and not(B)) would fail on A.
         let expectation = logical(LogicalOperator::Not, vec![exit_exp(0), exit_exp(1)]);
-        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0));
+        let result =
+            evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
         assert!(result.passed);
     }
 
@@ -937,7 +1184,8 @@ mod tests {
     fn not_with_all_children_passing_fails() {
         // all(A, B) is true here, so not(all(A, B)) must fail.
         let expectation = logical(LogicalOperator::Not, vec![exit_exp(0), exit_exp(0)]);
-        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0));
+        let result =
+            evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
         assert!(!result.passed);
     }
 
@@ -951,7 +1199,8 @@ mod tests {
                 logical(LogicalOperator::Any, vec![exit_exp(0), exit_exp(2)]),
             ],
         );
-        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0));
+        let result =
+            evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
         assert!(result.passed);
     }
 
@@ -959,7 +1208,8 @@ mod tests {
     fn logical_result_retains_each_child_outcome() {
         // Nothing is lost: an `any` whose candidates all fail must retain each candidate's own failure reason.
         let expectation = logical(LogicalOperator::Any, vec![exit_exp(1), exit_exp(2)]);
-        let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0));
+        let result =
+            evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
         let ExpectationKind::Logical { operator, children } = &result.kind else {
             panic!("expected ExpectationKind::Logical");
         };
@@ -998,7 +1248,7 @@ mod tests {
                 ),
             ],
         }]);
-        let result = evaluate(&script, &default_env());
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
         assert!(matches!(result.cases[0].status, CaseStatus::Pass));
     }
 
@@ -1012,7 +1262,263 @@ mod tests {
                     .unwrap(),
             )],
         }]);
-        let result = evaluate(&script, &default_env());
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert!(matches!(result.cases[0].status, CaseStatus::ScriptError(_)));
+    }
+
+    // ─── `contents_equals` comparison evaluation (#87) ─────────────────────
+
+    fn write_step(path: &str, content: &str) -> Step {
+        Step::SideEffect(SideEffectingStep::WriteFile(WriteFileStep {
+            path: WorkspacePath::parse(path).unwrap(),
+            content: TextLiteral::Quoted(content.to_string()),
+        }))
+    }
+
+    fn assert_file_contents_equals_workspace(actual_path: &str, expected_path: &str) -> Step {
+        let expectations = vec![Expectation::File(FileExpectation {
+            path: actual_path.to_string(),
+            matcher: FileMatcher::ContentsEquals(FileContentsReference::Workspace(
+                WorkspacePath::parse(expected_path).unwrap(),
+            )),
+        })];
+        Step::AssertionBlock(AssertionBlock::new(expectations).unwrap())
+    }
+
+    fn assert_stdout_contents_equals_workspace(expected_path: &str) -> Step {
+        let expectations = vec![Expectation::Stdout(crate::model::OutputExpectation {
+            matcher: OutputMatcher::ContentsEquals(FileContentsReference::Workspace(
+                WorkspacePath::parse(expected_path).unwrap(),
+            )),
+        })];
+        Step::AssertionBlock(AssertionBlock::new(expectations).unwrap())
+    }
+
+    fn assert_stderr_contents_equals_workspace(expected_path: &str) -> Step {
+        let expectations = vec![Expectation::Stderr(crate::model::OutputExpectation {
+            matcher: OutputMatcher::ContentsEquals(FileContentsReference::Workspace(
+                WorkspacePath::parse(expected_path).unwrap(),
+            )),
+        })];
+        Step::AssertionBlock(AssertionBlock::new(expectations).unwrap())
+    }
+
+    fn single_case(steps: Vec<Step>) -> Script {
+        make_script(vec![Case {
+            name: "contents_equals".to_string(),
+            steps,
+        }])
+    }
+
+    #[test]
+    fn file_contents_equals_passes_when_actual_and_expected_workspace_bytes_match() {
+        let script = single_case(vec![
+            write_step("actual.txt", "hello"),
+            write_step("expected.txt", "hello"),
+            assert_file_contents_equals_workspace("actual.txt", "expected.txt"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert!(matches!(result.cases[0].status, CaseStatus::Pass));
+    }
+
+    #[test]
+    fn file_contents_equals_passes_when_both_workspace_files_are_empty() {
+        let script = single_case(vec![
+            write_step("actual.txt", ""),
+            write_step("expected.txt", ""),
+            assert_file_contents_equals_workspace("actual.txt", "expected.txt"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert!(matches!(result.cases[0].status, CaseStatus::Pass));
+    }
+
+    #[test]
+    fn file_contents_equals_fails_on_single_byte_mismatch() {
+        let script = single_case(vec![
+            write_step("actual.txt", "hello"),
+            write_step("expected.txt", "hellp"),
+            assert_file_contents_equals_workspace("actual.txt", "expected.txt"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert!(matches!(result.cases[0].status, CaseStatus::Fail));
+        let expectation = &result.cases[0].assertion_blocks[0].expectations[0];
+        assert!(!expectation.passed);
+        let ExpectationKind::FileContentsEquals { observation, .. } = &expectation.kind else {
+            panic!("expected ExpectationKind::FileContentsEquals");
+        };
+        let ContentsEqualsObservation::Compared(comparison) = observation else {
+            panic!("expected ContentsEqualsObservation::Compared");
+        };
+        assert_eq!(
+            comparison.outcome,
+            ContentsEqualsOutcome::Mismatch(crate::result::ContentsMismatch {
+                actual_len: 5,
+                expected_len: 5,
+                first_diff_offset: 4,
+            })
+        );
+    }
+
+    #[test]
+    fn file_contents_equals_detects_missing_trailing_newline_as_mismatch() {
+        let script = single_case(vec![
+            write_step("actual.txt", "hello"),
+            write_step("expected.txt", "hello\n"),
+            assert_file_contents_equals_workspace("actual.txt", "expected.txt"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert!(matches!(result.cases[0].status, CaseStatus::Fail));
+    }
+
+    #[test]
+    fn file_contents_equals_detects_crlf_vs_lf_as_mismatch() {
+        let script = single_case(vec![
+            write_step("actual.txt", "hello\n"),
+            write_step("expected.txt", "hello\r\n"),
+            assert_file_contents_equals_workspace("actual.txt", "expected.txt"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert!(matches!(result.cases[0].status, CaseStatus::Fail));
+    }
+
+    #[test]
+    fn file_contents_equals_missing_actual_is_assertion_failure_not_script_error() {
+        let script = single_case(vec![
+            write_step("expected.txt", "hello"),
+            assert_file_contents_equals_workspace("does-not-exist.txt", "expected.txt"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert!(matches!(result.cases[0].status, CaseStatus::Fail));
+        let expectation = &result.cases[0].assertion_blocks[0].expectations[0];
+        let ExpectationKind::FileContentsEquals { observation, .. } = &expectation.kind else {
+            panic!("expected ExpectationKind::FileContentsEquals");
+        };
+        assert_eq!(*observation, ContentsEqualsObservation::ActualMissing);
+    }
+
+    #[test]
+    fn file_contents_equals_actual_directory_is_assertion_failure_not_script_error() {
+        let script = single_case(vec![
+            action("mkdir a-dir"),
+            write_step("expected.txt", "hello"),
+            assert_file_contents_equals_workspace("a-dir", "expected.txt"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert!(matches!(result.cases[0].status, CaseStatus::Fail));
+        let expectation = &result.cases[0].assertion_blocks[0].expectations[0];
+        let ExpectationKind::FileContentsEquals { observation, .. } = &expectation.kind else {
+            panic!("expected ExpectationKind::FileContentsEquals");
+        };
+        assert_eq!(
+            *observation,
+            ContentsEqualsObservation::ActualNotRegularFile
+        );
+    }
+
+    #[test]
+    fn file_contents_equals_missing_expected_workspace_path_is_script_error_exit_two() {
+        let script = single_case(vec![
+            write_step("actual.txt", "hello"),
+            assert_file_contents_equals_workspace("actual.txt", "does-not-exist.txt"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert_eq!(result.exit_code(), 2);
+        let CaseStatus::ScriptError(err) = &result.cases[0].status else {
+            panic!("expected CaseStatus::ScriptError");
+        };
+        assert_eq!(
+            err.diagnostic_code,
+            Some(DiagnosticCode::SemanticFileContentsReferenceMissing)
+        );
+    }
+
+    #[test]
+    fn file_contents_equals_expected_workspace_path_is_directory_is_script_error() {
+        let script = single_case(vec![
+            action("mkdir expected-dir"),
+            write_step("actual.txt", "hello"),
+            assert_file_contents_equals_workspace("actual.txt", "expected-dir"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert_eq!(result.exit_code(), 2);
+        let CaseStatus::ScriptError(err) = &result.cases[0].status else {
+            panic!("expected CaseStatus::ScriptError");
+        };
+        assert_eq!(
+            err.diagnostic_code,
+            Some(DiagnosticCode::SemanticFileContentsReferenceNotARegularFile)
+        );
+    }
+
+    #[test]
+    fn stdout_contents_equals_passes_on_matching_bytes() {
+        let script = single_case(vec![
+            write_step("expected.txt", "hello"),
+            action("printf hello"),
+            assert_stdout_contents_equals_workspace("expected.txt"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert!(matches!(result.cases[0].status, CaseStatus::Pass));
+    }
+
+    #[test]
+    fn stdout_contents_equals_fails_on_mismatched_bytes() {
+        let script = single_case(vec![
+            write_step("expected.txt", "world"),
+            action("printf hello"),
+            assert_stdout_contents_equals_workspace("expected.txt"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert!(matches!(result.cases[0].status, CaseStatus::Fail));
+    }
+
+    #[test]
+    fn stderr_contents_equals_passes_on_matching_bytes() {
+        let script = single_case(vec![
+            write_step("expected.txt", "oops"),
+            action("printf oops 1>&2"),
+            assert_stderr_contents_equals_workspace("expected.txt"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert!(matches!(result.cases[0].status, CaseStatus::Pass));
+    }
+
+    #[test]
+    fn stdout_contents_equals_missing_expected_workspace_path_is_script_error_exit_two() {
+        let script = single_case(vec![
+            action("printf hello"),
+            assert_stdout_contents_equals_workspace("does-not-exist.txt"),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert_eq!(result.exit_code(), 2);
+        assert!(matches!(result.cases[0].status, CaseStatus::ScriptError(_)));
+    }
+
+    #[test]
+    fn contents_equals_script_error_inside_logical_composition_aborts_the_case() {
+        // A `contents_equals` expected-value error nested inside `all { ... }` must abort the
+        // whole case as a script error, not be swallowed as an ordinary failing child.
+        let script = single_case(vec![
+            action("true"),
+            write_step("actual.txt", "hello"),
+            Step::AssertionBlock(
+                AssertionBlock::new(vec![logical(
+                    LogicalOperator::All,
+                    vec![
+                        exit_exp(0),
+                        Expectation::File(FileExpectation {
+                            path: "actual.txt".to_string(),
+                            matcher: FileMatcher::ContentsEquals(FileContentsReference::Workspace(
+                                WorkspacePath::parse("does-not-exist.txt").unwrap(),
+                            )),
+                        }),
+                    ],
+                )])
+                .unwrap(),
+            ),
+        ]);
+        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        assert_eq!(result.exit_code(), 2);
         assert!(matches!(result.cases[0].status, CaseStatus::ScriptError(_)));
     }
 }

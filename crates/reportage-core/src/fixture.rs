@@ -15,10 +15,11 @@
 //! fixture into a runner-reserved area so assertion evaluation never reads
 //! directly from the test-definition source tree.
 //!
-//! Wiring this resolution into a live `contents_equals` evaluation (calling
-//! it from `evaluator::evaluate_file_expectation` / the `stdout` /
-//! `stderr` equivalents) is #87 / #88's responsibility; #92 delivers the
-//! mechanism itself, tested standalone.
+//! `evaluator::resolve_expected_contents` calls `resolve_fixture_source` /
+//! `materialize_fixture` from `evaluate_file_expectation` and the `stdout` /
+//! `stderr` equivalents to read a fixture's bytes during a live
+//! `contents_equals` evaluation (#87). `text_equals` (#88) does not accept a
+//! `FixtureReference` and so never calls into this module.
 
 use std::io;
 use std::path::{Path, PathBuf};

@@ -6,13 +6,11 @@ Items listed here are not accepted v0 requirements unless another document expli
 
 ## Semantic assertions
 
-### `contents_equals` / `text_equals` comparison evaluation
+### `text_equals` comparison evaluation
 
-#92 implements the `contents_equals` (`file` / `stdout` / `stderr`) and `text_equals` (`file`) grammar, AST construction, and literal-kind validation, plus the fixture reference resolution and materialization mechanism (`fixture::resolve_fixture_source`, `fixture::materialize_fixture`) that a live `contents_equals` evaluation will call to read expected `FixtureReference` bytes.
+#87 wires live `contents_equals` evaluation (`file` / `stdout` / `stderr`): byte-for-byte comparison against an expected `WorkspacePath` or `FixtureReference`, expected-side resolution/materialization, `CaseStatus::ScriptError` classification for an unresolvable expected value, and bounded mismatch diagnostics. See `evaluator::resolve_expected_contents` and docs/adr/20260707T012055Z_contents-equals-evaluation.md.
 
-Actually comparing observed evidence against the expected value — reading actual and expected bytes, reporting pass/fail, and rendering a bounded mismatch diagnostic — is intentionally out of scope for #92. `evaluator::evaluate_file_expectation`'s `FileMatcher::ContentsEquals` / `FileMatcher::TextEquals` arms, and the `stdout` / `stderr` `OutputMatcher::ContentsEquals` arm, currently `todo!()`.
-
-This is deferred to #87 (`contents_equals`) and #88 (`text_equals`), which own wiring the comparison itself, including threading the referencing `*.repor` file's source path into evaluation so a `FixtureReference` expected value can actually be resolved and materialized during a live run.
+`file <"path"> text_equals <text_literal>` (#88) still `todo!()`s in `evaluator::evaluate_file_expectation`'s `FileMatcher::TextEquals` arm. #92 implemented its grammar, AST construction, and literal-kind validation; #88 owns wiring the comparison itself.
 
 ### Encoding-aware assertions
 

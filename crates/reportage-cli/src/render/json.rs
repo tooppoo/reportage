@@ -22,9 +22,11 @@
 use std::path::Path;
 
 use reportage_core::artifact::{action_id, test_id};
+use reportage_core::contents_diagnostic::mismatch_context;
 use reportage_core::diagnostic::DiagnosticCode;
 use reportage_core::result::{
-    ActionResult, CaseResult, CaseStatus, DirContainsObservation, DirExistsObservation,
+    ActionResult, CaseResult, CaseStatus, ContentsEqualsComparison, ContentsEqualsExpectedSource,
+    ContentsEqualsObservation, ContentsEqualsOutcome, DirContainsObservation, DirExistsObservation,
     ExecutionReport, ExpectationKind, ExpectationResult, FileContentObservation, FileErrorKind,
     FileExistsObservation,
 };
@@ -444,6 +446,41 @@ fn expectation_json(
             "expected": expected,
             "observed": file_content_observation_str(*observation),
         }),
+        ExpectationKind::FileContentsEquals {
+            path,
+            expected_source,
+            observation,
+        } => {
+            let mut value = json!({
+                "kind": "fileContentsEquals",
+                "path": path,
+                "expectedSource": expected_source_json(expected_source),
+            });
+            contents_equals_observation_json(&mut value, observation);
+            value
+        }
+        ExpectationKind::StdoutContentsEquals {
+            expected_source,
+            comparison,
+        } => stream_contents_equals_json(
+            "stdoutContentsEquals",
+            "stdout",
+            test_id,
+            action_ref.as_deref(),
+            expected_source,
+            comparison,
+        ),
+        ExpectationKind::StderrContentsEquals {
+            expected_source,
+            comparison,
+        } => stream_contents_equals_json(
+            "stderrContentsEquals",
+            "stderr",
+            test_id,
+            action_ref.as_deref(),
+            expected_source,
+            comparison,
+        ),
         ExpectationKind::DirExists { path, observation } => json!({
             "kind": "dirExists",
             "path": path,
@@ -505,6 +542,85 @@ fn expectation_json(
     value
 }
 
+/// JSON representation of a `contents_equals` expected value's source.
+fn expected_source_json(source: &ContentsEqualsExpectedSource) -> Value {
+    match source {
+        ContentsEqualsExpectedSource::Workspace(path) => json!({
+            "kind": "workspace",
+            "path": path,
+        }),
+        ContentsEqualsExpectedSource::Fixture(path) => json!({
+            "kind": "fixture",
+            "path": path,
+        }),
+    }
+}
+
+/// Adds `outcome` / `actualSizeBytes` / `expectedSizeBytes`, and on mismatch a bounded `mismatch`
+/// object, to `value`. Never adds the full actual/expected bytes — see the module-level "CLI
+/// stdout vs. captured stdout/stderr" note and docs/semantic-diagnostics.md.
+fn contents_equals_comparison_json(value: &mut Value, comparison: &ContentsEqualsComparison) {
+    value["actualSizeBytes"] = json!(comparison.actual.len());
+    value["expectedSizeBytes"] = json!(comparison.expected.len());
+    match &comparison.outcome {
+        ContentsEqualsOutcome::Match => {
+            value["outcome"] = json!("match");
+        }
+        ContentsEqualsOutcome::Mismatch(mismatch) => {
+            value["outcome"] = json!("mismatch");
+            let ctx = mismatch_context(&comparison.actual, &comparison.expected, mismatch);
+            value["mismatch"] = json!({
+                "firstDiffOffset": mismatch.first_diff_offset,
+                "firstDiffLine": ctx.first_diff_line,
+                "actualContext": ctx.actual_context,
+                "expectedContext": ctx.expected_context,
+            });
+        }
+    }
+}
+
+/// Adds `observed`, and (only when the actual side was successfully read) the comparison
+/// outcome, to `value`.
+fn contents_equals_observation_json(value: &mut Value, observation: &ContentsEqualsObservation) {
+    match observation {
+        ContentsEqualsObservation::Compared(comparison) => {
+            value["observed"] = json!("compared");
+            contents_equals_comparison_json(value, comparison);
+        }
+        ContentsEqualsObservation::ActualMissing => value["observed"] = json!("actualMissing"),
+        ContentsEqualsObservation::ActualNotRegularFile => {
+            value["observed"] = json!("actualNotARegularFile")
+        }
+        ContentsEqualsObservation::ActualUnreadable => {
+            value["observed"] = json!("actualUnreadable")
+        }
+    }
+}
+
+/// Builds the `expectation` object for `stdout` / `stderr contents_equals`. `actualRef` reuses
+/// the same per-action artifact reference `stdoutContains` / `stderrContains` already use (the
+/// captured stream is written to `<test_id>/<action_id>/<stream>.bin` regardless of which
+/// assertion reads it); no artifact reference is written for the expected side — persisting
+/// mismatch bytes as evidence is explicitly not required in v0.
+fn stream_contents_equals_json(
+    kind: &str,
+    stream: &str,
+    test_id: &str,
+    action_ref: Option<&str>,
+    expected_source: &ContentsEqualsExpectedSource,
+    comparison: &ContentsEqualsComparison,
+) -> Value {
+    let mut value = json!({
+        "kind": kind,
+        "expectedSource": expected_source_json(expected_source),
+    });
+    if let Some(action_ref) = action_ref {
+        value["actualRef"] = json!(format!("{test_id}/{action_ref}/{stream}.bin"));
+    }
+    contents_equals_comparison_json(&mut value, comparison);
+    value
+}
+
 fn stream_expectation_json(
     kind: &str,
     stream: &str,
@@ -543,6 +659,26 @@ fn assertion_failure_message(kind: &ExpectationKind, code: DiagnosticCode) -> St
         ExpectationKind::FileContains { path, expected, .. } => {
             format!("file {path:?} did not contain expected substring {expected:?}")
         }
+        ExpectationKind::FileContentsEquals {
+            path, observation, ..
+        } => match observation {
+            ContentsEqualsObservation::Compared(comparison) => {
+                contents_equals_mismatch_message(&format!("file {path:?}"), comparison)
+            }
+            ContentsEqualsObservation::ActualMissing => format!("file {path:?} does not exist"),
+            ContentsEqualsObservation::ActualNotRegularFile => {
+                format!("file {path:?} is not a regular file (e.g. a directory)")
+            }
+            ContentsEqualsObservation::ActualUnreadable => {
+                format!("file {path:?} could not be read")
+            }
+        },
+        ExpectationKind::StdoutContentsEquals { comparison, .. } => {
+            contents_equals_mismatch_message("stdout", comparison)
+        }
+        ExpectationKind::StderrContentsEquals { comparison, .. } => {
+            contents_equals_mismatch_message("stderr", comparison)
+        }
         ExpectationKind::DirExists { path, .. } => {
             format!("dir {path:?} did not satisfy the exists check")
         }
@@ -557,6 +693,27 @@ fn assertion_failure_message(kind: &ExpectationKind, code: DiagnosticCode) -> St
         // `ExpectationKind::failure_diagnostic_code`), so this function is never called for it.
         ExpectationKind::Logical { .. } => {
             unreachable!("a `Logical` expectation never has its own diagnostic code: {code}")
+        }
+    }
+}
+
+/// Human-facing summary of a `contents_equals` mismatch, for the `diagnostics[]` entry's
+/// `message` field. Bounded and escaped, like every other diagnostic derived from `comparison`
+/// — see `contents_equals_comparison_json`.
+fn contents_equals_mismatch_message(
+    subject: &str,
+    comparison: &ContentsEqualsComparison,
+) -> String {
+    match &comparison.outcome {
+        ContentsEqualsOutcome::Mismatch(mismatch) => {
+            let ctx = mismatch_context(&comparison.actual, &comparison.expected, mismatch);
+            format!(
+                "{subject} contents did not match expected bytes (first differing byte at offset {}, line {})",
+                mismatch.first_diff_offset, ctx.first_diff_line,
+            )
+        }
+        ContentsEqualsOutcome::Match => {
+            unreachable!("a matching comparison never has a failure diagnostic code")
         }
     }
 }

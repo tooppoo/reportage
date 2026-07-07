@@ -1449,6 +1449,206 @@ case "cd does not affect file assertion root" {
     reportage(&dir).arg(script).assert().code(0);
 }
 
+// --- `contents_equals` assertions (#87) ---
+
+#[test]
+fn file_contents_equals_passes_against_a_workspace_expected_file() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contents_equals workspace pass" {
+  $ printf hello > expected.txt
+  $ printf hello > actual.txt
+  assert {
+    file <"actual.txt"> contents_equals <"expected.txt">
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn file_contents_equals_fails_on_byte_mismatch_against_workspace_expected_file() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contents_equals workspace mismatch" {
+  $ printf hello > expected.txt
+  $ printf world > actual.txt
+  assert {
+    file <"actual.txt"> contents_equals <"expected.txt">
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "assertion.file.contents_equals_mismatch",
+        ));
+}
+
+#[test]
+fn file_contents_equals_passes_against_a_fixture_expected_file() {
+    let dir = TempDir::new().unwrap();
+    dir.child("expected.txt").write_str("hello").unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contents_equals fixture pass" {
+  $ printf hello > actual.txt
+  assert {
+    file <"actual.txt"> contents_equals @"expected.txt"
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn file_contents_equals_fails_on_byte_mismatch_against_fixture_expected_file() {
+    let dir = TempDir::new().unwrap();
+    dir.child("expected.txt").write_str("hello").unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contents_equals fixture mismatch" {
+  $ printf world > actual.txt
+  assert {
+    file <"actual.txt"> contents_equals @"expected.txt"
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(1);
+}
+
+#[test]
+fn file_contents_equals_missing_actual_is_assertion_failure() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contents_equals missing actual" {
+  $ printf hello > expected.txt
+  assert {
+    file <"does-not-exist.txt"> contents_equals <"expected.txt">
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "assertion.file.contents_equals_actual_missing",
+        ));
+}
+
+#[test]
+fn file_contents_equals_missing_expected_workspace_path_is_a_script_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contents_equals missing expected" {
+  $ printf hello > actual.txt
+  assert {
+    file <"actual.txt"> contents_equals <"does-not-exist.txt">
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains(
+            "semantic.file_contents_reference.missing",
+        ));
+}
+
+#[test]
+fn file_contents_equals_missing_fixture_is_a_script_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contents_equals missing fixture" {
+  $ printf hello > actual.txt
+  assert {
+    file <"actual.txt"> contents_equals @"does-not-exist.txt"
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains(
+            "semantic.fixture_reference.missing",
+        ));
+}
+
+#[test]
+fn stdout_contents_equals_passes_against_a_fixture_expected_file() {
+    let dir = TempDir::new().unwrap();
+    dir.child("stdout.snapshot.txt").write_str("hello").unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "stdout contents_equals fixture pass" {
+  $ printf hello
+  assert {
+    stdout contents_equals @"stdout.snapshot.txt"
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn stderr_contents_equals_fails_on_mismatch_against_workspace_expected_file() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "stderr contents_equals workspace mismatch" {
+  $ printf oops > expected.txt
+  $ printf nope 1>&2
+  assert {
+    stderr contents_equals <"expected.txt">
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "assertion.stderr.contents_equals_mismatch",
+        ));
+}
+
 // --- dir assertions (#66) ---
 
 #[test]

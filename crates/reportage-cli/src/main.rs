@@ -148,10 +148,7 @@ fn run_scripts(scripts: Vec<PathBuf>) -> ExecutionReport {
     let env = ExecutionEnvironment::default();
     let mut all_cases = Vec::new();
     for file in validated {
-        let mut run = evaluator::evaluate(&file.script, &env);
-        for case in &mut run.cases {
-            case.source_path = Some(file.source_path.clone());
-        }
+        let run = evaluator::evaluate(&file.script, &env, &file.source_path);
         all_cases.extend(run.cases);
     }
 

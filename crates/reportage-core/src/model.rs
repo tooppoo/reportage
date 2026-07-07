@@ -512,10 +512,9 @@ pub enum OutputMatcher {
     Contains(String),
     NotContains(String),
     Matches(String),
-    /// `stdout` / `stderr contents_equals <FileContentsReference>`:
-    /// byte-for-byte comparison against a workspace file or fixture file.
-    /// Parsing and literal-kind validation are implemented (#92); the
-    /// comparison evaluator is `#87`'s responsibility.
+    /// `stdout` / `stderr contents_equals <FileContentsReference>`: byte-for-byte
+    /// comparison against a workspace file or fixture file. See
+    /// `evaluator::evaluate_expectation_at_checkpoint`.
     ContentsEquals(FileContentsReference),
 }
 
@@ -536,9 +535,8 @@ pub enum FileMatcher {
     Contains(TextLiteral),
     Matches(String),
     /// `file <"path"> contents_equals <FileContentsReference>`: byte-for-byte
-    /// comparison against a workspace file or fixture file. Parsing and
-    /// literal-kind validation are implemented (#92); the comparison
-    /// evaluator is `#87`'s responsibility.
+    /// comparison against a workspace file or fixture file. See
+    /// `evaluator::evaluate_file_expectation`.
     ContentsEquals(FileContentsReference),
     /// `file <"path"> text_equals <text_literal>`: byte-for-byte comparison
     /// against inline expected text. v0 only wires the string literal form;

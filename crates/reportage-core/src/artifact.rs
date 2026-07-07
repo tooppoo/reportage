@@ -5,8 +5,8 @@ use base64::Engine as _;
 use serde_json::json;
 
 use crate::result::{
-    ActionResult, CaseResult, CaseStatus, ExecutionReport, ExpectationKind, ExpectationResult,
-    FileErrorKind,
+    ActionResult, CaseResult, CaseStatus, ContentsEqualsExpectedSource, ContentsEqualsObservation,
+    ExecutionReport, ExpectationKind, ExpectationResult, FileErrorKind,
 };
 
 /// Error rejecting an unsafe run id value.
@@ -251,6 +251,20 @@ fn stream_json(bytes: &[u8]) -> serde_json::Value {
     obj
 }
 
+/// JSON representation of a `contents_equals` expected value's source, for evidence purposes.
+fn expected_source_json(source: &ContentsEqualsExpectedSource) -> serde_json::Value {
+    match source {
+        ContentsEqualsExpectedSource::Workspace(path) => json!({
+            "kind": "workspace",
+            "path": path,
+        }),
+        ContentsEqualsExpectedSource::Fixture(path) => json!({
+            "kind": "fixture",
+            "path": path,
+        }),
+    }
+}
+
 fn action_json(index: usize, action: &ActionResult) -> serde_json::Value {
     let mut obj = json!({
         "index": index,
@@ -331,6 +345,43 @@ fn expectation_result_json(e: &ExpectationResult) -> serde_json::Value {
             "kind": "file_contains",
             "path": path,
             "expected": expected,
+            "result": result_str,
+        }),
+        ExpectationKind::FileContentsEquals {
+            path,
+            expected_source,
+            observation,
+        } => {
+            let mut obj = json!({
+                "kind": "file_contents_equals",
+                "path": path,
+                "expected_source": expected_source_json(expected_source),
+                "result": result_str,
+            });
+            if let ContentsEqualsObservation::Compared(comparison) = observation {
+                obj["actual"] = stream_json(&comparison.actual);
+                obj["expected"] = stream_json(&comparison.expected);
+            }
+            obj
+        }
+        ExpectationKind::StdoutContentsEquals {
+            expected_source,
+            comparison,
+        } => json!({
+            "kind": "stdout_contents_equals",
+            "expected_source": expected_source_json(expected_source),
+            "actual": stream_json(&comparison.actual),
+            "expected": stream_json(&comparison.expected),
+            "result": result_str,
+        }),
+        ExpectationKind::StderrContentsEquals {
+            expected_source,
+            comparison,
+        } => json!({
+            "kind": "stderr_contents_equals",
+            "expected_source": expected_source_json(expected_source),
+            "actual": stream_json(&comparison.actual),
+            "expected": stream_json(&comparison.expected),
             "result": result_str,
         }),
         ExpectationKind::DirExists { path, .. } => json!({

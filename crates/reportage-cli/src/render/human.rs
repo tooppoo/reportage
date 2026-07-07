@@ -4,9 +4,12 @@
 //! runner and output rendering were separated (see #76): it is a renderer
 //! over `ExecutionReport`, not a source of truth in its own right.
 
+use reportage_core::contents_diagnostic::mismatch_context;
 use reportage_core::result::{
-    CaseStatus, DirContainsObservation, DirExistsObservation, ExecutionReport, ExpectationKind,
-    ExpectationResult, FileContentObservation, FileErrorKind, FileExistsObservation,
+    CaseStatus, ContentsEqualsComparison, ContentsEqualsExpectedSource, ContentsEqualsObservation,
+    ContentsEqualsOutcome, DirContainsObservation, DirExistsObservation, ExecutionReport,
+    ExpectationKind, ExpectationResult, FileContentObservation, FileErrorKind,
+    FileExistsObservation,
 };
 
 use super::OutputRenderer;
@@ -205,6 +208,54 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
                 path,
             );
         }
+        ExpectationKind::FileContentsEquals {
+            path,
+            expected_source,
+            observation,
+        } => {
+            let source_display = format_expected_source(expected_source);
+            match observation {
+                ContentsEqualsObservation::Compared(comparison) => print_contents_equals_detail(
+                    step_index,
+                    &format!("file {path:?}"),
+                    &source_display,
+                    comparison,
+                ),
+                ContentsEqualsObservation::ActualMissing => eprintln!(
+                    "  assertion block at step {}: file {:?} contents_equals {source_display} — it does not exist",
+                    step_index + 1,
+                    path,
+                ),
+                ContentsEqualsObservation::ActualNotRegularFile => eprintln!(
+                    "  assertion block at step {}: file {:?} contents_equals {source_display} — it is not a regular file (e.g. a directory)",
+                    step_index + 1,
+                    path,
+                ),
+                ContentsEqualsObservation::ActualUnreadable => eprintln!(
+                    "  assertion block at step {}: file {:?} contents_equals {source_display} — it could not be read",
+                    step_index + 1,
+                    path,
+                ),
+            }
+        }
+        ExpectationKind::StdoutContentsEquals {
+            expected_source,
+            comparison,
+        } => print_contents_equals_detail(
+            step_index,
+            "stdout",
+            &format_expected_source(expected_source),
+            comparison,
+        ),
+        ExpectationKind::StderrContentsEquals {
+            expected_source,
+            comparison,
+        } => print_contents_equals_detail(
+            step_index,
+            "stderr",
+            &format_expected_source(expected_source),
+            comparison,
+        ),
         ExpectationKind::DirExists { path, observation } => {
             let reason = match observation {
                 DirExistsObservation::Directory => "it exists",
@@ -253,6 +304,51 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
             for child in children {
                 print_failed_expectation(step_index, child);
             }
+        }
+    }
+}
+
+/// A `contents_equals` expected value's source, formatted the way it would appear in source:
+/// `<"path">` for a workspace path, `@"path"` for a fixture reference.
+fn format_expected_source(source: &ContentsEqualsExpectedSource) -> String {
+    match source {
+        ContentsEqualsExpectedSource::Workspace(path) => format!("<{path:?}>"),
+        ContentsEqualsExpectedSource::Fixture(path) => format!("@{path:?}"),
+    }
+}
+
+/// Prints a `contents_equals` comparison's outcome. On mismatch, prints only a bounded, escaped
+/// context window around the first differing byte — never the full actual/expected bytes.
+/// See `reportage_core::contents_diagnostic` and docs/semantic-diagnostics.md.
+fn print_contents_equals_detail(
+    step_index: usize,
+    subject: &str,
+    source_display: &str,
+    comparison: &ContentsEqualsComparison,
+) {
+    match &comparison.outcome {
+        ContentsEqualsOutcome::Match => {
+            eprintln!(
+                "  assertion block at step {}: {subject} contents_equals {source_display} — bytes match",
+                step_index + 1,
+            );
+        }
+        ContentsEqualsOutcome::Mismatch(mismatch) => {
+            let ctx = mismatch_context(&comparison.actual, &comparison.expected, mismatch);
+            eprintln!(
+                "  assertion block at step {}: {subject} contents_equals {source_display} — bytes differ",
+                step_index + 1,
+            );
+            eprintln!(
+                "    actual length: {}, expected length: {}",
+                mismatch.actual_len, mismatch.expected_len,
+            );
+            eprintln!(
+                "    first differing byte at offset {} (line {})",
+                mismatch.first_diff_offset, ctx.first_diff_line,
+            );
+            eprintln!("    actual:   {:?}", ctx.actual_context);
+            eprintln!("    expected: {:?}", ctx.expected_context);
         }
     }
 }
