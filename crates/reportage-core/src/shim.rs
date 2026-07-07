@@ -196,6 +196,34 @@ impl CommandShim {
     }
 }
 
+/// A resolved set of registered command shims, built once from config for a config-driven run
+/// and materialized fresh into every concrete case's isolated `bin` directory.
+///
+/// See docs/configuration.md — Commands, and docs/semantics.md — Command resolution through
+/// PATH shims.
+#[derive(Debug, Clone, Default)]
+pub struct CommandRegistry {
+    entries: Vec<(CommandName, ExecutableInvocation)>,
+}
+
+impl CommandRegistry {
+    pub fn new(entries: Vec<(CommandName, ExecutableInvocation)>) -> Self {
+        Self { entries }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Materializes every registered command as an executable shim inside `dir`.
+    pub fn materialize(&self, dir: &Path) -> Result<(), ShimError> {
+        for (name, target) in &self.entries {
+            CommandShim::new(name.clone(), target.clone()).materialize(dir)?;
+        }
+        Ok(())
+    }
+}
+
 /// Wrap `s` in POSIX single quotes, escaping any embedded single quotes as `'\''`.
 fn shell_single_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
@@ -857,6 +885,57 @@ mod tests {
         assert_eq!(events[0].target.program, target_path);
         assert_eq!(events[0].target.args, vec!["fixed"]);
         assert!(events[0].forwards_caller_args);
+    }
+
+    // --- CommandRegistry ---
+
+    #[test]
+    fn default_registry_is_empty() {
+        assert!(CommandRegistry::default().is_empty());
+    }
+
+    #[test]
+    fn registry_with_entries_is_not_empty() {
+        let name = CommandName::new("mytool").unwrap();
+        let invocation = ExecutableInvocation::new(PathBuf::from("/usr/bin/true"), vec![]).unwrap();
+        let registry = CommandRegistry::new(vec![(name, invocation)]);
+        assert!(!registry.is_empty());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn registry_materializes_every_entry() {
+        use tempfile::TempDir;
+
+        let dir = TempDir::new().unwrap();
+        let true_path = which_bin("true");
+        let false_path = which_bin("false");
+        let registry = CommandRegistry::new(vec![
+            (
+                CommandName::new("a").unwrap(),
+                ExecutableInvocation::new(true_path, vec![]).unwrap(),
+            ),
+            (
+                CommandName::new("b").unwrap(),
+                ExecutableInvocation::new(false_path, vec![]).unwrap(),
+            ),
+        ]);
+        registry.materialize(dir.path()).unwrap();
+
+        assert_eq!(
+            std::process::Command::new(dir.path().join("a"))
+                .status()
+                .unwrap()
+                .code(),
+            Some(0)
+        );
+        assert_eq!(
+            std::process::Command::new(dir.path().join("b"))
+                .status()
+                .unwrap()
+                .code(),
+            Some(1)
+        );
     }
 
     /// Resolve a standard binary by name using `which`.

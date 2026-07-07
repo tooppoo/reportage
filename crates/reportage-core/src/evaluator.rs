@@ -16,6 +16,7 @@ use crate::result::{
 use crate::semantic::{
     SemanticError, validate_dir_entry_name, validate_dir_path, validate_file_path,
 };
+use crate::shim::CommandRegistry;
 use crate::workspace::Workspace;
 
 /// Observable evidence available at a point in case execution.
@@ -160,18 +161,24 @@ pub fn evaluate(
     script: &Script,
     env: &ExecutionEnvironment,
     source_path: &Path,
+    commands: &CommandRegistry,
 ) -> ExecutionReport {
     ExecutionReport {
         cases: script
             .cases
             .iter()
-            .map(|c| evaluate_case(c, env, source_path))
+            .map(|c| evaluate_case(c, env, source_path, commands))
             .collect(),
         file_errors: vec![],
     }
 }
 
-fn evaluate_case(case: &Case, env: &ExecutionEnvironment, source_path: &Path) -> CaseResult {
+fn evaluate_case(
+    case: &Case,
+    env: &ExecutionEnvironment,
+    source_path: &Path,
+    commands: &CommandRegistry,
+) -> CaseResult {
     // Every case must contain at least one assertion block.
     let has_assertion_block = case
         .steps
@@ -218,6 +225,31 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment, source_path: &Path) ->
         }
     };
 
+    // When commands are registered, materialize a fresh set of shims into this case's own `bin`
+    // directory and prepend it to `env`'s PATH prefixes, so `$` steps resolve registered command
+    // names through the shim before falling through to `env`'s own prefixes and the inherited
+    // PATH. See docs/semantics.md — Command resolution through PATH shims.
+    let case_env = match build_case_execution_environment(env, commands, workspace.root()) {
+        Ok(case_env) => case_env,
+        Err(e) => {
+            return CaseResult {
+                name: case.name.clone(),
+                source_path: Some(source_path.to_path_buf()),
+                status: CaseStatus::RuntimeError(RuntimeError {
+                    message: format!(
+                        "case '{}': failed to set up registered command shims: {e}",
+                        case.name
+                    ),
+                    diagnostic_code: None,
+                    step_index: None,
+                }),
+                actions: vec![],
+                assertion_blocks: vec![],
+                side_effects_executed: 0,
+            };
+        }
+    };
+
     let mut action_results: Vec<ActionResult> = Vec::new();
     let mut assertion_block_results: Vec<AssertionBlockResult> = Vec::new();
     // Successful `write` (and future side-effecting) step count, independent
@@ -248,7 +280,7 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment, source_path: &Path) ->
                     // Do not proceed to next action after a block failure.
                     break;
                 }
-                match execute_action(&action.command, env, workspace.root()) {
+                match execute_action(&action.command, &case_env, workspace.root()) {
                     Ok(result) => {
                         checkpoint = Checkpoint::after_action(
                             result.clone(),
@@ -427,6 +459,39 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment, source_path: &Path) ->
         assertion_blocks: assertion_block_results,
         side_effects_executed,
     }
+}
+
+/// Builds the case-local execution environment used for every `$` step in one concrete case.
+///
+/// When `commands` is empty this is equivalent to `env` (no case-local `bin` directory is
+/// created, matching pre-config-command behavior exactly). When `commands` is non-empty, a fresh
+/// `bin` directory is created under `workspace_root`, every registered command is materialized
+/// into it as a shim, and that directory is prepended to `env`'s own PATH prefixes — so a
+/// registered command shadows both `env`'s prefixes and the inherited `PATH`.
+///
+/// Shims are materialized per case, not once at config-parse time, because each concrete case has
+/// its own isolated workspace and `bin` directory. See docs/semantics.md — Execution order and
+/// Command resolution through PATH shims.
+fn build_case_execution_environment(
+    env: &ExecutionEnvironment,
+    commands: &CommandRegistry,
+    workspace_root: &Path,
+) -> std::io::Result<ExecutionEnvironment> {
+    if commands.is_empty() {
+        return Ok(ExecutionEnvironment::with_path_prefixes(
+            env.path_prefixes.clone(),
+        ));
+    }
+
+    let bin_dir = workspace_root.join("bin");
+    std::fs::create_dir_all(&bin_dir)?;
+    commands
+        .materialize(&bin_dir)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+
+    let mut path_prefixes = vec![bin_dir];
+    path_prefixes.extend(env.path_prefixes.iter().cloned());
+    Ok(ExecutionEnvironment::with_path_prefixes(path_prefixes))
 }
 
 /// Validates every `file` / `dir` subject path (and `dir` `contains` entry name) reachable from
@@ -861,6 +926,10 @@ mod tests {
         ExecutionEnvironment::default()
     }
 
+    fn default_commands() -> CommandRegistry {
+        CommandRegistry::default()
+    }
+
     fn make_script(cases: Vec<Case>) -> Script {
         Script { cases }
     }
@@ -890,7 +959,12 @@ mod tests {
             name: "pass".to_string(),
             steps: vec![action("true"), assert_exit(0)],
         }]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert_eq!(result.exit_code(), 0);
         assert!(matches!(result.cases[0].status, CaseStatus::Pass));
     }
@@ -901,7 +975,12 @@ mod tests {
             name: "fail".to_string(),
             steps: vec![action("false"), assert_exit(0)],
         }]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert_eq!(result.exit_code(), 1);
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
     }
@@ -912,7 +991,12 @@ mod tests {
             name: "nonzero pass".to_string(),
             steps: vec![action("false"), assert_exit(1)],
         }]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert_eq!(result.exit_code(), 0);
         assert!(matches!(result.cases[0].status, CaseStatus::Pass));
     }
@@ -923,7 +1007,12 @@ mod tests {
             name: "no assert".to_string(),
             steps: vec![action("true")],
         }]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert_eq!(result.exit_code(), 2);
         assert!(matches!(result.cases[0].status, CaseStatus::ScriptError(_)));
     }
@@ -934,7 +1023,12 @@ mod tests {
             name: "assert first".to_string(),
             steps: vec![assert_exit(0)],
         }]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert_eq!(result.exit_code(), 2);
         assert!(matches!(result.cases[0].status, CaseStatus::ScriptError(_)));
     }
@@ -945,7 +1039,12 @@ mod tests {
             name: "multi expect".to_string(),
             steps: vec![action("true"), assert_exits(&[0, 0])],
         }]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert_eq!(result.exit_code(), 0);
         assert_eq!(result.cases[0].assertion_blocks.len(), 1);
         assert_eq!(result.cases[0].assertion_blocks[0].expectations.len(), 2);
@@ -957,7 +1056,12 @@ mod tests {
             name: "two fails".to_string(),
             steps: vec![action("true"), assert_exits(&[1, 1])],
         }]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
         let block = &result.cases[0].assertion_blocks[0];
         assert_eq!(block.expectations.len(), 2);
@@ -977,7 +1081,12 @@ mod tests {
                 steps: vec![action("true")], // no assertion block -> script error
             },
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert_eq!(result.exit_code(), 2); // script error beats assertion failure
     }
 
@@ -993,7 +1102,12 @@ mod tests {
                 action("false"), // must not run
             ],
         }]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
         // Only the first action should have executed.
         assert_eq!(result.cases[0].actions.len(), 1);
@@ -1254,7 +1368,12 @@ mod tests {
                 ),
             ],
         }]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Pass));
     }
 
@@ -1268,7 +1387,12 @@ mod tests {
                     .unwrap(),
             )],
         }]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::ScriptError(_)));
     }
 
@@ -1323,7 +1447,12 @@ mod tests {
             write_step("expected.txt", "hello"),
             assert_file_contents_equals_workspace("actual.txt", "expected.txt"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Pass));
     }
 
@@ -1334,7 +1463,12 @@ mod tests {
             write_step("expected.txt", ""),
             assert_file_contents_equals_workspace("actual.txt", "expected.txt"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Pass));
     }
 
@@ -1345,7 +1479,12 @@ mod tests {
             write_step("expected.txt", "hellp"),
             assert_file_contents_equals_workspace("actual.txt", "expected.txt"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
         let expectation = &result.cases[0].assertion_blocks[0].expectations[0];
         assert!(!expectation.passed);
@@ -1372,7 +1511,12 @@ mod tests {
             write_step("expected.txt", "hello\n"),
             assert_file_contents_equals_workspace("actual.txt", "expected.txt"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
     }
 
@@ -1383,7 +1527,12 @@ mod tests {
             write_step("expected.txt", "hello\r\n"),
             assert_file_contents_equals_workspace("actual.txt", "expected.txt"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
     }
 
@@ -1393,7 +1542,12 @@ mod tests {
             write_step("expected.txt", "hello"),
             assert_file_contents_equals_workspace("does-not-exist.txt", "expected.txt"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
         let expectation = &result.cases[0].assertion_blocks[0].expectations[0];
         let ExpectationKind::FileContentsEquals { observation, .. } = &expectation.kind else {
@@ -1409,7 +1563,12 @@ mod tests {
             write_step("expected.txt", "hello"),
             assert_file_contents_equals_workspace("a-dir", "expected.txt"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
         let expectation = &result.cases[0].assertion_blocks[0].expectations[0];
         let ExpectationKind::FileContentsEquals { observation, .. } = &expectation.kind else {
@@ -1427,7 +1586,12 @@ mod tests {
             write_step("actual.txt", "hello"),
             assert_file_contents_equals_workspace("actual.txt", "does-not-exist.txt"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert_eq!(result.exit_code(), 2);
         let CaseStatus::ScriptError(err) = &result.cases[0].status else {
             panic!("expected CaseStatus::ScriptError");
@@ -1445,7 +1609,12 @@ mod tests {
             write_step("actual.txt", "hello"),
             assert_file_contents_equals_workspace("actual.txt", "expected-dir"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert_eq!(result.exit_code(), 2);
         let CaseStatus::ScriptError(err) = &result.cases[0].status else {
             panic!("expected CaseStatus::ScriptError");
@@ -1463,7 +1632,12 @@ mod tests {
             action("printf hello"),
             assert_stdout_contents_equals_workspace("expected.txt"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Pass));
     }
 
@@ -1474,7 +1648,12 @@ mod tests {
             action("printf hello"),
             assert_stdout_contents_equals_workspace("expected.txt"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Fail));
     }
 
@@ -1485,7 +1664,12 @@ mod tests {
             action("printf oops 1>&2"),
             assert_stderr_contents_equals_workspace("expected.txt"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert!(matches!(result.cases[0].status, CaseStatus::Pass));
     }
 
@@ -1495,7 +1679,12 @@ mod tests {
             action("printf hello"),
             assert_stdout_contents_equals_workspace("does-not-exist.txt"),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert_eq!(result.exit_code(), 2);
         assert!(matches!(result.cases[0].status, CaseStatus::ScriptError(_)));
     }
@@ -1523,7 +1712,12 @@ mod tests {
                 .unwrap(),
             ),
         ]);
-        let result = evaluate(&script, &default_env(), Path::new("test.repor"));
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
         assert_eq!(result.exit_code(), 2);
         assert!(matches!(result.cases[0].status, CaseStatus::ScriptError(_)));
     }
