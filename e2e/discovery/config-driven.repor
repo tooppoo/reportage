@@ -1,0 +1,36 @@
+case "config-driven mode discovers and runs every file matched by the configured glob" {
+  write <"reportage.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+      tests {
+        path "*.repor"
+      }
+    }
+    ```
+  write <"a.repor"> ```
+    case "a" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+  write <"b.repor"> ```
+    case "b" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage
+
+  assert {
+    exit 0
+    stdout contains "a.repor"
+    stdout contains "b.repor"
+  }
+}

@@ -1,0 +1,38 @@
+case "multiple expectations in one assertion block must all pass" {
+  write <"inner.repor"> ```
+    case "checks the same exit code twice" {
+      $ true
+      assert {
+        exit 0
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+  }
+}
+
+case "multiple assertion blocks in one case run as precondition and postcondition around a later action" {
+  write <"inner.repor"> ```
+    case "checks state before and after a second action" {
+      $ true
+      assert {
+        exit 0
+      }
+      $ false
+      assert {
+        exit 1
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+  }
+}

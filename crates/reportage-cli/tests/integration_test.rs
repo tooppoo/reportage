@@ -53,6 +53,8 @@ case "fail" {
 
 // --- passing cases ---
 
+// Mirrored as a `.repor` self-test at e2e/cases/passing-and-failing.repor (#109). Kept here
+// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
 #[test]
 fn passing_cases_with_explicit_exit_assertions() {
     let dir = TempDir::new().unwrap();
@@ -78,6 +80,8 @@ case "second pass" {
     reportage(&dir).arg(script).assert().code(0);
 }
 
+// Mirrored as a `.repor` self-test at e2e/cases/passing-and-failing.repor (#109). Kept here
+// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
 #[test]
 fn false_with_assert_exit_one_is_a_pass() {
     let dir = TempDir::new().unwrap();
@@ -145,6 +149,8 @@ fn whitespace_only_script_is_noop_success() {
 
 // --- failing assertions ---
 
+// Mirrored as a `.repor` self-test at e2e/cases/passing-and-failing.repor (#109). Kept here
+// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
 #[test]
 fn failing_assertion_exits_with_code_one() {
     let dir = TempDir::new().unwrap();
@@ -165,6 +171,8 @@ case "failing assertion" {
 
 // --- multiple expectations in one block ---
 
+// Mirrored as a `.repor` self-test at e2e/cases/assertion-blocks.repor (#109). Kept here
+// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
 #[test]
 fn multiple_expectations_in_one_block() {
     let dir = TempDir::new().unwrap();
@@ -186,6 +194,9 @@ case "multiple expectations" {
 
 // --- logical composition (#25) ---
 
+// Mirrored as a `.repor` self-test at e2e/composition/logical-composition.repor (#109). Kept
+// here as a pre-migration Rust-level regression check; #110 decides whether to reduce or
+// remove it.
 #[test]
 fn all_block_passes_when_every_child_passes() {
     let dir = TempDir::new().unwrap();
@@ -228,6 +239,9 @@ case "all block fail" {
     reportage(&dir).arg(script).assert().code(1);
 }
 
+// Mirrored as a `.repor` self-test at e2e/composition/logical-composition.repor (#109). Kept
+// here as a pre-migration Rust-level regression check; #110 decides whether to reduce or
+// remove it.
 #[test]
 fn any_block_passes_when_one_child_passes() {
     let dir = TempDir::new().unwrap();
@@ -376,6 +390,10 @@ case "not block all pass fail" {
 // `not { A B }` evaluates as `not(all(A, B))`, never as `not(A) and not(B)` (see the ADR and docs/semantics.md — Logical composition).
 // With one child passing and one failing, `all(A, B)` is false, so `not(all(A, B))` is true: the `not` block — and therefore the case — passes.
 // This is the case that distinguishes the two groupings: item-wise negation would fail here (since the passing child's negation fails), but grouped negation passes.
+//
+// Mirrored as a `.repor` self-test at e2e/composition/logical-composition.repor (#109). Kept
+// here as a pre-migration Rust-level regression check; #110 decides whether to reduce or
+// remove it.
 #[test]
 fn not_block_passes_when_children_are_mixed_pass_and_fail() {
     let dir = TempDir::new().unwrap();
@@ -452,6 +470,8 @@ case "empty composition" {
 
 // --- multiple assertion blocks ---
 
+// Mirrored as a `.repor` self-test at e2e/cases/assertion-blocks.repor (#109). Kept here
+// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
 #[test]
 fn precondition_and_postcondition_assertion_blocks() {
     let dir = TempDir::new().unwrap();
@@ -708,6 +728,8 @@ case "source order" {
 
 // --- output content ---
 
+// Mirrored as a `.repor` self-test at e2e/output/pass-fail-markers.repor (#109). Kept here
+// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
 #[test]
 fn stdout_shows_pass_for_passing_case() {
     let dir = TempDir::new().unwrap();
@@ -731,6 +753,8 @@ case "my test" {
         .stdout(predicates::str::contains("my test"));
 }
 
+// Mirrored as a `.repor` self-test at e2e/output/pass-fail-markers.repor (#109). Kept here
+// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
 #[test]
 fn stdout_shows_fail_for_failing_case() {
     let dir = TempDir::new().unwrap();
@@ -756,6 +780,8 @@ case "my test" {
 
 // --- config-driven mode ---
 
+// Mirrored as a `.repor` self-test at e2e/discovery/config-driven.repor (#109). Kept here
+// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
 #[test]
 fn config_driven_mode_discovers_and_runs_files() {
     let dir = TempDir::new().unwrap();
@@ -776,6 +802,8 @@ reportage {
     reportage(&dir).assert().code(0);
 }
 
+// Mirrored as a `.repor` self-test at e2e/discovery/config-driven.repor (#109). Kept here
+// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
 #[test]
 fn config_driven_mode_with_glob_pattern() {
     let dir = TempDir::new().unwrap();
@@ -956,6 +984,8 @@ reportage {
     reportage(&dir).assert().code(1);
 }
 
+// Mirrored as a `.repor` self-test at e2e/discovery/multiple-scripts.repor (#109). Kept here
+// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
 #[test]
 fn explicit_multiple_scripts_run_all_cases() {
     let dir = TempDir::new().unwrap();
