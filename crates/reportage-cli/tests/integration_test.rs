@@ -1649,6 +1649,85 @@ case "stderr contents_equals workspace mismatch" {
         ));
 }
 
+#[test]
+fn stdout_contents_equals_fails_on_mismatch_against_workspace_expected_file() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "stdout contents_equals workspace mismatch" {
+  $ printf hello > expected.txt
+  $ printf world
+  assert {
+    stdout contents_equals <"expected.txt">
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "assertion.stdout.contents_equals_mismatch",
+        ));
+}
+
+#[test]
+fn file_contents_equals_actual_directory_is_assertion_failure() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contents_equals actual is a directory" {
+  $ mkdir -p a-dir
+  $ printf hello > expected.txt
+  assert {
+    file <"a-dir"> contents_equals <"expected.txt">
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "assertion.file.contents_equals_actual_not_a_regular_file",
+        ));
+}
+
+#[test]
+fn not_block_wrapping_a_passing_file_contents_equals_prints_bytes_match_detail() {
+    // A `not` composition recurses into every child regardless of the child's own pass/fail
+    // state (see render::human::print_failed_expectation's doc comment), so a `contents_equals`
+    // child that itself matched still has its "bytes match" detail printed when the
+    // surrounding `not` fails because that child held.
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "not wrapping a passing contents_equals" {
+  $ printf hello > expected.txt
+  $ printf hello > actual.txt
+  assert {
+    not {
+      file <"actual.txt"> contents_equals <"expected.txt">
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains("bytes match"));
+}
+
 // --- dir assertions (#66) ---
 
 #[test]
