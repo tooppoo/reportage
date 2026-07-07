@@ -65,16 +65,27 @@ For reportage self-testing, the Rust harness can route `reportage` to the Cargo-
 
 For the general distinction between PATH overlay command resolution and runtime-specific coverage collection, see [../shims.md](../shims.md).
 
-## `e2e/` and `examples/`
+## Suites: `e2e/`, `examples/`, and syntax fixtures
 
-reportage keeps two directories of `.repor` scripts, and they serve different readers.
+reportage keeps several sets of `.repor` scripts, and they serve different readers.
 
-- `e2e/` is a self-testing fixture. It is discovered by `reportage.kdl` (`tests.path = "e2e/**/*.repor"`) and run in CI as part of the Rust integration test suite. Its purpose is regression coverage for representative CLI-level behavior.
+- `e2e/` is a self-testing fixture. It is discovered by `reportage.kdl` (`tests.path = "e2e/**/*.repor"`). Its purpose is regression coverage for representative CLI-level behavior.
 - `examples/` is a documentation-oriented sample set. It is discovered by `reportage.examples.kdl` (`tests.path = "examples/**/*.repor"`) and is meant to be read by users and AI assistants learning the syntax. Its purpose is to be a correct, runnable reference for the language, not primarily regression coverage.
+- `tests/fixtures/syntax/valid` and `tests/fixtures/syntax/invalid` are syntax-acceptance fixtures, discovered by `reportage.fixtures.valid.kdl` and `reportage.fixtures.invalid.kdl`. Valid fixtures must parse without parse errors; their runtime and assertion outcomes are out of scope for the suite check. Every invalid fixture must produce a parse error.
 
-Both directories are executable: neither is a dead document. Running `examples/**/*.repor` through reportage is itself a self-test that the documentation samples still parse and pass, even though the primary intent of `examples/` is readability rather than coverage of a specific CLI behavior.
+All of these sets are executable: none is a dead document. Running `examples/**/*.repor` through reportage is itself a self-test that the documentation samples still parse and pass, even though the primary intent of `examples/` is readability rather than coverage of a specific CLI behavior.
 
-Because both sets are executable, a representative case that is useful to read, such as a minimal passing case or a common assertion pattern, can be shared between the two: keep it under `examples/` for the documentation-oriented reading, and reference or mirror it under `e2e/` when it also needs to be part of the CI-run regression fixture. Prefer this reuse over hand-maintaining near-duplicate scripts in both directories.
+Because `e2e/` and `examples/` are both executable, a representative case that is useful to read, such as a minimal passing case or a common assertion pattern, can be shared between the two: keep it under `examples/` for the documentation-oriented reading, and reference or mirror it under `e2e/` when it also needs to be part of the CI-run regression fixture. Prefer this reuse over hand-maintaining near-duplicate scripts in both directories.
+
+## Suite runner and coverage path
+
+All four suites are run by the Rust integration test `crates/reportage-cli/tests/self_test.rs`, so they execute inside `cargo llvm-cov ... nextest` in CI and are part of coverage collection.
+
+The runner materializes a `reportage` shim (see the shared harness in `crates/reportage-cli/tests/support/mod.rs`) and starts the outer suite invocation by command name through the PATH overlay: `std::process::Command::new("reportage")`, not a direct `cargo_bin` path. Inner `$ reportage ...` steps inside the scripts resolve to the same shim via the inherited PATH. The shim delegates every invocation to the cargo-built `reportage` binary, which is the executable the coverage run instruments.
+
+The coverage claim here is limited to that shim-delegated cargo-built `reportage` binary. Arbitrary external subprocesses spawned by actions are not claimed as coverage targets; connecting other languages and runtimes is a future coverage-adapter responsibility.
+
+`just test-fixtures-valid` and `just test-fixtures-invalid` are thin aliases for the corresponding integration tests in `self_test.rs`.
 
 ## Representative cases
 
