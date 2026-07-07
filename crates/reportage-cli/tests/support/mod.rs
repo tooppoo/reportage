@@ -73,10 +73,25 @@ impl ShimHarness {
     ///
     /// Deliberately `std::process::Command::new("reportage")`, not `Command::cargo_bin`:
     /// resolving the command through PATH is the behavior under test.
-    pub fn suite_command(&self) -> std::process::Command {
+    ///
+    /// `run_id` becomes the run's `--debug-run-id`. The suite tests run concurrently in the
+    /// shared workspace root, and the default millisecond run ids can collide across processes
+    /// and silently overwrite another run's artifacts, so every test passes its own fixed id.
+    /// Any stale run directory from a previous invocation is removed first, because the runner
+    /// refuses to reuse an existing fixed run directory.
+    pub fn suite_command(&self, run_id: &str) -> std::process::Command {
+        let run_dir = workspace_root()
+            .join(".reportage")
+            .join("runs")
+            .join(run_id);
+        if run_dir.exists() {
+            std::fs::remove_dir_all(&run_dir).unwrap();
+        }
+
         let mut cmd = std::process::Command::new("reportage");
         cmd.current_dir(workspace_root())
-            .env("PATH", &self.path_env);
+            .env("PATH", &self.path_env)
+            .args(["--debug-run-id", run_id]);
         cmd
     }
 }

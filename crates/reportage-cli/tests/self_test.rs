@@ -95,7 +95,7 @@ fn shim_resolves_before_ambient_reportage() {
 #[test]
 fn e2e_suite_passes_through_reportage_shim() {
     let harness = ShimHarness::new();
-    let output = harness.suite_command().output().unwrap();
+    let output = harness.suite_command("self-test-e2e").output().unwrap();
     assert!(
         output.status.success(),
         "e2e suite failed\n{}",
@@ -109,7 +109,7 @@ fn e2e_suite_passes_through_reportage_shim() {
 fn examples_suite_passes_through_reportage_shim() {
     let harness = ShimHarness::new();
     let output = harness
-        .suite_command()
+        .suite_command("self-test-examples")
         .args(["--config", "reportage.examples.kdl"])
         .output()
         .unwrap();
@@ -128,7 +128,7 @@ fn examples_suite_passes_through_reportage_shim() {
 fn valid_syntax_fixtures_have_no_parse_errors_through_reportage_shim() {
     let harness = ShimHarness::new();
     let output = harness
-        .suite_command()
+        .suite_command("self-test-fixtures-valid")
         .args([
             "--config",
             "reportage.fixtures.valid.kdl",
@@ -157,7 +157,7 @@ fn valid_syntax_fixtures_have_no_parse_errors_through_reportage_shim() {
 fn invalid_syntax_fixtures_all_produce_parse_errors_through_reportage_shim() {
     let harness = ShimHarness::new();
     let output = harness
-        .suite_command()
+        .suite_command("self-test-fixtures-invalid")
         .args([
             "--config",
             "reportage.fixtures.invalid.kdl",
@@ -213,7 +213,7 @@ fn invalid_syntax_fixtures_all_produce_parse_errors_through_reportage_shim() {
 fn json_output_exposes_observed_inner_shim_invocations() {
     let harness = ShimHarness::new();
     let output = harness
-        .suite_command()
+        .suite_command("self-test-json-shim-invocations")
         .args(["--format", "json", "e2e/options/help-show-usage.repor"])
         .output()
         .unwrap();
