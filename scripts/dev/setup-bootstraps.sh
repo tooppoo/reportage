@@ -9,3 +9,5 @@ cargo binstall cargo-llvm-cov@0.8.7 \
   toml-cli@0.2.3 \
   -y \
   --locked
+
+apt-get install golang-go

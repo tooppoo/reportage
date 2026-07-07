@@ -1,0 +1,15 @@
+#!/bin/sh
+# Go adapter shim (see docs/shims.md#coverage-aware-adapters):
+# delegates to a pre-built, coverage-instrumented binary (`just examples-shim::go-build`)
+# with GOCOVERDIR set, forwarding caller-provided args untouched.
+set -eu
+
+shim_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+project_root=$(CDPATH= cd -- "$shim_dir/.." && pwd)
+
+coverage_dir="$project_root/.coverage/go"
+mkdir -p "$coverage_dir"
+
+export GOCOVERDIR="$coverage_dir"
+
+exec "$project_root/bin/sample" "$@"

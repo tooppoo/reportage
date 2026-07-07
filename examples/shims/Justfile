@@ -1,3 +1,24 @@
 
 js-coverage-100:
   cd javascript && npm ci && npm run check
+
+# build the coverage-instrumented binary the go shim execs.
+# must run before reportage exercises the `sample-go` command, since the shim
+# delegates to this pre-built binary rather than compiling on each invocation.
+go-build:
+  cd go && go build -cover -o bin/sample ./src
+
+go-coverage-100:
+  #!/usr/bin/env sh
+  set -eu
+  cd go
+  tmp=$(mktemp)
+  trap 'rm -f "$tmp"' EXIT
+  go tool covdata textfmt -i=.coverage/go -o="$tmp"
+  report=$(go tool cover -func="$tmp")
+  echo "$report"
+  total=$(echo "$report" | awk '/^total:/ { gsub("%", "", $NF); print $NF }')
+  awk -v total="$total" 'BEGIN { exit (total >= 100.0) ? 0 : 1 }' || {
+    echo "ERROR: go coverage (${total}%) does not meet threshold (100%)"
+    exit 1
+  }

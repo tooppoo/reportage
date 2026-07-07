@@ -1,0 +1,50 @@
+
+case "sample-go without arguments" {
+  $ sample-go
+
+  assert {
+    exit 1
+    stdout contains "Unknown command"
+    stderr empty
+  }
+}
+
+case "sample-go with arguments" {
+  $ sample-go greet
+
+  assert {
+    exit 2
+    stdout contains "sample: Unknown command"
+    stderr empty
+  }
+}
+
+case "sample-go with greet 'hello'" {
+  $ sample-go greet hello
+
+  assert {
+    exit 0
+    stdout contains "Hello, World!"
+    stderr empty
+  }
+}
+
+case "sample-go with greet 'goodbye'" {
+  $ sample-go greet goodbye
+
+  assert {
+    exit 0
+    stdout contains "Goodbye, World!"
+    stderr empty
+  }
+}
+
+case "sample-go with greet 'fizzbuzz'" {
+  $ sample-go greet fizzbuzz
+
+  assert {
+    exit 2
+    stdout contains "sample: Unknown command"
+    stderr empty
+  }
+}
