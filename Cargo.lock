@@ -556,8 +556,10 @@ dependencies = [
  "assert_cmd",
  "assert_fs",
  "clap",
+ "glob",
  "predicates",
  "reportage-core",
+ "serde",
  "serde_json",
 ]
 

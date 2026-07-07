@@ -216,6 +216,7 @@ fn build_json(result: &ExecutionReport) -> serde_json::Value {
                         FileErrorKind::ParseError {
                             message,
                             diagnostic_code,
+                            location: _,
                         } => ("parse_error", message.as_str(), Some(*diagnostic_code)),
                     };
                     let mut entry = json!({

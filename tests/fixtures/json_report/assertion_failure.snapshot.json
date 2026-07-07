@@ -1,0 +1,71 @@
+{
+  "artifactRoot": "<ARTIFACT_ROOT>",
+  "diagnostics": [
+    {
+      "category": "assertion",
+      "code": "assertion.stdout.contains_mismatch",
+      "id": "diagnostic-1",
+      "location": null,
+      "message": "stdout did not contain expected substring \"world\"",
+      "origin": {
+        "kind": "test",
+        "test": "test-1"
+      },
+      "severity": "failure"
+    }
+  ],
+  "processExitCode": 1,
+  "schemaVersion": 1,
+  "status": "failed",
+  "summary": {
+    "actions": 1,
+    "assertions": 1,
+    "errors": 0,
+    "failed": 1,
+    "passed": 0,
+    "scripts": 1
+  },
+  "tests": [
+    {
+      "actions": [
+        {
+          "command": "echo hello",
+          "exitCode": 0,
+          "id": "action-1",
+          "stderr": {
+            "artifactRef": "test-1/action-1/stderr.bin",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-1/action-1/stdout.bin",
+            "sizeBytes": 6
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "checkpoint": "action-1",
+          "diagnosticRef": "diagnostic-1",
+          "expectation": {
+            "actualRef": "test-1/action-1/stdout.bin",
+            "actualSizeBytes": 6,
+            "diagnosticRef": "diagnostic-1",
+            "expected": "world",
+            "kind": "stdoutContains",
+            "status": "failed"
+          },
+          "id": "assertion-1",
+          "status": "failed"
+        }
+      ],
+      "id": "test-1",
+      "name": "greets wrong",
+      "path": "assertion_failure.repor",
+      "status": "failed"
+    }
+  ],
+  "tool": {
+    "name": "reportage",
+    "version": "<VERSION>"
+  }
+}

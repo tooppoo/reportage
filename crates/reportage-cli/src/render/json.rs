@@ -23,7 +23,7 @@ use std::path::Path;
 
 use reportage_core::artifact::{action_id, test_id};
 use reportage_core::contents_diagnostic::mismatch_context;
-use reportage_core::diagnostic::DiagnosticCode;
+use reportage_core::diagnostic::{DiagnosticCode, DiagnosticLocation};
 use reportage_core::result::{
     ActionResult, CaseResult, CaseStatus, ContentsEqualsComparison, ContentsEqualsExpectedSource,
     ContentsEqualsObservation, ContentsEqualsOutcome, DirContainsObservation, DirExistsObservation,
@@ -74,6 +74,13 @@ impl DiagnosticsBuilder {
 
     /// Pushes one diagnostic and returns its document-local id for a caller
     /// (e.g. an assertion) to reference via `diagnosticRef`.
+    ///
+    /// `location` is `Some` only for parse-domain diagnostics, whose `parser::ParseError`
+    /// always carries a real line (and, for syntax errors, a column) — see
+    /// `parser::ParseError::to_diagnostic`. Every other diagnostic (semantic, runtime,
+    /// assertion, internal) passes `None`: source ranges are not yet tracked on the
+    /// evaluator side (see issue #89's non-goals), so those diagnostics fall back to
+    /// `location: null` plus `origin`.
     fn push(
         &mut self,
         category: &str,
@@ -81,17 +88,23 @@ impl DiagnosticsBuilder {
         severity: &str,
         message: &str,
         origin: Value,
+        location: Option<DiagnosticLocation>,
     ) -> String {
         let id = format!("diagnostic-{}", self.entries.len() + 1);
+        let location_json = match location {
+            Some(loc) => json!({
+                "line": loc.line,
+                "column": loc.column,
+            }),
+            None => Value::Null,
+        };
         let mut entry = json!({
             "id": id,
             "category": category,
             "severity": severity,
             "message": message,
             "origin": origin,
-            // Source ranges (line/column) are not yet tracked for case-level and
-            // assertion-level diagnostics; see follow-up issue #89.
-            "location": Value::Null,
+            "location": location_json,
         });
         if let Some(code) = code {
             entry["code"] = json!(code.as_str());
@@ -116,13 +129,21 @@ fn build_document(report: &ExecutionReport, artifact_root: &Path) -> Value {
                 // either, since it is neither a script-domain failure nor an action
                 // execution infrastructure failure. See issue #75's allowance for an
                 // `internal` category alongside the four required ones.
-                diagnostics.push("internal", None, "error", message, origin);
+                diagnostics.push("internal", None, "error", message, origin, None);
             }
             FileErrorKind::ParseError {
                 message,
                 diagnostic_code,
+                location,
             } => {
-                diagnostics.push("parse", Some(*diagnostic_code), "error", message, origin);
+                diagnostics.push(
+                    "parse",
+                    Some(*diagnostic_code),
+                    "error",
+                    message,
+                    origin,
+                    *location,
+                );
             }
         }
     }
@@ -239,6 +260,7 @@ fn case_json(case_index: usize, case: &CaseResult, diagnostics: &mut Diagnostics
                 "error",
                 &err.message,
                 origin.clone(),
+                None,
             );
         }
         CaseStatus::RuntimeError(err) => {
@@ -248,6 +270,7 @@ fn case_json(case_index: usize, case: &CaseResult, diagnostics: &mut Diagnostics
                 "error",
                 &err.message,
                 origin.clone(),
+                None,
             );
         }
         CaseStatus::Pass | CaseStatus::Fail => {}
@@ -523,7 +546,7 @@ fn expectation_json(
                     let origin = json!({ "kind": "test", "test": test_id });
                     let message = format!("'{}' composition did not hold", operator.keyword());
                     let diagnostic_id =
-                        diagnostics.push("assertion", None, "failure", &message, origin);
+                        diagnostics.push("assertion", None, "failure", &message, origin, None);
                     value["diagnosticRef"] = json!(diagnostic_id);
                 }
             }
@@ -531,8 +554,14 @@ fn expectation_json(
                 if let Some(code) = expectation.failure_diagnostic_code() {
                     let origin = json!({ "kind": "test", "test": test_id });
                     let message = assertion_failure_message(&expectation.kind, code);
-                    let diagnostic_id =
-                        diagnostics.push("assertion", Some(code), "failure", &message, origin);
+                    let diagnostic_id = diagnostics.push(
+                        "assertion",
+                        Some(code),
+                        "failure",
+                        &message,
+                        origin,
+                        None,
+                    );
                     value["diagnosticRef"] = json!(diagnostic_id);
                 }
             }
@@ -876,6 +905,10 @@ mod tests {
             kind: FileErrorKind::ParseError {
                 message: "parse error at line 1".to_string(),
                 diagnostic_code: DiagnosticCode::ParseSyntax,
+                location: Some(DiagnosticLocation {
+                    line: 1,
+                    column: Some(3),
+                }),
             },
         });
 
@@ -886,6 +919,61 @@ mod tests {
         assert_eq!(doc["diagnostics"][0]["category"], "parse");
         assert_eq!(doc["diagnostics"][0]["code"], "parse.syntax");
         assert_eq!(doc["diagnostics"][0]["severity"], "error");
+        assert_eq!(doc["diagnostics"][0]["location"]["line"], 1);
+        assert_eq!(doc["diagnostics"][0]["location"]["column"], 3);
+    }
+
+    #[test]
+    fn parse_error_without_column_has_null_column_but_a_line() {
+        // Not every `ParseError` variant carries a column (e.g. `EmptyCase` only knows the
+        // line a construct started on) — see `parser::ParseError::to_diagnostic`.
+        let mut report = report_with_cases(vec![]);
+        report.file_errors.push(FileError {
+            source_path: PathBuf::from("broken.repor"),
+            kind: FileErrorKind::ParseError {
+                message: "case 'x' has no steps".to_string(),
+                diagnostic_code: DiagnosticCode::ParseEmptyCase,
+                location: Some(DiagnosticLocation {
+                    line: 4,
+                    column: None,
+                }),
+            },
+        });
+
+        let doc = build_document(&report, Path::new(".reportage/runs/1"));
+
+        assert_eq!(doc["diagnostics"][0]["location"]["line"], 4);
+        assert!(doc["diagnostics"][0]["location"]["column"].is_null());
+    }
+
+    #[test]
+    fn non_parse_diagnostics_have_null_location() {
+        // Semantic / runtime / assertion diagnostics never carry a location in v0: source
+        // ranges are not yet tracked on the evaluator side. See issue #89's non-goals.
+        let case = CaseResult {
+            name: "wrong".to_string(),
+            source_path: Some(PathBuf::from("fail.repor")),
+            status: CaseStatus::Fail,
+            actions: vec![passing_action()],
+            assertion_blocks: vec![AssertionBlockResult {
+                step_index: 1,
+                checkpoint_action_index: Some(0),
+                expectations: vec![ExpectationResult {
+                    kind: ExpectationKind::StdoutContains {
+                        expected: "world".to_string(),
+                        actual: b"hello\n".to_vec(),
+                    },
+                    passed: false,
+                }],
+            }],
+            side_effects_executed: 0,
+        };
+        let doc = build_document(
+            &report_with_cases(vec![case]),
+            Path::new(".reportage/runs/1"),
+        );
+
+        assert!(doc["diagnostics"][0]["location"].is_null());
     }
 
     #[test]

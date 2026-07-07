@@ -1,0 +1,36 @@
+{
+  "artifactRoot": "<ARTIFACT_ROOT>",
+  "diagnostics": [
+    {
+      "category": "parse",
+      "code": "parse.syntax",
+      "id": "diagnostic-1",
+      "location": {
+        "column": 1,
+        "line": 1
+      },
+      "message": "parse error at line 1, column 1: expected script\n  | this is not valid reportage syntax\n  | ^",
+      "origin": {
+        "kind": "source",
+        "source": "parse_error.repor"
+      },
+      "severity": "error"
+    }
+  ],
+  "processExitCode": 2,
+  "schemaVersion": 1,
+  "status": "error",
+  "summary": {
+    "actions": 0,
+    "assertions": 0,
+    "errors": 1,
+    "failed": 0,
+    "passed": 0,
+    "scripts": 0
+  },
+  "tests": [],
+  "tool": {
+    "name": "reportage",
+    "version": "<VERSION>"
+  }
+}

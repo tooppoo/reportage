@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::diagnostic::DiagnosticCode;
+use crate::diagnostic::{DiagnosticCode, DiagnosticLocation};
 use crate::model::{LogicalOperator, Script};
 use crate::shim_event::ShimInvocationEvent;
 
@@ -457,10 +457,14 @@ pub enum FileErrorKind {
     /// code: this predates parsing, so no `parse.*` / `semantic.*` code applies.
     ReadError(String),
     /// The file was read but failed to parse. `diagnostic_code` is the stable code the parser
-    /// attached to this failure (see `parser::ParseError::code`).
+    /// attached to this failure (see `parser::ParseError::code`). `location` is the parser's own
+    /// line/column for the failure (see `parser::ParseError::to_diagnostic`); every `ParseError`
+    /// variant carries one, unlike the evaluator-side `ScriptError` / `RuntimeError` below, whose
+    /// source ranges are not yet tracked.
     ParseError {
         message: String,
         diagnostic_code: DiagnosticCode,
+        location: Option<DiagnosticLocation>,
     },
 }
 

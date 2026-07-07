@@ -15,6 +15,12 @@ check: test lint fmt build semantic-docs-check
 semantic-specs-check:
   cargo nextest run --locked --test semantic_specs
 
+# run the --format=json representative-fixture schema/snapshot conformance tests
+[group('docs')]
+[group('check')]
+json-report-fixtures-check:
+  cargo nextest run --locked -p reportage-cli --test json_report_fixtures
+
 # generate language semantics documentation
 [group('docs')]
 semantic-docs-gen:
