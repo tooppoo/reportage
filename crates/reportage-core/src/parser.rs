@@ -38,11 +38,15 @@ pub enum ParseError {
         line: usize,
         operator: LogicalOperator,
     },
-    /// A `write` step's workspace path failed `WorkspacePath::parse` validation.
+    /// A `<"...">` workspace path literal failed `WorkspacePath::parse` validation — a `write`
+    /// step's target path, or a `contents_equals` expected value.
     InvalidWorkspacePath {
         line: usize,
         raw: String,
         reason: WorkspacePathError,
+        /// Human-readable name of the argument position, e.g. "`write` step path" or
+        /// "`file contents_equals` expected value". Mirrors `LiteralKindMismatch::position`.
+        position: &'static str,
     },
     /// An `@"<path>"` fixture reference literal failed `FixtureReference::parse`
     /// lexical validation (empty, absolute, or a `.` / `..` segment).
@@ -112,7 +116,12 @@ impl std::fmt::Display for ParseError {
                 "parse error at line {line}: '{}' block must contain at least one expectation expression",
                 operator.keyword()
             ),
-            ParseError::InvalidWorkspacePath { line, raw, reason } => {
+            ParseError::InvalidWorkspacePath {
+                line,
+                raw,
+                reason,
+                position,
+            } => {
                 let reason_text = match reason {
                     WorkspacePathError::Empty => "must not be empty",
                     WorkspacePathError::Absolute => "must be relative; absolute paths are rejected",
@@ -120,7 +129,7 @@ impl std::fmt::Display for ParseError {
                 };
                 write!(
                     f,
-                    "parse error at line {line}: write step path '{raw}' {reason_text}"
+                    "parse error at line {line}: {position} '{raw}' {reason_text}"
                 )
             }
             ParseError::InvalidFixtureReference { line, raw, reason } => {
@@ -587,8 +596,13 @@ fn parse_file_contents_reference(
 
     match kind {
         ValueLiteralKind::WorkspacePath => {
-            let path = WorkspacePath::parse(&raw)
-                .map_err(|reason| ParseError::InvalidWorkspacePath { line, raw, reason })?;
+            let path =
+                WorkspacePath::parse(&raw).map_err(|reason| ParseError::InvalidWorkspacePath {
+                    line,
+                    raw,
+                    reason,
+                    position,
+                })?;
             Ok(FileContentsReference::Workspace(path))
         }
         ValueLiteralKind::FixtureReference => {
@@ -951,6 +965,7 @@ fn parse_write_step_string(pair: pest::iterators::Pair<Rule>) -> Result<Step, Pa
             line,
             raw: raw_path,
             reason,
+            position: "`write` step path",
         })?;
 
     Ok(Step::SideEffect(SideEffectingStep::WriteFile(
@@ -977,6 +992,7 @@ fn parse_write_step_heredoc(pair: pest::iterators::Pair<Rule>) -> Result<Step, P
             line,
             raw: raw_path,
             reason,
+            position: "`write` step path",
         })?;
 
     Ok(Step::SideEffect(SideEffectingStep::WriteFile(
@@ -2444,6 +2460,26 @@ case "x" {
             }
         ));
         assert_eq!(err.code().as_str(), "semantic.workspace_path.dot_segment");
+    }
+
+    #[test]
+    fn invalid_workspace_path_message_names_its_own_position_not_write_step() {
+        // `WorkspacePath::parse` backs both a `write` step's target path and a `contents_equals`
+        // expected `<"...">` value. The Display message must name whichever position the raw
+        // path actually came from, not hardcode "write step path" regardless of origin.
+        let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"actual.txt\"> contents_equals <\"../expected.txt\">\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::InvalidWorkspacePath {
+                reason: WorkspacePathError::DotSegment,
+                position: "`file contents_equals` expected value",
+                ..
+            }
+        ));
+        let message = err.to_string();
+        assert!(message.contains("`file contents_equals` expected value"));
+        assert!(!message.contains("write step"));
     }
 
     #[test]

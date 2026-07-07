@@ -2265,7 +2265,7 @@ case "write step absolute path" {
         .arg(script)
         .assert()
         .code(2)
-        .stderr(predicates::str::contains("write step path"))
+        .stderr(predicates::str::contains("`write` step path"))
         .stderr(predicates::str::contains(
             "semantic.workspace_path.absolute",
         ));
