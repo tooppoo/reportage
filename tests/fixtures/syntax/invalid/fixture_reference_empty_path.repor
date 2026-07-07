@@ -1,0 +1,6 @@
+case "fixture reference path must not be empty" {
+  $ true
+  assert {
+    file <"out.txt"> contents_equals @""
+  }
+}

@@ -359,6 +359,10 @@ pub fn evaluate_expectation_at_checkpoint(
                         passed,
                     }
                 }
+                OutputMatcher::ContentsEquals(_) => todo!(
+                    "`stdout contents_equals` comparison evaluation lands in #87; #92 only \
+                     implements parsing, literal-kind validation, and fixture resolution/materialization"
+                ),
                 _ => unreachable!("output matcher variant not implemented in v0 evaluator"),
             }
         }
@@ -386,6 +390,10 @@ pub fn evaluate_expectation_at_checkpoint(
                         passed,
                     }
                 }
+                OutputMatcher::ContentsEquals(_) => todo!(
+                    "`stderr contents_equals` comparison evaluation lands in #87; #92 only \
+                     implements parsing, literal-kind validation, and fixture resolution/materialization"
+                ),
                 _ => unreachable!("output matcher variant not implemented in v0 evaluator"),
             }
         }
@@ -466,6 +474,14 @@ fn evaluate_file_expectation(exp: &FileExpectation, workspace_root: &Path) -> Ex
                 passed,
             }
         }
+        FileMatcher::ContentsEquals(_) => todo!(
+            "`file contents_equals` comparison evaluation lands in #87; #92 only implements \
+             parsing, literal-kind validation, and fixture resolution/materialization"
+        ),
+        FileMatcher::TextEquals(_) => todo!(
+            "`file text_equals` comparison evaluation lands in #88; #92 only implements \
+             parsing and literal-kind validation"
+        ),
         FileMatcher::NotExists | FileMatcher::Matches(_) => {
             unreachable!("file matcher variant not implemented in v0 parser or evaluator")
         }

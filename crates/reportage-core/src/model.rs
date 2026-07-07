@@ -110,6 +110,77 @@ impl WorkspacePath {
     }
 }
 
+/// A fixture path known to be lexically safe to resolve against the directory
+/// containing the referencing `*.repor` source file.
+///
+/// Constructed only via [`FixtureReference::parse`], which rejects empty
+/// paths, absolute paths, and `.` / `..` path segments — the same lexical
+/// policy as [`WorkspacePath`]. Lexical safety alone cannot prevent an escape
+/// via a symlink, so a `FixtureReference` additionally requires a
+/// filesystem-aware containment check before its target is read; see
+/// `fixture::resolve_fixture_source`.
+/// See docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixtureReference(String);
+
+/// Error returned when a raw path string fails `FixtureReference` lexical validation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FixtureReferenceError {
+    /// The path was empty.
+    Empty,
+    /// The path started with `/`.
+    Absolute,
+    /// The path contained a `.` or `..` segment.
+    DotSegment,
+}
+
+impl FixtureReference {
+    /// Validates `raw` against the fixture reference lexical safety policy
+    /// and, if valid, returns a `FixtureReference` wrapping it.
+    ///
+    /// Rejects: empty paths, absolute paths (leading `/`), and `.` / `..`
+    /// path segments. Mirrors [`WorkspacePath::parse`] exactly; the two types
+    /// share the same lexical policy but are never interchangeable, since
+    /// they resolve against different base directories (the case workspace
+    /// root vs. the `*.repor` source directory).
+    pub fn parse(raw: &str) -> Result<Self, FixtureReferenceError> {
+        if raw.is_empty() {
+            return Err(FixtureReferenceError::Empty);
+        }
+        if raw.starts_with('/') {
+            return Err(FixtureReferenceError::Absolute);
+        }
+        for segment in raw.split('/') {
+            if segment == "." || segment == ".." {
+                return Err(FixtureReferenceError::DotSegment);
+            }
+        }
+        Ok(Self(raw.to_string()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// The union of ways an assertion's expected file contents may be sourced: a
+/// file already inside the case workspace, or a static fixture file kept
+/// near the `*.repor` source.
+///
+/// `FileContentsReference` is not a `TextValue`; there is no implicit
+/// conversion between the two. It is the expected-value category for the
+/// `contents_equals` family (#87), never for `text_equals` (#88), which
+/// takes a `TextValue` instead.
+/// See docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FileContentsReference {
+    /// A `<"...">` workspace path literal: a file inside the case workspace.
+    Workspace(WorkspacePath),
+    /// An `@"..."` fixture reference literal: a static file near the
+    /// `*.repor` source.
+    Fixture(FixtureReference),
+}
+
 /// The surface kind of a parsed `value_literal`: which of the three
 /// single-line literal syntaxes a script actually wrote.
 ///
@@ -159,6 +230,10 @@ pub enum RequiredLiteralKind {
     /// (e.g. a `dir contains` entry name, which is a single entry name, not
     /// general text content).
     StringLiteral,
+    /// The position requires a [`FileContentsReference`]: a `<"...">`
+    /// workspace path literal or an `@"..."` fixture reference literal (e.g.
+    /// a `contents_equals` expected value).
+    FileContentsReference,
 }
 
 impl RequiredLiteralKind {
@@ -168,6 +243,7 @@ impl RequiredLiteralKind {
             RequiredLiteralKind::WorkspacePath => "WorkspacePath",
             RequiredLiteralKind::TextValue => "TextValue",
             RequiredLiteralKind::StringLiteral => "StringLiteral",
+            RequiredLiteralKind::FileContentsReference => "FileContentsReference",
         }
     }
 }
@@ -436,6 +512,11 @@ pub enum OutputMatcher {
     Contains(String),
     NotContains(String),
     Matches(String),
+    /// `stdout` / `stderr contents_equals <FileContentsReference>`:
+    /// byte-for-byte comparison against a workspace file or fixture file.
+    /// Parsing and literal-kind validation are implemented (#92); the
+    /// comparison evaluator is `#87`'s responsibility.
+    ContentsEquals(FileContentsReference),
 }
 
 /// File existence / content expectation.
@@ -454,6 +535,16 @@ pub enum FileMatcher {
     /// a string literal or a heredoc literal. See [`TextLiteral`].
     Contains(TextLiteral),
     Matches(String),
+    /// `file <"path"> contents_equals <FileContentsReference>`: byte-for-byte
+    /// comparison against a workspace file or fixture file. Parsing and
+    /// literal-kind validation are implemented (#92); the comparison
+    /// evaluator is `#87`'s responsibility.
+    ContentsEquals(FileContentsReference),
+    /// `file <"path"> text_equals <text_literal>`: byte-for-byte comparison
+    /// against inline expected text. v0 only wires the string literal form;
+    /// heredoc support belongs to #88. Parsing and literal-kind validation
+    /// are implemented (#92); the comparison evaluator is `#88`'s responsibility.
+    TextEquals(TextLiteral),
 }
 
 /// Directory existence / entry expectation.

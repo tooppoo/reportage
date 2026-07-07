@@ -195,9 +195,18 @@ exit_code       = @{ ASCII_DIGIT+ }
 stdout_exp      = { "stdout" ~ ws+ ~ output_matcher }
 stderr_exp      = { "stderr" ~ ws+ ~ output_matcher }
 
-output_matcher  = { output_contains | output_empty }
+output_matcher  = { output_contains | output_contents_equals | output_empty }
 output_contains = { "contains" ~ ws+ ~ value_literal }
 output_empty    = { "empty" }
+
+// `stdout` / `stderr contents_equals @"<path>"` / `contents_equals <"path">`:
+// byte-for-byte comparison against a `FileContentsReference` (a workspace
+// path literal or a fixture reference literal), parsed as the kind-agnostic
+// `value_literal` (see "Value literals" below). There is no
+// `output_text_equals`: v0 does not wire `text_equals` for `stdout` /
+// `stderr` (see #88's scope). See #92 and
+// docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+output_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
 
 // `file <"path"> exists` / `file <"path"> contains "<text>"`.
 // Subject-first: `file <"path">` is the common subject, `exists` / `contains`
@@ -205,9 +214,21 @@ output_empty    = { "empty" }
 // parsed as a kind-agnostic `value_literal` (see "Value literals" below). See
 // docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
 file_exp        = { "file" ~ ws+ ~ value_literal ~ ws+ ~ file_predicate }
-file_predicate  = { file_contains | file_exists }
+file_predicate  = { file_contains | file_contents_equals | file_text_equals | file_exists }
 file_exists     = { "exists" }
 file_contains   = { "contains" ~ ws+ ~ value_literal }
+
+// `file <"path"> contents_equals @"<path>"` / `contents_equals <"path">`:
+// byte-for-byte comparison against a `FileContentsReference` (a workspace
+// path literal or a fixture reference literal). `file <"path"> text_equals
+// "<text>"`: byte-for-byte comparison against inline expected text (a
+// `TextValue`); v0 only wires the string-literal form here, mirroring
+// `output_contains` — the heredoc-literal form belongs to #88. Both
+// positions parse the kind-agnostic `value_literal` (see "Value literals"
+// below). See #92 and
+// docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+file_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
+file_text_equals     = { "text_equals" ~ ws+ ~ value_literal }
 
 // `file <"path"> contains <heredoc literal>`: the heredoc-literal form of
 // file_contains. Deliberately a separate rule from file_exp/file_predicate,
@@ -258,9 +279,11 @@ empty_composition_body = { trail? ~ (blank_line | comment_line)* ~ ws* }
 //
 //   "..."     string literal            — text domain (a TextValue form)
 //   <"...">   workspace path literal    — case-workspace filesystem reference
-//   @"..."    fixture reference literal — test-definition-side file reference
-//                                         (reserved for #92; no position
-//                                         accepts it yet)
+//   @"..."    fixture reference literal — test-definition-side file reference,
+//                                         valid only in a `FileContentsReference`
+//                                         expected position (`contents_equals`;
+//                                         see #92 and
+//                                         docs/adr/20260706T170000Z_fixture-reference-value-syntax.md)
 //
 // Every step / expectation argument position parses the kind-agnostic
 // `value_literal` union; which kind the position's signature actually
@@ -273,9 +296,10 @@ empty_composition_body = { trail? ~ (blank_line | comment_line)* ~ ws* }
 // Both non-string kinds wrap an ordinary quoted_string, so all three kinds
 // share the same escape rules (see "String literals" below). Workspace path
 // validation (non-empty, relative, no `.` / `..` segments) applies to the
-// unescaped value afterwards, on the WorkspacePath side.
-// No whitespace is permitted between a kind marker (`<`, `>`, `@`) and the
-// quoted string it wraps.
+// unescaped value afterwards, on the WorkspacePath side; fixture reference
+// literals apply the same lexical policy on the FixtureReference side (see
+// `model::FixtureReference::parse`). No whitespace is permitted between a
+// kind marker (`<`, `>`, `@`) and the quoted string it wraps.
 
 workspace_path_literal    = { "<" ~ quoted_string ~ ">" }
 fixture_reference_literal = { "@" ~ quoted_string }

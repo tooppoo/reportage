@@ -1,0 +1,6 @@
+case "fixture reference path must not contain a dot segment" {
+  $ true
+  assert {
+    file <"out.txt"> contents_equals @"../escape.txt"
+  }
+}

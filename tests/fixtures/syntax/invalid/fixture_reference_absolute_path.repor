@@ -1,0 +1,6 @@
+case "fixture reference path must be relative" {
+  $ true
+  assert {
+    file <"out.txt"> contents_equals @"/etc/passwd"
+  }
+}

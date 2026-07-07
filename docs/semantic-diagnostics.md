@@ -55,6 +55,12 @@ semantic.workspace_path.empty
 semantic.workspace_path.absolute
 semantic.workspace_path.dot_segment
 semantic.literal.kind_mismatch
+semantic.fixture_reference.empty
+semantic.fixture_reference.absolute
+semantic.fixture_reference.dot_segment
+semantic.fixture_reference.missing
+semantic.fixture_reference.not_a_regular_file
+semantic.fixture_reference.escapes_repor_directory
 step.write.target_exists
 step.write.parent_not_a_directory
 step.write.io_error
@@ -86,6 +92,9 @@ Classification examples:
 - A valid path whose target is a directory or has non-UTF-8 content for `file <"path"> contains "text"` — assertion failure in principle, because the expectation itself is valid and the observed evidence fails the predicate's requirement.
 - An invalid entry name such as `dir <"artifacts"> contains "a/b"` — semantic error, for the same reason as a path policy violation: the value violates a policy the evaluator must reject before evidence comparison.
 - A literal of the wrong kind, such as `file "out.txt" exists` (a `StringLiteral` where the `file` subject requires a `WorkspacePath`) — semantic error (`semantic.literal.kind_mismatch`), detected during AST construction. The script parses at the grammar level; the diagnostic names the expected kind, the actual kind, and the suggested replacement (`use <"out.txt"> instead`). See [`docs/semantics.md`](semantics.md) — Value literals.
+- A fixture reference literal (`@"<path>"`) in a position that does not accept a `FileContentsReference`, such as a `file` checkpoint subject (`file @"actual.txt" contents_equals ...`) or `text_equals` expected text (`file <"out.txt"> text_equals @"expected.txt"`) — semantic error (`semantic.literal.kind_mismatch`), for the same reason as any other literal kind mismatch.
+- A fixture reference literal whose raw path is empty, absolute, or contains a `.` / `..` segment — semantic error (`semantic.fixture_reference.empty` / `.absolute` / `.dot_segment`), detected during AST construction, mirroring `semantic.workspace_path.*`.
+- A fixture reference whose resolved source is missing, is not a regular file, or escapes the referencing `*.repor` file's directory once canonicalized (e.g. via a symlink) — semantic error (`semantic.fixture_reference.missing` / `.not_a_regular_file` / `.escapes_repor_directory`). See [`docs/semantics.md`](semantics.md) — Fixture reference value.
 - A valid `dir <"path"> exists` whose target does not exist, or is a regular file rather than a directory — assertion failure.
 
 This classification is a premise for the diagnostic design of file assertions (#24), logical composition (#25), and directory assertions (#66).
@@ -237,7 +246,7 @@ assertion.dir.contains_entry_missing:
 semantic.literal.kind_mismatch:
   stable details:
     raw_value: string       # the offending literal as written, e.g. "out.txt" or <"out.txt">
-    expected_kind: string   # WorkspacePath | TextValue | StringLiteral
+    expected_kind: string   # WorkspacePath | TextValue | StringLiteral | FileContentsReference
     actual_kind: string     # StringLiteral | WorkspacePath | FixtureReference
 ```
 

@@ -91,6 +91,20 @@ pub enum DiagnosticCode {
     /// expectation) contains a non-blank body line that is indented less
     /// than the closing fence.
     ParseHeredocLiteralShallowIndent,
+    /// An `@"<path>"` fixture reference literal's path was empty.
+    SemanticFixtureReferenceEmpty,
+    /// An `@"<path>"` fixture reference literal's path was absolute.
+    SemanticFixtureReferenceAbsolute,
+    /// An `@"<path>"` fixture reference literal's path contained a `.` or `..` segment.
+    SemanticFixtureReferenceDotSegment,
+    /// A fixture reference's resolved source file does not exist.
+    SemanticFixtureReferenceMissing,
+    /// A fixture reference's resolved source exists but is not a regular file (e.g. a directory).
+    SemanticFixtureReferenceNotARegularFile,
+    /// A fixture reference's resolved source lies outside the referencing
+    /// `*.repor` file's directory once canonicalized (e.g. escaped via a symlink),
+    /// even though the raw path contained no `.` / `..` segment.
+    SemanticFixtureReferenceEscapesReporDirectory,
     /// A `write` step's target path already existed; create-only writes reject this.
     StepWriteTargetExists,
     /// A `write` step's target path had a regular file somewhere in its parent path.
@@ -144,6 +158,16 @@ impl DiagnosticCode {
             Self::SemanticWorkspacePathDotSegment => "semantic.workspace_path.dot_segment",
             Self::SemanticLiteralKindMismatch => "semantic.literal.kind_mismatch",
             Self::ParseHeredocLiteralShallowIndent => "parse.heredoc_literal.shallow_indent",
+            Self::SemanticFixtureReferenceEmpty => "semantic.fixture_reference.empty",
+            Self::SemanticFixtureReferenceAbsolute => "semantic.fixture_reference.absolute",
+            Self::SemanticFixtureReferenceDotSegment => "semantic.fixture_reference.dot_segment",
+            Self::SemanticFixtureReferenceMissing => "semantic.fixture_reference.missing",
+            Self::SemanticFixtureReferenceNotARegularFile => {
+                "semantic.fixture_reference.not_a_regular_file"
+            }
+            Self::SemanticFixtureReferenceEscapesReporDirectory => {
+                "semantic.fixture_reference.escapes_repor_directory"
+            }
             Self::StepWriteTargetExists => "step.write.target_exists",
             Self::StepWriteParentNotADirectory => "step.write.parent_not_a_directory",
             Self::StepWriteIoError => "step.write.io_error",
@@ -244,6 +268,12 @@ mod tests {
             DiagnosticCode::SemanticWorkspacePathDotSegment,
             DiagnosticCode::SemanticLiteralKindMismatch,
             DiagnosticCode::ParseHeredocLiteralShallowIndent,
+            DiagnosticCode::SemanticFixtureReferenceEmpty,
+            DiagnosticCode::SemanticFixtureReferenceAbsolute,
+            DiagnosticCode::SemanticFixtureReferenceDotSegment,
+            DiagnosticCode::SemanticFixtureReferenceMissing,
+            DiagnosticCode::SemanticFixtureReferenceNotARegularFile,
+            DiagnosticCode::SemanticFixtureReferenceEscapesReporDirectory,
             DiagnosticCode::StepWriteTargetExists,
             DiagnosticCode::StepWriteParentNotADirectory,
             DiagnosticCode::StepWriteIoError,

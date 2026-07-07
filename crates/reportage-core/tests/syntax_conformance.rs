@@ -7,8 +7,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use reportage_core::model::{
-    Case, CountOp, DirMatcher, Expectation, FileMatcher, LogicalOperator, OutputMatcher,
-    OutputSource, Script, SideEffectingStep, Step, TextLiteral,
+    Case, CountOp, DirMatcher, Expectation, FileContentsReference, FileMatcher, LogicalOperator,
+    OutputMatcher, OutputSource, Script, SideEffectingStep, Step, TextLiteral,
 };
 use reportage_core::parser::{ParseError, parse};
 use serde::Serialize;
@@ -258,9 +258,18 @@ impl From<LogicalOperator> for SnapshotLogicalOperator {
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum SnapshotOutputMatcher<'a> {
     Empty,
-    Contains { value: &'a str },
-    NotContains { value: &'a str },
-    Matches { value: &'a str },
+    Contains {
+        value: &'a str,
+    },
+    NotContains {
+        value: &'a str,
+    },
+    Matches {
+        value: &'a str,
+    },
+    ContentsEquals {
+        value: SnapshotFileContentsReference<'a>,
+    },
 }
 
 impl<'a> From<&'a OutputMatcher> for SnapshotOutputMatcher<'a> {
@@ -270,6 +279,9 @@ impl<'a> From<&'a OutputMatcher> for SnapshotOutputMatcher<'a> {
             OutputMatcher::Contains(value) => Self::Contains { value },
             OutputMatcher::NotContains(value) => Self::NotContains { value },
             OutputMatcher::Matches(value) => Self::Matches { value },
+            OutputMatcher::ContentsEquals(value) => Self::ContentsEquals {
+                value: SnapshotFileContentsReference::from(value),
+            },
         }
     }
 }
@@ -279,8 +291,18 @@ impl<'a> From<&'a OutputMatcher> for SnapshotOutputMatcher<'a> {
 enum SnapshotFileMatcher<'a> {
     Exists,
     NotExists,
-    Contains { value: SnapshotTextLiteral<'a> },
-    Matches { value: &'a str },
+    Contains {
+        value: SnapshotTextLiteral<'a>,
+    },
+    Matches {
+        value: &'a str,
+    },
+    ContentsEquals {
+        value: SnapshotFileContentsReference<'a>,
+    },
+    TextEquals {
+        value: SnapshotTextLiteral<'a>,
+    },
 }
 
 impl<'a> From<&'a FileMatcher> for SnapshotFileMatcher<'a> {
@@ -292,6 +314,34 @@ impl<'a> From<&'a FileMatcher> for SnapshotFileMatcher<'a> {
                 value: SnapshotTextLiteral::from(value),
             },
             FileMatcher::Matches(value) => Self::Matches { value },
+            FileMatcher::ContentsEquals(value) => Self::ContentsEquals {
+                value: SnapshotFileContentsReference::from(value),
+            },
+            FileMatcher::TextEquals(value) => Self::TextEquals {
+                value: SnapshotTextLiteral::from(value),
+            },
+        }
+    }
+}
+
+/// Mirrors `model::FileContentsReference`, keeping the reference kind
+/// (`workspace` vs. `fixture`) visible in the AST snapshot.
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum SnapshotFileContentsReference<'a> {
+    Workspace { path: &'a str },
+    Fixture { path: &'a str },
+}
+
+impl<'a> From<&'a FileContentsReference> for SnapshotFileContentsReference<'a> {
+    fn from(value: &'a FileContentsReference) -> Self {
+        match value {
+            FileContentsReference::Workspace(path) => Self::Workspace {
+                path: path.as_str(),
+            },
+            FileContentsReference::Fixture(path) => Self::Fixture {
+                path: path.as_str(),
+            },
         }
     }
 }
@@ -500,9 +550,42 @@ fn invalid_syntax_fixtures_are_rejected() {
             | "write_step_content_workspace_path_literal"
             | "file_contains_expected_workspace_path_literal"
             | "stdout_contains_workspace_path_literal"
-            | "dir_contains_entry_workspace_path_literal" => {
+            | "dir_contains_entry_workspace_path_literal"
+            // A FixtureReference is only valid in a FileContentsReference
+            // expected position: never as a `file` checkpoint subject, never
+            // as `text_equals` expected text, and never outside an assertion
+            // block (`write`'s path / content positions). See #92 and
+            // docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+            | "file_contents_equals_subject_fixture_reference"
+            | "file_text_equals_fixture_reference"
+            | "write_step_path_fixture_reference"
+            | "write_step_content_fixture_reference" => {
                 assert!(matches!(err, ParseError::LiteralKindMismatch { .. }));
                 assert_eq!(err.code().as_str(), "semantic.literal.kind_mismatch");
+            }
+            // An `@"<path>"` fixture reference literal's lexical validation
+            // (empty / absolute / `.` / `..` segment) mirrors WorkspacePath's
+            // policy. See #92 and
+            // docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+            "fixture_reference_empty_path" => {
+                assert!(matches!(err, ParseError::InvalidFixtureReference { .. }));
+                assert_eq!(err.code().as_str(), "semantic.fixture_reference.empty");
+            }
+            "fixture_reference_absolute_path" => {
+                assert!(matches!(err, ParseError::InvalidFixtureReference { .. }));
+                assert_eq!(err.code().as_str(), "semantic.fixture_reference.absolute");
+            }
+            // Covers every dot-segment shape: a leading `.` / `..` segment,
+            // and a `.` / `..` segment in the middle of the path.
+            "fixture_reference_dot_segment_leading_parent_path"
+            | "fixture_reference_dot_segment_leading_current_path"
+            | "fixture_reference_dot_segment_middle_current_path"
+            | "fixture_reference_dot_segment_middle_parent_path" => {
+                assert!(matches!(err, ParseError::InvalidFixtureReference { .. }));
+                assert_eq!(
+                    err.code().as_str(),
+                    "semantic.fixture_reference.dot_segment"
+                );
             }
             // Remaining fixtures are rejected as plain pest syntax errors; they share the coarse-grained "parse.syntax" code and are not asserted individually here.
             // See docs/diagnostics.md.
