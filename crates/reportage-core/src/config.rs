@@ -1,4 +1,4 @@
-use kdl::KdlDocument;
+use kdl::{KdlDocument, KdlNode};
 
 use crate::shim::CommandName;
 
@@ -121,6 +121,28 @@ fn validate_version(children: &KdlDocument) -> Result<(), ConfigError> {
 /// rather than silently ignored: a typo'd node (e.g. `exex` instead of `exec`) would otherwise
 /// leave a command unregistered, silently falling through to the ambient `PATH` instead of the
 /// intended shim. See docs/configuration.md — Commands.
+/// Extracts `node`'s sole argument as a string, rejecting anything else: zero entries, more
+/// than one entry (whether an extra positional value or a named property), or a named-only
+/// entry. Without this, a stray extra token (e.g. `command "myapp" "extra"` or
+/// `command "myapp" enabled=true`) would be silently accepted with the extra data dropped,
+/// exactly the kind of typo the "unknown node" checks in `parse_commands` are meant to catch.
+fn single_string_argument<'a>(node: &'a KdlNode, context: &str) -> Result<&'a str, ConfigError> {
+    let mut entries = node.entries().iter();
+    let (Some(only), None) = (entries.next(), entries.next()) else {
+        return Err(ConfigError::InvalidStructure(format!(
+            "'{context}' must have exactly one string argument"
+        )));
+    };
+    if only.name().is_some() {
+        return Err(ConfigError::InvalidStructure(format!(
+            "'{context}' must have exactly one unnamed string argument"
+        )));
+    }
+    only.value().as_string().ok_or_else(|| {
+        ConfigError::InvalidStructure(format!("'{context}' must have a string value"))
+    })
+}
+
 fn parse_commands(children: &KdlDocument) -> Result<CommandsConfig, ConfigError> {
     let Some(commands_node) = children.get("commands") else {
         return Ok(CommandsConfig::default());
@@ -141,15 +163,7 @@ fn parse_commands(children: &KdlDocument) -> Result<CommandsConfig, ConfigError>
             )));
         }
 
-        let id = node
-            .entries()
-            .iter()
-            .find(|e| e.name().is_none())
-            .and_then(|e| e.value().as_string())
-            .ok_or_else(|| {
-                ConfigError::InvalidStructure("'command' must have a string id argument".into())
-            })?
-            .to_string();
+        let id = single_string_argument(node, "command")?.to_string();
 
         CommandName::new(&id).map_err(|e| ConfigError::InvalidCommandId(e.to_string()))?;
 
@@ -175,17 +189,12 @@ fn parse_commands(children: &KdlDocument) -> Result<CommandsConfig, ConfigError>
                 )));
             }
 
-            let exec_value = exec_node
-                .entries()
-                .iter()
-                .find(|e| e.name().is_none())
-                .and_then(|e| e.value().as_string())
-                .ok_or_else(|| {
-                    ConfigError::InvalidStructure(format!(
-                        "'exec' in 'command \"{id}\"' must have a string value"
-                    ))
-                })?
-                .to_string();
+            let exec_value =
+                single_string_argument(exec_node, &format!("exec in command \"{id}\""))?
+                    .to_string();
+            if exec_value.is_empty() {
+                return Err(ConfigError::InvalidPath(exec_value));
+            }
             validate_path_value(&exec_value)?;
             exec = Some(exec_value);
         }
@@ -705,5 +714,89 @@ reportage {
 "#;
         let err = parse_config(src).unwrap_err();
         assert!(matches!(err, ConfigError::InvalidStructure(_)));
+    }
+
+    #[test]
+    fn command_with_extra_positional_argument_is_error() {
+        let src = r#"
+reportage {
+  config {
+    version 1
+  }
+  commands {
+    command "myapp" "unexpected-extra-arg" {
+      exec "target/debug/myapp"
+    }
+  }
+  tests {
+    path "e2e/**/*.repor"
+  }
+}
+"#;
+        let err = parse_config(src).unwrap_err();
+        assert!(matches!(err, ConfigError::InvalidStructure(_)));
+    }
+
+    #[test]
+    fn command_with_named_property_is_error() {
+        let src = r#"
+reportage {
+  config {
+    version 1
+  }
+  commands {
+    command "myapp" enabled=#true {
+      exec "target/debug/myapp"
+    }
+  }
+  tests {
+    path "e2e/**/*.repor"
+  }
+}
+"#;
+        let err = parse_config(src).unwrap_err();
+        assert!(matches!(err, ConfigError::InvalidStructure(_)));
+    }
+
+    #[test]
+    fn exec_with_extra_positional_argument_is_error() {
+        let src = r#"
+reportage {
+  config {
+    version 1
+  }
+  commands {
+    command "myapp" {
+      exec "target/debug/myapp" "unexpected-extra-exec-arg"
+    }
+  }
+  tests {
+    path "e2e/**/*.repor"
+  }
+}
+"#;
+        let err = parse_config(src).unwrap_err();
+        assert!(matches!(err, ConfigError::InvalidStructure(_)));
+    }
+
+    #[test]
+    fn empty_exec_path_is_error() {
+        let src = r#"
+reportage {
+  config {
+    version 1
+  }
+  commands {
+    command "myapp" {
+      exec ""
+    }
+  }
+  tests {
+    path "e2e/**/*.repor"
+  }
+}
+"#;
+        let err = parse_config(src).unwrap_err();
+        assert!(matches!(err, ConfigError::InvalidPath(_)));
     }
 }
