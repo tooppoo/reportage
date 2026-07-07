@@ -67,7 +67,7 @@ lang-docs-check:
 
 # run all tests and generate coverage report
 [group('check')]
-test: && test-fixtures
+test:
   #!/usr/bin/env sh
   set -eu
 
@@ -80,45 +80,20 @@ test: && test-fixtures
     --fail-under-regions 80 \
     --ignore-filename-regex "cli/src/main|src/bin/gen_semantic_docs|model"
 
+# standalone aliases for the fixture suite self-tests; the same tests already run (and are
+# coverage-collected) inside `just test`'s nextest invocation, so these are not part of `test`
 [group('check')]
 test-fixtures: test-fixtures-valid test-fixtures-invalid
 
 # check that all valid fixtures do not produce parse errors
 [group('check')]
-test-fixtures-valid: self-install
-  #!/usr/bin/env sh
-  set +e
-  set -u
-  output="$(reportage --config reportage.fixtures.valid.kdl 2>&1)"
-
-  parse_errors_count=$(echo "$output" | grep -e "PARSE ERROR" | wc -l)
-
-  if [ "$parse_errors_count" -ne 0 ]; then
-    echo "Expected no parse errors for valid fixtures, but got $parse_errors_count"
-    echo "$output"
-    exit 1
-  fi
-
-  echo "No valid fixtures produced parse errors."
+test-fixtures-valid:
+  cargo nextest run --locked -p reportage-cli --test self_test -E 'test(=valid_syntax_fixtures_have_no_parse_errors_through_reportage_shim)'
 
 # check that all invalid fixtures produce parse errors
 [group('check')]
-test-fixtures-invalid: self-install
-  #!/usr/bin/env sh
-  set +e
-  set -u
-  parse_errors="$(reportage --config reportage.fixtures.invalid.kdl 2>&1)"
-  status="$?"
-
-  parse_errors_count=$(echo "$parse_errors" | grep -e "PARSE ERROR" | wc -l)
-  invalid_fixtures_count=$(find tests/fixtures/syntax/invalid -type f | wc -l)
-
-  if [ "$parse_errors_count" -ne "$invalid_fixtures_count" ]; then
-    echo "Expected $invalid_fixtures_count parse errors, but got $parse_errors_count"
-    exit 1
-  fi
-
-  echo "All invalid fixtures produced parse errors as expected."
+test-fixtures-invalid:
+  cargo nextest run --locked -p reportage-cli --test self_test -E 'test(=invalid_syntax_fixtures_all_produce_parse_errors_through_reportage_shim)'
 
 # run all formatting checks
 [group('check')]
