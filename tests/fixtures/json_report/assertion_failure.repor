@@ -1,0 +1,6 @@
+case "greets wrong" {
+  $ echo hello
+  assert {
+    stdout contains "world"
+  }
+}

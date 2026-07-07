@@ -89,6 +89,7 @@ pub fn load_and_validate(paths: &[PathBuf]) -> (Vec<ValidatedFile>, Vec<FileErro
                         kind: FileErrorKind::ParseError {
                             diagnostic_code: e.code(),
                             message: e.to_string(),
+                            location: e.to_diagnostic().location,
                         },
                     });
                 }

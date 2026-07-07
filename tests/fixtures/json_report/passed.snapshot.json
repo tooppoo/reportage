@@ -1,0 +1,67 @@
+{
+  "artifactRoot": "<ARTIFACT_ROOT>",
+  "diagnostics": [],
+  "processExitCode": 0,
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": {
+    "actions": 1,
+    "assertions": 2,
+    "errors": 0,
+    "failed": 0,
+    "passed": 1,
+    "scripts": 1
+  },
+  "tests": [
+    {
+      "actions": [
+        {
+          "command": "echo hello",
+          "exitCode": 0,
+          "id": "action-1",
+          "stderr": {
+            "artifactRef": "test-1/action-1/stderr.bin",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-1/action-1/stdout.bin",
+            "sizeBytes": 6
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "checkpoint": "action-1",
+          "expectation": {
+            "actual": 0,
+            "expected": 0,
+            "kind": "exit",
+            "status": "passed"
+          },
+          "id": "assertion-1",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-1",
+          "expectation": {
+            "actualRef": "test-1/action-1/stdout.bin",
+            "actualSizeBytes": 6,
+            "expected": "hello",
+            "kind": "stdoutContains",
+            "status": "passed"
+          },
+          "id": "assertion-2",
+          "status": "passed"
+        }
+      ],
+      "id": "test-1",
+      "name": "greets",
+      "path": "passed.repor",
+      "status": "passed"
+    }
+  ],
+  "tool": {
+    "name": "reportage",
+    "version": "<VERSION>"
+  }
+}

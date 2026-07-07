@@ -38,6 +38,7 @@ fn print_results(result: &ExecutionReport) {
             FileErrorKind::ParseError {
                 message,
                 diagnostic_code,
+                location: _,
             } => (message.as_str(), Some(*diagnostic_code)),
         };
         eprintln!("  {message}");

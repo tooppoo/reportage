@@ -1,0 +1,42 @@
+{
+  "artifactRoot": "<ARTIFACT_ROOT>",
+  "diagnostics": [
+    {
+      "category": "runtime",
+      "code": "step.write.target_exists",
+      "id": "diagnostic-1",
+      "location": null,
+      "message": "case 'write twice to same path': write step at step 2 failed: target path already exists; write is create-only",
+      "origin": {
+        "kind": "source",
+        "source": "runtime_error.repor"
+      },
+      "severity": "error"
+    }
+  ],
+  "processExitCode": 3,
+  "schemaVersion": 1,
+  "status": "error",
+  "summary": {
+    "actions": 0,
+    "assertions": 0,
+    "errors": 1,
+    "failed": 0,
+    "passed": 0,
+    "scripts": 1
+  },
+  "tests": [
+    {
+      "actions": [],
+      "assertions": [],
+      "id": "test-1",
+      "name": "write twice to same path",
+      "path": "runtime_error.repor",
+      "status": "error"
+    }
+  ],
+  "tool": {
+    "name": "reportage",
+    "version": "<VERSION>"
+  }
+}

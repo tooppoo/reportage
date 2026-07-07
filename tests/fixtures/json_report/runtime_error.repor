@@ -1,0 +1,11 @@
+case "write twice to same path" {
+  write <"a.txt"> ```
+    first
+    ```
+  write <"a.txt"> ```
+    second
+    ```
+  assert {
+    exit 0
+  }
+}
