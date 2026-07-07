@@ -1515,6 +1515,33 @@ case "file contents_equals fixture pass" {
 }
 
 #[test]
+fn file_contents_equals_passes_against_a_fixture_expected_file_via_bare_relative_script_path() {
+    // Regression test: `Path::parent()` returns `Some("")`, not `None`, for a bare relative
+    // filename with no directory component (the common `cd examples && reportage foo.repor`
+    // invocation shape). An earlier version of `evaluate_case`'s `repor_dir` computation only
+    // substituted "." when `parent()` returned `None`, so this shape resolved `repor_dir` to an
+    // empty path, and `fixture::resolve_fixture_source` failed to canonicalize it even though
+    // the fixture file existed right next to the script.
+    let dir = TempDir::new().unwrap();
+    dir.child("expected.txt").write_str("hello").unwrap();
+    write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file contents_equals fixture pass" {
+  $ printf hello > actual.txt
+  assert {
+    file <"actual.txt"> contents_equals @"expected.txt"
+  }
+}
+"#,
+    );
+    // Pass a bare filename, not the absolute path `write_script` returns, so `source_path` has
+    // no directory component when the CLI resolves it.
+    reportage(&dir).arg("test.repor").assert().code(0);
+}
+
+#[test]
 fn file_contents_equals_fails_on_byte_mismatch_against_fixture_expected_file() {
     let dir = TempDir::new().unwrap();
     dir.child("expected.txt").write_str("hello").unwrap();

@@ -1,0 +1,25 @@
+
+case "file contents_equals against a workspace file" {
+  $ printf 'hello\n' > expected.txt
+  $ printf 'hello\n' > actual.txt
+
+  assert {
+    file <"actual.txt"> contents_equals <"expected.txt">
+  }
+}
+
+case "file contents_equals against a fixture file" {
+  $ printf 'hello, fixture!\n' > actual.txt
+
+  assert {
+    file <"actual.txt"> contents_equals @"fixtures/expected.txt"
+  }
+}
+
+case "stdout contents_equals against a fixture file" {
+  $ printf 'hello, fixture!\n'
+
+  assert {
+    stdout contents_equals @"fixtures/expected.txt"
+  }
+}

@@ -225,10 +225,16 @@ fn evaluate_case(case: &Case, env: &ExecutionEnvironment, source_path: &Path) ->
     let mut side_effects_executed: usize = 0;
     // The directory containing the referencing `*.repor` file, used to resolve a
     // `contents_equals` expected `FixtureReference` relative to it.
-    let repor_dir = source_path
-        .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
+    //
+    // `Path::parent()` returns `Some("")` — not `None` — for a bare relative filename with no
+    // directory component (e.g. `reportage script.repor` run from the script's own directory),
+    // since "" and "." are lexically distinct even though both mean "here". Treat that empty
+    // parent the same as a missing one, or `fixture::resolve_fixture_source` fails to
+    // canonicalize an empty path (`No such file or directory`) even when the fixture exists.
+    let repor_dir = match source_path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => PathBuf::from("."),
+    };
     // Steps are processed in source order.
     // Assertion block failure stops execution before the next action.
     // See docs/semantics.md — Assertion block and the checkpoint-based assertion ADR.

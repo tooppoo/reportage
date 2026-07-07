@@ -1,0 +1,38 @@
+
+case "file contents_equals reports a script error for a missing expected workspace path" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > actual.txt
+      assert {
+        file <"actual.txt"> contents_equals <"does-not-exist.txt">
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.file_contents_reference.missing"
+  }
+}
+
+case "stdout contents_equals passes against a fixture reference" {
+  write <"expected.txt"> ```
+    hello
+    ```
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf 'hello\n'
+      assert {
+        stdout contents_equals @"expected.txt"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+  }
+}
