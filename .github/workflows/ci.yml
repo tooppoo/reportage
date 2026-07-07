@@ -245,13 +245,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      # Resolve the version to pin against the same GitHub "latest release" pointer
-      # install.sh's own install_latest() reads, instead of a hardcoded version string
-      # that would silently go stale as new releases ship.
+      # Ask install.sh's own latest-resolution path for the version to pin, instead of
+      # a hardcoded version string (which would silently go stale as new releases ship)
+      # or reimplementing that resolution against a specific release asset here (which
+      # would drift from install.sh's actual mechanism as install.sh evolves).
       - name: Resolve version to pin
         id: resolve
         run: |
-          version=$(curl -fsSL https://github.com/tooppoo/reportage/releases/latest/download/VERSION)
+          log="$RUNNER_TEMP/install-resolve.log"
+          sh install.sh --install-dir "$RUNNER_TEMP/reportage-installer-smoke-test-resolve" 2>&1 | tee "$log"
+
+          version=$(grep -o 'resolved latest version .*' "$log" | awk '{print $NF}')
           [ -n "$version" ] || { echo "failed to resolve latest release version"; exit 1; }
           echo "pinning to version: $version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
