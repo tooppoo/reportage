@@ -29,6 +29,7 @@ enum OutputFormat {
 #[command(
     name = "reportage",
     about = "Run reportage test scripts",
+    version,
     override_usage = "reportage [OPTIONS] [SUBCOMMAND]..."
 )]
 struct Cli {
