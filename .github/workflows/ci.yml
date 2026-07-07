@@ -364,3 +364,11 @@ jobs:
 
       - name: Run Examples
         run: reportage --config reportage.examples.kdl
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: check coverage is 100%
+        run: just examples-shim::js-coverage-100

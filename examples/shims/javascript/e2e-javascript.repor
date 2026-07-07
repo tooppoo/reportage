@@ -1,0 +1,50 @@
+
+case "sample without arguments" {
+  $ sample
+
+  assert {
+    exit 1
+    stdout contains "Unknown command"
+    stderr empty
+  }
+}
+
+case "sample with arguments" {
+  $ sample greet
+
+  assert {
+    exit 2
+    stdout contains "sample: Unknown command"
+    stderr empty
+  }
+}
+
+case "sample with greet 'hello'" {
+  $ sample greet hello
+
+  assert {
+    exit 0
+    stdout contains "Hello, World!"
+    stderr empty
+  }
+}
+
+case "sample with greet 'goodbye'" {
+  $ sample greet goodbye
+
+  assert {
+    exit 0
+    stdout contains "Goodbye, World!"
+    stderr empty
+  }
+}
+
+case "sample with greet 'fizzbuzz'" {
+  $ sample greet fizzbuzz
+
+  assert {
+    exit 2
+    stdout contains "sample: Unknown command"
+    stderr empty
+  }
+}

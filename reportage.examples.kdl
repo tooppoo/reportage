@@ -3,6 +3,12 @@ reportage {
     version 1
   }
 
+  commands {
+    command "sample" {
+      exec "examples/shims/javascript/shim/sample"
+    }
+  }
+
   tests {
     path "examples/**/*.repor"
   }

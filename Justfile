@@ -1,3 +1,4 @@
+mod examples-shim 'examples/shims/Justfile'
 
 default:
   @just check

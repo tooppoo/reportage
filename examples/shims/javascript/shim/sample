@@ -1,0 +1,16 @@
+#!/bin/sh
+# Node adapter shim (see docs/shims.md#coverage-aware-adapters):
+# forwards to the real CLI entrypoint with V8 coverage collection enabled,
+# instead of running it through node:test (which is for test files, not
+# for delegating an arbitrary CLI invocation).
+set -eu
+
+shim_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+project_root=$(CDPATH= cd -- "$shim_dir/.." && pwd)
+
+coverage_dir="$project_root/.coverage/node"
+mkdir -p "$coverage_dir"
+
+export NODE_V8_COVERAGE="$coverage_dir"
+
+exec node -- "$project_root/src/sample.js" "$@"

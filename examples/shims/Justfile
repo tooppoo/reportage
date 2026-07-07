@@ -1,0 +1,3 @@
+
+js-coverage-100:
+  cd javascript && npm ci && npm run check
