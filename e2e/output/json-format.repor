@@ -1,0 +1,52 @@
+case "--format=json reports schemaVersion and a passed status for a passing script" {
+  write <"inner.repor"> ```
+    case "greets" {
+      $ echo hello
+      assert {
+        exit 0
+        stdout contains "hello"
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 0
+    stdout contains "\"schemaVersion\": 1"
+    stdout contains "\"status\": \"passed\""
+  }
+}
+
+case "--format=json reports a real location for a parse error" {
+  write <"inner.repor"> ```
+    this is not valid reportage syntax
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 2
+    stdout contains "\"category\": \"parse\""
+    stdout contains "\"line\": 1"
+  }
+}
+
+case "--format=json reports the assertion diagnostic code for an assertion failure" {
+  write <"inner.repor"> ```
+    case "greets wrong" {
+      $ echo hello
+      assert {
+        stdout contains "world"
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 1
+    stdout contains "\"category\": \"assertion\""
+    stdout contains "\"code\": \"assertion.stdout.contains_mismatch\""
+  }
+}
