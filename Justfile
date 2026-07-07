@@ -67,10 +67,50 @@ lang-docs-check:
 
 # run all tests and generate coverage report
 [group('check')]
-test:
+test: test-fixtures
 		cargo llvm-cov --locked --all-features --workspace --no-report nextest
 		cargo llvm-cov report --codecov --output-path cov.json --ignore-filename-regex "cli/src/main"
 		cargo llvm-cov report --fail-under-functions 80 --fail-under-lines 80 --fail-under-file-lines 80 --fail-under-regions 80 --ignore-filename-regex "cli/src/main|src/bin/gen_semantic_docs|model"
+
+[group('check')]
+test-fixtures:
+  just test-fixtures-valid
+  just test-fixtures-invalid
+
+[group('check')]
+test-fixtures-valid:
+  #!/usr/bin/env sh
+  set +e
+  set -u
+  output="$(reportage --config reportage.fixtures.valid.kdl 2>&1)"
+
+  parse_errors_count=$(echo "$output" | grep -e "PARSE ERROR" | wc -l)
+
+  if [ "$parse_errors_count" -ne 0 ]; then
+    echo "Expected no parse errors for valid fixtures, but got $parse_errors_count"
+    echo "$output"
+    exit 1
+  fi
+
+  echo "No valid fixtures produced parse errors."
+
+[group('check')]
+test-fixtures-invalid:
+  #!/usr/bin/env sh
+  set +e
+  set -u
+  parse_errors="$(reportage --config reportage.fixtures.invalid.kdl 2>&1)"
+  status="$?"
+
+  parse_errors_count=$(echo "$parse_errors" | grep -e "PARSE ERROR" | wc -l)
+  invalid_fixtures_count=$(find tests/fixtures/syntax/invalid -type f | wc -l)
+
+  if [ "$parse_errors_count" -ne "$invalid_fixtures_count" ]; then
+    echo "Expected $invalid_fixtures_count parse errors, but got $parse_errors_count"
+    exit 1
+  fi
+
+  echo "All invalid fixtures produced parse errors as expected."
 
 # run all formatting checks
 [group('check')]
