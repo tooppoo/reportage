@@ -1,5 +1,6 @@
 import 'task/test.just'
 import 'task/release.just'
+import 'task/docs.just'
 
 mod examples-shim 'examples/shims/Justfile'
 
