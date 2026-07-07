@@ -5,7 +5,7 @@
 
 ## Context
 
-`*.repor` e2e cases run inside a per-concrete-case isolated workspace (see docs/semantics.md — Workspace lifecycle). A `WorkspacePath` (`<"...">`, #93) refers to a file inside that workspace: it is where the code under test writes output, and it is the only kind of path a `file` / `dir` checkpoint subject accepts.
+`*.repor` e2e cases run inside a per-concrete-case isolated workspace (see docs/execution-model.md — Workspace lifecycle). A `WorkspacePath` (`<"...">`, #93) refers to a file inside that workspace: it is where the code under test writes output, and it is the only kind of path a `file` / `dir` checkpoint subject accepts.
 
 Snapshot / fixture files — expected CLI stdout JSON, expected file contents, and similar large expected values that are impractical to inline as a string literal or heredoc literal — belong conceptually to the test definition, not the workspace under test. They are naturally kept as static files next to the `*.repor` file that uses them, not inside a workspace that is created fresh, isolated, and destroyed per concrete case.
 

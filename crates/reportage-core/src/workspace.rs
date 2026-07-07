@@ -2,8 +2,8 @@
 //!
 //! Each concrete case runs in its own workspace directory: `$` actions run
 //! with it as their working directory, `write` steps write into it, and file
-//! expectations resolve paths against it. See docs/semantics.md — Workspace
-//! lifecycle and Write step.
+//! expectations resolve paths against it. See docs/execution-model.md —
+//! Workspace lifecycle, and docs/semantics.md — Write step.
 
 use std::path::Path;
 
@@ -13,7 +13,7 @@ use crate::model::WorkspacePath;
 /// An isolated case workspace, backed by a temporary directory that is
 /// removed when the workspace is dropped.
 ///
-/// See docs/semantics.md — Cleanup and preservation: v0 does not offer
+/// See docs/execution-model.md — Cleanup and preservation: v0 does not offer
 /// workspace preservation, so unconditional cleanup on drop is correct.
 pub struct Workspace {
     dir: tempfile::TempDir,

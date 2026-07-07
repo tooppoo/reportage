@@ -472,7 +472,7 @@ pub enum FileErrorKind {
 ///
 /// Collected during the pre-execution validation phase.
 /// If any file errors exist, no `$` actions execute from any file.
-/// See docs/semantics.md — Validation phase.
+/// See docs/execution-model.md — Suite pre-execution validation.
 #[derive(Debug)]
 pub struct FileError {
     pub source_path: PathBuf,
