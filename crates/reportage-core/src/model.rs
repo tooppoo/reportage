@@ -4,7 +4,7 @@
 //! Execution outputs and assertion results belong to the `result` module.
 //! The checkpoint evidence context used during evaluation lives in the `evaluator` module.
 //!
-//! See docs/semantics.md for the conceptual model and the checkpoint-based assertion ADR.
+//! See docs/execution-model.md for the conceptual model and the checkpoint-based assertion ADR.
 
 /// A parsed reportage script (one test module file).
 #[derive(Debug)]
@@ -27,7 +27,7 @@ pub struct Case {
 ///
 /// Source order is preserved.
 /// Action and assertion steps are never reordered into phases.
-/// See docs/semantics.md — Action and Assertion block.
+/// See docs/execution-model.md — Action, and docs/semantics.md — Assertion block.
 #[derive(Debug)]
 pub enum Step {
     Action(ActionStep),
@@ -310,7 +310,7 @@ impl TextValue {
 ///
 /// Executed by `sh -c`.
 /// On completion, produces an `ActionResult` that updates the current checkpoint.
-/// See docs/semantics.md — Shell execution.
+/// See docs/execution-model.md — Shell execution.
 #[derive(Debug)]
 pub struct ActionStep {
     pub command: String,

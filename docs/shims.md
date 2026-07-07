@@ -39,6 +39,29 @@ The runner prepends one or more runner-owned directories to `PATH`. Normal shell
 
 This is command resolution control, not shell selection. For the low-level `ExecutionEnvironment` PATH behavior, see [execution-model.md](execution-model.md).
 
+## Shim interception limits
+
+PATH shims intercept registered commands only when shell PATH resolution is used.
+
+These forms are interceptable:
+
+```reportage
+$ rellog check
+$ RUST_LOG=debug rellog check
+$ rellog check --json | jq .
+$ cd subdir && rellog check
+```
+
+These forms are not guaranteed to be intercepted:
+
+```reportage
+$ ./rellog check
+$ /usr/local/bin/rellog check
+$ command rellog check
+```
+
+Scripts that want coverage-aware command execution should call registered commands by their registered names.
+
 ## Use cases
 
 ### Self-testing
@@ -99,6 +122,26 @@ exec '/absolute/path/to/program' 'fixed-arg-1' 'fixed-arg-2' "$@"
 ```
 
 Absolute program paths avoid recursive wrapper invocation.
+
+## Shim target examples
+
+The shim decides how to run the actual system under test. reportage does not need to know those language-specific details; it only needs the shim to exist and be executable.
+
+```text
+Rust adapter:
+  exec /path/to/coverage-instrumented/rellog "$@"
+
+Node adapter:
+  export NODE_V8_COVERAGE="$E2E_COVERAGE_DIR/node"
+  exec node --enable-source-maps "$PROJECT_ROOT/dist/cli.js" "$@"
+
+Ruby adapter:
+  exec ruby -r "$BOOTSTRAP/simplecov.rb" "$PROJECT_ROOT/exe/mycli" "$@"
+
+JVM adapter:
+  exec java -javaagent:"$JACOCO_AGENT=destfile=$E2E_COVERAGE_DIR/jacoco.exec" \
+    -cp "$INSTRUMENTED_CLASSPATH" com.example.Main "$@"
+```
 
 ## Shim invocation observability
 

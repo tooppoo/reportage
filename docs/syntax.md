@@ -14,8 +14,9 @@ Reportage v0. Any syntax not expressible in that file is not part of v0.
 ## Syntax conformance vs. semantic conformance
 
 This document covers *syntax* only — whether a script is accepted by the
-parser. Semantic behaviour (execution order, assertion evaluation, workspace
-lifecycle) is defined separately in [`docs/semantics.md`](semantics.md).
+parser. Semantic behaviour is defined separately: execution order and
+workspace lifecycle in [`docs/execution-model.md`](execution-model.md),
+and assertion evaluation in [`docs/semantics.md`](semantics.md).
 
 ## Grammar
 
