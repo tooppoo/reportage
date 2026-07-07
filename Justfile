@@ -12,7 +12,7 @@ get-version:
 
 # run all check actions
 [group('check')]
-check: test lint fmt build semantic-docs-check
+check: examples-shim::go-build test lint fmt build semantic-docs-check
 
 # build as debug
 [group('check')]
