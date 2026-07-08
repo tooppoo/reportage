@@ -38,7 +38,7 @@ The coverage check (`crates/reportage-core/tests/semantic_rule_coverage.rs`, run
 
 `implementation_status` is not read by any of the assertions above. It exists only so failure messages and any future inventory listing can say whether a missing-spec rule is implemented, planned, or deferred, rather than treating every gap identically.
 
-Of the eighteen rules currently registered — eleven `assertion`, three `logical-composition`, four `value-reference` — only `assertion.exit.equals`, `assertion.stdout.contains`, and `assertion.stderr.contains` have `spec_required` / `conformance_required` / `docs_required` all `true`, matching the specs that exist today. The rest are registered with all three flags `false`: known, implemented rules awaiting a spec. #101 is the follow-up that adds those specs and flips the corresponding flags.
+Of the twenty rules currently registered — thirteen `assertion`, three `logical-composition`, four `value-reference` — only `assertion.exit.equals`, `assertion.stdout.contains`, and `assertion.stderr.contains` have `spec_required` / `conformance_required` / `docs_required` all `true`, matching the specs that exist today. The rest are registered with all three flags `false`: known, implemented rules awaiting a spec. #101 is the follow-up that adds those specs and flips the corresponding flags.
 
 ## Alternatives Considered
 
@@ -70,4 +70,4 @@ Rejected. `assertion` specs describe a checkpoint field, an operator, and a matc
 ### Neutral Consequences
 
 - This ADR does not add semantic specs for `logical-composition` or `value-reference` rules; it only makes their absence visible and inert (`spec_required=false`) until #101.
-- This ADR does not address `runner-lifecycle`, `artifact`, or `diagnostic` rule inventories; per #85, those are owned elsewhere.
+- This ADR does not address `runner-lifecycle`, `artifact`, or `diagnostic` rule inventories; per #85, those are owned elsewhere. `SemanticExpectationRequiresAction` (a process-expectation-before-any-action ordering error) is a `runner-lifecycle` concern under that split, not a registered semantic rule, even though it lives in the same `DiagnosticCode` enum as assertion diagnostics.
