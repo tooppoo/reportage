@@ -18,14 +18,20 @@ struct SemanticSpec {
     conformance_cases: Vec<ConformanceCase>,
 }
 
+/// `assertion` and `checkpoint` are absent on a "parser case" (a conformance case verified
+/// against the production parser rather than the evaluator, for rules that concern
+/// acceptance/rejection of syntax or a literal rather than a checkpoint comparison). See
+/// spec/language/semantics/README.md.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ConformanceCase {
     description: String,
     #[serde(rename = "assertionSource")]
     assertion_source: String,
-    assertion: serde_json::Map<String, serde_json::Value>,
-    checkpoint: serde_json::Map<String, serde_json::Value>,
+    #[serde(default)]
+    assertion: Option<serde_json::Map<String, serde_json::Value>>,
+    #[serde(default)]
+    checkpoint: Option<serde_json::Map<String, serde_json::Value>>,
     #[serde(rename = "expectedResult")]
     expected_result: String,
     #[serde(rename = "expectedDiagnosticCode")]
@@ -159,12 +165,17 @@ fn render_docs(specs: &[(PathBuf, SemanticSpec)]) -> String {
                 .as_deref()
                 .map(inline_code)
                 .unwrap_or_else(|| "-".to_string());
+            let render_optional_map = |map: &Option<serde_json::Map<String, serde_json::Value>>| {
+                map.as_ref()
+                    .map(|m| render_value(&serde_json::Value::Object(m.clone())))
+                    .unwrap_or_else(|| "-".to_string())
+            };
             out.push_str(&format!(
                 "| {} | {} | {} | {} | `{}` | {} |\n",
                 markdown_escape(&case.description),
                 markdown_escape(&string_literal_code(&case.assertion_source)),
-                render_value(&serde_json::Value::Object(case.assertion.clone())),
-                render_value(&serde_json::Value::Object(case.checkpoint.clone())),
+                render_optional_map(&case.assertion),
+                render_optional_map(&case.checkpoint),
                 markdown_escape(&case.expected_result),
                 markdown_escape(&expected_diagnostic)
             ));

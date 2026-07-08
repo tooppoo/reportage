@@ -1,0 +1,61 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "assertion.dir.exists",
+  "category": "assertion",
+  "syntax": "dir <\"path\"> exists",
+  "normative": {
+    "checkpointField": "dir",
+    "operator": "exists",
+    "expectedValueType": "none",
+    "matchSemantics": {
+      "comparison": "existence"
+    },
+    "referencedValueReferenceRule": "value-reference.workspace-path.resolve"
+  },
+  "conformanceCases": [
+    {
+      "description": "dir exists passes when the path is a directory",
+      "assertionSource": "dir <\"outdir\"> exists",
+      "assertion": { "subject": "dir", "path": "outdir", "operator": "exists" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "dirs": ["outdir"]
+        }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "dir exists fails when the path does not exist",
+      "assertionSource": "dir <\"missing_dir\"> exists",
+      "assertion": { "subject": "dir", "path": "missing_dir", "operator": "exists" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.dir.exists_missing"
+    },
+    {
+      "description": "dir exists fails when the path is a regular file, not a directory",
+      "assertionSource": "dir <\"notadir\"> exists",
+      "assertion": { "subject": "dir", "path": "notadir", "operator": "exists" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "notadir", "contents": { "data": "", "encoding": "base64", "text": "" } }
+          ]
+        }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.dir.exists_not_directory"
+    }
+  ]
+}

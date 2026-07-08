@@ -1,0 +1,89 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "value-reference.file-contents-reference.resolve",
+  "category": "value-reference",
+  "syntax": "<\"path\"> | @\"path\"",
+  "normative": {
+    "kind": "union",
+    "variants": ["workspacePath", "fixtureReference"],
+    "workspacePathSyntax": "<\"path\">",
+    "fixtureReferenceSyntax": "@\"path\"",
+    "diagnosticCodes": {
+      "workspacePathMissing": "semantic.file_contents_reference.missing",
+      "workspacePathNotARegularFile": "semantic.file_contents_reference.not_regular_file",
+      "workspacePathReadError": "semantic.file_contents_reference.read_error"
+    },
+    "fixtureVariantDiagnosticsOwnedBy": "value-reference.fixture-reference.resolve",
+    "usedBy": ["assertion.file.contents_equals"]
+  },
+  "conformanceCases": [
+    {
+      "description": "resolves to bytes when the workspace variant points at an existing regular file",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"expected.txt\">",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "workspacePath", "value": "expected.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } },
+            { "path": "expected.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ]
+        }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "invalid: the workspace variant is a script error when the expected workspace path does not exist",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"missing-expected.txt\">",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "workspacePath", "value": "missing-expected.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ]
+        }
+      },
+      "expectedResult": "scriptError",
+      "expectedDiagnosticCode": "semantic.file_contents_reference.missing"
+    },
+    {
+      "description": "invalid: the workspace variant is a script error when the expected workspace path is a directory, not a regular file",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"expected.txt\">",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "workspacePath", "value": "expected.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ],
+          "dirs": ["expected.txt"]
+        }
+      },
+      "expectedResult": "scriptError",
+      "expectedDiagnosticCode": "semantic.file_contents_reference.not_regular_file"
+    }
+  ]
+}

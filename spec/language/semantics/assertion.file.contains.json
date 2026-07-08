@@ -1,0 +1,98 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "assertion.file.contains",
+  "category": "assertion",
+  "syntax": "file <\"path\"> contains <text_literal>",
+  "normative": {
+    "checkpointField": "file",
+    "operator": "contains",
+    "expectedValueType": "utf8String",
+    "matchSemantics": {
+      "comparison": "textSubstring",
+      "caseSensitive": true,
+      "lineEndingNormalization": false,
+      "emptyExpectedAlwaysMatches": true
+    }
+  },
+  "conformanceCases": [
+    {
+      "description": "file contains passes when the expected text is a substring of the file's decoded UTF-8 text",
+      "assertionSource": "file <\"actual.txt\"> contains \"world\"",
+      "assertion": { "subject": "file", "path": "actual.txt", "operator": "contains", "expected": "world" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8gd29ybGQ=", "encoding": "base64", "text": "hello world" } }
+          ]
+        }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "file contains fails when the expected text is not a substring",
+      "assertionSource": "file <\"actual.txt\"> contains \"xyz\"",
+      "assertion": { "subject": "file", "path": "actual.txt", "operator": "contains", "expected": "xyz" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8gd29ybGQ=", "encoding": "base64", "text": "hello world" } }
+          ]
+        }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.file.contains_mismatch"
+    },
+    {
+      "description": "empty expected text always matches an existing, readable, UTF-8 file",
+      "assertionSource": "file <\"actual.txt\"> contains \"\"",
+      "assertion": { "subject": "file", "path": "actual.txt", "operator": "contains", "expected": "" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ]
+        }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "file contains fails when the file does not exist; missing/unreadable/non-UTF-8 are a single precondition-unmet failure category",
+      "assertionSource": "file <\"missing.txt\"> contains \"x\"",
+      "assertion": { "subject": "file", "path": "missing.txt", "operator": "contains", "expected": "x" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.file.contains_precondition_unmet"
+    },
+    {
+      "description": "match is case-sensitive; uppercase file content does not match a lowercase expected substring",
+      "assertionSource": "file <\"actual.txt\"> contains \"hello\"",
+      "assertion": { "subject": "file", "path": "actual.txt", "operator": "contains", "expected": "hello" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "SEVMTE8=", "encoding": "base64", "text": "HELLO" } }
+          ]
+        }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.file.contains_mismatch"
+    }
+  ]
+}

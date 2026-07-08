@@ -19,42 +19,57 @@
     },
     "category": {
       "type": "string",
-      "enum": ["assertion"]
+      "enum": ["assertion", "logical-composition", "value-reference"]
     },
     "syntax": {
       "type": "string"
     },
     "normative": {
-      "$ref": "#/$defs/NormativeFields"
+      "description": "Category-specific: an assertion-category or logical-composition-category spec uses a fixed structured shape; a value-reference-category spec uses a free-form (but non-empty) object, since its rules are heterogeneous point-facts rather than a uniform operator/comparison model. CI enforces the exact per-category shape via typed Rust deserialization in crates/reportage-core/tests/semantic_specs.rs; this schema only bounds the general shape for editor validation.",
+      "oneOf": [
+        { "$ref": "#/$defs/AssertionNormativeFields" },
+        { "$ref": "#/$defs/LogicalCompositionNormativeFields" },
+        { "$ref": "#/$defs/ValueReferenceNormativeFields" }
+      ]
     },
     "conformanceCases": {
       "type": "array",
       "minItems": 1,
       "items": {
-        "$ref": "#/$defs/ConformanceCase"
+        "oneOf": [
+          { "$ref": "#/$defs/EvalConformanceCase" },
+          { "$ref": "#/$defs/ParserConformanceCase" }
+        ]
       }
     }
   },
   "$defs": {
-    "NormativeFields": {
+    "AssertionNormativeFields": {
       "type": "object",
       "additionalProperties": false,
       "required": ["checkpointField", "operator", "expectedValueType", "matchSemantics"],
       "properties": {
         "checkpointField": {
           "type": "string",
-          "enum": ["exitCode", "stdout", "stderr"]
+          "enum": ["exitCode", "stdout", "stderr", "file", "dir"]
         },
         "operator": {
           "type": "string",
-          "enum": ["equals", "contains"]
+          "enum": ["equals", "contains", "empty", "exists", "contentsEquals", "textEquals"]
         },
         "expectedValueType": {
           "type": "string",
-          "enum": ["uint8", "utf8String"]
+          "enum": ["uint8", "utf8String", "fileContentsReference", "none"]
         },
         "matchSemantics": {
           "$ref": "#/$defs/MatchSemantics"
+        },
+        "referencedValueReferenceRule": {
+          "type": "string"
+        },
+        "noImplicitConversionFrom": {
+          "type": "array",
+          "items": { "type": "string" }
         }
       }
     },
@@ -65,7 +80,7 @@
       "properties": {
         "comparison": {
           "type": "string",
-          "enum": ["exact", "byteSubstring"]
+          "enum": ["exact", "byteSubstring", "textSubstring", "byteExact", "existence", "emptiness", "entryNameEquality"]
         },
         "caseSensitive": {
           "type": "boolean"
@@ -78,50 +93,120 @@
         }
       }
     },
-    "ConformanceCase": {
+    "LogicalCompositionNormativeFields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operator", "evaluatesAllChildren", "passCondition", "emptyBlockPolicy", "emptyBlockDiagnosticCode"],
+      "properties": {
+        "operator": {
+          "type": "string",
+          "enum": ["not", "all", "any"]
+        },
+        "evaluatesAllChildren": {
+          "type": "boolean",
+          "const": true
+        },
+        "passCondition": {
+          "type": "string",
+          "enum": ["notAllChildrenPassed", "allChildrenPassed", "anyChildPassed"]
+        },
+        "emptyBlockPolicy": {
+          "type": "string",
+          "enum": ["semanticError"]
+        },
+        "emptyBlockDiagnosticCode": {
+          "type": "string"
+        }
+      }
+    },
+    "ValueReferenceNormativeFields": {
+      "type": "object",
+      "minProperties": 1,
+      "not": {
+        "anyOf": [
+          { "required": ["notes"] },
+          { "required": ["explanation"] },
+          { "required": ["aiNote"] },
+          { "required": ["rationale"] },
+          { "required": ["status"] }
+        ]
+      }
+    },
+    "EvalConformanceCase": {
+      "description": "Verified by building the normalized `assertion` into a production `Expectation` and running it through the evaluator against `checkpoint` (optionally materializing a real workspace/repor_dir on disk).",
       "type": "object",
       "additionalProperties": false,
       "required": ["description", "assertionSource", "assertion", "checkpoint", "expectedResult"],
       "properties": {
-        "description": {
-          "type": "string"
-        },
-        "assertionSource": {
-          "type": "string"
-        },
-        "assertion": {
-          "$ref": "#/$defs/Assertion"
-        },
-        "checkpoint": {
-          "$ref": "#/$defs/Checkpoint"
-        },
+        "description": { "type": "string" },
+        "assertionSource": { "type": "string" },
+        "assertion": { "$ref": "#/$defs/Assertion" },
+        "checkpoint": { "$ref": "#/$defs/Checkpoint" },
         "expectedResult": {
           "type": "string",
-          "enum": ["pass", "fail"]
+          "enum": ["pass", "fail", "scriptError"]
         },
-        "expectedDiagnosticCode": {
-          "type": "string"
-        }
+        "expectedDiagnosticCode": { "type": "string" }
+      }
+    },
+    "ParserConformanceCase": {
+      "description": "Verified by running `assertionSource` through the production parser directly, for rules that concern acceptance/rejection of syntax or a literal rather than a checkpoint comparison.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["description", "assertionSource", "expectedResult"],
+      "properties": {
+        "description": { "type": "string" },
+        "assertionSource": { "type": "string" },
+        "expectedResult": {
+          "type": "string",
+          "enum": ["valid", "parseError"]
+        },
+        "expectedDiagnosticCode": { "type": "string" }
       }
     },
     "Assertion": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["subject", "operator", "expected"],
+      "required": ["subject", "operator"],
       "properties": {
         "subject": {
           "type": "string",
-          "enum": ["exit", "stdout", "stderr"]
+          "enum": ["exit", "stdout", "stderr", "file", "dir", "logical"]
+        },
+        "path": {
+          "type": "string",
+          "description": "Required when subject is file or dir."
         },
         "operator": {
           "type": "string",
-          "enum": ["equals", "contains"]
+          "enum": ["equals", "contains", "empty", "exists", "contentsEquals", "textEquals", "not", "all", "any"]
         },
         "expected": {
           "oneOf": [
             { "type": "string" },
-            { "type": "integer" }
+            { "type": "integer" },
+            { "type": "null" },
+            { "$ref": "#/$defs/FileContentsReferenceValue" }
           ]
+        },
+        "children": {
+          "type": "array",
+          "description": "Required (non-empty) when subject is logical.",
+          "items": { "$ref": "#/$defs/Assertion" }
+        }
+      }
+    },
+    "FileContentsReferenceValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["workspacePath", "fixtureReference"]
+        },
+        "value": {
+          "type": "string"
         }
       }
     },
@@ -138,7 +223,58 @@
         },
         "stderr": {
           "$ref": "#/$defs/StreamData"
+        },
+        "workspace": {
+          "$ref": "#/$defs/WorkspaceFixtureSet"
         }
+      }
+    },
+    "WorkspaceFixtureSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkspaceFile" }
+        },
+        "dirs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "reporDirFiles": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkspaceFile" }
+        },
+        "reporDirDirs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "reporDirSymlinks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ReporDirSymlink" }
+        }
+      }
+    },
+    "ReporDirSymlink": {
+      "description": "A symlink materialized at repor_dir.join(path), pointing at a freshly created directory containing outsideDirFiles, to reproduce a symlink-escape scenario for value-reference.fixture-reference.resolve conformance cases.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "outsideDirFiles"],
+      "properties": {
+        "path": { "type": "string" },
+        "outsideDirFiles": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkspaceFile" }
+        }
+      }
+    },
+    "WorkspaceFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "contents"],
+      "properties": {
+        "path": { "type": "string" },
+        "contents": { "$ref": "#/$defs/StreamData" }
       }
     },
     "StreamData": {

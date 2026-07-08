@@ -1,7 +1,20 @@
 //! Semantic spec schema validation.
 //!
-//! Loads every `spec/language/semantics/*.json` file, deserialises it into typed Rust structs (with `deny_unknown_fields`), checks fixture consistency invariants, and runs every conformance case against the production semantic evaluator.
+//! Loads every `spec/language/semantics/*.json` file, deserialises it into typed Rust structs (with `deny_unknown_fields`), checks fixture consistency invariants, and runs every conformance case against the production semantic evaluator or parser.
 //! This is the CI-integrated validation gate that ensures semantic spec files conform to the expected schema and remain executable.
+//!
+//! Two conformance case shapes exist, because not every semantic rule is a checkpoint-field
+//! comparison (see spec/language/semantics/README.md):
+//!
+//! - An "eval case" (`assertion` + `checkpoint` present) declares a normalized assertion and
+//!   static checkpoint data, builds the corresponding production `Expectation`, and runs it
+//!   through `evaluate_expectation_at_checkpoint`. `assertion.*` and `logical-composition.*`
+//!   rules use this shape.
+//! - A "parser case" (`assertion`/`checkpoint` absent) declares a full `assertionSource` and an
+//!   expected parse outcome (`valid` or `parseError` with a diagnostic code), run through the
+//!   production parser. `value-reference.*` rules (and empty-block cases for
+//!   `logical-composition.*`) use this shape, since they concern acceptance/rejection of syntax
+//!   or a literal, not a pass/fail assertion outcome.
 
 // Serde-populated struct fields are not "used" in the conventional sense; their value comes from deserialisation rather than direct assignment.
 #![allow(dead_code)]
@@ -10,7 +23,11 @@ use base64::Engine as _;
 use reportage_core::evaluator::{
     Checkpoint as EvaluatorCheckpoint, WorkspaceState, evaluate_expectation_at_checkpoint,
 };
-use reportage_core::model::{ExitExpectation, Expectation, OutputExpectation, OutputMatcher, Step};
+use reportage_core::model::{
+    DirExpectation, DirMatcher, ExitExpectation, Expectation, FileContentsReference,
+    FileExpectation, FileMatcher, FixtureReference, LogicalExpectation, LogicalOperator,
+    OutputExpectation, OutputMatcher, Step, TextLiteral, WorkspacePath,
+};
 use reportage_core::parser::parse;
 use reportage_core::result::ActionResult;
 use serde::Deserialize;
@@ -31,107 +48,191 @@ struct SemanticSpec {
     id: String,
     category: Category,
     syntax: String,
-    normative: NormativeFields,
+    // Category-specific shape; validated separately once `category` is known (see
+    // `category_specific_normative_fields_are_well_formed`), rather than by a single struct that
+    // would have to union three unrelated shapes.
+    normative: serde_json::Value,
     #[serde(rename = "conformanceCases")]
     conformance_cases: Vec<ConformanceCase>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[serde(rename_all = "kebab-case")]
 enum Category {
     Assertion,
+    LogicalComposition,
+    ValueReference,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct NormativeFields {
-    #[serde(rename = "checkpointField")]
-    checkpoint_field: CheckpointField,
-    operator: Operator,
-    #[serde(rename = "expectedValueType")]
-    expected_value_type: ExpectedValueType,
-    #[serde(rename = "matchSemantics")]
-    match_semantics: MatchSemantics,
-}
+// ---------------------------------------------------------------------------
+// `assertion` category normative fields
+// ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 enum CheckpointField {
     ExitCode,
     Stdout,
     Stderr,
+    File,
+    Dir,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 enum ExpectedValueType {
     Uint8,
     Utf8String,
+    FileContentsReference,
+    #[serde(rename = "none")]
+    NoValue,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
-enum Operator {
-    Equals,
-    Contains,
+enum Comparison {
+    /// Exact equality over a scalar value (e.g. `exit`'s `uint8`).
+    Exact,
+    /// Substring search over raw bytes (`stdout`/`stderr contains`).
+    ByteSubstring,
+    /// Substring search over decoded UTF-8 text (`file contains`).
+    TextSubstring,
+    /// Exact equality over a full byte buffer, no normalization (`contents_equals`/`text_equals`).
+    ByteExact,
+    /// Filesystem presence-and-type check (`exists`).
+    Existence,
+    /// Byte-length-zero check (`empty`).
+    Emptiness,
+    /// Exact match against one member of a directory entry name set (`dir contains`).
+    EntryNameEquality,
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct MatchSemantics {
     comparison: Comparison,
-    #[serde(rename = "caseSensitive")]
     case_sensitive: Option<bool>,
-    #[serde(rename = "lineEndingNormalization")]
     line_ending_normalization: Option<bool>,
-    #[serde(rename = "emptyExpectedAlwaysMatches")]
     empty_expected_always_matches: Option<bool>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct AssertionNormative {
+    checkpoint_field: CheckpointField,
+    operator: AssertionOperator,
+    expected_value_type: ExpectedValueType,
+    match_semantics: MatchSemantics,
+    /// Cross-reference to the `value-reference.*` rule governing this rule's expected-value
+    /// resolution, if any (e.g. `assertion.file.contents_equals` references
+    /// `value-reference.file-contents-reference.resolve`).
+    #[serde(default)]
+    referenced_value_reference_rule: Option<String>,
+    /// Expected-value categories this rule's `expectedValueType` never implicitly converts from.
+    #[serde(default)]
+    no_implicit_conversion_from: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
+// `logical-composition` category normative fields
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
-enum Comparison {
-    Exact,
-    ByteSubstring,
+enum LogicalOperatorId {
+    Not,
+    All,
+    Any,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+enum PassCondition {
+    NotAllChildrenPassed,
+    AllChildrenPassed,
+    AnyChildPassed,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+enum EmptyBlockPolicy {
+    SemanticError,
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ConformanceCase {
-    description: String,
-    #[serde(rename = "assertionSource")]
-    assertion_source: String,
-    assertion: Assertion,
-    checkpoint: Checkpoint,
-    #[serde(rename = "expectedResult")]
-    expected_result: ExpectedResult,
-    #[serde(rename = "expectedDiagnosticCode")]
-    expected_diagnostic_code: Option<String>,
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct LogicalCompositionNormative {
+    operator: LogicalOperatorId,
+    evaluates_all_children: bool,
+    pass_condition: PassCondition,
+    empty_block_policy: EmptyBlockPolicy,
+    empty_block_diagnostic_code: String,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Assertion {
-    subject: AssertionSubject,
-    operator: Operator,
-    expected: serde_json::Value,
-}
+// ---------------------------------------------------------------------------
+// Conformance cases: normalized assertion / checkpoint (shared by `assertion` and
+// `logical-composition`), and their JSON building blocks
+// ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 enum AssertionSubject {
     Exit,
     Stdout,
     Stderr,
+    File,
+    Dir,
+    Logical,
 }
 
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+enum AssertionOperator {
+    Equals,
+    Contains,
+    Empty,
+    Exists,
+    ContentsEquals,
+    TextEquals,
+    Not,
+    All,
+    Any,
+}
+
+/// A normalized assertion. `path` is required (by `expectation_from_assertion`, not by serde) when
+/// `subject` is `file`/`dir`; `children` is required and recurses when `subject` is `logical`.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Checkpoint {
-    #[serde(rename = "exitCode")]
-    exit_code: i32,
-    stdout: StreamData,
-    stderr: StreamData,
+struct Assertion {
+    subject: AssertionSubject,
+    path: Option<String>,
+    operator: AssertionOperator,
+    #[serde(default)]
+    expected: serde_json::Value,
+    #[serde(default)]
+    children: Vec<Assertion>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+enum FileContentsReferenceKind {
+    WorkspacePath,
+    FixtureReference,
+}
+
+/// The JSON shape of a `contents_equals`-family expected value: `{"kind": ..., "value": ...}`,
+/// mirroring `FileContentsReference = WorkspacePath | FixtureReference`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct FileContentsReferenceValue {
+    kind: FileContentsReferenceKind,
+    value: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+enum Encoding {
+    Base64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -142,21 +243,114 @@ struct StreamData {
     text: Option<String>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-enum Encoding {
-    Base64,
+/// A file materialized on disk before a conformance case runs: under the case workspace root
+/// (`checkpoint.workspace.files`) or under `repor_dir` (`checkpoint.workspace.reporDirFiles`, for
+/// resolving a `contents_equals` expected `@"..."` fixture reference).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WorkspaceFile {
+    path: String,
+    contents: StreamData,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, Default)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct WorkspaceFixtureSet {
+    #[serde(default)]
+    files: Vec<WorkspaceFile>,
+    /// Empty directories to create under the case workspace root, for `dir`/`file` cases that
+    /// need to observe a path that exists but is not a regular file.
+    #[serde(default)]
+    dirs: Vec<String>,
+    #[serde(default)]
+    repor_dir_files: Vec<WorkspaceFile>,
+    #[serde(default)]
+    repor_dir_dirs: Vec<String>,
+    /// Symlinks created under `repor_dir`, each pointing at a directory materialized outside both
+    /// the case workspace and `repor_dir`. Lets a fixture-reference conformance case reproduce the
+    /// symlink-escape scenario `fixture::resolve_fixture_source` guards against: a fixture path
+    /// with no `.`/`..` segment that still escapes `repor_dir` because a symlink planted under it
+    /// points elsewhere.
+    #[serde(default)]
+    repor_dir_symlinks: Vec<ReporDirSymlink>,
+}
+
+/// A symlink materialized at `repor_dir.join(path)`, pointing at a freshly created directory
+/// containing `outside_dir_files`. See `WorkspaceFixtureSet::repor_dir_symlinks`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct ReporDirSymlink {
+    path: String,
+    outside_dir_files: Vec<WorkspaceFile>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct Checkpoint {
+    exit_code: i32,
+    stdout: StreamData,
+    stderr: StreamData,
+    workspace: Option<WorkspaceFixtureSet>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
-enum ExpectedResult {
+enum EvalExpectedResult {
     Pass,
     Fail,
+    /// The expected value failed to resolve (e.g. a missing `contents_equals` expected file): a
+    /// test-definition problem, surfaced as `evaluate_expectation_at_checkpoint`'s `Err`, never as
+    /// an assertion pass/fail.
+    ScriptError,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct EvalCase {
+    description: String,
+    assertion_source: String,
+    assertion: Assertion,
+    checkpoint: Checkpoint,
+    expected_result: EvalExpectedResult,
+    expected_diagnostic_code: Option<String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+enum ParserExpectedResult {
+    Valid,
+    ParseError,
+}
+
+/// A conformance case verified against the production parser directly, for rules that concern
+/// acceptance/rejection of syntax or a literal rather than a checkpoint comparison.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct ParserCase {
+    description: String,
+    assertion_source: String,
+    expected_result: ParserExpectedResult,
+    expected_diagnostic_code: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum ConformanceCase {
+    Eval(EvalCase),
+    Parser(ParserCase),
+}
+
+impl ConformanceCase {
+    fn description(&self) -> &str {
+        match self {
+            ConformanceCase::Eval(c) => &c.description,
+            ConformanceCase::Parser(c) => &c.description,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers: loading spec files
 // ---------------------------------------------------------------------------
 
 fn spec_dir() -> PathBuf {
@@ -208,92 +402,440 @@ fn decode_base64_stream(stream: &StreamData) -> Vec<u8> {
         .unwrap_or_else(|e| panic!("invalid base64 in stream data '{}': {}", stream.data, e))
 }
 
-fn checkpoint_for_case(case: &ConformanceCase) -> EvaluatorCheckpoint {
-    EvaluatorCheckpoint {
-        // These conformance cases only exercise process expectations (exit/stdout/stderr),
-        // never workspace expectations, so the root value itself is inert here.
+/// Every `StreamData` reachable from an eval case, labelled for failure messages.
+fn stream_data_entries(case: &EvalCase) -> Vec<(String, &StreamData)> {
+    let mut entries = vec![
+        ("checkpoint.stdout".to_string(), &case.checkpoint.stdout),
+        ("checkpoint.stderr".to_string(), &case.checkpoint.stderr),
+    ];
+    if let Some(ws) = &case.checkpoint.workspace {
+        for (i, f) in ws.files.iter().enumerate() {
+            entries.push((
+                format!("checkpoint.workspace.files[{i}] ({})", f.path),
+                &f.contents,
+            ));
+        }
+        for (i, f) in ws.repor_dir_files.iter().enumerate() {
+            entries.push((
+                format!("checkpoint.workspace.reporDirFiles[{i}] ({})", f.path),
+                &f.contents,
+            ));
+        }
+    }
+    entries
+}
+
+// ---------------------------------------------------------------------------
+// Helpers: materializing a real workspace/repor_dir for an eval case
+// ---------------------------------------------------------------------------
+
+/// Owns the temporary directories (if any) backing a materialized checkpoint, so they stay alive
+/// for the duration of evaluation. Dropped (and deleted) at the end of the owning scope.
+struct CheckpointMaterialization {
+    checkpoint: EvaluatorCheckpoint,
+    _workspace_dir: Option<tempfile::TempDir>,
+    _repor_dir: Option<tempfile::TempDir>,
+    /// Directories a `repor_dir_symlinks` entry points at; kept alive alongside `_repor_dir`.
+    _symlink_targets: Vec<tempfile::TempDir>,
+}
+
+#[cfg(unix)]
+fn create_symlink(original: &std::path::Path, link: &std::path::Path) {
+    std::os::unix::fs::symlink(original, link).unwrap_or_else(|e| {
+        panic!(
+            "cannot create symlink {} -> {}: {}",
+            link.display(),
+            original.display(),
+            e
+        )
+    });
+}
+
+#[cfg(not(unix))]
+fn create_symlink(_original: &std::path::Path, _link: &std::path::Path) {
+    panic!("reporDirSymlinks conformance cases require a Unix target (CI runs on ubuntu-latest)");
+}
+
+fn write_workspace_file(root: &std::path::Path, file: &WorkspaceFile) {
+    let target = root.join(&file.path);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)
+            .unwrap_or_else(|e| panic!("cannot create dir {}: {}", parent.display(), e));
+    }
+    fs::write(&target, decode_base64_stream(&file.contents))
+        .unwrap_or_else(|e| panic!("cannot write {}: {}", target.display(), e));
+}
+
+fn checkpoint_for_case(case: &EvalCase) -> CheckpointMaterialization {
+    let workspace = case.checkpoint.workspace.as_ref();
+
+    // These conformance cases only exercise process expectations (exit/stdout/stderr) when
+    // `workspace` is absent, so `.` is inert there, exactly as before file/dir rules existed.
+    let (workspace_root, workspace_dir) = match workspace {
+        Some(ws) if !ws.files.is_empty() || !ws.dirs.is_empty() => {
+            let dir = tempfile::TempDir::new().expect("failed to create conformance workspace");
+            for file in &ws.files {
+                write_workspace_file(dir.path(), file);
+            }
+            for d in &ws.dirs {
+                fs::create_dir_all(dir.path().join(d))
+                    .unwrap_or_else(|e| panic!("cannot create dir {d}: {e}"));
+            }
+            (dir.path().to_path_buf(), Some(dir))
+        }
+        _ => (PathBuf::from("."), None),
+    };
+
+    let needs_repor_dir = workspace.is_some_and(|ws| {
+        !ws.repor_dir_files.is_empty()
+            || !ws.repor_dir_dirs.is_empty()
+            || !ws.repor_dir_symlinks.is_empty()
+    });
+    let mut symlink_targets = Vec::new();
+    let (repor_dir_path, repor_dir) = if needs_repor_dir {
+        let ws = workspace.expect("needs_repor_dir implies workspace is Some");
+        let dir = tempfile::TempDir::new().expect("failed to create conformance repor_dir");
+        for file in &ws.repor_dir_files {
+            write_workspace_file(dir.path(), file);
+        }
+        for d in &ws.repor_dir_dirs {
+            fs::create_dir_all(dir.path().join(d))
+                .unwrap_or_else(|e| panic!("cannot create dir {d}: {e}"));
+        }
+        for sym in &ws.repor_dir_symlinks {
+            let target_dir =
+                tempfile::TempDir::new().expect("failed to create conformance symlink target dir");
+            for file in &sym.outside_dir_files {
+                write_workspace_file(target_dir.path(), file);
+            }
+            create_symlink(target_dir.path(), &dir.path().join(&sym.path));
+            symlink_targets.push(target_dir);
+        }
+        (dir.path().to_path_buf(), Some(dir))
+    } else {
+        (PathBuf::from("."), None)
+    };
+
+    let checkpoint = EvaluatorCheckpoint {
         workspace: WorkspaceState {
-            root: PathBuf::from("."),
+            root: workspace_root,
         },
         last_action: Some(ActionResult {
             command: "<semantic conformance checkpoint>".to_string(),
-            exit_code: case.checkpoint.exit_code,
             // Raw bytes, not lossy-decoded text: the evaluator's stdout/stderr semantics are
-            // defined over raw process output bytes (see docs/semantics.md and the raw byte
-            // semantics ADR), so the fixture harness must feed it the same raw bytes production
-            // capture would, not a UTF-8-lossy reinterpretation of them.
+            // defined over raw process output bytes, so the fixture harness must feed it the same
+            // raw bytes production capture would.
+            exit_code: case.checkpoint.exit_code,
             stdout: decode_base64_stream(&case.checkpoint.stdout),
             stderr: decode_base64_stream(&case.checkpoint.stderr),
             shim_invocations: vec![],
             shim_event_parse_warnings: vec![],
         }),
-        // Inert for the same reason as `workspace.root`: these conformance cases never exercise
-        // `contents_equals`, so no fixture reference is ever resolved against this directory.
-        repor_dir: PathBuf::from("."),
+        repor_dir: repor_dir_path,
+    };
+
+    CheckpointMaterialization {
+        checkpoint,
+        _workspace_dir: workspace_dir,
+        _repor_dir: repor_dir,
+        _symlink_targets: symlink_targets,
     }
 }
 
-fn expectation_from_normalized_assertion(case: &ConformanceCase) -> Expectation {
-    match case.assertion.subject {
+// ---------------------------------------------------------------------------
+// Helpers: building a production `Expectation` from a normalized `Assertion`
+// ---------------------------------------------------------------------------
+
+fn json_expected_u8(expected: &serde_json::Value, label: &str) -> u8 {
+    let value = expected
+        .as_u64()
+        .or_else(|| expected.as_i64().filter(|&v| v >= 0).map(|v| v as u64))
+        .unwrap_or_else(|| {
+            panic!("{label}: expected must be a non-negative integer, got {expected:?}")
+        });
+    u8::try_from(value).unwrap_or_else(|_| panic!("{label}: expected {value} does not fit in u8"))
+}
+
+fn json_expected_str<'a>(expected: &'a serde_json::Value, label: &str) -> &'a str {
+    expected
+        .as_str()
+        .unwrap_or_else(|| panic!("{label}: expected must be a string, got {expected:?}"))
+}
+
+fn file_contents_reference_from_json(
+    expected: &serde_json::Value,
+    label: &str,
+) -> FileContentsReference {
+    let value: FileContentsReferenceValue = serde_json::from_value(expected.clone())
+        .unwrap_or_else(|e| {
+            panic!("{label}: expected must be a FileContentsReference object {{kind,value}}: {e}")
+        });
+    match value.kind {
+        FileContentsReferenceKind::WorkspacePath => FileContentsReference::Workspace(
+            WorkspacePath::parse(&value.value).unwrap_or_else(|e| {
+                panic!(
+                    "{label}: expected.value {:?} is not a valid workspace path: {e:?}",
+                    value.value
+                )
+            }),
+        ),
+        FileContentsReferenceKind::FixtureReference => FileContentsReference::Fixture(
+            FixtureReference::parse(&value.value).unwrap_or_else(|e| {
+                panic!(
+                    "{label}: expected.value {:?} is not a valid fixture reference: {e:?}",
+                    value.value
+                )
+            }),
+        ),
+    }
+}
+
+fn expectation_from_assertion(a: &Assertion, description: &str) -> Expectation {
+    match a.subject {
         AssertionSubject::Exit => {
             assert_eq!(
-                case.assertion.operator,
-                Operator::Equals,
-                "case '{}': exit assertions must use equals",
-                case.description
+                a.operator,
+                AssertionOperator::Equals,
+                "case '{description}': exit assertions must use equals"
             );
-            let expected = case
-                .assertion
-                .expected
-                .as_u64()
-                .or_else(|| {
-                    case.assertion
-                        .expected
-                        .as_i64()
-                        .filter(|&v| v >= 0)
-                        .map(|v| v as u64)
-                })
-                .expect("exit expected must be a non-negative integer");
-            let expected = u8::try_from(expected).expect("exit expected must fit in u8");
-            Expectation::Exit(ExitExpectation { expected })
-        }
-        AssertionSubject::Stdout => {
-            assert_eq!(
-                case.assertion.operator,
-                Operator::Contains,
-                "case '{}': stdout assertions must use contains",
-                case.description
-            );
-            let expected = case
-                .assertion
-                .expected
-                .as_str()
-                .expect("stdout expected must be a string");
-            Expectation::Stdout(OutputExpectation {
-                matcher: OutputMatcher::Contains(expected.to_string()),
+            Expectation::Exit(ExitExpectation {
+                expected: json_expected_u8(&a.expected, description),
             })
         }
-        AssertionSubject::Stderr => {
-            assert_eq!(
-                case.assertion.operator,
-                Operator::Contains,
-                "case '{}': stderr assertions must use contains",
-                case.description
+        AssertionSubject::Stdout | AssertionSubject::Stderr => {
+            let matcher = match a.operator {
+                AssertionOperator::Contains => {
+                    OutputMatcher::Contains(json_expected_str(&a.expected, description).to_string())
+                }
+                AssertionOperator::Empty => OutputMatcher::Empty,
+                other => {
+                    panic!("case '{description}': unsupported stdout/stderr operator {other:?}")
+                }
+            };
+            match a.subject {
+                AssertionSubject::Stdout => Expectation::Stdout(OutputExpectation { matcher }),
+                AssertionSubject::Stderr => Expectation::Stderr(OutputExpectation { matcher }),
+                _ => unreachable!(),
+            }
+        }
+        AssertionSubject::File => {
+            let path = a
+                .path
+                .clone()
+                .unwrap_or_else(|| panic!("case '{description}': file assertion requires 'path'"));
+            let matcher = match a.operator {
+                AssertionOperator::Exists => FileMatcher::Exists,
+                AssertionOperator::Contains => FileMatcher::Contains(TextLiteral::Quoted(
+                    json_expected_str(&a.expected, description).to_string(),
+                )),
+                AssertionOperator::ContentsEquals => FileMatcher::ContentsEquals(
+                    file_contents_reference_from_json(&a.expected, description),
+                ),
+                AssertionOperator::TextEquals => FileMatcher::TextEquals(TextLiteral::Quoted(
+                    json_expected_str(&a.expected, description).to_string(),
+                )),
+                other => panic!("case '{description}': unsupported file operator {other:?}"),
+            };
+            Expectation::File(FileExpectation { path, matcher })
+        }
+        AssertionSubject::Dir => {
+            let path = a
+                .path
+                .clone()
+                .unwrap_or_else(|| panic!("case '{description}': dir assertion requires 'path'"));
+            let matcher = match a.operator {
+                AssertionOperator::Exists => DirMatcher::Exists,
+                AssertionOperator::Contains => {
+                    DirMatcher::Contains(json_expected_str(&a.expected, description).to_string())
+                }
+                other => panic!("case '{description}': unsupported dir operator {other:?}"),
+            };
+            Expectation::Dir(DirExpectation { path, matcher })
+        }
+        AssertionSubject::Logical => {
+            let operator = match a.operator {
+                AssertionOperator::Not => LogicalOperator::Not,
+                AssertionOperator::All => LogicalOperator::All,
+                AssertionOperator::Any => LogicalOperator::Any,
+                other => panic!("case '{description}': unsupported logical operator {other:?}"),
+            };
+            assert!(
+                !a.children.is_empty(),
+                "case '{description}': logical assertion requires non-empty 'children'"
             );
-            let expected = case
-                .assertion
-                .expected
-                .as_str()
-                .expect("stderr expected must be a string");
-            Expectation::Stderr(OutputExpectation {
-                matcher: OutputMatcher::Contains(expected.to_string()),
-            })
+            let children: Vec<Expectation> = a
+                .children
+                .iter()
+                .map(|c| expectation_from_assertion(c, description))
+                .collect();
+            Expectation::Logical(
+                LogicalExpectation::new(operator, children)
+                    .unwrap_or_else(|e| panic!("case '{description}': {e:?}")),
+            )
         }
     }
 }
 
 // ---------------------------------------------------------------------------
-// Tests
+// Helpers: cross-checking `assertionSource` against the normalized `assertion`
+// ---------------------------------------------------------------------------
+
+fn assert_file_contents_reference_matches(
+    parsed: &FileContentsReference,
+    declared_expected: &serde_json::Value,
+    description: &str,
+) {
+    let declared: FileContentsReferenceValue = serde_json::from_value(declared_expected.clone())
+        .unwrap_or_else(|e| {
+            panic!(
+                "case '{description}': declared expected is not a FileContentsReference object: {e}"
+            )
+        });
+    match (parsed, declared.kind) {
+        (FileContentsReference::Workspace(p), FileContentsReferenceKind::WorkspacePath) => {
+            assert_eq!(
+                p.as_str(),
+                declared.value,
+                "case '{description}': workspace path mismatch"
+            );
+        }
+        (FileContentsReference::Fixture(f), FileContentsReferenceKind::FixtureReference) => {
+            assert_eq!(
+                f.as_str(),
+                declared.value,
+                "case '{description}': fixture reference mismatch"
+            );
+        }
+        (parsed, kind) => panic!(
+            "case '{description}': parsed file contents reference {parsed:?} does not match declared kind {kind:?}"
+        ),
+    }
+}
+
+fn assert_expectation_matches_assertion(
+    parsed: &Expectation,
+    declared: &Assertion,
+    description: &str,
+) {
+    match (parsed, declared.subject) {
+        (Expectation::Exit(e), AssertionSubject::Exit) => {
+            assert_eq!(
+                declared.operator,
+                AssertionOperator::Equals,
+                "case '{description}': exit assertion must declare equals"
+            );
+            assert_eq!(
+                e.expected,
+                json_expected_u8(&declared.expected, description),
+                "case '{description}': exit expected mismatch"
+            );
+        }
+        (Expectation::Stdout(e), AssertionSubject::Stdout)
+        | (Expectation::Stderr(e), AssertionSubject::Stderr) => {
+            match (&e.matcher, declared.operator) {
+                (OutputMatcher::Contains(s), AssertionOperator::Contains) => assert_eq!(
+                    s.as_str(),
+                    json_expected_str(&declared.expected, description),
+                    "case '{description}': contains expected mismatch"
+                ),
+                (OutputMatcher::Empty, AssertionOperator::Empty) => {}
+                (matcher, operator) => panic!(
+                    "case '{description}': parsed matcher {matcher:?} does not match declared operator {operator:?}"
+                ),
+            }
+        }
+        (Expectation::File(f), AssertionSubject::File) => {
+            assert_eq!(
+                Some(f.path.as_str()),
+                declared.path.as_deref(),
+                "case '{description}': file path mismatch"
+            );
+            match (&f.matcher, declared.operator) {
+                (FileMatcher::Exists, AssertionOperator::Exists) => {}
+                (FileMatcher::Contains(t), AssertionOperator::Contains) => assert_eq!(
+                    t.to_text_value().as_str(),
+                    json_expected_str(&declared.expected, description),
+                    "case '{description}': file contains expected mismatch"
+                ),
+                (FileMatcher::ContentsEquals(r), AssertionOperator::ContentsEquals) => {
+                    assert_file_contents_reference_matches(r, &declared.expected, description);
+                }
+                (FileMatcher::TextEquals(t), AssertionOperator::TextEquals) => assert_eq!(
+                    t.to_text_value().as_str(),
+                    json_expected_str(&declared.expected, description),
+                    "case '{description}': file text_equals expected mismatch"
+                ),
+                (matcher, operator) => panic!(
+                    "case '{description}': parsed file matcher {matcher:?} does not match declared operator {operator:?}"
+                ),
+            }
+        }
+        (Expectation::Dir(d), AssertionSubject::Dir) => {
+            assert_eq!(
+                Some(d.path.as_str()),
+                declared.path.as_deref(),
+                "case '{description}': dir path mismatch"
+            );
+            match (&d.matcher, declared.operator) {
+                (DirMatcher::Exists, AssertionOperator::Exists) => {}
+                (DirMatcher::Contains(name), AssertionOperator::Contains) => assert_eq!(
+                    name.as_str(),
+                    json_expected_str(&declared.expected, description),
+                    "case '{description}': dir contains expected mismatch"
+                ),
+                (matcher, operator) => panic!(
+                    "case '{description}': parsed dir matcher {matcher:?} does not match declared operator {operator:?}"
+                ),
+            }
+        }
+        (Expectation::Logical(l), AssertionSubject::Logical) => {
+            let operator_matches = matches!(
+                (l.operator(), declared.operator),
+                (LogicalOperator::Not, AssertionOperator::Not)
+                    | (LogicalOperator::All, AssertionOperator::All)
+                    | (LogicalOperator::Any, AssertionOperator::Any)
+            );
+            assert!(
+                operator_matches,
+                "case '{description}': logical operator mismatch"
+            );
+            assert_eq!(
+                l.children().len(),
+                declared.children.len(),
+                "case '{description}': logical children count mismatch"
+            );
+            for (parsed_child, declared_child) in l.children().iter().zip(declared.children.iter())
+            {
+                assert_expectation_matches_assertion(parsed_child, declared_child, description);
+            }
+        }
+        (parsed, subject) => panic!(
+            "case '{description}': parsed expectation {parsed:?} does not match declared subject {subject:?}"
+        ),
+    }
+}
+
+fn assert_source_matches_assertion(source: &str, declared: &Assertion, description: &str) {
+    let script_src = format!("case \"c\" {{\n  assert {{\n    {source}\n  }}\n}}\n");
+    let script = parse(&script_src).unwrap_or_else(|e| {
+        panic!("case '{description}': failed to parse assertionSource '{source}': {e}")
+    });
+    let block = match &script.cases[0].steps[0] {
+        Step::AssertionBlock(b) => b,
+        other => panic!(
+            "case '{description}': assertionSource '{source}' did not parse to an assertion block: {other:?}"
+        ),
+    };
+    assert_eq!(
+        block.expectations().len(),
+        1,
+        "case '{description}': assertionSource '{source}' must parse to exactly one expectation"
+    );
+    assert_expectation_matches_assertion(&block.expectations()[0], declared, description);
+}
+
+// ---------------------------------------------------------------------------
+// Tests: structural
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -337,13 +879,19 @@ fn all_specs_have_schema_version_1() {
 }
 
 #[test]
-fn all_specs_have_assertion_category() {
-    for (path, spec) in load_spec_files() {
-        assert_eq!(
-            spec.category,
-            Category::Assertion,
-            "{}: unexpected category",
-            path.display()
+fn every_rule_category_has_at_least_one_spec() {
+    let categories: std::collections::BTreeSet<Category> = load_spec_files()
+        .into_iter()
+        .map(|(_, spec)| spec.category)
+        .collect();
+    for expected in [
+        Category::Assertion,
+        Category::LogicalComposition,
+        Category::ValueReference,
+    ] {
+        assert!(
+            categories.iter().any(|c| *c == expected),
+            "no semantic spec file uses category {expected:?}"
         );
     }
 }
@@ -387,142 +935,6 @@ fn all_spec_ids_are_non_empty_and_dot_separated() {
 }
 
 #[test]
-fn stream_data_text_matches_base64_decoded_data() {
-    // If `text` is present, it must equal the UTF-8 decoding of base64-decoded `data`.
-    // This is a fixture consistency check, not a semantic rule.
-    for (path, spec) in load_spec_files() {
-        for (i, case) in spec.conformance_cases.iter().enumerate() {
-            for (stream_name, stream) in [
-                ("stdout", &case.checkpoint.stdout),
-                ("stderr", &case.checkpoint.stderr),
-            ] {
-                if let Some(text) = &stream.text {
-                    let decoded = decode_base64_stream(stream);
-                    let decoded_str = std::str::from_utf8(&decoded).unwrap_or_else(|e| {
-                        panic!(
-                            "{} case[{}] {}: base64 data is not valid UTF-8: {}",
-                            path.display(),
-                            i,
-                            stream_name,
-                            e
-                        )
-                    });
-                    assert_eq!(
-                        decoded_str,
-                        text.as_str(),
-                        "{} case[{}] {}: text does not match base64-decoded data",
-                        path.display(),
-                        i,
-                        stream_name
-                    );
-                }
-            }
-        }
-    }
-}
-
-#[test]
-fn all_stream_data_bytes_are_valid_base64() {
-    // Validates every data field as base64, regardless of whether text is present.
-    // text is optional (non-UTF-8 fixtures may omit it), but data is always normative.
-    for (path, spec) in load_spec_files() {
-        for (i, case) in spec.conformance_cases.iter().enumerate() {
-            for (stream_name, stream) in [
-                ("stdout", &case.checkpoint.stdout),
-                ("stderr", &case.checkpoint.stderr),
-            ] {
-                if !stream.data.is_empty() {
-                    base64::engine::general_purpose::STANDARD
-                        .decode(&stream.data)
-                        .unwrap_or_else(|e| {
-                            panic!(
-                                "{} case[{}] {}: data is not valid base64: {}",
-                                path.display(),
-                                i,
-                                stream_name,
-                                e
-                            )
-                        });
-                }
-            }
-        }
-    }
-}
-
-#[test]
-fn exit_assertion_expected_is_integer() {
-    for (path, spec) in load_spec_files() {
-        for (i, case) in spec.conformance_cases.iter().enumerate() {
-            if case.assertion.subject == AssertionSubject::Exit {
-                assert!(
-                    case.assertion.expected.is_i64() || case.assertion.expected.is_u64(),
-                    "{} case[{}]: exit assertion expected must be an integer, got {:?}",
-                    path.display(),
-                    i,
-                    case.assertion.expected
-                );
-            }
-        }
-    }
-}
-
-#[test]
-fn exit_assertion_expected_is_in_uint8_range() {
-    for (path, spec) in load_spec_files() {
-        for (i, case) in spec.conformance_cases.iter().enumerate() {
-            if case.assertion.subject == AssertionSubject::Exit {
-                let value = case
-                    .assertion
-                    .expected
-                    .as_u64()
-                    .or_else(|| {
-                        case.assertion
-                            .expected
-                            .as_i64()
-                            .filter(|&v| v >= 0)
-                            .map(|v| v as u64)
-                    })
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "{} case[{}]: exit expected {:?} is negative or not a number",
-                            path.display(),
-                            i,
-                            case.assertion.expected
-                        )
-                    });
-                assert!(
-                    value <= 255,
-                    "{} case[{}]: exit expected {} is out of uint8 range 0-255",
-                    path.display(),
-                    i,
-                    value
-                );
-            }
-        }
-    }
-}
-
-#[test]
-fn stdout_stderr_assertion_expected_is_string() {
-    for (path, spec) in load_spec_files() {
-        for (i, case) in spec.conformance_cases.iter().enumerate() {
-            if matches!(
-                case.assertion.subject,
-                AssertionSubject::Stdout | AssertionSubject::Stderr
-            ) {
-                assert!(
-                    case.assertion.expected.is_string(),
-                    "{} case[{}]: stdout/stderr assertion expected must be a string, got {:?}",
-                    path.display(),
-                    i,
-                    case.assertion.expected
-                );
-            }
-        }
-    }
-}
-
-#[test]
 fn all_spec_ids_match_filenames() {
     for (path, spec) in load_spec_files() {
         let expected_id = path
@@ -537,28 +949,6 @@ fn all_spec_ids_match_filenames() {
             spec.id,
             expected_id
         );
-    }
-}
-
-#[test]
-fn conformance_case_subjects_match_normative_checkpoint_field() {
-    for (path, spec) in load_spec_files() {
-        for (i, case) in spec.conformance_cases.iter().enumerate() {
-            let subject_matches = matches!(
-                (&case.assertion.subject, &spec.normative.checkpoint_field),
-                (AssertionSubject::Exit, CheckpointField::ExitCode)
-                    | (AssertionSubject::Stdout, CheckpointField::Stdout)
-                    | (AssertionSubject::Stderr, CheckpointField::Stderr)
-            );
-            assert!(
-                subject_matches,
-                "{} case[{}]: assertion subject {:?} does not match normative checkpointField {:?}",
-                path.display(),
-                i,
-                case.assertion.subject,
-                spec.normative.checkpoint_field
-            );
-        }
     }
 }
 
@@ -586,107 +976,266 @@ fn v0_required_spec_ids_are_all_present() {
     }
 }
 
+const BANNED_NORMATIVE_KEYS: &[&str] = &["notes", "explanation", "aiNote", "rationale", "status"];
+
+fn assert_no_banned_keys(value: &serde_json::Value, path: &std::path::Path) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, v) in map {
+                assert!(
+                    !BANNED_NORMATIVE_KEYS.contains(&key.as_str()),
+                    "{}: normative field '{}' is a banned free-form/rationale key; \
+                     rationale belongs in an ADR, TBD items in docs/TBD.md",
+                    path.display(),
+                    key
+                );
+                assert_no_banned_keys(v, path);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                assert_no_banned_keys(item, path);
+            }
+        }
+        _ => {}
+    }
+}
+
 #[test]
-fn conformance_case_operators_match_normative_operator() {
+fn no_semantic_spec_normative_field_contains_banned_keys() {
     for (path, spec) in load_spec_files() {
-        for (i, case) in spec.conformance_cases.iter().enumerate() {
+        assert_no_banned_keys(&spec.normative, &path);
+    }
+}
+
+#[test]
+fn category_specific_normative_fields_are_well_formed() {
+    for (path, spec) in load_spec_files() {
+        match spec.category {
+            Category::Assertion => {
+                let _: AssertionNormative = serde_json::from_value(spec.normative.clone())
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "{}: invalid assertion normative fields: {}",
+                            path.display(),
+                            e
+                        )
+                    });
+            }
+            Category::LogicalComposition => {
+                let _: LogicalCompositionNormative = serde_json::from_value(spec.normative.clone())
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "{}: invalid logical-composition normative fields: {}",
+                            path.display(),
+                            e
+                        )
+                    });
+            }
+            Category::ValueReference => {
+                // value-reference rules are heterogeneous point-facts about a single literal kind
+                // or resolution policy, not a uniform operator/comparison model, so normative
+                // fields are a free-form (but non-empty, banned-key-free) object rather than a
+                // single shared struct.
+                let obj = spec.normative.as_object().unwrap_or_else(|| {
+                    panic!("{}: normative must be a JSON object", path.display())
+                });
+                assert!(
+                    !obj.is_empty(),
+                    "{}: normative must not be empty",
+                    path.display()
+                );
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests: eval-case (`assertion` + `checkpoint`) structural invariants
+// ---------------------------------------------------------------------------
+
+#[test]
+fn stream_data_text_matches_base64_decoded_data() {
+    // If `text` is present, it must equal the UTF-8 decoding of base64-decoded `data`.
+    // This is a fixture consistency check, not a semantic rule.
+    for (path, spec) in load_spec_files() {
+        for case in &spec.conformance_cases {
+            let ConformanceCase::Eval(case) = case else {
+                continue;
+            };
+            for (label, stream) in stream_data_entries(case) {
+                if let Some(text) = &stream.text {
+                    let decoded = decode_base64_stream(stream);
+                    let decoded_str = std::str::from_utf8(&decoded).unwrap_or_else(|e| {
+                        panic!(
+                            "{} case '{}' {}: base64 data is not valid UTF-8: {}",
+                            path.display(),
+                            case.description,
+                            label,
+                            e
+                        )
+                    });
+                    assert_eq!(
+                        decoded_str,
+                        text.as_str(),
+                        "{} case '{}' {}: text does not match base64-decoded data",
+                        path.display(),
+                        case.description,
+                        label
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn all_stream_data_bytes_are_valid_base64() {
+    for (path, spec) in load_spec_files() {
+        for case in &spec.conformance_cases {
+            let ConformanceCase::Eval(case) = case else {
+                continue;
+            };
+            for (label, stream) in stream_data_entries(case) {
+                if !stream.data.is_empty() {
+                    base64::engine::general_purpose::STANDARD
+                        .decode(&stream.data)
+                        .unwrap_or_else(|e| {
+                            panic!(
+                                "{} case '{}' {}: data is not valid base64: {}",
+                                path.display(),
+                                case.description,
+                                label,
+                                e
+                            )
+                        });
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn exit_assertion_expected_is_integer() {
+    for (path, spec) in load_spec_files() {
+        for case in &spec.conformance_cases {
+            let ConformanceCase::Eval(case) = case else {
+                continue;
+            };
+            if case.assertion.subject == AssertionSubject::Exit {
+                assert!(
+                    case.assertion.expected.is_i64() || case.assertion.expected.is_u64(),
+                    "{} case '{}': exit assertion expected must be an integer, got {:?}",
+                    path.display(),
+                    case.description,
+                    case.assertion.expected
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn exit_assertion_expected_is_in_uint8_range() {
+    for (path, spec) in load_spec_files() {
+        for case in &spec.conformance_cases {
+            let ConformanceCase::Eval(case) = case else {
+                continue;
+            };
+            if case.assertion.subject == AssertionSubject::Exit {
+                let label = format!("{} case '{}'", path.display(), case.description);
+                let _ = json_expected_u8(&case.assertion.expected, &label);
+            }
+        }
+    }
+}
+
+#[test]
+fn stdout_stderr_contains_expected_is_string() {
+    for (path, spec) in load_spec_files() {
+        for case in &spec.conformance_cases {
+            let ConformanceCase::Eval(case) = case else {
+                continue;
+            };
+            let is_stdout_or_stderr = matches!(
+                case.assertion.subject,
+                AssertionSubject::Stdout | AssertionSubject::Stderr
+            );
+            if is_stdout_or_stderr && case.assertion.operator == AssertionOperator::Contains {
+                assert!(
+                    case.assertion.expected.is_string(),
+                    "{} case '{}': stdout/stderr contains expected must be a string, got {:?}",
+                    path.display(),
+                    case.description,
+                    case.assertion.expected
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn assertion_conformance_case_subjects_match_normative_checkpoint_field() {
+    for (path, spec) in load_spec_files() {
+        if spec.category != Category::Assertion {
+            continue;
+        }
+        let normative: AssertionNormative = serde_json::from_value(spec.normative.clone())
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{}: invalid assertion normative fields: {}",
+                    path.display(),
+                    e
+                )
+            });
+        for case in &spec.conformance_cases {
+            let ConformanceCase::Eval(case) = case else {
+                continue;
+            };
+            let subject_matches = matches!(
+                (case.assertion.subject, normative.checkpoint_field),
+                (AssertionSubject::Exit, CheckpointField::ExitCode)
+                    | (AssertionSubject::Stdout, CheckpointField::Stdout)
+                    | (AssertionSubject::Stderr, CheckpointField::Stderr)
+                    | (AssertionSubject::File, CheckpointField::File)
+                    | (AssertionSubject::Dir, CheckpointField::Dir)
+            );
+            assert!(
+                subject_matches,
+                "{} case '{}': assertion subject {:?} does not match normative checkpointField {:?}",
+                path.display(),
+                case.description,
+                case.assertion.subject,
+                normative.checkpoint_field
+            );
+        }
+    }
+}
+
+#[test]
+fn assertion_conformance_case_operators_match_normative_operator() {
+    for (path, spec) in load_spec_files() {
+        if spec.category != Category::Assertion {
+            continue;
+        }
+        let normative: AssertionNormative = serde_json::from_value(spec.normative.clone())
+            .unwrap_or_else(|e| {
+                panic!(
+                    "{}: invalid assertion normative fields: {}",
+                    path.display(),
+                    e
+                )
+            });
+        for case in &spec.conformance_cases {
+            let ConformanceCase::Eval(case) = case else {
+                continue;
+            };
             assert_eq!(
                 case.assertion.operator,
-                spec.normative.operator,
-                "{} case[{}]: assertion operator does not match normative operator",
+                normative.operator,
+                "{} case '{}': assertion operator does not match normative operator",
                 path.display(),
-                i
-            );
-        }
-    }
-}
-
-/// Parse a conformance case `assertionSource` through the real Reportage parser and reduce the single parsed expectation to a normalised `(subject, operator, expected)` triple comparable to a spec's `assertion` fields.
-fn parse_source_to_normalized(source: &str) -> (&'static str, &'static str, serde_json::Value) {
-    // Wrap the bare expectation in a minimal script so the grammar accepts it.
-    let script_src = format!("case \"c\" {{\n  assert {{\n    {source}\n  }}\n}}\n");
-    let script = parse(&script_src)
-        .unwrap_or_else(|e| panic!("failed to parse assertionSource '{source}': {e}"));
-
-    let block = match &script.cases[0].steps[0] {
-        Step::AssertionBlock(b) => b,
-        other => {
-            panic!("assertionSource '{source}' did not parse to an assertion block: {other:?}")
-        }
-    };
-    assert_eq!(
-        block.expectations().len(),
-        1,
-        "assertionSource '{source}' must parse to exactly one expectation"
-    );
-
-    match &block.expectations()[0] {
-        Expectation::Exit(e) => ("exit", "equals", serde_json::Value::from(e.expected)),
-        Expectation::Stdout(e) => match &e.matcher {
-            OutputMatcher::Contains(s) => {
-                ("stdout", "contains", serde_json::Value::from(s.as_str()))
-            }
-            other => {
-                panic!("unsupported stdout matcher in conformance source '{source}': {other:?}")
-            }
-        },
-        Expectation::Stderr(e) => match &e.matcher {
-            OutputMatcher::Contains(s) => {
-                ("stderr", "contains", serde_json::Value::from(s.as_str()))
-            }
-            other => {
-                panic!("unsupported stderr matcher in conformance source '{source}': {other:?}")
-            }
-        },
-        other => panic!("unsupported expectation in conformance source '{source}': {other:?}"),
-    }
-}
-
-#[test]
-fn conformance_case_assertion_source_matches_normalized_assertion() {
-    // Parsing the human-facing `assertionSource` through the real parser must yield the same subject/operator/expected as the normalised `assertion`.
-    // This prevents the two representations from drifting apart.
-    for (path, spec) in load_spec_files() {
-        for (i, case) in spec.conformance_cases.iter().enumerate() {
-            let (parsed_subject, parsed_operator, parsed_expected) =
-                parse_source_to_normalized(&case.assertion_source);
-
-            let want_subject = match case.assertion.subject {
-                AssertionSubject::Exit => "exit",
-                AssertionSubject::Stdout => "stdout",
-                AssertionSubject::Stderr => "stderr",
-            };
-            let want_operator = match case.assertion.operator {
-                Operator::Equals => "equals",
-                Operator::Contains => "contains",
-            };
-
-            assert_eq!(
-                parsed_subject,
-                want_subject,
-                "{} case[{}]: assertionSource subject '{}' does not match normalized subject '{}'",
-                path.display(),
-                i,
-                parsed_subject,
-                want_subject
-            );
-            assert_eq!(
-                parsed_operator,
-                want_operator,
-                "{} case[{}]: assertionSource operator '{}' does not match normalized operator '{}'",
-                path.display(),
-                i,
-                parsed_operator,
-                want_operator
-            );
-            assert_eq!(
-                parsed_expected,
-                case.assertion.expected,
-                "{} case[{}]: assertionSource expected {:?} does not match normalized expected {:?}",
-                path.display(),
-                i,
-                parsed_expected,
-                case.assertion.expected
+                case.description
             );
         }
     }
@@ -696,7 +1245,20 @@ fn conformance_case_assertion_source_matches_normalized_assertion() {
 fn initial_v0_rules_have_expected_normative_fields() {
     // Pin the normative fields of the three v0 rules so that a machine-readable source of truth cannot silently change its comparison semantics.
     for (path, spec) in load_spec_files() {
-        let n = &spec.normative;
+        if !matches!(
+            spec.id.as_str(),
+            "assertion.exit.equals" | "assertion.stdout.contains" | "assertion.stderr.contains"
+        ) {
+            continue;
+        }
+        let n: AssertionNormative =
+            serde_json::from_value(spec.normative.clone()).unwrap_or_else(|e| {
+                panic!(
+                    "{}: invalid assertion normative fields: {}",
+                    path.display(),
+                    e
+                )
+            });
         let ms = &n.match_semantics;
         match spec.id.as_str() {
             "assertion.exit.equals" => {
@@ -706,7 +1268,7 @@ fn initial_v0_rules_have_expected_normative_fields() {
                     "{}",
                     path.display()
                 );
-                assert_eq!(n.operator, Operator::Equals, "{}", path.display());
+                assert_eq!(n.operator, AssertionOperator::Equals, "{}", path.display());
                 assert_eq!(
                     n.expected_value_type,
                     ExpectedValueType::Uint8,
@@ -715,14 +1277,19 @@ fn initial_v0_rules_have_expected_normative_fields() {
                 );
                 assert_eq!(ms.comparison, Comparison::Exact, "{}", path.display());
             }
-            "assertion.stdout.contains" => {
+            "assertion.stdout.contains" | "assertion.stderr.contains" => {
+                let want_field = if spec.id == "assertion.stdout.contains" {
+                    CheckpointField::Stdout
+                } else {
+                    CheckpointField::Stderr
+                };
+                assert_eq!(n.checkpoint_field, want_field, "{}", path.display());
                 assert_eq!(
-                    n.checkpoint_field,
-                    CheckpointField::Stdout,
+                    n.operator,
+                    AssertionOperator::Contains,
                     "{}",
                     path.display()
                 );
-                assert_eq!(n.operator, Operator::Contains, "{}", path.display());
                 assert_eq!(
                     n.expected_value_type,
                     ExpectedValueType::Utf8String,
@@ -749,70 +1316,156 @@ fn initial_v0_rules_have_expected_normative_fields() {
                     path.display()
                 );
             }
-            "assertion.stderr.contains" => {
-                assert_eq!(
-                    n.checkpoint_field,
-                    CheckpointField::Stderr,
-                    "{}",
-                    path.display()
-                );
-                assert_eq!(n.operator, Operator::Contains, "{}", path.display());
-                assert_eq!(
-                    n.expected_value_type,
-                    ExpectedValueType::Utf8String,
-                    "{}",
-                    path.display()
-                );
-                assert_eq!(
-                    ms.comparison,
-                    Comparison::ByteSubstring,
-                    "{}",
-                    path.display()
-                );
-                assert_eq!(ms.case_sensitive, Some(true), "{}", path.display());
-                assert_eq!(
-                    ms.line_ending_normalization,
-                    Some(false),
-                    "{}",
-                    path.display()
-                );
-                assert_eq!(
-                    ms.empty_expected_always_matches,
-                    Some(true),
-                    "{}",
-                    path.display()
-                );
-            }
-            _ => {}
+            _ => unreachable!(),
         }
     }
 }
 
 #[test]
-fn conformance_case_expected_result_matches_v0_semantics() {
-    // #30: the normalized assertion representation and checkpoint data from the JSON semantic specs are fed directly to the production semantic evaluator.
-    // Parser/source consistency is checked separately above and is not the primary purpose of semantic conformance.
-    // Until #41 defines the diagnostic code contract, optional expectedDiagnosticCode fields are accepted by the schema but ignored here.
+fn conformance_case_assertion_source_matches_normalized_assertion() {
+    // Parsing the human-facing `assertionSource` through the real parser must yield the same
+    // normalized assertion. This prevents the two representations from drifting apart. Parser
+    // cases are validated by `parser_conformance_cases_match_production_parser` instead.
     for (path, spec) in load_spec_files() {
-        for (i, case) in spec.conformance_cases.iter().enumerate() {
-            let expectation = expectation_from_normalized_assertion(case);
-            let checkpoint = checkpoint_for_case(case);
-            let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint)
-                .expect("these conformance cases never exercise contents_equals");
-            let computed = if result.passed {
-                ExpectedResult::Pass
-            } else {
-                ExpectedResult::Fail
+        for case in &spec.conformance_cases {
+            let ConformanceCase::Eval(case) = case else {
+                continue;
             };
-            assert_eq!(
-                computed,
-                case.expected_result,
-                "{} case[{}] ({}): evaluator result {:?} does not match declared expectedResult {:?}",
-                path.display(),
-                i,
-                case.description,
-                computed,
-                case.expected_result
+            let label = format!("{}: {}", path.display(), case.description);
+            assert_source_matches_assertion(&case.assertion_source, &case.assertion, &label);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests: conformance — the main production-code gates
+// ---------------------------------------------------------------------------
+
+#[test]
+fn conformance_case_expected_result_matches_v0_semantics() {
+    // The normalized assertion representation and checkpoint data from the JSON semantic specs
+    // (materializing a real workspace/repor_dir on disk when the case declares one) are fed
+    // directly to the production semantic evaluator.
+    for (path, spec) in load_spec_files() {
+        for case in &spec.conformance_cases {
+            let ConformanceCase::Eval(case) = case else {
+                continue;
+            };
+            let expectation = expectation_from_assertion(&case.assertion, &case.description);
+            let materialized = checkpoint_for_case(case);
+            let result = evaluate_expectation_at_checkpoint(&expectation, &materialized.checkpoint);
+            match case.expected_result {
+                EvalExpectedResult::Pass | EvalExpectedResult::Fail => {
+                    let result = result.unwrap_or_else(|e| {
+                        panic!(
+                            "{} case '{}': expected {:?} but evaluation returned a script error: {} ({})",
+                            path.display(),
+                            case.description,
+                            case.expected_result,
+                            e.message,
+                            e.diagnostic_code.as_str()
+                        )
+                    });
+                    let want_pass = matches!(case.expected_result, EvalExpectedResult::Pass);
+                    assert_eq!(
+                        result.passed,
+                        want_pass,
+                        "{} case '{}': evaluator passed={} but expectedResult={:?}",
+                        path.display(),
+                        case.description,
+                        result.passed,
+                        case.expected_result
+                    );
+                }
+                EvalExpectedResult::ScriptError => {
+                    let err = result.err().unwrap_or_else(|| {
+                        panic!(
+                            "{} case '{}': expected a script error but evaluation succeeded",
+                            path.display(),
+                            case.description
+                        )
+                    });
+                    let expected_code =
+                        case.expected_diagnostic_code.as_deref().unwrap_or_else(|| {
+                            panic!(
+                                "{} case '{}': scriptError cases must set expectedDiagnosticCode",
+                                path.display(),
+                                case.description
+                            )
+                        });
+                    assert_eq!(
+                        err.diagnostic_code.as_str(),
+                        expected_code,
+                        "{} case '{}': script error diagnostic code mismatch",
+                        path.display(),
+                        case.description
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn parser_conformance_cases_match_production_parser() {
+    for (path, spec) in load_spec_files() {
+        for case in &spec.conformance_cases {
+            let ConformanceCase::Parser(case) = case else {
+                continue;
+            };
+            let script_src = format!(
+                "case \"c\" {{\n  assert {{\n    {}\n  }}\n}}\n",
+                case.assertion_source
+            );
+            let result = parse(&script_src);
+            match case.expected_result {
+                ParserExpectedResult::Valid => {
+                    result.unwrap_or_else(|e| {
+                        panic!(
+                            "{} case '{}': expected valid syntax but parsing failed: {}",
+                            path.display(),
+                            case.description,
+                            e
+                        )
+                    });
+                }
+                ParserExpectedResult::ParseError => {
+                    let err = result.err().unwrap_or_else(|| {
+                        panic!(
+                            "{} case '{}': expected a parse error but parsing succeeded",
+                            path.display(),
+                            case.description
+                        )
+                    });
+                    let expected_code =
+                        case.expected_diagnostic_code.as_deref().unwrap_or_else(|| {
+                            panic!(
+                                "{} case '{}': parseError cases must set expectedDiagnosticCode",
+                                path.display(),
+                                case.description
+                            )
+                        });
+                    assert_eq!(
+                        err.code().as_str(),
+                        expected_code,
+                        "{} case '{}': parse error diagnostic code mismatch",
+                        path.display(),
+                        case.description
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn every_conformance_case_has_a_non_empty_description_and_source() {
+    for (path, spec) in load_spec_files() {
+        for case in &spec.conformance_cases {
+            assert!(
+                !case.description().is_empty(),
+                "{}: conformance case has an empty description",
+                path.display()
             );
         }
     }

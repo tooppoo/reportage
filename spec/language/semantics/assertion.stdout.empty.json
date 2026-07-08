@@ -1,0 +1,64 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "assertion.stdout.empty",
+  "category": "assertion",
+  "syntax": "stdout empty",
+  "normative": {
+    "checkpointField": "stdout",
+    "operator": "empty",
+    "expectedValueType": "none",
+    "matchSemantics": {
+      "comparison": "emptiness"
+    }
+  },
+  "conformanceCases": [
+    {
+      "description": "stdout empty passes when stdout captured zero bytes",
+      "assertionSource": "stdout empty",
+      "assertion": { "subject": "stdout", "operator": "empty" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "stdout empty fails when stdout contains any text",
+      "assertionSource": "stdout empty",
+      "assertion": { "subject": "stdout", "operator": "empty" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "aGVsbG8K", "encoding": "base64", "text": "hello\n" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.stdout.not_empty"
+    },
+    {
+      "description": "stdout empty fails on a single newline byte; whitespace-only output is still output",
+      "assertionSource": "stdout empty",
+      "assertion": { "subject": "stdout", "operator": "empty" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "Cg==", "encoding": "base64", "text": "\n" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.stdout.not_empty"
+    },
+    {
+      "description": "stdout empty fails on a single space byte",
+      "assertionSource": "stdout empty",
+      "assertion": { "subject": "stdout", "operator": "empty" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "IA==", "encoding": "base64", "text": " " },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.stdout.not_empty"
+    }
+  ]
+}

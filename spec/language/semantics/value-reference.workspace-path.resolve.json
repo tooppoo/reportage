@@ -1,0 +1,45 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "value-reference.workspace-path.resolve",
+  "category": "value-reference",
+  "syntax": "<\"path\">",
+  "normative": {
+    "rejects": ["empty", "absolute", "dotSegment"],
+    "diagnosticCodes": {
+      "empty": "semantic.workspace_path.empty",
+      "absolute": "semantic.workspace_path.absolute",
+      "dotSegment": "semantic.workspace_path.dot_segment"
+    },
+    "usedBy": [
+      "dir checkpoint subject",
+      "write step path",
+      "file contents_equals expected value"
+    ]
+  },
+  "conformanceCases": [
+    {
+      "description": "a relative path with no dot segments resolves",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"expected.txt\">",
+      "expectedResult": "valid"
+    },
+    {
+      "description": "invalid: an empty workspace path is rejected",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"\">",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.workspace_path.empty"
+    },
+    {
+      "description": "invalid: an absolute workspace path is rejected",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"/etc/passwd\">",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.workspace_path.absolute"
+    },
+    {
+      "description": "invalid: a workspace path with a '..' segment is rejected",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"a/../b\">",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.workspace_path.dot_segment"
+    }
+  ]
+}
