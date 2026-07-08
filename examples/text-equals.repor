@@ -1,0 +1,19 @@
+
+case "file text_equals against a string literal" {
+  $ printf 'hello\n' > actual.txt
+
+  assert {
+    file <"actual.txt"> text_equals "hello\n"
+  }
+}
+
+case "file text_equals against a heredoc literal" {
+  $ printf 'hello\nworld\n' > actual.txt
+
+  assert {
+    file <"actual.txt"> text_equals ```
+    hello
+    world
+    ```
+  }
+}

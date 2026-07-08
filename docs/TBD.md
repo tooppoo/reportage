@@ -6,12 +6,6 @@ Items listed here are not accepted v0 requirements unless another document expli
 
 ## Semantic assertions
 
-### `text_equals` comparison evaluation
-
-#87 wires live `contents_equals` evaluation (`file` / `stdout` / `stderr`): byte-for-byte comparison against an expected `WorkspacePath` or `FixtureReference`, expected-side resolution/materialization, `CaseStatus::ScriptError` classification for an unresolvable expected value, and bounded mismatch diagnostics. See `evaluator::resolve_expected_contents` and docs/adr/20260707T012055Z_contents-equals-evaluation.md.
-
-`file <"path"> text_equals <text_literal>` (#88) still `todo!()`s in `evaluator::evaluate_file_expectation`'s `FileMatcher::TextEquals` arm. #92 implemented its grammar, AST construction, and literal-kind validation; #88 owns wiring the comparison itself.
-
 ### Encoding-aware assertions
 
 `stdout contains <string>` and `stderr contains <string>` perform byte-level substring matching in v0. The expected string literal is treated as UTF-8 bytes and matched against the raw output bytes without any encoding conversion.

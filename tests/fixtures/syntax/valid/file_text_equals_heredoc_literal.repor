@@ -1,0 +1,13 @@
+case "file text_equals heredoc literal" {
+  write <"out/result.txt"> ```
+    hello
+    world
+    ```
+  $ true
+  assert {
+    file <"out/result.txt"> text_equals ```
+    hello
+    world
+    ```
+  }
+}

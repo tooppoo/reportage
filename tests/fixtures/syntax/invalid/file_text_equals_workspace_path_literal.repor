@@ -1,0 +1,6 @@
+case "file text_equals expected text requires a TextValue, not a workspace path literal" {
+  $ true
+  assert {
+    file <"out.txt"> text_equals <"expected.txt">
+  }
+}

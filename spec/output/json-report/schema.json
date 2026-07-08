@@ -240,6 +240,16 @@
         "path": { "type": "string" }
       }
     },
+    "TextExpectedSource": {
+      "description": "A `text_equals` expected value's source: an inline `TextLiteral`, not a reference to another file. Unlike `ExpectedSource`, `value` carries the full inline text verbatim, mirroring `fileContains`'s `expected` field.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["quoted", "heredoc"] },
+        "value": { "type": "string" }
+      }
+    },
     "ContentsMismatch": {
       "type": "object",
       "additionalProperties": false,
@@ -265,6 +275,7 @@
         { "$ref": "#/$defs/FileExistsExpectation" },
         { "$ref": "#/$defs/FileContainsExpectation" },
         { "$ref": "#/$defs/FileContentsEqualsExpectation" },
+        { "$ref": "#/$defs/FileTextEqualsExpectation" },
         { "$ref": "#/$defs/StreamContentsEqualsExpectation" },
         { "$ref": "#/$defs/DirExistsExpectation" },
         { "$ref": "#/$defs/DirContainsExpectation" },
@@ -350,6 +361,37 @@
         "status": { "type": "string", "enum": ["passed", "failed"] },
         "path": { "type": "string" },
         "expectedSource": { "$ref": "#/$defs/ExpectedSource" },
+        "observed": {
+          "type": "string",
+          "enum": ["compared", "actualMissing", "actualNotARegularFile", "actualUnreadable"]
+        },
+        "outcome": { "type": "string", "enum": ["match", "mismatch"] },
+        "actualSizeBytes": { "type": "integer", "minimum": 0 },
+        "expectedSizeBytes": { "type": "integer", "minimum": 0 },
+        "mismatch": { "$ref": "#/$defs/ContentsMismatch" },
+        "diagnosticRef": { "$ref": "#/$defs/DiagnosticRefField" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "observed": { "const": "compared" } } },
+          "then": { "required": ["outcome", "actualSizeBytes", "expectedSizeBytes"] }
+        },
+        {
+          "if": { "properties": { "outcome": { "const": "mismatch" } } },
+          "then": { "required": ["mismatch"] }
+        }
+      ]
+    },
+    "FileTextEqualsExpectation": {
+      "description": "text_equals (#88): a file checkpoint's byte-for-byte comparison against an inline TextValue, never a FileContentsReference. observed/outcome/mismatch mirror fileContentsEquals; only expectedSource's shape differs (TextExpectedSource, not ExpectedSource).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "status", "path", "expectedSource", "observed"],
+      "properties": {
+        "kind": { "const": "fileTextEquals" },
+        "status": { "type": "string", "enum": ["passed", "failed"] },
+        "path": { "type": "string" },
+        "expectedSource": { "$ref": "#/$defs/TextExpectedSource" },
         "observed": {
           "type": "string",
           "enum": ["compared", "actualMissing", "actualNotARegularFile", "actualUnreadable"]

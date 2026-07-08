@@ -5,7 +5,7 @@
 //! `#[serde(deny_unknown_fields)]`, rather than run through an external JSON Schema validator.
 //! See `spec/output/json-report/schema.json` for the authoritative external contract these
 //! structs are a CI-enforced subset of (only the `exit` / `stdoutContains` expectation kinds
-//! these six fixtures exercise are modelled here; the schema itself covers all twelve kinds).
+//! these six fixtures exercise are modelled here; the schema itself covers all thirteen kinds).
 //!
 //! Fixtures live in `tests/fixtures/json_report/*.repor`, one per representative scenario
 //! required by issue #89. Each has a companion `<name>.snapshot.json` with volatile fields

@@ -28,7 +28,7 @@ use reportage_core::result::{
     ActionResult, CaseResult, CaseStatus, ContentsEqualsComparison, ContentsEqualsExpectedSource,
     ContentsEqualsObservation, ContentsEqualsOutcome, DirContainsObservation, DirExistsObservation,
     ExecutionReport, ExpectationKind, ExpectationResult, FileContentObservation, FileErrorKind,
-    FileExistsObservation,
+    FileExistsObservation, TextEqualsExpectedSource,
 };
 use serde_json::{Value, json};
 
@@ -482,6 +482,19 @@ fn expectation_json(
             contents_equals_observation_json(&mut value, observation);
             value
         }
+        ExpectationKind::FileTextEquals {
+            path,
+            expected_source,
+            observation,
+        } => {
+            let mut value = json!({
+                "kind": "fileTextEquals",
+                "path": path,
+                "expectedSource": text_equals_expected_source_json(expected_source),
+            });
+            contents_equals_observation_json(&mut value, observation);
+            value
+        }
         ExpectationKind::StdoutContentsEquals {
             expected_source,
             comparison,
@@ -581,6 +594,23 @@ fn expected_source_json(source: &ContentsEqualsExpectedSource) -> Value {
         ContentsEqualsExpectedSource::Fixture(path) => json!({
             "kind": "fixture",
             "path": path,
+        }),
+    }
+}
+
+/// JSON representation of a `text_equals` expected value's source. Unlike
+/// `expected_source_json` (a reference to another file), the full inline text is included
+/// verbatim — it is already present in the script source, mirroring how `fileContains`'s
+/// `expected` field includes its full inline expected text.
+fn text_equals_expected_source_json(source: &TextEqualsExpectedSource) -> Value {
+    match source {
+        TextEqualsExpectedSource::Quoted(value) => json!({
+            "kind": "quoted",
+            "value": value,
+        }),
+        TextEqualsExpectedSource::Heredoc(value) => json!({
+            "kind": "heredoc",
+            "value": value,
         }),
     }
 }
@@ -689,6 +719,20 @@ fn assertion_failure_message(kind: &ExpectationKind, code: DiagnosticCode) -> St
             format!("file {path:?} did not contain expected substring {expected:?}")
         }
         ExpectationKind::FileContentsEquals {
+            path, observation, ..
+        } => match observation {
+            ContentsEqualsObservation::Compared(comparison) => {
+                contents_equals_mismatch_message(&format!("file {path:?}"), comparison)
+            }
+            ContentsEqualsObservation::ActualMissing => format!("file {path:?} does not exist"),
+            ContentsEqualsObservation::ActualNotRegularFile => {
+                format!("file {path:?} is not a regular file (e.g. a directory)")
+            }
+            ContentsEqualsObservation::ActualUnreadable => {
+                format!("file {path:?} could not be read")
+            }
+        },
+        ExpectationKind::FileTextEquals {
             path, observation, ..
         } => match observation {
             ContentsEqualsObservation::Compared(comparison) => {
@@ -1289,6 +1333,87 @@ mod tests {
             diagnostics[2]["code"],
             "assertion.dir.contains_entry_missing"
         );
+    }
+
+    #[test]
+    fn file_text_equals_expectation_kind_json_shape() {
+        let comparison = ContentsEqualsComparison::compare(b"hellp".to_vec(), b"hello".to_vec());
+        let case = CaseResult {
+            name: "file text_equals".to_string(),
+            source_path: Some(PathBuf::from("textequals.repor")),
+            status: CaseStatus::Fail,
+            actions: vec![],
+            assertion_blocks: vec![AssertionBlockResult {
+                step_index: 0,
+                checkpoint_action_index: None,
+                expectations: vec![ExpectationResult {
+                    kind: ExpectationKind::FileTextEquals {
+                        path: "out.txt".to_string(),
+                        expected_source: TextEqualsExpectedSource::Quoted("hello".to_string()),
+                        observation: ContentsEqualsObservation::Compared(comparison),
+                    },
+                    passed: false,
+                }],
+            }],
+            side_effects_executed: 0,
+        };
+        let doc = build_document(
+            &report_with_cases(vec![case]),
+            Path::new(".reportage/runs/1"),
+        );
+
+        let expectation = &doc["tests"][0]["assertions"][0]["expectation"];
+        assert_eq!(expectation["kind"], "fileTextEquals");
+        assert_eq!(expectation["path"], "out.txt");
+        assert_eq!(expectation["expectedSource"]["kind"], "quoted");
+        assert_eq!(expectation["expectedSource"]["value"], "hello");
+        assert_eq!(expectation["observed"], "compared");
+        assert_eq!(expectation["outcome"], "mismatch");
+        assert_eq!(
+            doc["diagnostics"][0]["code"],
+            "assertion.file.text_equals_mismatch"
+        );
+    }
+
+    #[test]
+    fn file_text_equals_heredoc_expected_source_json_shape() {
+        // Mirrors `file_text_equals_expectation_kind_json_shape`, but for the `Heredoc` variant
+        // of `TextEqualsExpectedSource`: the `Quoted` case above must not be the only one
+        // exercised, since `text_equals_expected_source_json`'s two match arms are otherwise
+        // untested on the `Heredoc` side.
+        let comparison = ContentsEqualsComparison::compare(
+            b"hello\nWORLD\n".to_vec(),
+            b"hello\nworld\n".to_vec(),
+        );
+        let case = CaseResult {
+            name: "file text_equals heredoc".to_string(),
+            source_path: Some(PathBuf::from("textequals.repor")),
+            status: CaseStatus::Fail,
+            actions: vec![],
+            assertion_blocks: vec![AssertionBlockResult {
+                step_index: 0,
+                checkpoint_action_index: None,
+                expectations: vec![ExpectationResult {
+                    kind: ExpectationKind::FileTextEquals {
+                        path: "out.txt".to_string(),
+                        expected_source: TextEqualsExpectedSource::Heredoc(
+                            "hello\nworld\n".to_string(),
+                        ),
+                        observation: ContentsEqualsObservation::Compared(comparison),
+                    },
+                    passed: false,
+                }],
+            }],
+            side_effects_executed: 0,
+        };
+        let doc = build_document(
+            &report_with_cases(vec![case]),
+            Path::new(".reportage/runs/1"),
+        );
+
+        let expectation = &doc["tests"][0]["assertions"][0]["expectation"];
+        assert_eq!(expectation["expectedSource"]["kind"], "heredoc");
+        assert_eq!(expectation["expectedSource"]["value"], "hello\nworld\n");
     }
 
     #[test]

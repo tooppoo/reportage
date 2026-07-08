@@ -1,0 +1,97 @@
+
+case "file text_equals passes on a byte-for-byte match against a string literal" {
+  $ printf 'hello\n' > actual.txt
+
+  assert {
+    file <"actual.txt"> text_equals "hello\n"
+  }
+}
+
+case "file text_equals passes on a byte-for-byte match against a heredoc literal" {
+  $ printf 'hello\nworld\n' > actual.txt
+
+  assert {
+    file <"actual.txt"> text_equals ```
+    hello
+    world
+    ```
+  }
+}
+
+case "file text_equals reports an assertion failure for a byte mismatch" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > actual.txt
+      assert {
+        file <"actual.txt"> text_equals "hellp"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+    stderr contains "assertion.file.text_equals_mismatch"
+  }
+}
+
+case "file text_equals reports an assertion failure for a missing actual file" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ true
+      assert {
+        file <"does-not-exist.txt"> text_equals "hello"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+    stderr contains "assertion.file.text_equals_actual_missing"
+  }
+}
+
+case "file text_equals rejects a fixture reference as the expected value" {
+  # A fixture reference (@"...") names test-definition-side content; text_equals only ever
+  # accepts an inline TextValue, never a FileContentsReference. See #87's contents_equals for
+  # comparing against a fixture file's contents instead.
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > actual.txt
+      assert {
+        file <"actual.txt"> text_equals @"expected.txt"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.literal.kind_mismatch"
+  }
+}
+
+case "file text_equals rejects a workspace path literal as the expected value" {
+  # A workspace path literal (<"...">) names a file to compare against, not inline text;
+  # `contents_equals` is the expectation for comparing against a workspace file's contents.
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > actual.txt
+      $ printf hello > expected.txt
+      assert {
+        file <"actual.txt"> text_equals <"expected.txt">
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.literal.kind_mismatch"
+  }
+}

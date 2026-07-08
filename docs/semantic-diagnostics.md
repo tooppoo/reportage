@@ -70,6 +70,10 @@ assertion.file.contents_equals_actual_not_a_regular_file
 assertion.file.contents_equals_actual_unreadable
 assertion.stdout.contents_equals_mismatch
 assertion.stderr.contents_equals_mismatch
+assertion.file.text_equals_mismatch
+assertion.file.text_equals_actual_missing
+assertion.file.text_equals_actual_not_a_regular_file
+assertion.file.text_equals_actual_unreadable
 step.write.target_exists
 step.write.parent_not_a_directory
 step.write.io_error
@@ -108,6 +112,8 @@ Classification examples:
 - `file <"actual"> contents_equals <"expected">` whose *actual* side is missing, not a regular file, or unreadable — assertion failure (`assertion.file.contents_equals_actual_missing` / `.contents_equals_actual_not_a_regular_file` / `.contents_equals_actual_unreadable`): the subject under test did not produce the expected output.
 - `contents_equals`'s expected `WorkspacePath` side missing, not a regular file, or unreadable — semantic error (`semantic.file_contents_reference.missing` / `.not_regular_file` / `.read_error`), surfaced as `CaseStatus::ScriptError` (exit code 2): the expected value itself, not the subject under test, could not be sourced. An unresolvable expected `FixtureReference` is classified the same way, reusing `semantic.fixture_reference.*`.
 - `contents_equals` observing byte-for-byte equal actual and expected content — pass, no diagnostic; a mismatch — assertion failure (`assertion.file.contents_equals_mismatch` / `assertion.stdout.contents_equals_mismatch` / `assertion.stderr.contents_equals_mismatch`).
+- `file <"actual"> text_equals <text_literal>` whose *actual* side is missing, not a regular file, or unreadable — assertion failure (`assertion.file.text_equals_actual_missing` / `.text_equals_actual_not_a_regular_file` / `.text_equals_actual_unreadable`), the same classification as `contents_equals`'s actual side. `text_equals` has no expected-side test-definition error: its expected value is always an inline `TextValue`, never a reference that could fail to resolve.
+- `text_equals` observing byte-for-byte equal actual bytes and expected `TextValue` UTF-8 bytes — pass, no diagnostic; a mismatch — assertion failure (`assertion.file.text_equals_mismatch`).
 
 This classification is a premise for the diagnostic design of file assertions (#24), logical composition (#25), and directory assertions (#66).
 

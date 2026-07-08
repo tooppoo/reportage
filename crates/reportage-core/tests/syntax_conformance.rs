@@ -549,6 +549,7 @@ fn invalid_syntax_fixtures_are_rejected() {
             | "write_step_path_string_literal"
             | "write_step_content_workspace_path_literal"
             | "file_contains_expected_workspace_path_literal"
+            | "file_text_equals_workspace_path_literal"
             | "stdout_contains_workspace_path_literal"
             | "dir_contains_entry_workspace_path_literal"
             // A FixtureReference is only valid in a FileContentsReference
