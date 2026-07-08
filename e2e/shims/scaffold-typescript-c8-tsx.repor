@@ -10,6 +10,18 @@ case "typescript-c8-tsx generates a shim embedding the entry point" {
   }
 }
 
+case "typescript-c8-tsx generated shim disables c8's clean-before-run behavior" {
+  # A suite typically invokes this shim once per test case, each as a separate `npx c8`
+  # process. c8's default --clean=true erases prior coverage before every run, so without
+  # --clean=false only the last invocation's coverage would survive in the final report.
+  $ reportage shim scaffold --template typescript-c8-tsx --entry-point my-app/index.ts --out shim.sh
+
+  assert {
+    exit 0
+    file <"shim.sh"> contains "--clean=false"
+  }
+}
+
 case "typescript-c8-tsx generated shim is valid POSIX sh" {
   $ reportage shim scaffold --template typescript-c8-tsx --entry-point my-app/index.ts --out shim.sh
   $ sh -n shim.sh
@@ -127,5 +139,70 @@ case "typescript-c8-tsx generated shim actually runs when wired up as a reportag
     exit 0
     stdout contains "PASS  inner.repor :: success: passes extra arguments through to the entry point"
     stdout contains "PASS  inner.repor :: failure: propagates the wrapped invocation's non-zero exit status"
+  }
+}
+
+case "typescript-c8-tsx generated shim resolves entry_point relative to its own directory, not the caller's working directory" {
+  # reportage runs a wired-up command with the *inner* suite's own case workspace as its working
+  # directory, not the directory the shim file lives in (docs/execution-model.md), so this case
+  # places entry.ts next to the shim and has the fake `tsx` fail unless it can actually find that
+  # file via the relative entry_point the shim passed it: that is only possible if the shim
+  # resolved entry_point against its own directory instead of the caller's working directory.
+  write <"entry.ts"> ""
+  write <"fake-bin/npx"> ```
+    #!/bin/sh
+    exec "$@"
+    ```
+  write <"fake-bin/c8"> ```
+    #!/bin/sh
+    while [ "$1" != "npx" ]; do
+      shift
+    done
+    exec "$@"
+    ```
+  write <"fake-bin/tsx"> ```
+    #!/bin/sh
+    entry="$1"
+    if [ ! -f "$entry" ]; then
+      echo "entry point not found at $entry (cwd $(pwd))" >&2
+      exit 1
+    fi
+    echo built-ok
+    ```
+  $ chmod +x fake-bin/npx fake-bin/c8 fake-bin/tsx
+
+  $ reportage shim scaffold --template typescript-c8-tsx --entry-point entry.ts --out my-app
+
+  write <"reportage.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+      commands {
+        command "my-app" {
+          exec "my-app"
+        }
+      }
+      tests {
+        path "inner.repor"
+      }
+    }
+    ```
+  write <"inner.repor"> ```
+    case "shim finds its own entry point regardless of the inner suite's case workspace" {
+      $ my-app
+
+      assert {
+        exit 0
+        stdout contains "built-ok"
+      }
+    }
+    ```
+
+  $ PATH="$PWD/fake-bin:$PATH" reportage
+
+  assert {
+    exit 0
+    stdout contains "PASS  inner.repor :: shim finds its own entry point regardless of the inner suite's case workspace"
   }
 }

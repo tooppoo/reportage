@@ -391,12 +391,25 @@ fn typescript_c8_tsx_template(ctx: &TemplateContext) -> String {
          # - Pin dependency versions through this project's package manager.\n\
          #\n\
          # Notes:\n\
-         # - A relative entry_point is resolved from the runtime working directory.\n\
+         # - A command wired up through reportage runs with the case workspace as its working\n\
+         #   directory, not this file's directory, so this shim cd's into its own directory\n\
+         #   first: entry_point and --reports-dir below are resolved from there. If entry_point\n\
+         #   or this project's node_modules live somewhere else relative to this file, adjust\n\
+         #   the cd target and these paths to match.\n\
          # - npx may depend on npm's package resolution behavior.\n\
+         # - --clean=false keeps coverage from earlier invocations in --reports-dir instead of\n\
+         #   erasing it: a suite typically invokes this shim once per test case, and c8's\n\
+         #   default --clean=true would otherwise leave only the last invocation's coverage in\n\
+         #   the report. This project is still responsible for clearing --reports-dir before a\n\
+         #   fresh suite run, since this shim has no way to know when one run ends and the next\n\
+         #   begins.\n\
+         \n\
+         CDPATH= cd -- \"$(dirname -- \"$0\")\"\n\
          \n\
          entry_point={entry_point}\n\
          \n\
          exec npx c8 \\\n\
+         \x20\x20--clean=false \\\n\
          \x20\x20--reporter=text \\\n\
          \x20\x20--reporter=lcov \\\n\
          \x20\x20--reports-dir coverage/reportage \\\n\
@@ -428,6 +441,14 @@ fn golang_template(ctx: &TemplateContext) -> String {
          # Go coverage data is written when the program returns normally from main\n\
          # or exits via os.Exit. If the program terminates by unrecovered panic\n\
          # or fatal exception, coverage data from that run may be lost.\n\
+         #\n\
+         # A command wired up through reportage runs with the case workspace as its working\n\
+         # directory, not this file's directory, so this shim cd's into its own directory\n\
+         # first: entry_point, work_dir, and cover_dir below are resolved from there. If\n\
+         # entry_point or this project's go.mod live somewhere else relative to this file,\n\
+         # adjust the cd target and these paths to match.\n\
+         \n\
+         CDPATH= cd -- \"$(dirname -- \"$0\")\"\n\
          \n\
          entry_point={entry_point}\n\
          work_dir='.reportage/shims/go'\n\
@@ -587,6 +608,27 @@ mod tests {
     }
 
     #[test]
+    fn typescript_c8_tsx_resolves_paths_relative_to_its_own_directory() {
+        // reportage runs a wired-up command with the case workspace as its working directory,
+        // not this shim's own directory, so entry_point/--reports-dir must be resolved against
+        // this file's own location rather than left to resolve against whatever directory the
+        // shim happened to be invoked from.
+        let ctx = TemplateContext::new("my-app/index.ts".to_string()).unwrap();
+        let rendered = typescript_c8_tsx_template(&ctx);
+        assert!(rendered.contains("CDPATH= cd -- \"$(dirname -- \"$0\")\""));
+    }
+
+    #[test]
+    fn typescript_c8_tsx_disables_clean_before_run() {
+        // A suite typically invokes this shim once per test case, each as a separate `npx c8`
+        // process. c8's default --clean=true erases prior coverage before every run, so without
+        // this flag only the last invocation's coverage would survive in the final report.
+        let ctx = TemplateContext::new("my-app/index.ts".to_string()).unwrap();
+        let rendered = typescript_c8_tsx_template(&ctx);
+        assert!(rendered.contains("--clean=false"));
+    }
+
+    #[test]
     fn typescript_c8_tsx_passes_additional_arguments_through_to_the_entry_point() {
         let ctx = TemplateContext::new("my-app/index.ts".to_string()).unwrap();
         let rendered = typescript_c8_tsx_template(&ctx);
@@ -662,6 +704,17 @@ mod tests {
         let ctx = TemplateContext::new("it's/my app/cmd".to_string()).unwrap();
         let rendered = golang_template(&ctx);
         assert!(rendered.contains("entry_point='it'\\''s/my app/cmd'"));
+    }
+
+    #[test]
+    fn golang_resolves_paths_relative_to_its_own_directory() {
+        // reportage runs a wired-up command with the case workspace as its working directory,
+        // not this shim's own directory, so entry_point/work_dir/cover_dir must be resolved
+        // against this file's own location rather than left to resolve against whatever
+        // directory the shim happened to be invoked from.
+        let ctx = TemplateContext::new("cli.go".to_string()).unwrap();
+        let rendered = golang_template(&ctx);
+        assert!(rendered.contains("CDPATH= cd -- \"$(dirname -- \"$0\")\""));
     }
 
     #[test]
