@@ -1,16 +1,22 @@
 #!/bin/sh
-# Node adapter shim (see docs/shims.md#coverage-aware-adapters):
-# forwards to the real CLI entrypoint with V8 coverage collection enabled,
-# instead of running it through node:test (which is for test files, not
-# for delegating an arbitrary CLI invocation).
 set -eu
 
-shim_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-project_root=$(CDPATH= cd -- "$shim_dir/.." && pwd)
+# Scaffolded by reportage.
+# This file is owned by this project after generation.
+# Edit the c8 / tsx invocation below to match this project.
+#
+# Recommended:
+# - Manage c8 and tsx in this project's package.json.
+# - Pin dependency versions through this project's package manager.
+#
+# Notes:
+# - A relative entry_point is resolved from the runtime working directory.
+# - npx may depend on npm's package resolution behavior.
 
-coverage_dir="$project_root/.coverage/node"
-mkdir -p "$coverage_dir"
+entry_point='src/sample.js'
 
-export NODE_V8_COVERAGE="$coverage_dir"
-
-exec node -- "$project_root/src/sample.js" "$@"
+exec npx c8 \
+  --reporter=text \
+  --reporter=lcov \
+  --reports-dir coverage/reportage \
+  npx tsx "$entry_point" "$@"

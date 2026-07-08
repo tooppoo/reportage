@@ -1,15 +1,25 @@
 #!/bin/sh
-# Go adapter shim (see docs/shims.md#coverage-aware-adapters):
-# delegates to a pre-built, coverage-instrumented binary (`just examples-shim::go-build`)
-# with GOCOVERDIR set, forwarding caller-provided args untouched.
 set -eu
 
-shim_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-project_root=$(CDPATH= cd -- "$shim_dir/.." && pwd)
+# Scaffolded by reportage.
+# This file is owned by this project after generation.
+# Edit the go build target and coverage paths to match this project.
+#
+# By default, `go build -cover` instruments packages in the main module.
+# It does not include standard library packages or external dependencies by default.
+# Add `-coverpkg` if this project needs a different instrumentation scope.
+#
+# Go coverage data is written when the program returns normally from main
+# or exits via os.Exit. If the program terminates by unrecovered panic
+# or fatal exception, coverage data from that run may be lost.
 
-coverage_dir="$project_root/.coverage/go"
-mkdir -p "$coverage_dir"
+entry_point='src/sample.go'
+work_dir='.reportage/shims/go'
+bin_path="$work_dir/app"
+cover_dir='coverage/reportage/go'
 
-export GOCOVERDIR="$coverage_dir"
+mkdir -p "$work_dir" "$cover_dir"
 
-exec "$project_root/bin/sample" "$@"
+go build -cover -o "$bin_path" "$entry_point"
+
+GOCOVERDIR="$cover_dir" exec "$bin_path" "$@"
