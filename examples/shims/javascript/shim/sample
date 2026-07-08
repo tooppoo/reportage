@@ -12,10 +12,24 @@ set -eu
 # Notes:
 # - A relative entry_point is resolved from the runtime working directory.
 # - npx may depend on npm's package resolution behavior.
+#
+# reportage runs `$` steps with the case workspace as the working directory, not this shim's own
+# directory (see docs/execution-model.md), so this shim cd's into its own project directory
+# first: without that, npx would not find this project's local node_modules and would fall back
+# to fetching c8/tsx from the registry on every invocation instead of using the pinned versions.
+#
+# `--clean=false` is required because a suite exercises this shim once per test case, each as a
+# separate `npx c8` process: c8's default `--clean=true` erases prior coverage data before each
+# run, so without this flag only the last invocation's coverage would survive in the final report.
+
+shim_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+project_root=$(CDPATH= cd -- "$shim_dir/.." && pwd)
+cd "$project_root"
 
 entry_point='src/sample.js'
 
 exec npx c8 \
+  --clean=false \
   --reporter=text \
   --reporter=lcov \
   --reports-dir coverage/reportage \

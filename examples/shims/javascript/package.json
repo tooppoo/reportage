@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "c8 report --temp-directory .coverage/node --reporter=text --include 'src/**' --check-coverage --lines 100 --branches 100 --functions 100 --statements 100"
+    "check": "c8 report --temp-directory coverage/reportage/tmp --reporter=text --include 'src/**' --check-coverage --lines 100 --branches 100 --functions 100 --statements 100"
   },
   "devDependencies": {
     "c8": "11.0.0"
