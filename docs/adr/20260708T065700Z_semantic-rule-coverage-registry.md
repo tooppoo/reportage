@@ -38,7 +38,9 @@ The coverage check (`crates/reportage-core/tests/semantic_rule_coverage.rs`, run
 
 `implementation_status` is not read by any of the assertions above. It exists only so failure messages and any future inventory listing can say whether a missing-spec rule is implemented, planned, or deferred, rather than treating every gap identically.
 
-Of the twenty rules currently registered — thirteen `assertion`, three `logical-composition`, four `value-reference` — only `assertion.exit.equals`, `assertion.stdout.contains`, and `assertion.stderr.contains` have `spec_required` / `conformance_required` / `docs_required` all `true`, matching the specs that exist today. The rest are registered with all three flags `false`: known, implemented rules awaiting a spec. #101 is the follow-up that adds those specs and flips the corresponding flags.
+Of the twenty-two rules currently registered — thirteen `assertion`, three `logical-composition`, six `value-reference` — only `assertion.exit.equals`, `assertion.stdout.contains`, and `assertion.stderr.contains` have `spec_required` / `conformance_required` / `docs_required` all `true`, matching the specs that exist today. The rest are registered with all three flags `false`: known, implemented rules awaiting a spec. #101 is the follow-up that adds those specs and flips the corresponding flags.
+
+The `value-reference` category also covers lexical validation of assertion subject values, not only resolution of a referenced value: `value-reference.file-path.validate` and `value-reference.dir-entry-name.validate` register `file`'s and `dir`'s own subject-path / entry-name validation, which are implemented in `semantic::validate_file_path` and `semantic::validate_dir_entry_name` respectively and run before evidence comparison. `dir`'s subject path itself is deliberately not a third such entry: it reuses `value-reference.workspace-path.resolve`'s exact rule and diagnostic codes via `semantic::validate_dir_path`, rather than defining a parallel one.
 
 ## Alternatives Considered
 

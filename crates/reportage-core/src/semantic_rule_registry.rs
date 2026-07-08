@@ -248,6 +248,9 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         related_diagnostic_codes: &["semantic.expectation.empty_block"],
     },
     SemanticRuleEntry {
+        // `dir <"path">`'s subject path reuses this exact rule (via `WorkspacePath::parse` and
+        // the same three diagnostic codes) rather than defining a separate dir-path rule; see
+        // `semantic::validate_dir_path`.
         id: "value-reference.workspace-path.resolve",
         category: ValueReference,
         implementation_status: Implemented,
@@ -259,6 +262,38 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
             "semantic.workspace_path.empty",
             "semantic.workspace_path.absolute",
             "semantic.workspace_path.dot_segment",
+        ],
+    },
+    SemanticRuleEntry {
+        // Distinct from `value-reference.workspace-path.resolve`: `file <"path">`'s subject
+        // path is validated by `semantic::validate_file_path`, a separate, narrower check (no
+        // leading `/`, no `.`/`..` segments) with its own diagnostic codes, not by
+        // `WorkspacePath::parse`. See docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
+        id: "value-reference.file-path.validate",
+        category: ValueReference,
+        implementation_status: Implemented,
+        spec_required: false,
+        conformance_required: false,
+        docs_required: false,
+        related_syntax_rule: Some("file_exp"),
+        related_diagnostic_codes: &[
+            "semantic.file_path.absolute",
+            "semantic.file_path.dot_segment",
+        ],
+    },
+    SemanticRuleEntry {
+        id: "value-reference.dir-entry-name.validate",
+        category: ValueReference,
+        implementation_status: Implemented,
+        spec_required: false,
+        conformance_required: false,
+        docs_required: false,
+        related_syntax_rule: Some("dir_contains"),
+        related_diagnostic_codes: &[
+            "semantic.dir_entry_name.empty",
+            "semantic.dir_entry_name.path_separator",
+            "semantic.dir_entry_name.dot_entry",
+            "semantic.dir_entry_name.control_char",
         ],
     },
     SemanticRuleEntry {
