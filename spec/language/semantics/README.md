@@ -2,6 +2,16 @@
 
 This document records the conventions used to write and identify semantic specs in `spec/language/semantics/`.
 
+## Source of truth
+
+Two different things are each a source of truth here, for different questions:
+
+- **Rust const registry** (`reportage_core::semantic_rule_registry::SEMANTIC_RULE_REGISTRY`, `#[doc(hidden)]` in `crates/reportage-core/src/semantic_rule_registry.rs`) is the source of truth for which semantic rules exist, their category, and whether each one requires a spec file, conformance cases, and a generated docs entry. It is a spec coverage inventory, not runtime implementation.
+- **Semantic spec JSON** (this directory) is the source of truth for each rule's normative fields and conformance cases.
+- **The generated semantic rule catalog** (`docs/language/semantic-rules.md`) is read-only documentation generated from the semantic spec JSON; it assumes the registry and the specs already agree.
+
+`just semantic-rule-coverage-check` verifies that the registry and this directory agree: every rule the registry marks `spec_required=true` must have a spec file here, and every spec file here must have a corresponding registry entry. See docs/adr/20260708T065700Z_semantic-rule-coverage-registry.md for the full rationale.
+
 ## Semantic spec ID format
 
 Semantic spec IDs are stable identifiers. Renaming an ID is a breaking change.

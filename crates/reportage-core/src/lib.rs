@@ -9,6 +9,8 @@ pub mod model;
 pub mod parser;
 pub mod result;
 pub mod semantic;
+#[doc(hidden)]
+pub mod semantic_rule_registry;
 mod shell_quote;
 pub mod shim;
 pub mod shim_event;

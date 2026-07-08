@@ -2,7 +2,9 @@
 
 <!-- GENERATED FILE: do not edit directly. Regenerate with `just semantic-docs-gen`. -->
 
-This is the generated semantic rule catalog. It is generated from `spec/language/semantics/*.json`. The JSON specs are the machine-readable source of truth for v0 semantic documentation and semantic conformance cases.
+This is the generated semantic rule catalog. It is generated from `spec/language/semantics/*.json`. The JSON specs are the source of truth for each rule's normative fields and conformance cases; this catalog is a read-only view of that content.
+
+The inventory of which semantic rules exist, and which ones require a spec, conformance cases, or a catalog entry here, is owned separately by the Rust const registry (`reportage_core::semantic_rule_registry::SEMANTIC_RULE_REGISTRY`), checked in CI by `just semantic-rule-coverage-check`. See `spec/language/semantics/README.md` and docs/adr/20260708T065700Z_semantic-rule-coverage-registry.md for the full source-of-truth split.
 
 The conformance case lists below are read-only views derived from the JSON specs. Change the JSON specs, then regenerate this file.
 
