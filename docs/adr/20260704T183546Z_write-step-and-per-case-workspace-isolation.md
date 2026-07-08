@@ -68,7 +68,7 @@ An action executes the subject under test; an assertion block is side-effect-fre
 - **Parse-domain validation error** — an unsafe `WorkspacePath`: empty, absolute, or containing a `.` / `..` segment (`semantic.workspace_path.empty` / `.absolute` / `.dot_segment`). This is detected by `WorkspacePath::parse` while the AST is being constructed, the same phase that already rejects an empty logical-composition block — so it is surfaced as a `ParseError`, exactly like that existing case, even though its code lives in the `semantic.*` namespace.
 - **Runtime step error** — detected only once the step actually runs: the target path already exists (create-only), a regular file blocks part of the parent path, or the OS write itself fails (`step.write.target_exists` / `.parent_not_a_directory` / `.io_error`). This introduces a new `step.*` diagnostic namespace alongside `parse.*` / `semantic.*` / `assertion.*`.
 
-A runtime step error stops the concrete case at that point — later steps do not run — the same way an assertion block failure does, but it is reported as a `runtime_error` run outcome (exit code `3`), not `test_failed` (exit code `1`). See `docs/exit-codes.md` and `docs/semantic-diagnostics.md`.
+A runtime step error stops the concrete case at that point — later steps do not run — the same way an assertion block failure does, but it is reported as a `runtime_error` run outcome (exit code `3`), not `test_failed` (exit code `1`). See [exit-codes.md](../exit-codes.md) and [semantic-diagnostics.md](../semantic-diagnostics.md).
 
 ### 6. Fenced raw text block, not a `<<NAME` heredoc
 
