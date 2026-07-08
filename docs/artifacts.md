@@ -131,7 +131,7 @@ listed in the boundary section above.
 A passing single-case run produces
 (`tool.version` normalised to a placeholder):
 
-<!-- checked-against: tests/fixtures/run_result/passed.snapshot.json -->
+<!-- checked-against: `tests/fixtures/run_result/passed.snapshot.json` -->
 ```json
 {
   "diagnostics": [],
@@ -216,7 +216,7 @@ and partial-execution shapes are pinned by the snapshots in
 For an empty, whitespace-only, or otherwise valid zero-case suite,
 the run manifest records a no-op success:
 
-<!-- checked-against: tests/fixtures/run_result/noop.snapshot.json -->
+<!-- checked-against: `tests/fixtures/run_result/noop.snapshot.json` -->
 ```json
 {
   "diagnostics": [],

@@ -939,7 +939,7 @@ fn stdout_projection_is_the_artifact_result_minus_the_defined_differences() {
 // Docs drift check
 //
 // docs/artifacts.md marks each fixture-derived example with a
-// `<!-- checked-against: <repo-relative snapshot path> -->` comment directly above a
+// `<!-- checked-against: `<repo-relative snapshot path>` -->` comment directly above a
 // ```json fence. Those examples are the "checked" sections of the generated / checked /
 // handwritten boundary defined in docs/artifacts.md: this test fails when an example
 // drifts from the snapshot it claims to mirror.
@@ -957,7 +957,11 @@ fn docs_artifacts_examples_match_their_fixture_snapshots() {
         let Some(marker) = line.trim().strip_prefix("<!-- checked-against:") else {
             continue;
         };
-        let snapshot_rel = marker.trim().trim_end_matches("-->").trim();
+        let snapshot_rel = marker
+            .trim()
+            .trim_end_matches("-->")
+            .trim()
+            .trim_matches('`');
 
         assert_eq!(
             lines.next().map(str::trim),
