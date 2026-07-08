@@ -12,6 +12,6 @@ case "unknown template diagnostic lists the currently registered templates" {
 
   assert {
     exit 2
-    stderr contains "available templates are: typescript-c8-tsx"
+    stderr contains "available templates are: golang, typescript-c8-tsx"
   }
 }
