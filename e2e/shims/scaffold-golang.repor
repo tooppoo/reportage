@@ -151,3 +151,78 @@ case "golang generated shim actually runs when wired up as a reportage command" 
     stdout contains "PASS  inner.repor :: failure: propagates the wrapped invocation's non-zero exit status"
   }
 }
+
+case "golang generated shim resolves entry_point relative to its own directory, not the caller's working directory" {
+  # reportage runs a wired-up command with the *inner* suite's own case workspace as its working
+  # directory, not the directory the shim file lives in (docs/execution-model.md), so this case
+  # places entry.go next to the shim and has the fake `go` fail unless it can actually find that
+  # file via the relative entry_point the shim passed it: that is only possible if the shim
+  # resolved entry_point against its own directory instead of the caller's working directory.
+  write <"entry.go"> ""
+  write <"fake-bin/go"> ```
+    #!/bin/sh
+    set -eu
+    shift
+    out=""
+    entry=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -cover)
+          shift
+          ;;
+        -o)
+          out="$2"
+          shift 2
+          ;;
+        *)
+          entry="$1"
+          shift
+          ;;
+      esac
+    done
+    if [ ! -f "$entry" ]; then
+      echo "entry point not found at $entry (cwd $(pwd))" >&2
+      exit 1
+    fi
+    mkdir -p "$(dirname "$out")"
+    printf '#!/bin/sh\n' > "$out"
+    printf 'echo built-ok\n' >> "$out"
+    chmod +x "$out"
+    ```
+  $ chmod +x fake-bin/go
+
+  $ reportage shim scaffold --template golang --entry-point entry.go --out my-app
+
+  write <"reportage.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+      commands {
+        command "my-app" {
+          exec "my-app"
+        }
+      }
+      tests {
+        path "inner.repor"
+      }
+    }
+    ```
+  write <"inner.repor"> ```
+    case "shim finds its own entry point regardless of the inner suite's case workspace" {
+      $ my-app
+
+      assert {
+        exit 0
+        stdout contains "built-ok"
+      }
+    }
+    ```
+
+  $ PATH="$PWD/fake-bin:$PATH" reportage
+
+  assert {
+    exit 0
+    stdout contains "PASS  inner.repor :: shim finds its own entry point regardless of the inner suite's case workspace"
+  }
+}

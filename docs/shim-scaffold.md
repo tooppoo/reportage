@@ -59,7 +59,9 @@ reportage shim scaffold --template typescript-c8-tsx --entry-point my-app/index.
 
 This template targets a common Node.js/TypeScript pairing: [`c8`](https://github.com/bcoe/c8) for Node.js/V8 coverage collection, and [`tsx`](https://github.com/privatenumber/tsx) to run a TypeScript entry point directly without a separate build step. The generated shim is a POSIX `sh` script that single-quotes `--entry-point` (reusing the same quoting `reportage_core::shim_scaffold::single_quote` applies to every template, not a template-specific reimplementation) and execs `npx c8 ... npx tsx "$entry_point" "$@"`, so the shim's own exit status is whatever `c8`/`tsx` produced and every extra argument passed to the shim reaches the entry point unchanged.
 
-A relative `--entry-point` is resolved from the generated shim's runtime working directory when it executes, not from the directory `scaffold` was run in.
+The generated shim `cd`s into its own directory (derived from `$0`) before doing anything else, so `--entry-point` and `--reports-dir` are resolved relative to where the shim file itself lives, not relative to whatever directory the shim happens to be invoked from. This matters because a command wired up through reportage runs with the case workspace as its working directory, not the shim's own directory (see [execution-model.md](execution-model.md)); if `--entry-point` or this project's `node_modules` live somewhere other than the shim's own directory, edit the `cd` target and these paths after generation to match.
+
+The generated shim passes `--clean=false` to `c8`. A suite typically invokes the same shim once per test case, each as a separate `npx c8` process; `c8`'s own default (`--clean=true`) erases coverage from the temp directory before every run, so without `--clean=false` only the last invocation's coverage would survive in the final report. This accumulation has no notion of a suite run boundary — `c8` does not know when one suite run ends and the next begins — so a project that re-runs its suite without clearing `--reports-dir` in between risks a stale file from an earlier run masking a real coverage regression. Clearing `--reports-dir` before each fresh suite run is this project's responsibility, not something the shim or `scaffold` does.
 
 At scaffold time, reportage does not read this project's `package.json`, `tsconfig.json`, or any `c8` configuration file, and does not check that `c8` or `tsx` are installed. When the generated shim later runs, `c8` itself may still perform its own configuration resolution (for example a `.c8rc` file or a `c8` field in `package.json`); reportage does not interpret or validate whatever `c8` finds there.
 
@@ -72,7 +74,8 @@ This template provides only an initial `c8 + tsx` scaffold, not a complete or gu
 - replacing the `npx` invocations with a package-manager-specific run command (for example `pnpm exec` or `yarn`);
 - replacing `tsx` with `ts-node` or a project-specific loader;
 - running already-built JavaScript instead of a TypeScript source file directly;
-- changing the `c8` reporter flags or `--reports-dir` output location.
+- changing the `c8` reporter flags or `--reports-dir` output location;
+- adjusting the `cd` target if `--entry-point` or `node_modules` live somewhere other than the shim's own directory — for example if `--out` places the shim in a nested `shim/` subdirectory of the project, as in this repo's own `examples/shims/javascript`.
 
 ## `golang` template
 
@@ -90,9 +93,11 @@ At scaffold time, reportage does not read this project's `go.mod`, does not dete
 
 By default, `go build -cover` instruments only packages in the main module; it does not instrument the standard library or external dependencies. Add `-coverpkg` to the generated shim's `go build` invocation if this project needs a different instrumentation scope.
 
-Go coverage data is written when the program returns normally from `main` or exits via `os.Exit`. If the program terminates through an unrecovered panic or a fatal exception, coverage data from that run may be lost; reportage neither detects nor works around this.
+Go coverage data is written when the program returns normally from `main` or exits via `os.Exit`. If the program terminates through an unrecovered panic or a fatal exception, coverage data from that run may be lost; reportage neither detects nor works around this. `GOCOVERDIR` accumulates a new file per process run rather than overwriting the previous one, which is what lets coverage from multiple invocations within one suite run add up correctly; it also means a stale file left over from an earlier suite run stays in `cover_dir` and can mask a real coverage regression unless this project clears `cover_dir` before each fresh suite run — the generated shim does not do this itself.
 
 `work_dir`, `bin_path`, and `cover_dir` in the generated shim are fixed initial values, not derived from `--out`: v0's template context carries only `entry_point`, so scaffold has no project-specific destination to embed here even if it wanted to. Edit these paths to fit the project after generation.
+
+The generated shim `cd`s into its own directory (derived from `$0`) before doing anything else, so `entry_point`, `work_dir`, and `cover_dir` are resolved relative to where the shim file itself lives, not relative to whatever directory the shim happens to be invoked from. This matters because a command wired up through reportage runs with the case workspace as its working directory, not the shim's own directory (see [execution-model.md](execution-model.md)); if `entry_point` or this project's `go.mod` live somewhere other than the shim's own directory, edit the `cd` target and these paths after generation to match.
 
 ### Assumptions and limits
 
@@ -101,7 +106,8 @@ This template assumes Go 1.20 or later (`go build -cover` and `GOCOVERDIR` were 
 - changing the `go build` target or flags, for example adding `-coverpkg`;
 - running an already-built binary instead of building on every invocation;
 - changing `work_dir`, `bin_path`, or `cover_dir` to project-specific locations;
-- reconciling `GOCOVERDIR` with an existing coverage-collection setup.
+- reconciling `GOCOVERDIR` with an existing coverage-collection setup;
+- adjusting the `cd` target if `entry_point` or `go.mod` live somewhere other than the shim's own directory — for example if `--out` places the shim in a nested `shim/` subdirectory of the project, as in this repo's own `examples/shims/go`.
 
 ## Output path policy
 
@@ -122,5 +128,6 @@ Every `--out` conflict message (existing file, existing directory, existing syml
 ## Related documents
 
 - [shims.md](shims.md)
+- [execution-model.md](execution-model.md)
 - [exit-codes.md](exit-codes.md)
 - [ADR 20260708T062146Z](adr/20260708T062146Z_shim-scaffold-command.md)
