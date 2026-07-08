@@ -1840,6 +1840,45 @@ mod tests {
     }
 
     #[test]
+    fn file_text_equals_fails_on_heredoc_mismatch() {
+        // Mirrors `file_text_equals_fails_on_single_byte_mismatch`, but with a heredoc expected
+        // value: failure classification and `expected_source` must both reflect the heredoc
+        // literal form, not just the quoted-string form the sibling test covers.
+        let script = single_case(vec![
+            write_step("actual.txt", "hello\nworld\n"),
+            assert_file_text_equals_heredoc("actual.txt", "hello\nWORLD\n"),
+        ]);
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
+        assert!(matches!(result.cases[0].status, CaseStatus::Fail));
+        let expectation = &result.cases[0].assertion_blocks[0].expectations[0];
+        assert!(!expectation.passed);
+        let ExpectationKind::FileTextEquals {
+            expected_source,
+            observation,
+            ..
+        } = &expectation.kind
+        else {
+            panic!("expected ExpectationKind::FileTextEquals");
+        };
+        assert_eq!(
+            *expected_source,
+            TextEqualsExpectedSource::Heredoc("hello\nWORLD\n".to_string())
+        );
+        let ContentsEqualsObservation::Compared(comparison) = observation else {
+            panic!("expected ContentsEqualsObservation::Compared");
+        };
+        assert!(matches!(
+            comparison.outcome,
+            ContentsEqualsOutcome::Mismatch(_)
+        ));
+    }
+
+    #[test]
     fn file_text_equals_detects_missing_trailing_newline_as_mismatch() {
         let script = single_case(vec![
             write_step("actual.txt", "hello"),

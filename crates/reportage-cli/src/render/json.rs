@@ -1376,6 +1376,47 @@ mod tests {
     }
 
     #[test]
+    fn file_text_equals_heredoc_expected_source_json_shape() {
+        // Mirrors `file_text_equals_expectation_kind_json_shape`, but for the `Heredoc` variant
+        // of `TextEqualsExpectedSource`: the `Quoted` case above must not be the only one
+        // exercised, since `text_equals_expected_source_json`'s two match arms are otherwise
+        // untested on the `Heredoc` side.
+        let comparison = ContentsEqualsComparison::compare(
+            b"hello\nWORLD\n".to_vec(),
+            b"hello\nworld\n".to_vec(),
+        );
+        let case = CaseResult {
+            name: "file text_equals heredoc".to_string(),
+            source_path: Some(PathBuf::from("textequals.repor")),
+            status: CaseStatus::Fail,
+            actions: vec![],
+            assertion_blocks: vec![AssertionBlockResult {
+                step_index: 0,
+                checkpoint_action_index: None,
+                expectations: vec![ExpectationResult {
+                    kind: ExpectationKind::FileTextEquals {
+                        path: "out.txt".to_string(),
+                        expected_source: TextEqualsExpectedSource::Heredoc(
+                            "hello\nworld\n".to_string(),
+                        ),
+                        observation: ContentsEqualsObservation::Compared(comparison),
+                    },
+                    passed: false,
+                }],
+            }],
+            side_effects_executed: 0,
+        };
+        let doc = build_document(
+            &report_with_cases(vec![case]),
+            Path::new(".reportage/runs/1"),
+        );
+
+        let expectation = &doc["tests"][0]["assertions"][0]["expectation"];
+        assert_eq!(expectation["expectedSource"]["kind"], "heredoc");
+        assert_eq!(expectation["expectedSource"]["value"], "hello\nworld\n");
+    }
+
+    #[test]
     fn checkpoint_reflects_the_action_in_effect_at_each_assertion_block() {
         // Two actions, two assertion blocks: the second block's checkpoint must reference the
         // second action, not the first.

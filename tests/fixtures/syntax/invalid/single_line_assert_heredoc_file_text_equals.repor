@@ -1,0 +1,6 @@
+case "single line assert heredoc file text_equals" {
+  $ true
+  assert { file <"out/result.json"> text_equals ```
+  hello
+  ``` }
+}

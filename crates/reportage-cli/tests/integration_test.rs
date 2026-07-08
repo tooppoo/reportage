@@ -1851,6 +1851,38 @@ case "file text_equals mismatch" {
 }
 
 #[test]
+fn file_text_equals_fails_on_heredoc_byte_mismatch() {
+    // Mirrors `file_text_equals_fails_on_byte_mismatch`, but with a heredoc expected value: a
+    // failing heredoc-form text_equals must report the same diagnostic code as the quoted-string
+    // form, and its human-rendered subject description must use the heredoc literal label
+    // instead of the compact quoted-literal rendering (see `format_text_equals_source`).
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file text_equals heredoc mismatch" {
+  $ printf 'hello\nworld\n' > actual.txt
+  assert {
+    file <"actual.txt"> text_equals ```
+    hello
+    WORLD
+    ```
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "assertion.file.text_equals_mismatch",
+        ))
+        .stderr(predicates::str::contains("<heredoc literal>"));
+}
+
+#[test]
 fn file_text_equals_missing_actual_is_assertion_failure() {
     let dir = TempDir::new().unwrap();
     let script = write_script(
