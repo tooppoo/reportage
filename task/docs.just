@@ -5,12 +5,12 @@
 semantic-specs-check:
   cargo nextest run --locked --test semantic_specs
 
-# generate language semantics documentation
+# generate the semantic rule catalog
 [group('docs')]
 semantic-docs-gen:
-  cargo run --locked -p reportage-core --bin gen_semantic_docs -- docs/language/semantics.md
+  cargo run --locked -p reportage-core --bin gen_semantic_docs -- docs/language/semantic-rules.md
 
-# check if language semantics documentation is up to date
+# check if the semantic rule catalog is up to date
 [group('docs')]
 [group('check')]
 semantic-docs-check:
@@ -19,12 +19,12 @@ semantic-docs-check:
   tmp=$(mktemp)
   trap "rm -f '$tmp'" EXIT
   cargo run --locked -p reportage-core --bin gen_semantic_docs -- "$tmp" > /dev/null
-  if ! diff -q docs/language/semantics.md "$tmp" > /dev/null 2>&1; then
-    echo "docs/language/semantics.md is stale. Run 'just semantic-docs-gen' to regenerate."
-    diff docs/language/semantics.md "$tmp" || true
+  if ! diff -q docs/language/semantic-rules.md "$tmp" > /dev/null 2>&1; then
+    echo "docs/language/semantic-rules.md is stale. Run 'just semantic-docs-gen' to regenerate."
+    diff docs/language/semantic-rules.md "$tmp" || true
     exit 1
   fi
-  echo "docs/language/semantics.md is up to date."
+  echo "docs/language/semantic-rules.md is up to date."
 
 # generate language grammar documentation
 [group('docs')]
