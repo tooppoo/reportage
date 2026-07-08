@@ -100,6 +100,7 @@ BEGIN {
 
 FNR == 1 {
   in_fence = 0
+  fence_char = ""
   reported = 0
 }
 
@@ -188,12 +189,48 @@ function scan_line(line, fields, n, i, candidate) {
   }
 }
 
-/^[[:space:]]*```/ || /^[[:space:]]*~~~/ {
-  in_fence = !in_fence
+function is_fence_opener(s) {
+  return s ~ /^[[:space:]]*(```+|~~~+)/
+}
+
+function is_fence_closer(s) {
+  if (fence_char == "`") {
+    return s ~ /^[[:space:]]*```+[[:space:]]*$/
+  }
+
+  if (fence_char == "~") {
+    return s ~ /^[[:space:]]*~~~+[[:space:]]*$/
+  }
+
+  return 0
+}
+
+function enter_fence(s) {
+  if (s ~ /^[[:space:]]*```+/) {
+    fence_char = "`"
+    in_fence = 1
+    return
+  }
+
+  if (s ~ /^[[:space:]]*~~~+/) {
+    fence_char = "~"
+    in_fence = 1
+    return
+  }
+}
+
+in_fence && is_fence_closer($0) {
+  in_fence = 0
+  fence_char = ""
   next
 }
 
 in_fence {
+  next
+}
+
+is_fence_opener($0) {
+  enter_fence($0)
   next
 }
 
