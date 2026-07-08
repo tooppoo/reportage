@@ -12,6 +12,15 @@ set -eu
 # Go coverage data is written when the program returns normally from main
 # or exits via os.Exit. If the program terminates by unrecovered panic
 # or fatal exception, coverage data from that run may be lost.
+#
+# reportage runs `$` steps with the case workspace as the working directory, not this shim's own
+# directory (see docs/execution-model.md), so this shim cd's into its own project directory
+# first: without that, `go build` would resolve entry_point/work_dir/cover_dir against whatever
+# directory the caller happened to be in, and would not find this project's go.mod at all.
+
+shim_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+project_root=$(CDPATH= cd -- "$shim_dir/.." && pwd)
+cd "$project_root"
 
 entry_point='src/sample.go'
 work_dir='.reportage/shims/go'
