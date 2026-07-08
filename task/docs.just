@@ -26,6 +26,12 @@ semantic-docs-check:
   fi
   echo "docs/language/semantic-rules.md is up to date."
 
+# run the semantic rule coverage check (registry vs. semantic specs vs. generated docs)
+[group('docs')]
+[group('check')]
+semantic-rule-coverage-check:
+  cargo nextest run --locked --test semantic_rule_coverage
+
 # generate language grammar documentation
 [group('docs')]
 lang-docs-gen:
