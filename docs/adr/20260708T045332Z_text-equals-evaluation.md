@@ -53,7 +53,7 @@ Making string literal and heredoc literal transparent to the evaluator, while le
 ### Negative Consequences
 
 - `ExpectationKind::FileTextEquals` and `TextEqualsExpectedSource` duplicate the shape of `ExpectationKind::FileContentsEquals` and `ContentsEqualsExpectedSource` field-for-field, differing only in the expected-source type; a shared generic was not introduced, since `ContentsEqualsObservation`/`ContentsEqualsComparison` are already reused as-is and the two `ExpectationKind` variants exist mainly to carry a different, source-shaped `expected_source` through to rendering.
-- `spec/output/json-report/schema.json` gained a thirteenth `fileTextEquals` expectation kind and a `TextExpectedSource` definition; this is additive, and, like `contents_equals`'s own schema addition, is not currently pinned by an artifact schema stability contract (see docs/TBD.md — Artifact schema stabilization).
+- `spec/output/json-report/schema.json` gained a thirteenth `fileTextEquals` expectation kind and a `TextExpectedSource` definition; this is additive, and, like `contents_equals`'s own schema addition, is not currently pinned by an artifact schema stability contract (see [TBD.md](../TBD.md) — Artifact schema stabilization).
 
 ### Neutral Consequences
 
