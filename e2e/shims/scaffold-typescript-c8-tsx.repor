@@ -47,3 +47,25 @@ case "typescript-c8-tsx is registered: an unrelated unknown template still names
     stderr contains "unknown template 'bogus-template': available templates are: typescript-c8-tsx"
   }
 }
+
+case "typescript-c8-tsx generated shim has the owner-execute permission bit set" {
+  $ reportage shim scaffold --template typescript-c8-tsx --entry-point my-app/index.ts --out shim.sh
+  $ test -x shim.sh
+
+  assert {
+    exit 0
+  }
+}
+
+case "typescript-c8-tsx: --force overwrites a previously generated shim with freshly rendered content" {
+  $ reportage shim scaffold --template typescript-c8-tsx --entry-point old-entry.ts --out shim.sh
+  $ reportage shim scaffold --template typescript-c8-tsx --entry-point new-entry.ts --out shim.sh --force
+
+  assert {
+    exit 0
+    file <"shim.sh"> contains "entry_point='new-entry.ts'"
+    not {
+      file <"shim.sh"> contains "entry_point='old-entry.ts'"
+    }
+  }
+}
