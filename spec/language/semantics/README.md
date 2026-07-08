@@ -75,6 +75,8 @@ Note: `exit <code>` does not spell out `equals` in syntax, but the semantic rule
 
 `fixture-reference` is a `value-reference` rule in its own right, not a sub-concept of `workspace-path`: the two share a lexical validation shape (empty/absolute/dot-segment) but resolve against different roots (the case workspace vs. `repor_dir`) and have independent diagnostic codes.
 
+Permission-based rejections (`assertion.dir.contains_subject_unreadable`, `semantic.file_contents_reference.read_error`) are documented in normative fields but intentionally have no conformance case: reproducing them portably would require `chmod`-based fixtures, which are unreliable in CI environments that run as root (root bypasses permission bits). Adding dedicated coverage for these codes is tracked as follow-up work, not this issue's scope.
+
 ## Semantic spec file location
 
 Semantic spec files live in `spec/language/semantics/`. Each file is named after its ID:
@@ -167,6 +169,7 @@ An eval case provides enough static data to run the production semantic evaluato
 - `dirs` — empty directories to create under the case workspace root.
 - `reporDirFiles` — files to create under `repor_dir`, for resolving a `contents_equals` expected `@"..."` fixture reference.
 - `reporDirDirs` — empty directories to create under `repor_dir`.
+- `reporDirSymlinks` — symlinks to create under `repor_dir`, each as `{"path": "...", "outsideDirFiles": [<WorkspaceFile>...]}`: `path` becomes a symlink pointing at a freshly created directory containing `outsideDirFiles`, reproducing the symlink-escape scenario `value-reference.fixture-reference.resolve` guards against (a fixture reference with no `.`/`..` segment that still escapes `repor_dir` because a symlink planted under it points elsewhere). Requires a Unix target; CI runs on `ubuntu-latest`.
 
 ### Parser cases
 

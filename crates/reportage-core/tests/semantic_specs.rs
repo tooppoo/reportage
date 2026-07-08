@@ -266,6 +266,22 @@ struct WorkspaceFixtureSet {
     repor_dir_files: Vec<WorkspaceFile>,
     #[serde(default)]
     repor_dir_dirs: Vec<String>,
+    /// Symlinks created under `repor_dir`, each pointing at a directory materialized outside both
+    /// the case workspace and `repor_dir`. Lets a fixture-reference conformance case reproduce the
+    /// symlink-escape scenario `fixture::resolve_fixture_source` guards against: a fixture path
+    /// with no `.`/`..` segment that still escapes `repor_dir` because a symlink planted under it
+    /// points elsewhere.
+    #[serde(default)]
+    repor_dir_symlinks: Vec<ReporDirSymlink>,
+}
+
+/// A symlink materialized at `repor_dir.join(path)`, pointing at a freshly created directory
+/// containing `outside_dir_files`. See `WorkspaceFixtureSet::repor_dir_symlinks`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct ReporDirSymlink {
+    path: String,
+    outside_dir_files: Vec<WorkspaceFile>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -419,6 +435,25 @@ struct CheckpointMaterialization {
     checkpoint: EvaluatorCheckpoint,
     _workspace_dir: Option<tempfile::TempDir>,
     _repor_dir: Option<tempfile::TempDir>,
+    /// Directories a `repor_dir_symlinks` entry points at; kept alive alongside `_repor_dir`.
+    _symlink_targets: Vec<tempfile::TempDir>,
+}
+
+#[cfg(unix)]
+fn create_symlink(original: &std::path::Path, link: &std::path::Path) {
+    std::os::unix::fs::symlink(original, link).unwrap_or_else(|e| {
+        panic!(
+            "cannot create symlink {} -> {}: {}",
+            link.display(),
+            original.display(),
+            e
+        )
+    });
+}
+
+#[cfg(not(unix))]
+fn create_symlink(_original: &std::path::Path, _link: &std::path::Path) {
+    panic!("reporDirSymlinks conformance cases require a Unix target (CI runs on ubuntu-latest)");
 }
 
 fn write_workspace_file(root: &std::path::Path, file: &WorkspaceFile) {
@@ -451,19 +486,34 @@ fn checkpoint_for_case(case: &EvalCase) -> CheckpointMaterialization {
         _ => (PathBuf::from("."), None),
     };
 
-    let (repor_dir_path, repor_dir) = match workspace {
-        Some(ws) if !ws.repor_dir_files.is_empty() || !ws.repor_dir_dirs.is_empty() => {
-            let dir = tempfile::TempDir::new().expect("failed to create conformance repor_dir");
-            for file in &ws.repor_dir_files {
-                write_workspace_file(dir.path(), file);
-            }
-            for d in &ws.repor_dir_dirs {
-                fs::create_dir_all(dir.path().join(d))
-                    .unwrap_or_else(|e| panic!("cannot create dir {d}: {e}"));
-            }
-            (dir.path().to_path_buf(), Some(dir))
+    let needs_repor_dir = workspace.is_some_and(|ws| {
+        !ws.repor_dir_files.is_empty()
+            || !ws.repor_dir_dirs.is_empty()
+            || !ws.repor_dir_symlinks.is_empty()
+    });
+    let mut symlink_targets = Vec::new();
+    let (repor_dir_path, repor_dir) = if needs_repor_dir {
+        let ws = workspace.expect("needs_repor_dir implies workspace is Some");
+        let dir = tempfile::TempDir::new().expect("failed to create conformance repor_dir");
+        for file in &ws.repor_dir_files {
+            write_workspace_file(dir.path(), file);
         }
-        _ => (PathBuf::from("."), None),
+        for d in &ws.repor_dir_dirs {
+            fs::create_dir_all(dir.path().join(d))
+                .unwrap_or_else(|e| panic!("cannot create dir {d}: {e}"));
+        }
+        for sym in &ws.repor_dir_symlinks {
+            let target_dir =
+                tempfile::TempDir::new().expect("failed to create conformance symlink target dir");
+            for file in &sym.outside_dir_files {
+                write_workspace_file(target_dir.path(), file);
+            }
+            create_symlink(target_dir.path(), &dir.path().join(&sym.path));
+            symlink_targets.push(target_dir);
+        }
+        (dir.path().to_path_buf(), Some(dir))
+    } else {
+        (PathBuf::from("."), None)
     };
 
     let checkpoint = EvaluatorCheckpoint {
@@ -488,6 +538,7 @@ fn checkpoint_for_case(case: &EvalCase) -> CheckpointMaterialization {
         checkpoint,
         _workspace_dir: workspace_dir,
         _repor_dir: repor_dir,
+        _symlink_targets: symlink_targets,
     }
 }
 
@@ -1334,15 +1385,21 @@ fn conformance_case_expected_result_matches_v0_semantics() {
                             case.description
                         )
                     });
-                    if let Some(expected_code) = &case.expected_diagnostic_code {
-                        assert_eq!(
-                            err.diagnostic_code.as_str(),
-                            expected_code,
-                            "{} case '{}': script error diagnostic code mismatch",
-                            path.display(),
-                            case.description
-                        );
-                    }
+                    let expected_code =
+                        case.expected_diagnostic_code.as_deref().unwrap_or_else(|| {
+                            panic!(
+                                "{} case '{}': scriptError cases must set expectedDiagnosticCode",
+                                path.display(),
+                                case.description
+                            )
+                        });
+                    assert_eq!(
+                        err.diagnostic_code.as_str(),
+                        expected_code,
+                        "{} case '{}': script error diagnostic code mismatch",
+                        path.display(),
+                        case.description
+                    );
                 }
             }
         }

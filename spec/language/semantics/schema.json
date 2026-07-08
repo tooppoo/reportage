@@ -123,7 +123,13 @@
       "type": "object",
       "minProperties": 1,
       "not": {
-        "required": ["notes", "explanation", "aiNote", "rationale", "status"]
+        "anyOf": [
+          { "required": ["notes"] },
+          { "required": ["explanation"] },
+          { "required": ["aiNote"] },
+          { "required": ["rationale"] },
+          { "required": ["status"] }
+        ]
       }
     },
     "EvalConformanceCase": {
@@ -242,6 +248,23 @@
         "reporDirDirs": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "reporDirSymlinks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ReporDirSymlink" }
+        }
+      }
+    },
+    "ReporDirSymlink": {
+      "description": "A symlink materialized at repor_dir.join(path), pointing at a freshly created directory containing outsideDirFiles, to reproduce a symlink-escape scenario for value-reference.fixture-reference.resolve conformance cases.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "outsideDirFiles"],
+      "properties": {
+        "path": { "type": "string" },
+        "outsideDirFiles": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WorkspaceFile" }
         }
       }
     },

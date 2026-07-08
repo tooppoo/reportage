@@ -110,6 +110,36 @@
       },
       "expectedResult": "scriptError",
       "expectedDiagnosticCode": "semantic.fixture_reference.not_a_regular_file"
+    },
+    {
+      "description": "invalid: a fixture reference is a script error when a symlink planted under repor_dir makes it escape repor_dir, even though the reference itself has no '.'/'..' segment",
+      "assertionSource": "file <\"actual.txt\"> contents_equals @\"escape/secret.txt\"",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "fixtureReference", "value": "escape/secret.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ],
+          "reporDirSymlinks": [
+            {
+              "path": "escape",
+              "outsideDirFiles": [
+                { "path": "secret.txt", "contents": { "data": "c2VjcmV0", "encoding": "base64", "text": "secret" } }
+              ]
+            }
+          ]
+        }
+      },
+      "expectedResult": "scriptError",
+      "expectedDiagnosticCode": "semantic.fixture_reference.escapes_repor_directory"
     }
   ]
 }
