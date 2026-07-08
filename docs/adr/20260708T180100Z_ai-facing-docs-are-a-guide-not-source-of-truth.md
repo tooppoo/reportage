@@ -41,6 +41,8 @@ The following command is treated as the primary post-generation validation step 
 reportage check <file> --format=json
 ```
 
+`reportage check` does not exist yet as of this ADR. This decision reserves its name and its `--format=json` output as the first-class validation entrypoint that AI-facing documentation should reference once it ships. Its own scope and behavior are defined by whichever issue introduces it; see issue #142's acceptance criteria for the currently expected usage.
+
 ## Alternatives Considered
 
 ### Let AI-facing documentation restate the full specification
