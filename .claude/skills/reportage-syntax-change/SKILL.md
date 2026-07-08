@@ -20,10 +20,18 @@ When adding or changing syntax, do all of the following.
 
 Add examples that show the new syntax being used in realistic reportage files.
 
-The examples must include:
+A valid example must satisfy both of the following:
 
-- at least one minimal valid example
-- at least one realistic example that resembles how a user would write the syntax in practice
+it is syntactically valid and can be parsed into a valid AST
+it is semantically valid and is accepted by semantic validation
+
+In this skill, "valid example" does not mean "parseable example".
+A source file that parses successfully but is rejected by semantic validation is a semantic error example, not a valid example.
+
+The valid examples must include:
+
+at least one minimal valid example
+at least one realistic valid example that resembles how a user would write the syntax in practice
 
 The examples should not exist only as parser unit tests.
 They must be visible as examples or fixtures that future maintainers and AI agents can inspect.
@@ -79,15 +87,16 @@ If generated documentation exists, run the project’s documentation generation/
 
 Before considering the change complete, verify:
 
-- [ ] The new syntax has at least one valid example.
-- [ ] Syntax-invalid examples exist and fail at parse time.
-- [ ] Semantic-invalid examples exist, or their absence is explicitly justified.
-- [ ] Syntax error and semantic error examples are not mixed up.
-- [ ] Parser tests cover the new syntax.
-- [ ] Semantic validation tests cover the new rule, if any.
-- [ ] Documentation/examples reflect the new syntax.
-- [ ] Existing examples still pass.
-- [ ] Generated docs or snapshots are updated intentionally.
+* [ ] The new syntax has at least one syntactically and semantically valid example.
+* [ ] Valid examples are not merely parseable examples.
+* [ ] Syntax-invalid examples exist and fail at parse time.
+* [ ] Semantic-invalid examples parse successfully but fail semantic validation, or their absence is explicitly justified.
+* [ ] Syntax error and semantic error examples are not mixed up.
+* [ ] Parser tests cover the new syntax.
+* [ ] Semantic validation tests cover the new rule, if any.
+* [ ] Documentation/examples reflect the new syntax.
+* [ ] Existing examples still pass.
+* [ ] Generated docs or snapshots are updated intentionally.
 
 ## Common mistakes
 
