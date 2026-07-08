@@ -1,4 +1,15 @@
 
+# install the javascript shim example's dependencies. must run before reportage exercises the
+# `sample` command, since the shim's `npx c8`/`npx tsx` invocations resolve packages from this
+# project's own node_modules; without a prior install, npx falls back to fetching them from the
+# registry on first use and prints a "will be installed" warning to stderr, which the example's
+# `stderr empty` assertions do not expect.
+js-install:
+  cd javascript && npm ci
+
+# its own `npm ci` duplicates `js-install`'s when both run in the same CI job, but `npm ci` is
+# idempotent and this recipe is also meant to be runnable standalone (without `js-install` having
+# run first), so it keeps its own install rather than assuming a prior step already did it.
 js-coverage-100:
   cd javascript && npm ci && npm run check
 
