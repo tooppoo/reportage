@@ -2,7 +2,7 @@
 
 <!-- GENERATED FILE: do not edit directly. Regenerate with `just semantic-docs-gen`. -->
 
-This file is generated from `spec/language/semantics/*.json`. The JSON specs are the machine-readable source of truth for v0 semantic documentation and semantic conformance cases.
+This is the generated semantic rule catalog. It is generated from `spec/language/semantics/*.json`. The JSON specs are the machine-readable source of truth for v0 semantic documentation and semantic conformance cases.
 
 The conformance case lists below are read-only views derived from the JSON specs. Change the JSON specs, then regenerate this file.
 

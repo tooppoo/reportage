@@ -12,7 +12,7 @@ Reportage's semantics are split across several documents by responsibility, rath
 | --- | --- |
 | Execution model / runtime semantics — runner execution order, case workspace, action execution, checkpoint lifecycle, `before_each`, shell execution, coverage adapter lifecycle, cleanup | [`docs/execution-model.md`](execution-model.md) |
 | Command resolution shim model — shim purpose, shim target, event protocol, observability | [`docs/shims.md`](shims.md) |
-| Language semantic rules — value literals, expectations, assertion evaluation, logical composition | This document (below), and the generated semantic rule catalog at [`docs/language/semantics.md`](language/semantics.md). That generated catalog is planned to be renamed to `docs/language/semantic-rules.md` and to absorb more of this document's language semantic content; see [#99](https://github.com/tooppoo/reportage/issues/99). |
+| Language semantic rules — value literals, expectations, assertion evaluation, logical composition | This document (below), and the generated semantic rule catalog at [`docs/language/semantic-rules.md`](language/semantic-rules.md). |
 | Artifact / result JSON semantics | [`docs/artifacts.md`](artifacts.md) and [`spec/output/json-report/README.md`](../spec/output/json-report/README.md) |
 | Diagnostics | [`docs/diagnostics.md`](diagnostics.md) and [`docs/semantic-diagnostics.md`](semantic-diagnostics.md) |
 | Rationale for individual decisions | [`docs/adr/`](adr/README.md) |
