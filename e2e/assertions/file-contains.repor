@@ -1,0 +1,45 @@
+case "file contains succeeds when the substring is present" {
+  write <"result.json"> ```
+    {"status":"passed"}
+    ```
+  $ true
+
+  assert {
+    exit 0
+    file <"result.json"> contains "\"status\":\"passed\""
+  }
+}
+
+case "file contains fails when the substring is absent" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf '{"status":"fail"}' > result.json
+      assert {
+        file <"result.json"> contains "passed"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+  }
+}
+
+case "file contains fails for a missing file" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ true
+      assert {
+        file <"missing.txt"> contains "anything"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+  }
+}

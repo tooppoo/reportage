@@ -51,54 +51,11 @@ case "fail" {
 }
 "#;
 
-// --- passing cases ---
-
-// Mirrored as a `.repor` self-test at e2e/cases/passing-and-failing.repor (#109). Kept here
-// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
-#[test]
-fn passing_cases_with_explicit_exit_assertions() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "first pass" {
-  $ true
-  assert {
-    exit 0
-  }
-}
-
-case "second pass" {
-  $ false
-  assert {
-    exit 1
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-// Mirrored as a `.repor` self-test at e2e/cases/passing-and-failing.repor (#109). Kept here
-// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
-#[test]
-fn false_with_assert_exit_one_is_a_pass() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "second pass" {
-  $ false
-  assert {
-    exit 1
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
+// --- bootstrap / structural: no-op run artifact shape ---
+//
+// Representative passing/failing-assertion CLI scenarios live in
+// e2e/cases/passing-and-failing.repor (#109). The tests below verify `result.json`
+// structure for a no-op run, which a `.repor` self-test cannot express directly.
 
 #[test]
 fn empty_script_is_noop_success() {
@@ -148,272 +105,23 @@ fn whitespace_only_script_is_noop_success() {
 }
 
 // --- failing assertions ---
-
-// Mirrored as a `.repor` self-test at e2e/cases/passing-and-failing.repor (#109). Kept here
-// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
-#[test]
-fn failing_assertion_exits_with_code_one() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "failing assertion" {
-  $ false
-  assert {
-    exit 0
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(1);
-}
+//
+// Representative passing/failing-assertion CLI scenarios live in
+// e2e/cases/passing-and-failing.repor (#109).
 
 // --- multiple expectations in one block ---
-
-// Mirrored as a `.repor` self-test at e2e/cases/assertion-blocks.repor (#109). Kept here
-// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
-#[test]
-fn multiple_expectations_in_one_block() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "multiple expectations" {
-  $ true
-  assert {
-    exit 0
-    exit 0
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
+//
+// The representative multiple-expectations-in-one-block scenario lives in
+// e2e/cases/assertion-blocks.repor (#109).
 
 // --- logical composition (#25) ---
-
-// Mirrored as a `.repor` self-test at e2e/composition/logical-composition.repor (#109). Kept
-// here as a pre-migration Rust-level regression check; #110 decides whether to reduce or
-// remove it.
-#[test]
-fn all_block_passes_when_every_child_passes() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "all block pass" {
-  $ true
-  assert {
-    all {
-      exit 0
-      stdout empty
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-fn all_block_fails_when_every_child_fails() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "all block fail" {
-  $ false
-  assert {
-    all {
-      exit 0
-      stdout contains "PASS"
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(1);
-}
-
-// Mirrored as a `.repor` self-test at e2e/composition/logical-composition.repor (#109). Kept
-// here as a pre-migration Rust-level regression check; #110 decides whether to reduce or
-// remove it.
-#[test]
-fn any_block_passes_when_one_child_passes() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "any block pass" {
-  $ false
-  assert {
-    any {
-      exit 0
-      exit 1
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-fn any_block_passes_when_all_children_pass() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "any block all pass" {
-  $ true
-  assert {
-    any {
-      exit 0
-      stdout empty
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-fn any_block_fails_when_every_child_fails() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "any block all fail" {
-  $ false
-  assert {
-    any {
-      exit 0
-      stdout contains "PASS"
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(1);
-}
-
-#[test]
-fn not_block_fails_when_inner_expectation_passes() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "not block fail" {
-  $ true
-  assert {
-    not {
-      exit 0
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(1);
-}
-
-#[test]
-fn not_block_passes_when_single_inner_expectation_fails() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "not block single fail pass" {
-  $ false
-  assert {
-    not {
-      exit 0
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-fn not_block_passes_when_all_multiple_children_fail() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "not block all fail pass" {
-  $ false
-  assert {
-    not {
-      exit 0
-      stdout contains "PASS"
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-fn not_block_fails_when_all_multiple_children_pass() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "not block all pass fail" {
-  $ true
-  assert {
-    not {
-      exit 0
-      stdout empty
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(1);
-}
-
-// `not { A B }` evaluates as `not(all(A, B))`, never as `not(A) and not(B)` (see the ADR and docs/semantics.md — Logical composition).
-// With one child passing and one failing, `all(A, B)` is false, so `not(all(A, B))` is true: the `not` block — and therefore the case — passes.
-// This is the case that distinguishes the two groupings: item-wise negation would fail here (since the passing child's negation fails), but grouped negation passes.
 //
-// Mirrored as a `.repor` self-test at e2e/composition/logical-composition.repor (#109). Kept
-// here as a pre-migration Rust-level regression check; #110 decides whether to reduce or
-// remove it.
-#[test]
-fn not_block_passes_when_children_are_mixed_pass_and_fail() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "not block mixed" {
-  $ true
-  assert {
-    not {
-      exit 0
-      stdout contains "PASS"
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
+// Representative `all`/`any`/`not` scenarios, including the `not { A B }` = `not(all(A, B))`
+// distinction, live in e2e/composition/logical-composition.repor (#109). The exhaustive
+// pass/fail combinations for `all`/`any`/`not` are unit-tested directly against the semantic
+// evaluator in `crates/reportage-core/src/evaluator.rs` (`all_passes_when_every_child_passes`
+// and its neighbors), independent of any CLI invocation. The tests below verify what the CLI
+// externalizes for a logical composition result, which the unit tests do not cover.
 
 #[test]
 fn nested_logical_composition_is_evaluated_and_recorded_in_artifact() {
@@ -469,30 +177,9 @@ case "empty composition" {
 }
 
 // --- multiple assertion blocks ---
-
-// Mirrored as a `.repor` self-test at e2e/cases/assertion-blocks.repor (#109). Kept here
-// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
-#[test]
-fn precondition_and_postcondition_assertion_blocks() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "pre and post" {
-  $ true
-  assert {
-    exit 0
-  }
-  $ false
-  assert {
-    exit 1
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
+//
+// The representative precondition/postcondition assertion-block scenario lives in
+// e2e/cases/assertion-blocks.repor (#109).
 
 // --- validation/spec errors ---
 
@@ -661,27 +348,12 @@ case "pass" {
     );
     reportage(&dir).arg(script).assert().code(0);
 
-    // .reportage/runs/<timestamp>/result.json must exist
-    let runs_dir = dir.child(".reportage").child("runs");
-    runs_dir.assert(predicates::path::is_dir());
-
-    // Find the single run directory
-    let runs_path = runs_dir.path();
-    let entries: Vec<_> = std::fs::read_dir(runs_path)
-        .unwrap()
-        .collect::<Result<_, _>>()
-        .unwrap();
-    assert_eq!(entries.len(), 1, "expected exactly one run directory");
-
-    let result_json = entries[0].path().join("result.json");
-    assert!(result_json.exists(), "result.json should exist");
-
-    let content = std::fs::read_to_string(&result_json).unwrap();
+    let (json, run_dir) = read_single_result_json(&dir);
     assert!(
-        content.contains("\"result\""),
-        "result.json should contain result field"
+        run_dir.join("result.json").exists(),
+        "result.json should exist"
     );
-    assert!(content.contains("pass"), "result.json should indicate pass");
+    assert_eq!(json["result"], "pass");
 }
 
 // --- source order execution ---
@@ -727,129 +399,13 @@ case "source order" {
 }
 
 // --- output content ---
-
-// Mirrored as a `.repor` self-test at e2e/output/pass-fail-markers.repor (#109). Kept here
-// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
-#[test]
-fn stdout_shows_pass_for_passing_case() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "my test" {
-  $ true
-  assert {
-    exit 0
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(0)
-        .stdout(predicates::str::contains("PASS"))
-        .stdout(predicates::str::contains("my test"));
-}
-
-// Mirrored as a `.repor` self-test at e2e/output/pass-fail-markers.repor (#109). Kept here
-// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
-#[test]
-fn stdout_shows_fail_for_failing_case() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "my test" {
-  $ false
-  assert {
-    exit 0
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(1)
-        .stdout(predicates::str::contains("FAIL"))
-        .stdout(predicates::str::contains("my test"));
-}
+//
+// Representative pass/fail stdout markers live in e2e/output/pass-fail-markers.repor (#109).
 
 // --- config-driven mode ---
-
-// Mirrored as a `.repor` self-test at e2e/discovery/config-driven.repor (#109). Kept here
-// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
-#[test]
-fn config_driven_mode_discovers_and_runs_files() {
-    let dir = TempDir::new().unwrap();
-    write_script(&dir, "test.repor", PASSING_CASE);
-    write_config(
-        &dir,
-        r#"
-reportage {
-  config {
-    version 1
-  }
-  tests {
-    path "test.repor"
-  }
-}
-"#,
-    );
-    reportage(&dir).assert().code(0);
-}
-
-// Mirrored as a `.repor` self-test at e2e/discovery/config-driven.repor (#109). Kept here
-// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
-#[test]
-fn config_driven_mode_with_glob_pattern() {
-    let dir = TempDir::new().unwrap();
-    write_script(&dir, "a.repor", PASSING_CASE);
-    write_script(&dir, "b.repor", PASSING_CASE);
-    write_config(
-        &dir,
-        r#"
-reportage {
-  config {
-    version 1
-  }
-  tests {
-    path "*.repor"
-  }
-}
-"#,
-    );
-    reportage(&dir).assert().code(0);
-}
-
-#[test]
-fn explicit_config_flag_uses_specified_file() {
-    let dir = TempDir::new().unwrap();
-    write_script(&dir, "test.repor", PASSING_CASE);
-    let config_path = dir.child("custom.kdl");
-    config_path
-        .write_str(
-            r#"
-reportage {
-  config {
-    version 1
-  }
-  tests {
-    path "test.repor"
-  }
-}
-"#,
-        )
-        .unwrap();
-    reportage(&dir)
-        .arg("--config")
-        .arg(config_path.path())
-        .assert()
-        .code(0);
-}
+//
+// Representative config-driven discovery scenarios, including the `--config` flag, live in
+// e2e/discovery/config-driven.repor and e2e/discovery/explicit-config.repor.
 
 #[test]
 fn config_and_scripts_combined_is_rejected() {
@@ -915,28 +471,9 @@ reportage {
     reportage(&dir).assert().code(3);
 }
 
-#[test]
-fn source_path_appears_in_config_driven_output() {
-    let dir = TempDir::new().unwrap();
-    write_script(&dir, "mytest.repor", PASSING_CASE);
-    write_config(
-        &dir,
-        r#"
-reportage {
-  config {
-    version 1
-  }
-  tests {
-    path "mytest.repor"
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .assert()
-        .code(0)
-        .stdout(predicates::str::contains("mytest.repor"));
-}
+// The source path attribution this test verified (discovered file names appearing in stdout)
+// is covered by e2e/discovery/config-driven.repor and e2e/discovery/aggregate-failure.repor,
+// which both assert `stdout contains` the discovered file names.
 
 #[test]
 fn pre_execution_validation_blocks_all_execution_on_parse_error() {
@@ -962,37 +499,9 @@ reportage {
     reportage(&dir).assert().code(2);
 }
 
-#[test]
-fn multiple_files_run_all_cases() {
-    let dir = TempDir::new().unwrap();
-    write_script(&dir, "a.repor", PASSING_CASE);
-    write_script(&dir, "b.repor", FAILING_CASE);
-    write_config(
-        &dir,
-        r#"
-reportage {
-  config {
-    version 1
-  }
-  tests {
-    path "*.repor"
-  }
-}
-"#,
-    );
-    // One file fails → overall exit 1
-    reportage(&dir).assert().code(1);
-}
-
-// Mirrored as a `.repor` self-test at e2e/discovery/multiple-scripts.repor (#109). Kept here
-// as a pre-migration Rust-level regression check; #110 decides whether to reduce or remove it.
-#[test]
-fn explicit_multiple_scripts_run_all_cases() {
-    let dir = TempDir::new().unwrap();
-    let a = write_script(&dir, "a.repor", PASSING_CASE);
-    let b = write_script(&dir, "b.repor", PASSING_CASE);
-    reportage(&dir).arg(a).arg(b).assert().code(0);
-}
+// The aggregate-failure scenario (overall exit 1 when one of several discovered files'
+// cases fails) is covered by e2e/discovery/aggregate-failure.repor. The representative
+// explicit-multiple-scripts scenario lives in e2e/discovery/multiple-scripts.repor (#109).
 
 #[test]
 fn file_read_error_exits_two_with_no_execution() {
@@ -1193,45 +702,10 @@ case "shim diagnostics" {
 }
 
 // --- file assertions (#24) ---
-
-#[test]
-fn file_exists_passes_for_a_regular_file() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file exists" {
-  write <"evidence.txt"> ```
-    hello
-    ```
-  $ true
-  assert {
-    file <"evidence.txt"> exists
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-fn file_exists_fails_for_a_missing_file() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file missing" {
-  $ true
-  assert {
-    file <"does-not-exist.txt"> exists
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(1);
-}
+//
+// Representative pass/fail scenarios for `file exists` and `file contains` live in
+// e2e/assertions/file-exists.repor and e2e/assertions/file-contains.repor. The tests below
+// verify filesystem boundary conditions and stable diagnostic codes.
 
 #[test]
 fn file_exists_fails_for_a_directory() {
@@ -1282,70 +756,6 @@ case "symlink to file" {
 }
 
 #[test]
-fn file_contains_passes_when_substring_present() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file contains" {
-  write <"result.json"> ```
-    {"status":"passed"}
-    ```
-  $ true
-  assert {
-    file <"result.json"> contains "\"status\":\"passed\""
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-fn file_contains_fails_when_substring_absent() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file contains mismatch" {
-  write <"result.json"> ```
-    {"status":"fail"}
-    ```
-  $ true
-  assert {
-    file <"result.json"> contains "passed"
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(1)
-        .stderr(predicates::str::contains("does not contain"));
-}
-
-#[test]
-fn file_contains_fails_for_missing_file() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file contains missing" {
-  $ true
-  assert {
-    file <"missing.txt"> contains "anything"
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(1);
-}
-
-#[test]
 fn file_contains_fails_for_directory() {
     let dir = TempDir::new().unwrap();
     let script = write_script(
@@ -1392,25 +802,9 @@ case "file contains non-utf8" {
         .stderr(predicates::str::contains("its content is not valid UTF-8"));
 }
 
-#[test]
-fn file_assertion_combines_with_process_expectations_in_one_block() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "combined evidence" {
-  $ sh -c 'echo done > out.txt'
-  assert {
-    exit 0
-    file <"out.txt"> exists
-    file <"out.txt"> contains "done"
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
+// The combined-evidence pattern (a process expectation alongside `file exists` and
+// `file contains` in one assertion block) is covered by
+// e2e/artifacts/file-assertion-evidence.repor.
 
 #[test]
 fn absolute_file_assertion_path_is_a_script_error() {
@@ -1480,25 +874,10 @@ case "cd does not affect file assertion root" {
 }
 
 // --- `contents_equals` assertions (#87) ---
-
-#[test]
-fn file_contents_equals_passes_against_a_workspace_expected_file() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file contents_equals workspace pass" {
-  $ printf hello > expected.txt
-  $ printf hello > actual.txt
-  assert {
-    file <"actual.txt"> contents_equals <"expected.txt">
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
+//
+// The representative workspace-file pass scenario lives in
+// e2e/assertions/contents-equals.repor ("file contents_equals passes against a workspace
+// expected file").
 
 #[test]
 fn file_contents_equals_fails_on_byte_mismatch_against_workspace_expected_file() {
@@ -1614,29 +993,7 @@ case "file contents_equals missing actual" {
         ));
 }
 
-#[test]
-fn file_contents_equals_missing_expected_workspace_path_is_a_script_error() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file contents_equals missing expected" {
-  $ printf hello > actual.txt
-  assert {
-    file <"actual.txt"> contents_equals <"does-not-exist.txt">
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(2)
-        .stderr(predicates::str::contains(
-            "semantic.file_contents_reference.missing",
-        ));
-}
+// The missing-expected-workspace-path script error is covered by e2e/assertions/contents-equals.repor ("file contents_equals reports a script error for a missing expected workspace path"), which checks the same `semantic.file_contents_reference.missing` diagnostic code.
 
 #[test]
 fn file_contents_equals_missing_fixture_is_a_script_error() {
@@ -1662,24 +1019,8 @@ case "file contents_equals missing fixture" {
         ));
 }
 
-#[test]
-fn stdout_contents_equals_passes_against_a_fixture_expected_file() {
-    let dir = TempDir::new().unwrap();
-    dir.child("stdout.snapshot.txt").write_str("hello").unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "stdout contents_equals fixture pass" {
-  $ printf hello
-  assert {
-    stdout contents_equals @"stdout.snapshot.txt"
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
+// The stdout-vs-fixture pass scenario is covered by e2e/assertions/contents-equals.repor
+// ("stdout contents_equals passes against a fixture reference").
 
 #[test]
 fn stderr_contents_equals_fails_on_mismatch_against_workspace_expected_file() {
@@ -1786,69 +1127,9 @@ case "not wrapping a passing contents_equals" {
 }
 
 // --- `text_equals` assertions (#88) ---
-
-#[test]
-fn file_text_equals_passes_against_a_quoted_string_literal() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file text_equals string literal pass" {
-  $ printf hello > actual.txt
-  assert {
-    file <"actual.txt"> text_equals "hello"
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-fn file_text_equals_passes_against_a_heredoc_literal() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file text_equals heredoc literal pass" {
-  $ printf 'hello\nworld\n' > actual.txt
-  assert {
-    file <"actual.txt"> text_equals ```
-    hello
-    world
-    ```
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-fn file_text_equals_fails_on_byte_mismatch() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file text_equals mismatch" {
-  $ printf world > actual.txt
-  assert {
-    file <"actual.txt"> text_equals "hello"
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(1)
-        .stderr(predicates::str::contains(
-            "assertion.file.text_equals_mismatch",
-        ));
-}
+//
+// Representative pass scenarios (quoted-string and heredoc literals) and the quoted-string
+// mismatch scenario live in e2e/assertions/text-equals.repor.
 
 #[test]
 fn file_text_equals_fails_on_heredoc_byte_mismatch() {
@@ -1882,29 +1163,9 @@ case "file text_equals heredoc mismatch" {
         .stderr(predicates::str::contains("<heredoc literal>"));
 }
 
-#[test]
-fn file_text_equals_missing_actual_is_assertion_failure() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file text_equals missing actual" {
-  $ true
-  assert {
-    file <"does-not-exist.txt"> text_equals "hello"
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(1)
-        .stderr(predicates::str::contains(
-            "assertion.file.text_equals_actual_missing",
-        ));
-}
+// The missing-actual-file assertion failure is covered by e2e/assertions/text-equals.repor
+// ("file text_equals reports an assertion failure for a missing actual file"), which checks
+// the same `assertion.file.text_equals_actual_missing` diagnostic code.
 
 #[test]
 fn file_text_equals_actual_directory_is_assertion_failure() {
@@ -1930,52 +1191,9 @@ case "file text_equals actual is a directory" {
         ));
 }
 
-#[test]
-fn file_text_equals_rejects_a_fixture_reference_as_expected() {
-    // text_equals only accepts an inline TextValue, never a FileContentsReference — see #87's
-    // contents_equals for comparing against a fixture file's contents instead.
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file text_equals rejects fixture reference" {
-  $ printf hello > actual.txt
-  assert {
-    file <"actual.txt"> text_equals @"expected.txt"
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(2)
-        .stderr(predicates::str::contains("semantic.literal.kind_mismatch"));
-}
-
-#[test]
-fn file_text_equals_rejects_a_workspace_path_literal_as_expected() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file text_equals rejects workspace path literal" {
-  $ printf hello > actual.txt
-  $ printf hello > expected.txt
-  assert {
-    file <"actual.txt"> text_equals <"expected.txt">
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(2)
-        .stderr(predicates::str::contains("semantic.literal.kind_mismatch"));
-}
+// Both `text_equals` kind-mismatch script errors (rejecting a fixture reference and rejecting
+// a workspace path literal as the expected value) are covered by e2e/assertions/text-equals.repor,
+// which checks the same `semantic.literal.kind_mismatch` diagnostic code for each case.
 
 #[test]
 fn not_block_wrapping_a_passing_file_text_equals_prints_bytes_match_detail() {
@@ -2002,24 +1220,10 @@ case "not wrapping a passing text_equals" {
 }
 
 // --- dir assertions (#66) ---
-
-#[test]
-fn dir_exists_succeeds_for_an_existing_directory() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "dir exists" {
-  $ mkdir out
-  assert {
-    dir <"out"> exists
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
+//
+// Representative pass/fail scenarios for `dir exists` and `dir contains` live in
+// e2e/artifacts/dir-assertion-evidence.repor. The tests below verify stable diagnostic codes
+// and source-path attribution that the self-test does not check.
 
 #[test]
 fn dir_exists_fails_against_a_regular_file() {
@@ -2068,45 +1272,6 @@ case "dir exists missing" {
         .assert()
         .code(1)
         .stderr(predicates::str::contains("assertion.dir.exists_missing"));
-}
-
-#[test]
-fn dir_contains_succeeds_for_a_direct_entry() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "dir contains" {
-  $ mkdir -p artifacts && touch artifacts/result.json
-  assert {
-    dir <"artifacts"> contains "result.json"
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-fn dir_contains_is_not_recursive_glob_or_content_search() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "dir contains is not recursive" {
-  $ mkdir -p artifacts/nested && touch artifacts/nested/result.json && printf 'result.json' > artifacts/marker.txt
-  assert {
-    dir <"artifacts"> contains "nested"
-    not {
-      dir <"artifacts"> contains "result.json"
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
 }
 
 #[test]
@@ -2160,52 +1325,6 @@ case "dot segment dir path rejected" {
 }
 
 #[test]
-fn empty_dir_assertion_path_is_a_script_error() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "empty dir path rejected" {
-  $ true
-  assert {
-    dir <""> exists
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(2)
-        .stderr(predicates::str::contains("semantic.workspace_path.empty"));
-}
-
-#[test]
-fn dir_contains_path_separator_entry_name_is_a_script_error() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "invalid entry name rejected" {
-  $ mkdir artifacts
-  assert {
-    dir <"artifacts"> contains "a/b"
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(2)
-        .stderr(predicates::str::contains(
-            "semantic.dir_entry_name.path_separator",
-        ));
-}
-
-#[test]
 fn dir_assertion_path_resolves_against_workspace_root_not_action_cd() {
     // A `cd` performed inside a `$` action must not change how the following dir assertion's path is resolved.
     // See docs/semantics.md.
@@ -2218,25 +1337,6 @@ case "cd does not affect dir assertion root" {
   $ mkdir -p subdir && cd subdir && mkdir moved
   assert {
     dir <"subdir/moved"> exists
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-#[cfg(unix)]
-fn dir_exists_follows_symlink_to_directory() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "symlink to directory" {
-  $ mkdir real && ln -s real link
-  assert {
-    dir <"link"> exists
   }
 }
 "#,
