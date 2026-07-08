@@ -1,5 +1,5 @@
 GENERATED FILE: do not edit directly. Regenerate with `just semantic-docs-gen`.
-(see [crates/reportage-core/src/bin/gen_semantic_docs.rs](../crates/reportage-core/src/bin/gen_semantic_docs.rs))
+(see [crates/reportage-core/src/bin/gen_semantic_docs.rs](../../crates/reportage-core/src/bin/gen_semantic_docs.rs))
 
 # Semantic Rules
 

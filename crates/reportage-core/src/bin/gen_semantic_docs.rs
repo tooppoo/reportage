@@ -135,7 +135,7 @@ fn render_map_table(fields: &serde_json::Map<String, serde_json::Value>) -> Stri
 fn render_docs(specs: &[(PathBuf, SemanticSpec)]) -> String {
     let mut out = String::new();
     out.push_str(
-        "GENERATED FILE: do not edit directly. Regenerate with `just semantic-docs-gen`.\n(see [crates/reportage-core/src/bin/gen_semantic_docs.rs](../crates/reportage-core/src/bin/gen_semantic_docs.rs))\n\n",
+        "GENERATED FILE: do not edit directly. Regenerate with `just semantic-docs-gen`.\n(see [crates/reportage-core/src/bin/gen_semantic_docs.rs](../../crates/reportage-core/src/bin/gen_semantic_docs.rs))\n\n",
     );
     out.push_str("# Semantic Rules\n\n");
     out.push_str("This is the generated semantic rule catalog. It is generated from `spec/language/semantics/*.json`. The JSON specs are the source of truth for each rule's normative fields and conformance cases; this catalog is a read-only view of that content.\n\n");
