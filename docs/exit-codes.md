@@ -10,7 +10,7 @@ Everything below "v0 Exit Code Table" through "Precedence" describes the default
 - Non-zero exit codes must be as specific and distinguishable as reasonably possible.
 - Test assertion failure, parse/validation error, and execution/runtime error must not share the same exit code.
 - Exit codes are process-level severity signals for CI and shell callers.
-- Artifact `result` values are run outcome categories for humans and tools reading reportage output.
+- The artifact manifest's `status` / `processExitCode` / `diagnostics` record run outcome categories for humans and tools reading reportage output.
 
 ## v0 Exit Code Table
 
@@ -21,23 +21,30 @@ Everything below "v0 Exit Code Table" through "Precedence" describes the default
 | `2`  | **Script/config validation error** — the selected reportage scripts or configuration could not be treated as valid test input. Examples include read errors, parse errors, unsupported syntax, invalid config, a case with no assertion, an assertion with no preceding action, or an exit code outside `0..=255`. |
 | `3`  | **Action execution/runtime error** — the runner could not execute an action, write required artifacts, run a side-effecting step such as `write`, or perform required runtime infrastructure work. This is distinct from a non-zero action exit code, which is a normal execution outcome. |
 
-## Artifact result categories
+## Run outcome categories in the artifact manifest
 
-The top-level artifact `result` is not a boolean pass/fail field. It records the coarse run outcome category.
+The run outcome categories below are conceptual severity classes.
+The artifact manifest (`result.json`, see [`artifacts.md`](artifacts.md)) records them as the combination of
+top-level `status` (`passed` / `failed` / `error`, not a boolean pass/fail field),
+`processExitCode`,
+and `diagnostics[]` category / code.
 
-v0 result categories:
+v0 outcome categories:
 
-| `result` | Exit code | Meaning |
-|----------|-----------|---------|
-| `pass` | `0` | All selected cases executed and passed, or the run was a no-op success with `noop: true`. |
-| `test_failed` | `1` | The selected scripts were valid and execution completed, but one or more assertions failed. |
-| `script_error` | `2` | One or more selected reportage script files could not be used as valid test definitions. Examples include `read_error`, `parse_error`, unsupported syntax, and invalid script structure. |
-| `config_error` | `2` | The configuration itself is invalid, unsupported, or cannot be used for discovery. |
-| `runtime_error` | `3` | The runner failed due to infrastructure/runtime conditions such as shell spawn failure or required artifact write failure. |
+| Category | `status` | Exit code | Meaning |
+|----------|----------|-----------|---------|
+| `pass` | `passed` | `0` | All selected cases executed and passed, or the run was a no-op success with `noop: true`. |
+| `test_failed` | `failed` | `1` | The selected scripts were valid and execution completed, but one or more assertions failed. |
+| `script_error` | `error` | `2` | One or more selected reportage script files could not be used as valid test definitions. Examples include read errors, parse errors, unsupported syntax, and invalid script structure. |
+| `config_error` | `error` | `2` | The configuration itself is invalid, unsupported, or cannot be used for discovery. |
+| `runtime_error` | `error` | `3` | The runner failed due to infrastructure/runtime conditions such as shell spawn failure or required artifact write failure. |
 
-`script_error` is intentionally broader than `parse_error`. Read errors and parse errors for selected reportage files both produce top-level `result: "script_error"` and process exit code `2`.
+`script_error` is intentionally broader than a parse error.
+Read errors and parse errors for selected reportage files both produce `status: "error"` and process exit code `2`.
 
-Concrete causes must remain distinguishable in structured diagnostics, for example by using file-level error kinds such as `read_error` and `parse_error`.
+Concrete causes must remain distinguishable in structured diagnostics:
+the manifest's `diagnostics[]` entries carry `category` (`parse` / `internal` for file-level errors) and stable `code` values,
+so the collapsed `status: "error"` never loses the failing layer.
 
 ## Precedence
 
@@ -47,7 +54,7 @@ When a run contains multiple cases with different error types, the exit code ref
 3 (runtime error) > 2 (script/config error) > 1 (assertion failure) > 0 (success)
 ```
 
-For artifact `result`, use the corresponding highest-severity run outcome category. If multiple categories share exit code `2`, prefer the category that identifies the failing layer:
+For the run outcome category, use the corresponding highest-severity one. If multiple categories share exit code `2`, prefer the category that identifies the failing layer:
 
 ```text
 runtime_error > config_error > script_error > test_failed > pass
@@ -64,7 +71,7 @@ This means `config_error` is used when discovery/configuration cannot produce a 
 
 ## `shim scaffold` exit codes
 
-`reportage shim scaffold` (see [`docs/shim-scaffold.md`](shim-scaffold.md)) never runs a `.repor` script, so the "Test/assertion failure" and artifact `result` categories above do not apply to it. It uses a smaller, independent table:
+`reportage shim scaffold` (see [`docs/shim-scaffold.md`](shim-scaffold.md)) never runs a `.repor` script, so the "Test/assertion failure" and run outcome categories above do not apply to it. It uses a smaller, independent table:
 
 | Code | Meaning |
 |------|---------|

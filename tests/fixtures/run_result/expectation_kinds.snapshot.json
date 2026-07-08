@@ -1,0 +1,247 @@
+{
+  "diagnostics": [],
+  "noop": false,
+  "processExitCode": 0,
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": {
+    "actions": 3,
+    "assertions": 11,
+    "errors": 0,
+    "failed": 0,
+    "passed": 1,
+    "scripts": 1
+  },
+  "tests": [
+    {
+      "actions": [
+        {
+          "command": "mkdir out",
+          "exitCode": 0,
+          "id": "action-1",
+          "stderr": {
+            "artifactRef": "test-1/action-1/stderr.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-1/action-1/stdout.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          }
+        },
+        {
+          "command": "cp data.txt out/data.txt",
+          "exitCode": 0,
+          "id": "action-2",
+          "stderr": {
+            "artifactRef": "test-1/action-2/stderr.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-1/action-2/stdout.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          }
+        },
+        {
+          "command": "cat data.txt",
+          "exitCode": 0,
+          "id": "action-3",
+          "stderr": {
+            "artifactRef": "test-1/action-3/stderr.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-1/action-3/stdout.bin",
+            "sha256": "4a1e67f2fe1d1cc7b31d0ca2ec441da4778203a036a77da10344c85e24ff0f92",
+            "sizeBytes": 12
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "checkpoint": "action-3",
+          "expectation": {
+            "actual": 0,
+            "expected": 0,
+            "kind": "exit",
+            "status": "passed"
+          },
+          "id": "assertion-1",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-3",
+          "expectation": {
+            "actualRef": "test-1/action-3/stdout.bin",
+            "actualSizeBytes": 12,
+            "expected": "hello",
+            "kind": "stdoutContains",
+            "status": "passed"
+          },
+          "id": "assertion-2",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-3",
+          "expectation": {
+            "actualRef": "test-1/action-3/stderr.bin",
+            "actualSizeBytes": 0,
+            "kind": "stderrEmpty",
+            "status": "passed"
+          },
+          "id": "assertion-3",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-3",
+          "expectation": {
+            "kind": "fileExists",
+            "observed": "regularFile",
+            "path": "data.txt",
+            "status": "passed"
+          },
+          "id": "assertion-4",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-3",
+          "expectation": {
+            "expected": "world",
+            "kind": "fileContains",
+            "observed": "found",
+            "path": "data.txt",
+            "status": "passed"
+          },
+          "id": "assertion-5",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-3",
+          "expectation": {
+            "actualSizeBytes": 12,
+            "expectedSizeBytes": 12,
+            "expectedSource": {
+              "kind": "heredoc",
+              "value": "hello\nworld\n"
+            },
+            "kind": "fileTextEquals",
+            "observed": "compared",
+            "outcome": "match",
+            "path": "data.txt",
+            "status": "passed"
+          },
+          "id": "assertion-6",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-3",
+          "expectation": {
+            "kind": "dirExists",
+            "observed": "directory",
+            "path": "out",
+            "status": "passed"
+          },
+          "id": "assertion-7",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-3",
+          "expectation": {
+            "expectedEntry": "data.txt",
+            "kind": "dirContains",
+            "observed": "found",
+            "path": "out",
+            "status": "passed"
+          },
+          "id": "assertion-8",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-3",
+          "expectation": {
+            "children": [
+              {
+                "kind": "fileExists",
+                "observed": "missing",
+                "path": "missing.txt",
+                "status": "failed"
+              }
+            ],
+            "kind": "logical",
+            "operator": "not",
+            "status": "passed"
+          },
+          "id": "assertion-9",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-3",
+          "expectation": {
+            "children": [
+              {
+                "actual": 0,
+                "expected": 0,
+                "kind": "exit",
+                "status": "passed"
+              },
+              {
+                "actualRef": "test-1/action-3/stdout.bin",
+                "actualSizeBytes": 12,
+                "expected": "world",
+                "kind": "stdoutContains",
+                "status": "passed"
+              }
+            ],
+            "kind": "logical",
+            "operator": "all",
+            "status": "passed"
+          },
+          "id": "assertion-10",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-3",
+          "expectation": {
+            "children": [
+              {
+                "actual": 0,
+                "expected": 1,
+                "kind": "exit",
+                "status": "failed"
+              },
+              {
+                "actualRef": "test-1/action-3/stdout.bin",
+                "actualSizeBytes": 12,
+                "kind": "stdoutEmpty",
+                "status": "failed"
+              },
+              {
+                "actual": 0,
+                "expected": 0,
+                "kind": "exit",
+                "status": "passed"
+              }
+            ],
+            "kind": "logical",
+            "operator": "any",
+            "status": "passed"
+          },
+          "id": "assertion-11",
+          "status": "passed"
+        }
+      ],
+      "id": "test-1",
+      "name": "exercises file, dir, text, empty, and logical expectation shapes",
+      "path": "expectation_kinds.repor",
+      "status": "passed"
+    }
+  ],
+  "tool": {
+    "name": "reportage",
+    "version": "<VERSION>"
+  }
+}

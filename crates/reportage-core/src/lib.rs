@@ -8,6 +8,7 @@ pub mod fixture;
 pub mod model;
 pub mod parser;
 pub mod result;
+pub mod run_result;
 pub mod semantic;
 #[doc(hidden)]
 pub mod semantic_rule_registry;

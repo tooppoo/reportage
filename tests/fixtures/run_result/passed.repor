@@ -1,0 +1,7 @@
+case "greets" {
+  $ echo hello
+  assert {
+    exit 0
+    stdout contains "hello"
+  }
+}

@@ -1,0 +1,68 @@
+# The artifact bundle under .reportage/runs/<run-id>/ is the canonical record of a run and
+# result.json is its canonical manifest (spec/artifacts/run-result/schema.json).
+# Each case asserts on the inner `reportage` process's own exit code; the inner target
+# command's exit code is recorded inside the manifest instead.
+
+case "manifest records a passing run with verifiable evidence references" {
+  write <"inner.repor"> ```
+    case "inner pass" {
+      $ echo hello
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --debug-run-id run-result-pass inner.repor
+
+  assert {
+    exit 0
+    file <".reportage/runs/run-result-pass/result.json"> exists
+    file <".reportage/runs/run-result-pass/result.json"> contains "\"schemaVersion\": 1"
+    file <".reportage/runs/run-result-pass/result.json"> contains "\"status\": \"passed\""
+    file <".reportage/runs/run-result-pass/result.json"> contains "\"artifactRef\": \"test-1/action-1/stdout.bin\""
+    # SHA-256 of the captured "hello\n": the manifest must reference evidence by digest,
+    # never inline the bytes.
+    file <".reportage/runs/run-result-pass/result.json"> contains "\"sha256\": \"5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03\""
+    not {
+      file <".reportage/runs/run-result-pass/result.json"> contains "\"encoding\": \"base64\""
+    }
+    file <".reportage/runs/run-result-pass/test-1/action-1/stdout.bin"> exists
+    file <".reportage/runs/run-result-pass/test-1/action-1/stdout.bin"> contains "hello"
+  }
+}
+
+case "manifest records an assertion failure as status failed" {
+  write <"inner.repor"> ```
+    case "inner fail" {
+      $ false
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --debug-run-id run-result-fail inner.repor
+
+  assert {
+    exit 1
+    file <".reportage/runs/run-result-fail/result.json"> contains "\"status\": \"failed\""
+    file <".reportage/runs/run-result-fail/result.json"> contains "\"processExitCode\": 1"
+    file <".reportage/runs/run-result-fail/result.json"> contains "\"code\": \"assertion.exit.mismatch\""
+  }
+}
+
+case "manifest records a parse error as status error with a parse diagnostic" {
+  write <"inner.repor"> ```
+    this is not valid reportage syntax
+    ```
+
+  $ reportage --debug-run-id run-result-error inner.repor
+
+  assert {
+    exit 2
+    file <".reportage/runs/run-result-error/result.json"> contains "\"status\": \"error\""
+    file <".reportage/runs/run-result-error/result.json"> contains "\"processExitCode\": 2"
+    file <".reportage/runs/run-result-error/result.json"> contains "\"category\": \"parse\""
+  }
+}

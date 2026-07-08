@@ -1,0 +1,20 @@
+{
+  "diagnostics": [],
+  "noop": true,
+  "processExitCode": 0,
+  "schemaVersion": 1,
+  "status": "passed",
+  "summary": {
+    "actions": 0,
+    "assertions": 0,
+    "errors": 0,
+    "failed": 0,
+    "passed": 0,
+    "scripts": 0
+  },
+  "tests": [],
+  "tool": {
+    "name": "reportage",
+    "version": "<VERSION>"
+  }
+}

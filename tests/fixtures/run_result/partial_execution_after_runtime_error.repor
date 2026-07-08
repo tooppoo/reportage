@@ -1,0 +1,16 @@
+case "one action runs before a later runtime error" {
+  $ echo hello
+  assert {
+    exit 0
+    stdout contains "hello"
+  }
+  write <"a.txt"> ```
+    first
+    ```
+  write <"a.txt"> ```
+    second
+    ```
+  assert {
+    exit 0
+  }
+}
