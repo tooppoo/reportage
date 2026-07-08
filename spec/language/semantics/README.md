@@ -6,11 +6,11 @@ This document records the conventions used to write and identify semantic specs 
 
 Two different things are each a source of truth here, for different questions:
 
-- **Rust const registry** (`reportage_core::semantic_rule_registry::SEMANTIC_RULE_REGISTRY`, `#[doc(hidden)]` in `crates/reportage-core/src/semantic_rule_registry.rs`) is the source of truth for which semantic rules exist, their category, and whether each one requires a spec file, conformance cases, and a generated docs entry. It is a spec coverage inventory, not runtime implementation.
+- **Rust const registry** (`reportage_core::semantic_rule_registry::SEMANTIC_RULE_REGISTRY`, `#[doc(hidden)]` in [`crates/reportage-core/src/semantic_rule_registry.rs`](../../../crates/reportage-core/src/semantic_rule_registry.rs)) is the source of truth for which semantic rules exist, their category, and whether each one requires a spec file, conformance cases, and a generated docs entry. It is a spec coverage inventory, not runtime implementation.
 - **Semantic spec JSON** (this directory) is the source of truth for each rule's normative fields and conformance cases.
-- **The generated semantic rule catalog** (`docs/language/semantic-rules.md`) is read-only documentation generated from the semantic spec JSON; it assumes the registry and the specs already agree.
+- **The generated semantic rule catalog** ([`docs/language/semantic-rules.md`](../../../docs/language/semantic-rules.md)) is read-only documentation generated from the semantic spec JSON; it assumes the registry and the specs already agree.
 
-`just semantic-rule-coverage-check` verifies that the registry and this directory agree: every rule the registry marks `spec_required=true` must have a spec file here, and every spec file here must have a corresponding registry entry. See docs/adr/20260708T065700Z_semantic-rule-coverage-registry.md for the full rationale.
+`just semantic-rule-coverage-check` verifies that the registry and this directory agree: every rule the registry marks `spec_required=true` must have a spec file here, and every spec file here must have a corresponding registry entry. See [`docs/adr/20260708T065700Z_semantic-rule-coverage-registry.md`](../../../docs/adr/20260708T065700Z_semantic-rule-coverage-registry.md) for the full rationale.
 
 ## Semantic spec ID format
 
@@ -44,7 +44,7 @@ Each ID uses the form:
 - `assertion.dir.exists`
 - `assertion.dir.contains`
 
-Each rule's syntax form is normative in its own spec file's `syntax` field, not restated here; see the generated catalog at `docs/language/semantic-rules.md` for the full ID-to-syntax mapping.
+Each rule's syntax form is normative in its own spec file's `syntax` field, not restated here; see the generated catalog at [`docs/language/semantic-rules.md`](../../../docs/language/semantic-rules.md) for the full ID-to-syntax mapping.
 
 Note: `exit <code>` does not spell out `equals` in syntax, but the semantic rule treats it as an exit code equals expectation.
 
@@ -58,7 +58,7 @@ Note: `exit <code>` does not spell out `equals` in syntax, but the semantic rule
 - `logical-composition.expectation.all`
 - `logical-composition.expectation.any`
 
-Each rule's syntax form is normative in its own spec file's `syntax` field, not restated here; see the generated catalog at `docs/language/semantic-rules.md` for the full ID-to-syntax mapping.
+Each rule's syntax form is normative in its own spec file's `syntax` field, not restated here; see the generated catalog at [`docs/language/semantic-rules.md`](../../../docs/language/semantic-rules.md) for the full ID-to-syntax mapping.
 
 ### `value-reference` category
 
@@ -85,17 +85,17 @@ Semantic spec files live in `spec/language/semantics/`. Each file is named after
 spec/language/semantics/<id>.json
 ```
 
-Example: `spec/language/semantics/assertion.exit.equals.json`.
+Example: [`spec/language/semantics/assertion.exit.equals.json`](assertion.exit.equals.json).
 
 ## JSON Schema
 
-`spec/language/semantics/schema.json` defines the expected structure and is useful for editor integration (autocomplete, inline validation in VS Code and similar tools).
+[`spec/language/semantics/schema.json`](schema.json) defines the expected structure and is useful for editor integration (autocomplete, inline validation in VS Code and similar tools).
 
-CI validation is performed by typed Rust deserialization in `crates/reportage-core/tests/semantic_specs.rs`. Each spec file's top-level shape is deserialised into a Rust struct marked with `#[serde(deny_unknown_fields)]`; its `normative` field is then deserialised a second time into a category-specific struct (`assertion` and `logical-composition` categories) or checked as a non-empty, banned-key-free object (`value-reference` category), so unknown fields, missing required fields, and enum constraints are all rejected. The same test module runs every eval-shaped conformance case against the production semantic evaluator by converting the normalised assertion representation and checkpoint data into evaluator inputs, and every parser-shaped conformance case against the production parser directly. Parser/source consistency for eval-shaped cases is checked separately and is not the primary purpose of semantic conformance.
+CI validation is performed by typed Rust deserialization in [`crates/reportage-core/tests/semantic_specs.rs`](../../../crates/reportage-core/tests/semantic_specs.rs). Each spec file's top-level shape is deserialised into a Rust struct marked with `#[serde(deny_unknown_fields)]`; its `normative` field is then deserialised a second time into a category-specific struct (`assertion` and `logical-composition` categories) or checked as a non-empty, banned-key-free object (`value-reference` category), so unknown fields, missing required fields, and enum constraints are all rejected. The same test module runs every eval-shaped conformance case against the production semantic evaluator by converting the normalised assertion representation and checkpoint data into evaluator inputs, and every parser-shaped conformance case against the production parser directly. Parser/source consistency for eval-shaped cases is checked separately and is not the primary purpose of semantic conformance.
 
 The diagnostic code contract is defined in [`docs/semantic-diagnostics.md`](../../../docs/semantic-diagnostics.md). Expected diagnostic code checks remain optional: cases that carry an `expectedDiagnosticCode` can have that code verified once semantic conformance enables code verification (a follow-up to #41); cases without one are verified by pass/fail result only.
 
-The generated semantic rule catalog lives at `docs/language/semantic-rules.md`. The entire file is generated from these JSON specs and must not be edited directly. Run `just semantic-docs-gen` to regenerate it and `just semantic-docs-check` to verify that the checked-in copy is fresh.
+The generated semantic rule catalog lives at [`docs/language/semantic-rules.md`](../../../docs/language/semantic-rules.md). The entire file is generated from these JSON specs and must not be edited directly. Run `just semantic-docs-gen` to regenerate it and `just semantic-docs-check` to verify that the checked-in copy is fresh.
 
 ## Required fields
 
@@ -208,4 +208,4 @@ Semantic spec files must not include:
 - `status: tbd`
 - Free-form prose in normative fields
 
-Deferred or unresolved semantic questions belong in `docs/TBD.md`, not in spec files.
+Deferred or unresolved semantic questions belong in [`docs/TBD.md`](../../../docs/TBD.md), not in spec files.
