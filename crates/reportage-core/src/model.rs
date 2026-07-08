@@ -539,9 +539,10 @@ pub enum FileMatcher {
     /// `evaluator::evaluate_file_expectation`.
     ContentsEquals(FileContentsReference),
     /// `file <"path"> text_equals <text_literal>`: byte-for-byte comparison
-    /// against inline expected text. v0 only wires the string literal form;
-    /// heredoc support belongs to #88. Parsing and literal-kind validation
-    /// are implemented (#92); the comparison evaluator is `#88`'s responsibility.
+    /// of the actual file's bytes against the `TextLiteral`'s `TextValue`
+    /// encoded as UTF-8, with no normalization. `text_literal` may be either
+    /// a string literal or a heredoc literal. See [`TextLiteral`], #88, and
+    /// docs/adr — text_equals evaluation.
     TextEquals(TextLiteral),
 }
 

@@ -6,7 +6,7 @@ use serde_json::json;
 
 use crate::result::{
     ActionResult, CaseResult, CaseStatus, ContentsEqualsExpectedSource, ContentsEqualsObservation,
-    ExecutionReport, ExpectationKind, ExpectationResult, FileErrorKind,
+    ExecutionReport, ExpectationKind, ExpectationResult, FileErrorKind, TextEqualsExpectedSource,
 };
 
 /// Error rejecting an unsafe run id value.
@@ -266,6 +266,20 @@ fn expected_source_json(source: &ContentsEqualsExpectedSource) -> serde_json::Va
     }
 }
 
+/// JSON representation of a `text_equals` expected value's source, for evidence purposes.
+fn text_equals_expected_source_json(source: &TextEqualsExpectedSource) -> serde_json::Value {
+    match source {
+        TextEqualsExpectedSource::Quoted(value) => json!({
+            "kind": "quoted",
+            "value": value,
+        }),
+        TextEqualsExpectedSource::Heredoc(value) => json!({
+            "kind": "heredoc",
+            "value": value,
+        }),
+    }
+}
+
 fn action_json(index: usize, action: &ActionResult) -> serde_json::Value {
     let mut obj = json!({
         "index": index,
@@ -357,6 +371,23 @@ fn expectation_result_json(e: &ExpectationResult) -> serde_json::Value {
                 "kind": "file_contents_equals",
                 "path": path,
                 "expected_source": expected_source_json(expected_source),
+                "result": result_str,
+            });
+            if let ContentsEqualsObservation::Compared(comparison) = observation {
+                obj["actual"] = stream_json(&comparison.actual);
+                obj["expected"] = stream_json(&comparison.expected);
+            }
+            obj
+        }
+        ExpectationKind::FileTextEquals {
+            path,
+            expected_source,
+            observation,
+        } => {
+            let mut obj = json!({
+                "kind": "file_text_equals",
+                "path": path,
+                "expected_source": text_equals_expected_source_json(expected_source),
                 "result": result_str,
             });
             if let ContentsEqualsObservation::Compared(comparison) = observation {

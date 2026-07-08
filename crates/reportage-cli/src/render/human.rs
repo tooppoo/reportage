@@ -9,7 +9,7 @@ use reportage_core::result::{
     CaseStatus, ContentsEqualsComparison, ContentsEqualsExpectedSource, ContentsEqualsObservation,
     ContentsEqualsOutcome, DirContainsObservation, DirExistsObservation, ExecutionReport,
     ExpectationKind, ExpectationResult, FileContentObservation, FileErrorKind,
-    FileExistsObservation,
+    FileExistsObservation, TextEqualsExpectedSource,
 };
 
 use super::OutputRenderer;
@@ -239,6 +239,36 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
                 ),
             }
         }
+        ExpectationKind::FileTextEquals {
+            path,
+            expected_source,
+            observation,
+        } => {
+            let source_display = format_text_equals_source(expected_source);
+            match observation {
+                ContentsEqualsObservation::Compared(comparison) => print_contents_equals_detail(
+                    step_index,
+                    &format!("file {path:?}"),
+                    &source_display,
+                    comparison,
+                ),
+                ContentsEqualsObservation::ActualMissing => eprintln!(
+                    "  assertion block at step {}: file {:?} text_equals {source_display} — it does not exist",
+                    step_index + 1,
+                    path,
+                ),
+                ContentsEqualsObservation::ActualNotRegularFile => eprintln!(
+                    "  assertion block at step {}: file {:?} text_equals {source_display} — it is not a regular file (e.g. a directory)",
+                    step_index + 1,
+                    path,
+                ),
+                ContentsEqualsObservation::ActualUnreadable => eprintln!(
+                    "  assertion block at step {}: file {:?} text_equals {source_display} — it could not be read",
+                    step_index + 1,
+                    path,
+                ),
+            }
+        }
         ExpectationKind::StdoutContentsEquals {
             expected_source,
             comparison,
@@ -315,6 +345,19 @@ fn format_expected_source(source: &ContentsEqualsExpectedSource) -> String {
     match source {
         ContentsEqualsExpectedSource::Workspace(path) => format!("<{path:?}>"),
         ContentsEqualsExpectedSource::Fixture(path) => format!("@{path:?}"),
+    }
+}
+
+/// A `text_equals` expected value's source, formatted for the subject description line.
+///
+/// A string literal is rendered compactly, the way it would appear in source. A heredoc
+/// literal is rendered as a plain label instead of its full body: the mismatch detail below
+/// already carries a bounded, escaped context window and a line number, and printing the
+/// full heredoc body here would risk unbounded output. See docs/adr — text_equals evaluation.
+fn format_text_equals_source(source: &TextEqualsExpectedSource) -> String {
+    match source {
+        TextEqualsExpectedSource::Quoted(value) => format!("{value:?}"),
+        TextEqualsExpectedSource::Heredoc(_) => "<heredoc literal>".to_string(),
     }
 }
 

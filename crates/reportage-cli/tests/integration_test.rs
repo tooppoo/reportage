@@ -1785,6 +1785,190 @@ case "not wrapping a passing contents_equals" {
         .stderr(predicates::str::contains("bytes match"));
 }
 
+// --- `text_equals` assertions (#88) ---
+
+#[test]
+fn file_text_equals_passes_against_a_quoted_string_literal() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file text_equals string literal pass" {
+  $ printf hello > actual.txt
+  assert {
+    file <"actual.txt"> text_equals "hello"
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn file_text_equals_passes_against_a_heredoc_literal() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file text_equals heredoc literal pass" {
+  $ printf 'hello\nworld\n' > actual.txt
+  assert {
+    file <"actual.txt"> text_equals ```
+    hello
+    world
+    ```
+  }
+}
+"#,
+    );
+    reportage(&dir).arg(script).assert().code(0);
+}
+
+#[test]
+fn file_text_equals_fails_on_byte_mismatch() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file text_equals mismatch" {
+  $ printf world > actual.txt
+  assert {
+    file <"actual.txt"> text_equals "hello"
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "assertion.file.text_equals_mismatch",
+        ));
+}
+
+#[test]
+fn file_text_equals_missing_actual_is_assertion_failure() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file text_equals missing actual" {
+  $ true
+  assert {
+    file <"does-not-exist.txt"> text_equals "hello"
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "assertion.file.text_equals_actual_missing",
+        ));
+}
+
+#[test]
+fn file_text_equals_actual_directory_is_assertion_failure() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file text_equals actual is a directory" {
+  $ mkdir -p a-dir
+  assert {
+    file <"a-dir"> text_equals "hello"
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "assertion.file.text_equals_actual_not_a_regular_file",
+        ));
+}
+
+#[test]
+fn file_text_equals_rejects_a_fixture_reference_as_expected() {
+    // text_equals only accepts an inline TextValue, never a FileContentsReference — see #87's
+    // contents_equals for comparing against a fixture file's contents instead.
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file text_equals rejects fixture reference" {
+  $ printf hello > actual.txt
+  assert {
+    file <"actual.txt"> text_equals @"expected.txt"
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains("semantic.literal.kind_mismatch"));
+}
+
+#[test]
+fn file_text_equals_rejects_a_workspace_path_literal_as_expected() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "file text_equals rejects workspace path literal" {
+  $ printf hello > actual.txt
+  $ printf hello > expected.txt
+  assert {
+    file <"actual.txt"> text_equals <"expected.txt">
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains("semantic.literal.kind_mismatch"));
+}
+
+#[test]
+fn not_block_wrapping_a_passing_file_text_equals_prints_bytes_match_detail() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "not wrapping a passing text_equals" {
+  $ printf hello > actual.txt
+  assert {
+    not {
+      file <"actual.txt"> text_equals "hello"
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains("bytes match"));
+}
+
 // --- dir assertions (#66) ---
 
 #[test]

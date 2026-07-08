@@ -56,6 +56,17 @@ pub enum DiagnosticCode {
     /// `stderr contents_equals <expected>` observed captured stderr that did not
     /// byte-for-byte match the expected bytes.
     AssertionStderrContentsEqualsMismatch,
+    /// `file <"path"> text_equals <text_literal>` observed actual bytes that did not
+    /// byte-for-byte match the expected `TextValue`'s UTF-8 bytes.
+    AssertionFileTextEqualsMismatch,
+    /// `file <"path"> text_equals <text_literal>` observed a missing actual path.
+    AssertionFileTextEqualsActualMissing,
+    /// `file <"path"> text_equals <text_literal>` observed an actual path that is not a
+    /// regular file (e.g. a directory).
+    AssertionFileTextEqualsActualNotARegularFile,
+    /// `file <"path"> text_equals <text_literal>` observed an actual regular file that
+    /// could not be read.
+    AssertionFileTextEqualsActualUnreadable,
     /// A `dir <"path"> contains "<name>"` entry name was empty.
     SemanticDirEntryNameEmpty,
     /// A `dir <"path"> contains "<name>"` entry name contained a path separator (`/`).
@@ -174,6 +185,16 @@ impl DiagnosticCode {
             }
             Self::AssertionStderrContentsEqualsMismatch => {
                 "assertion.stderr.contents_equals_mismatch"
+            }
+            Self::AssertionFileTextEqualsMismatch => "assertion.file.text_equals_mismatch",
+            Self::AssertionFileTextEqualsActualMissing => {
+                "assertion.file.text_equals_actual_missing"
+            }
+            Self::AssertionFileTextEqualsActualNotARegularFile => {
+                "assertion.file.text_equals_actual_not_a_regular_file"
+            }
+            Self::AssertionFileTextEqualsActualUnreadable => {
+                "assertion.file.text_equals_actual_unreadable"
             }
             Self::SemanticDirEntryNameEmpty => "semantic.dir_entry_name.empty",
             Self::SemanticDirEntryNamePathSeparator => "semantic.dir_entry_name.path_separator",
@@ -304,6 +325,10 @@ mod tests {
             DiagnosticCode::AssertionFileContentsEqualsActualUnreadable,
             DiagnosticCode::AssertionStdoutContentsEqualsMismatch,
             DiagnosticCode::AssertionStderrContentsEqualsMismatch,
+            DiagnosticCode::AssertionFileTextEqualsMismatch,
+            DiagnosticCode::AssertionFileTextEqualsActualMissing,
+            DiagnosticCode::AssertionFileTextEqualsActualNotARegularFile,
+            DiagnosticCode::AssertionFileTextEqualsActualUnreadable,
             DiagnosticCode::SemanticDirEntryNameEmpty,
             DiagnosticCode::SemanticDirEntryNamePathSeparator,
             DiagnosticCode::SemanticDirEntryNameDotEntry,

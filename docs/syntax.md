@@ -223,22 +223,24 @@ file_contains   = { "contains" ~ ws+ ~ value_literal }
 // byte-for-byte comparison against a `FileContentsReference` (a workspace
 // path literal or a fixture reference literal). `file <"path"> text_equals
 // "<text>"`: byte-for-byte comparison against inline expected text (a
-// `TextValue`); v0 only wires the string-literal form here, mirroring
-// `output_contains` — the heredoc-literal form belongs to #88. Both
-// positions parse the kind-agnostic `value_literal` (see "Value literals"
-// below). See #92 and
+// `TextValue`); this rule only wires the string-literal form, mirroring
+// `output_contains` — the heredoc-literal form is file_text_equals_heredoc
+// below. Both positions parse the kind-agnostic `value_literal` (see "Value
+// literals" below). See #88, #92, and
 // docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
 file_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
 file_text_equals     = { "text_equals" ~ ws+ ~ value_literal }
 
-// `file <"path"> contains <heredoc literal>`: the heredoc-literal form of
-// file_contains. Deliberately a separate rule from file_exp/file_predicate,
-// not a variant folded into file_predicate, because it must not be followed
+// `file <"path"> contains <heredoc literal>` / `file <"path"> text_equals
+// <heredoc literal>`: the heredoc-literal forms of file_contains and
+// file_text_equals. Deliberately separate rules from file_exp/file_predicate,
+// not variants folded into file_predicate, because they must not be followed
 // by the generic `trail` the way every other expectation is (see
 // heredoc_assertion_line above) — the heredoc literal already consumed its
-// own trailing line. Reachable only through multi_assert.
-heredoc_expectation = { file_exp_heredoc }
-file_exp_heredoc    = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "contains" ~ ws+ ~ heredoc_literal }
+// own trailing line. Reachable only through multi_assert. See #88.
+heredoc_expectation       = { file_exp_heredoc | file_text_equals_heredoc }
+file_exp_heredoc          = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "contains" ~ ws+ ~ heredoc_literal }
+file_text_equals_heredoc  = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_literal }
 
 // `dir <"path"> exists` / `dir <"path"> contains "<name>"`.
 // Subject-first, mirroring file_exp: `dir <"path">` is the common subject,

@@ -71,6 +71,11 @@ pub enum ExpectationKind {
         expected_source: ContentsEqualsExpectedSource,
         comparison: ContentsEqualsComparison,
     },
+    FileTextEquals {
+        path: String,
+        expected_source: TextEqualsExpectedSource,
+        observation: ContentsEqualsObservation,
+    },
     DirExists {
         path: String,
         observation: DirExistsObservation,
@@ -149,6 +154,23 @@ impl ExpectationKind {
                     Some(DiagnosticCode::AssertionStderrContentsEqualsMismatch)
                 }
             },
+            ExpectationKind::FileTextEquals { observation, .. } => match observation {
+                ContentsEqualsObservation::Compared(comparison) => match comparison.outcome {
+                    ContentsEqualsOutcome::Match => None,
+                    ContentsEqualsOutcome::Mismatch(_) => {
+                        Some(DiagnosticCode::AssertionFileTextEqualsMismatch)
+                    }
+                },
+                ContentsEqualsObservation::ActualMissing => {
+                    Some(DiagnosticCode::AssertionFileTextEqualsActualMissing)
+                }
+                ContentsEqualsObservation::ActualNotRegularFile => {
+                    Some(DiagnosticCode::AssertionFileTextEqualsActualNotARegularFile)
+                }
+                ContentsEqualsObservation::ActualUnreadable => {
+                    Some(DiagnosticCode::AssertionFileTextEqualsActualUnreadable)
+                }
+            },
             ExpectationKind::DirExists { observation, .. } => match observation {
                 DirExistsObservation::Directory => None,
                 DirExistsObservation::Missing => Some(DiagnosticCode::AssertionDirExistsMissing),
@@ -215,6 +237,21 @@ pub enum ContentsEqualsExpectedSource {
     Workspace(String),
     /// An `@"..."` fixture reference literal.
     Fixture(String),
+}
+
+/// Where a `text_equals` expected value's `TextLiteral` source representation came from,
+/// for display purposes only.
+///
+/// The runtime comparison always operates on the resolved `TextValue`'s UTF-8 bytes,
+/// which are identical regardless of literal form; only diagnostic rendering may
+/// differentiate on `Quoted` vs. `Heredoc` (e.g. to show heredoc body line numbers).
+/// See docs/adr — text_equals evaluation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TextEqualsExpectedSource {
+    /// A `"..."` string literal.
+    Quoted(String),
+    /// A ``` ... ``` heredoc literal, already dedented.
+    Heredoc(String),
 }
 
 /// A completed byte-for-byte `contents_equals` comparison: the full actual and expected
