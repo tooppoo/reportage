@@ -1,0 +1,28 @@
+case "file exists succeeds for a regular file" {
+  write <"evidence.txt"> ```
+    hello
+    ```
+  $ true
+
+  assert {
+    exit 0
+    file <"evidence.txt"> exists
+  }
+}
+
+case "file exists fails for a missing file" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ true
+      assert {
+        file <"does-not-exist.txt"> exists
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+  }
+}

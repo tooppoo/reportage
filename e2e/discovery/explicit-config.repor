@@ -1,0 +1,26 @@
+case "--config selects an explicit config file instead of the default reportage.kdl" {
+  write <"custom.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+      tests {
+        path "inner.repor"
+      }
+    }
+    ```
+  write <"inner.repor"> ```
+    case "inner" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --config custom.kdl
+
+  assert {
+    exit 0
+  }
+}

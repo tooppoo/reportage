@@ -1,0 +1,36 @@
+case "config-driven mode exits non-zero when any discovered file's case fails" {
+  write <"reportage.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+      tests {
+        path "*.repor"
+      }
+    }
+    ```
+  write <"a.repor"> ```
+    case "a passes" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+  write <"b.repor"> ```
+    case "b fails" {
+      $ true
+      assert {
+        exit 1
+      }
+    }
+    ```
+
+  $ reportage
+
+  assert {
+    exit 1
+    stdout contains "a.repor"
+    stdout contains "b.repor"
+  }
+}

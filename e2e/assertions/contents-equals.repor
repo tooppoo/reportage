@@ -1,4 +1,14 @@
 
+case "file contents_equals passes against a workspace expected file" {
+  $ printf hello > expected.txt
+  $ printf hello > actual.txt
+
+  assert {
+    exit 0
+    file <"actual.txt"> contents_equals <"expected.txt">
+  }
+}
+
 case "file contents_equals reports a script error for a missing expected workspace path" {
   write <"inner.repor"> ```
     case "inner" {

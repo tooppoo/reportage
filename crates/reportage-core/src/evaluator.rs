@@ -1296,6 +1296,14 @@ mod tests {
     }
 
     #[test]
+    fn any_passes_when_all_children_pass() {
+        let expectation = logical(LogicalOperator::Any, vec![exit_exp(0), exit_exp(0)]);
+        let result =
+            evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
+        assert!(result.passed);
+    }
+
+    #[test]
     fn not_passes_when_single_child_fails() {
         let expectation = logical(LogicalOperator::Not, vec![exit_exp(1)]);
         let result =
@@ -1328,6 +1336,15 @@ mod tests {
         let result =
             evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
         assert!(!result.passed);
+    }
+
+    #[test]
+    fn not_with_all_children_failing_passes() {
+        // all(A, B) is false here, so not(all(A, B)) must pass.
+        let expectation = logical(LogicalOperator::Not, vec![exit_exp(1), exit_exp(1)]);
+        let result =
+            evaluate_expectation_at_checkpoint(&expectation, &checkpoint_after_exit(0)).unwrap();
+        assert!(result.passed);
     }
 
     #[test]
