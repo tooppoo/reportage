@@ -100,6 +100,7 @@ Rejected: the categories genuinely are the same shape ("invalid input" vs. "runt
 - Until #128/#129 land, `shim scaffold` cannot successfully generate anything — every invocation fails with "unknown template." This is intentional scope-splitting per the issue, but it does mean v0 alone ships a command with no successful end-to-end outcome.
 - A `.repor` script named exactly `shim` cannot be invoked positionally by its bare filename (see "accepting the positional-collision tradeoff" above).
 - Reusing exit codes `2`/`3` across two commands with different failure vocabularies means a caller must still consult `docs/exit-codes.md` to know which table applies; the number alone does not fully disambiguate cause without knowing which command produced it.
+- The `--out` existing-file/directory/symlink check (`std::fs::symlink_metadata`) and the eventual `std::fs::write` are two separate filesystem operations, not one atomic one. Something else could replace `--out` with a symlink in the narrow window between them, and the write would then follow it. Closing this fully (e.g. opening the destination with a no-follow flag) needs a platform-specific dependency this v0 foundation does not take on, since `shim scaffold` is a single-user local CLI operation, not a service exposed to another, potentially adversarial, party racing the same path.
 
 ### Neutral Consequences
 

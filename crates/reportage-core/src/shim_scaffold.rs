@@ -249,6 +249,13 @@ pub fn scaffold(
     // `symlink_metadata` (not `metadata`) so a symlink is detected as such even when it points
     // at a regular file or is dangling: v0 refuses to write through a symlink regardless of
     // `--force`, since the eventual write target is not the path the user named.
+    //
+    // This check and the later `std::fs::write` are not one atomic operation: something else
+    // could replace `request.out` with a symlink in between. Closing that window (e.g. opening
+    // the destination with a no-follow flag) needs a platform-specific dependency this v0
+    // foundation deliberately doesn't take on for a single-user local CLI's narrow race window;
+    // see the ADR at docs/adr/20260708T062146Z_shim-scaffold-command.md for the accepted
+    // trade-off.
     match std::fs::symlink_metadata(&request.out) {
         Ok(meta) => {
             if meta.file_type().is_symlink() {
