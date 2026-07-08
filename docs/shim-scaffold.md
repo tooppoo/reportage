@@ -40,7 +40,7 @@ See [ADR 20260708T062146Z](adr/20260708T062146Z_shim-scaffold-command.md) for th
 
 ## Template model
 
-- v0 ships **no builtin templates**. Every `--template` name is "unknown" until later issues (`typescript-c8-tsx` and `golang`) add entries to the registry.
+- `typescript-c8-tsx` (documented below) is the only builtin template today. Any other `--template` name currently fails as unknown.
 - Templates are resolved from a name through a registry built into the `reportage` binary. There is no support for loading a template file from disk in v0.
 - The template resolution, template context, and rendering steps are kept as separate seams internally (see `reportage_core::shim_scaffold::ShimTemplate`), specifically so that a future external-template loader has somewhere to plug in without reworking the scaffold pipeline. v0 does not commit to what that loader would look like.
 - A template renders against a small context. In v0 the only context field is `entry_point`, taken directly from `--entry-point`.
@@ -50,6 +50,29 @@ See [ADR 20260708T062146Z](adr/20260708T062146Z_shim-scaffold-command.md) for th
 ## Template addition policy
 
 Adding a template means adding an entry to the builtin registry (name plus a render function), not modifying the scaffold command itself. See `reportage_core::shim_scaffold::TemplateRegistry` and the module-level documentation in `shim_scaffold.rs` for the exact seam.
+
+## `typescript-c8-tsx` template
+
+```sh
+reportage shim scaffold --template typescript-c8-tsx --entry-point my-app/index.ts --out shims/my-app
+```
+
+This template targets a common Node.js/TypeScript pairing: [`c8`](https://github.com/bcoe/c8) for Node.js/V8 coverage collection, and [`tsx`](https://github.com/privatenumber/tsx) to run a TypeScript entry point directly without a separate build step. The generated shim is a POSIX `sh` script that single-quotes `--entry-point` (reusing the same quoting `reportage_core::shim_scaffold::single_quote` applies to every template, not a template-specific reimplementation) and execs `npx c8 ... npx tsx "$entry_point" "$@"`, so the shim's own exit status is whatever `c8`/`tsx` produced and every extra argument passed to the shim reaches the entry point unchanged.
+
+A relative `--entry-point` is resolved from the generated shim's runtime working directory when it executes, not from the directory `scaffold` was run in.
+
+At scaffold time, reportage does not read this project's `package.json`, `tsconfig.json`, or any `c8` configuration file, and does not check that `c8` or `tsx` are installed. When the generated shim later runs, `c8` itself may still perform its own configuration resolution (for example a `.c8rc` file or a `c8` field in `package.json`); reportage does not interpret or validate whatever `c8` finds there.
+
+The generated shim's `npx c8` / `npx tsx` invocations are an initial scaffold, not a dependency-pinning mechanism: `npx` can resolve `c8`/`tsx` from wherever npm's package resolution finds them, which does not guarantee a project-local, version-pinned install. Manage `c8` and `tsx` as `devDependencies` in this project's `package.json`, and let the project's package manager pin their versions, the same way the generated file's own comments recommend.
+
+### Assumptions and limits
+
+This template provides only an initial `c8 + tsx` scaffold, not a complete or guaranteed-working TypeScript execution setup. Depending on the project, the generated file may need further edits after generation:
+
+- replacing the `npx` invocations with a package-manager-specific run command (for example `pnpm exec` or `yarn`);
+- replacing `tsx` with `ts-node` or a project-specific loader;
+- running already-built JavaScript instead of a TypeScript source file directly;
+- changing the `c8` reporter flags or `--reports-dir` output location.
 
 ## Output path policy
 
@@ -61,7 +84,7 @@ Adding a template means adding an entry to the builtin registry (name plus a ren
 
 ## Failure diagnostics
 
-An unknown `--template` value fails with a message that names the requested template and lists every template name currently registered (or states that none are registered, which is always true in v0). `--template`, `--entry-point`, and `--out` each fail the same way whether the flag was omitted entirely or given an explicit empty value.
+An unknown `--template` value fails with a message that names the requested template and lists every template name currently registered (or states that none are registered, for an embedder that constructs an empty registry directly; the CLI's own registry always has at least `typescript-c8-tsx`). `--template`, `--entry-point`, and `--out` each fail the same way whether the flag was omitted entirely or given an explicit empty value.
 
 `--template`, `--entry-point`, and `--out` are validated independently of each other. If more than one is empty, missing, or (for `--entry-point`) lexically unsafe in the same invocation, every one of those problems is reported together in a single failure, not just the first one `scaffold` happens to check. A caller who fixes the reported problems should not have to rerun `scaffold` once per remaining problem it already could have reported.
 

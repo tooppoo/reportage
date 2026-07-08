@@ -7,15 +7,14 @@
 //! See `docs/shim-scaffold.md` and the ADR at
 //! `docs/adr/20260708T062146Z_shim-scaffold-command.md`.
 //!
-//! v0 ships no builtin templates ([`TemplateRegistry::builtin`] is empty); #128 and #129 add
-//! `typescript-c8-tsx` and `golang`. This module's own tests exercise template resolution and
-//! rendering through a locally-defined test-fixture template so the scaffolding pipeline itself
-//! (validation, lookup, rendering, output-path policy, permissions) is covered ahead of those
-//! templates landing.
+//! [`TemplateRegistry::builtin`] ships `typescript-c8-tsx` (added by #128); #129 adds `golang`.
+//! This module's own tests also exercise template resolution and rendering through a
+//! locally-defined test-fixture template, so the scaffolding pipeline itself (validation,
+//! lookup, rendering, output-path policy, permissions) has coverage that does not depend on any
+//! particular real template's content.
 
 use std::path::PathBuf;
 
-#[cfg(test)]
 use crate::shell_quote::single_quote;
 
 /// The minimal per-render context available to a template in v0.
@@ -107,8 +106,8 @@ where
 
 /// A name-resolved set of templates the scaffold command can render.
 ///
-/// Registration is a plain `Vec`, not a `HashMap`: v0's template count is small (0 today, a
-/// handful once #128/#129 land) and [`TemplateRegistry::available_names`] wants a stable sorted
+/// Registration is a plain `Vec`, not a `HashMap`: v0's template count is small (1 today, a
+/// handful once #129 lands) and [`TemplateRegistry::available_names`] wants a stable sorted
 /// order for diagnostics regardless of registration order.
 pub struct TemplateRegistry {
     entries: Vec<(String, Box<dyn ShimTemplate>)>,
@@ -119,10 +118,13 @@ impl TemplateRegistry {
         Self { entries }
     }
 
-    /// The registry the CLI uses. Empty in v0: `--template` is therefore always "unknown"
-    /// against this registry until #128 (`typescript-c8-tsx`) and #129 (`golang`) add entries.
+    /// The registry the CLI uses. `--template` values other than the ones registered here are
+    /// "unknown" until #129 (`golang`) adds another entry.
     pub fn builtin() -> Self {
-        Self::new(vec![])
+        Self::new(vec![(
+            "typescript-c8-tsx".to_string(),
+            Box::new(typescript_c8_tsx_template) as Box<dyn ShimTemplate>,
+        )])
     }
 
     pub fn resolve(&self, name: &str) -> Option<&dyn ShimTemplate> {
@@ -361,9 +363,47 @@ pub fn scaffold(
     Ok(())
 }
 
+/// The `typescript-c8-tsx` builtin template: a POSIX `sh` shim that runs a TypeScript entry
+/// point under `tsx`, wrapped in `c8` for Node.js/V8 coverage collection.
+///
+/// This is an initial scaffold, not a guarantee of a working TypeScript execution setup: see
+/// docs/shim-scaffold.md — `typescript-c8-tsx` template for the assumptions and limitations a
+/// project may need to adjust after generation (package manager, `tsx` vs. `ts-node` or a
+/// custom loader, running built JavaScript instead of source, c8 reporter/output
+/// configuration). `entry_point` is embedded through [`single_quote`], the same POSIX
+/// single-quoting `fixture_shell_template`'s tests exercise, so this template does not
+/// reimplement its own quoting.
+fn typescript_c8_tsx_template(ctx: &TemplateContext) -> String {
+    format!(
+        "#!/bin/sh\n\
+         set -eu\n\
+         \n\
+         # Scaffolded by reportage.\n\
+         # This file is owned by this project after generation.\n\
+         # Edit the c8 / tsx invocation below to match this project.\n\
+         #\n\
+         # Recommended:\n\
+         # - Manage c8 and tsx in this project's package.json.\n\
+         # - Pin dependency versions through this project's package manager.\n\
+         #\n\
+         # Notes:\n\
+         # - A relative entry_point is resolved from the runtime working directory.\n\
+         # - npx may depend on npm's package resolution behavior.\n\
+         \n\
+         entry_point={entry_point}\n\
+         \n\
+         exec npx c8 \\\n\
+         \x20\x20--reporter=text \\\n\
+         \x20\x20--reporter=lcov \\\n\
+         \x20\x20--reports-dir coverage/reportage \\\n\
+         \x20\x20npx tsx \"$entry_point\" \"$@\"\n",
+        entry_point = single_quote(ctx.entry_point()),
+    )
+}
+
 /// A shell-script test-fixture template used only by this module's own tests, to exercise
 /// rendering (including safe entry-point quoting) and the project-ownership notice contract
-/// ahead of #128/#129 landing real builtin templates.
+/// independently of any particular real template's content.
 #[cfg(test)]
 fn fixture_shell_template(ctx: &TemplateContext) -> String {
     format!(
@@ -420,14 +460,6 @@ mod tests {
     // --- TemplateRegistry ---
 
     #[test]
-    fn builtin_registry_has_no_templates_in_v0() {
-        assert_eq!(
-            TemplateRegistry::builtin().available_names(),
-            Vec::<&str>::new()
-        );
-    }
-
-    #[test]
     fn registry_resolves_registered_template_by_name() {
         let registry = TemplateRegistry::new(vec![(
             "fixture".to_string(),
@@ -466,6 +498,98 @@ mod tests {
         let ctx = TemplateContext::new("./entry.sh".to_string()).unwrap();
         let rendered = fixture_shell_template(&ctx);
         assert!(rendered.contains("now owned by your project"));
+    }
+
+    // --- typescript-c8-tsx template rendering ---
+
+    #[test]
+    fn typescript_c8_tsx_registers_under_its_template_name() {
+        assert!(
+            TemplateRegistry::builtin()
+                .resolve("typescript-c8-tsx")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn typescript_c8_tsx_is_listed_among_available_names() {
+        assert_eq!(
+            TemplateRegistry::builtin().available_names(),
+            vec!["typescript-c8-tsx"]
+        );
+    }
+
+    #[test]
+    fn typescript_c8_tsx_embeds_the_entry_point() {
+        let ctx = TemplateContext::new("my-app/index.ts".to_string()).unwrap();
+        let rendered = typescript_c8_tsx_template(&ctx);
+        assert!(rendered.contains("entry_point='my-app/index.ts'"));
+    }
+
+    #[test]
+    fn typescript_c8_tsx_quotes_an_entry_point_containing_a_space_and_a_single_quote() {
+        // Exercises the same `single_quote` helper `fixture_shell_template`'s tests exercise
+        // (see `fixture_template_quotes_entry_point_containing_single_quote` above), so this
+        // asserts the template reuses #127's quoting rather than embedding the value unquoted.
+        let ctx = TemplateContext::new("it's/my app/index.ts".to_string()).unwrap();
+        let rendered = typescript_c8_tsx_template(&ctx);
+        assert!(rendered.contains("entry_point='it'\\''s/my app/index.ts'"));
+    }
+
+    #[test]
+    fn typescript_c8_tsx_execs_through_c8_and_tsx() {
+        let ctx = TemplateContext::new("my-app/index.ts".to_string()).unwrap();
+        let rendered = typescript_c8_tsx_template(&ctx);
+        assert!(rendered.contains("exec npx c8"));
+        assert!(rendered.contains("npx tsx \"$entry_point\" \"$@\""));
+    }
+
+    #[test]
+    fn typescript_c8_tsx_passes_additional_arguments_through_to_the_entry_point() {
+        let ctx = TemplateContext::new("my-app/index.ts".to_string()).unwrap();
+        let rendered = typescript_c8_tsx_template(&ctx);
+        assert!(rendered.contains("tsx \"$entry_point\" \"$@\""));
+    }
+
+    #[test]
+    fn typescript_c8_tsx_includes_project_editable_comment() {
+        let ctx = TemplateContext::new("./entry.ts".to_string()).unwrap();
+        let rendered = typescript_c8_tsx_template(&ctx);
+        assert!(rendered.contains("Edit the c8 / tsx invocation below to match this project."));
+    }
+
+    #[test]
+    fn typescript_c8_tsx_recommends_managing_dependencies_via_package_json() {
+        let ctx = TemplateContext::new("./entry.ts".to_string()).unwrap();
+        let rendered = typescript_c8_tsx_template(&ctx);
+        assert!(rendered.contains("Manage c8 and tsx in this project's package.json."));
+    }
+
+    #[test]
+    fn typescript_c8_tsx_renders_as_a_syntactically_valid_posix_shell_script() {
+        // A behavioral, not merely textual, check: feeds the rendered content to `sh -n`
+        // (parse-only, no execution) so a regression that breaks quoting or line-continuation
+        // structure fails here even if the substring assertions above happen not to catch it.
+        let ctx = TemplateContext::new("it's/my app/index.ts".to_string()).unwrap();
+        let rendered = typescript_c8_tsx_template(&ctx);
+
+        let mut child = std::process::Command::new("sh")
+            .arg("-n")
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .expect("failed to spawn sh -n");
+        use std::io::Write;
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(rendered.as_bytes())
+            .unwrap();
+        let status = child.wait().expect("failed to wait on sh -n");
+        assert!(
+            status.success(),
+            "rendered template is not valid POSIX sh:\n{rendered}"
+        );
     }
 
     // --- scaffold(): validation ---
@@ -621,7 +745,10 @@ mod tests {
             out: PathBuf::from("out.sh"),
             force: false,
         };
-        let err = scaffold(&request, &TemplateRegistry::builtin()).unwrap_err();
+        // An explicitly empty registry, not `TemplateRegistry::builtin()`: builtin now carries
+        // `typescript-c8-tsx`, so this test constructs the empty case directly to keep covering
+        // the "no templates are currently registered" wording.
+        let err = scaffold(&request, &TemplateRegistry::new(vec![])).unwrap_err();
         match &err {
             ScaffoldError::UnknownTemplate { available, .. } => {
                 assert!(available.is_empty());
