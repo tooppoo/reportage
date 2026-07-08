@@ -1,0 +1,160 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "assertion.file.contents_equals",
+  "category": "assertion",
+  "syntax": "file <ActualValue<WorkspacePath>> contents_equals <ExpectedValue<FileContentsReference>>",
+  "normative": {
+    "checkpointField": "file",
+    "operator": "contentsEquals",
+    "expectedValueType": "fileContentsReference",
+    "matchSemantics": {
+      "comparison": "byteExact"
+    },
+    "referencedValueReferenceRule": "value-reference.file-contents-reference.resolve"
+  },
+  "conformanceCases": [
+    {
+      "description": "contents_equals passes on a byte-for-byte match against a workspace expected file",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"expected.txt\">",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "workspacePath", "value": "expected.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } },
+            { "path": "expected.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ]
+        }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "contents_equals fails on a byte mismatch against a workspace expected file",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"expected.txt\">",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "workspacePath", "value": "expected.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } },
+            { "path": "expected.txt", "contents": { "data": "d29ybGQ=", "encoding": "base64", "text": "world" } }
+          ]
+        }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.file.contents_equals_mismatch"
+    },
+    {
+      "description": "contents_equals fails on a missing trailing newline; comparison is byte-exact with no normalization",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"expected.txt\">",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "workspacePath", "value": "expected.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } },
+            { "path": "expected.txt", "contents": { "data": "aGVsbG8K", "encoding": "base64", "text": "hello\n" } }
+          ]
+        }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.file.contents_equals_mismatch"
+    },
+    {
+      "description": "contents_equals fails as an assertion failure, not a script error, when the actual file is missing",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"expected.txt\">",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "workspacePath", "value": "expected.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "expected.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ]
+        }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.file.contents_equals_actual_missing"
+    },
+    {
+      "description": "contents_equals passes against a fixture-file expected value, resolved relative to repor_dir",
+      "assertionSource": "file <\"actual.txt\"> contents_equals @\"expected.txt\"",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "fixtureReference", "value": "expected.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ],
+          "reporDirFiles": [
+            { "path": "expected.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ]
+        }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "contents_equals is a script error, not an assertion failure, when the workspace expected value is missing",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"missing-expected.txt\">",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "workspacePath", "value": "missing-expected.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ]
+        }
+      },
+      "expectedResult": "scriptError",
+      "expectedDiagnosticCode": "semantic.file_contents_reference.missing"
+    },
+    {
+      "description": "invalid: contents_equals rejects a bare string literal as the expected value",
+      "assertionSource": "file <\"actual.txt\"> contents_equals \"expected text\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.literal.kind_mismatch"
+    }
+  ]
+}

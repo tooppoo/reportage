@@ -1,0 +1,97 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "assertion.dir.contains",
+  "category": "assertion",
+  "syntax": "dir <\"path\"> contains \"name\"",
+  "normative": {
+    "checkpointField": "dir",
+    "operator": "contains",
+    "expectedValueType": "utf8String",
+    "matchSemantics": {
+      "comparison": "entryNameEquality"
+    },
+    "referencedValueReferenceRule": "value-reference.workspace-path.resolve"
+  },
+  "conformanceCases": [
+    {
+      "description": "dir contains passes when an entry with the exact name exists directly under the path",
+      "assertionSource": "dir <\"outdir\"> contains \"result.json\"",
+      "assertion": { "subject": "dir", "path": "outdir", "operator": "contains", "expected": "result.json" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "outdir/result.json", "contents": { "data": "", "encoding": "base64", "text": "" } }
+          ]
+        }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "dir contains fails when no entry has that exact name",
+      "assertionSource": "dir <\"outdir\"> contains \"missing.json\"",
+      "assertion": { "subject": "dir", "path": "outdir", "operator": "contains", "expected": "missing.json" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "outdir/result.json", "contents": { "data": "", "encoding": "base64", "text": "" } }
+          ]
+        }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.dir.contains_entry_missing"
+    },
+    {
+      "description": "dir contains matches the full entry name only, never a substring of it",
+      "assertionSource": "dir <\"outdir\"> contains \"result\"",
+      "assertion": { "subject": "dir", "path": "outdir", "operator": "contains", "expected": "result" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "outdir/result.json", "contents": { "data": "", "encoding": "base64", "text": "" } }
+          ]
+        }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.dir.contains_entry_missing"
+    },
+    {
+      "description": "dir contains fails when the subject path does not exist",
+      "assertionSource": "dir <\"missing_dir\"> contains \"x\"",
+      "assertion": { "subject": "dir", "path": "missing_dir", "operator": "contains", "expected": "x" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.dir.contains_subject_missing"
+    },
+    {
+      "description": "dir contains fails when the subject path is a regular file, not a directory",
+      "assertionSource": "dir <\"notadir\"> contains \"x\"",
+      "assertion": { "subject": "dir", "path": "notadir", "operator": "contains", "expected": "x" },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "notadir", "contents": { "data": "", "encoding": "base64", "text": "" } }
+          ]
+        }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.dir.contains_subject_not_directory"
+    }
+  ]
+}

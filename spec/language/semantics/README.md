@@ -22,19 +22,58 @@ Each ID uses the form:
 <category>.<subject>.<operator-or-form>
 ```
 
-- **category** — the broad classification of the rule. In v0, the only defined value is `assertion`.
-- **subject** — the checkpoint subject being verified. Examples: `exit`, `stdout`, `stderr`.
-- **operator-or-form** — the expectation operator or assertion form. Examples: `equals`, `contains`.
+- **category** — the broad classification of the rule. v0 defines three: `assertion`, `logical-composition`, and `value-reference`.
+- **subject** — the checkpoint subject being verified (for `assertion`), the composition target (for `logical-composition`), or the literal/reference kind being resolved (for `value-reference`). Examples: `exit`, `stdout`, `file`, `dir`, `expectation`, `workspace-path`, `fixture-reference`.
+- **operator-or-form** — the expectation operator or assertion form. Examples: `equals`, `contains`, `not`, `all`, `resolve`, `kind-mismatch`.
 
-### v0 IDs
+`subject` and `operator-or-form` may themselves be kebab-case when the concept they name is a compound one (e.g. `file-contents-reference`, `kind-mismatch`); this does not change the three-part, dot-separated shape of the id.
+
+### `assertion` category
+
+`assertion` rules verify a single checkpoint field (`exitCode`, `stdout`, `stderr`, `file`, or `dir`) against an expected value using one operator.
 
 | ID | Syntax form |
 |----|-------------|
 | `assertion.exit.equals` | `exit <code>` |
 | `assertion.stdout.contains` | `stdout contains <string>` |
 | `assertion.stderr.contains` | `stderr contains <string>` |
+| `assertion.stdout.empty` | `stdout empty` |
+| `assertion.stderr.empty` | `stderr empty` |
+| `assertion.file.exists` | `file <"path"> exists` |
+| `assertion.file.contains` | `file <"path"> contains <text_literal>` |
+| `assertion.file.contents_equals` | `file <ActualValue<WorkspacePath>> contents_equals <ExpectedValue<FileContentsReference>>` |
+| `assertion.file.text_equals` | `file <ActualValue<WorkspacePath>> text_equals <ExpectedValue<TextValue>>` |
+| `assertion.dir.exists` | `dir <"path"> exists` |
+| `assertion.dir.contains` | `dir <"path"> contains "name"` |
 
 Note: `exit <code>` does not spell out `equals` in syntax, but the semantic rule treats it as an exit code equals expectation.
+
+`assertion.stdout.contents_equals` and `assertion.stderr.contents_equals` are known rules in the Rust const registry (see below) but do not yet have a semantic spec; they are out of scope for the issue that introduced the other `assertion` rules above.
+
+### `logical-composition` category
+
+`logical-composition` rules verify block-form logical composition (`not`/`all`/`any`) over nested expectations. A composition is not a checkpoint-field comparison, so its normative fields and conformance cases use a different shape from `assertion` (see below).
+
+| ID | Syntax form |
+|----|-------------|
+| `logical-composition.expectation.not` | `not { <expectation>... }` |
+| `logical-composition.expectation.all` | `all { <expectation>... }` |
+| `logical-composition.expectation.any` | `any { <expectation>... }` |
+
+### `value-reference` category
+
+`value-reference` rules verify acceptance/rejection of a literal or reference, not a checkpoint comparison. Each rule's normative fields are a free-form (but non-empty, banned-key-free) object, because these rules are heterogeneous point-facts rather than a uniform operator/comparison model.
+
+| ID | What it governs |
+|----|------------------|
+| `value-reference.workspace-path.resolve` | `<"path">` lexical validation (empty/absolute/`.`/`..` segment rejection), shared by the `dir` subject, `write` step path, and a `contents_equals` workspace expected value. |
+| `value-reference.fixture-reference.resolve` | `@"path"` lexical validation plus filesystem resolution relative to `repor_dir` (missing/not-a-regular-file/escapes-repor-directory rejection). |
+| `value-reference.file-contents-reference.resolve` | Resolution of a `contents_equals` expected value, which is `FileContentsReference = WorkspacePath \| FixtureReference`. The `Fixture` variant's own resolution errors are owned by `value-reference.fixture-reference.resolve`, not duplicated here. |
+| `value-reference.literal.kind-mismatch` | The argument-position kind check that rejects a literal of the wrong surface kind (`"..."` / `<"...">` / `@"..."`) at a position whose signature requires a different kind. |
+
+`value-reference.file-path.validate` and `value-reference.dir-entry-name.validate` are also known rules in the Rust const registry but do not yet have a semantic spec.
+
+`fixture-reference` is a `value-reference` rule in its own right, not a sub-concept of `workspace-path`: the two share a lexical validation shape (empty/absolute/dot-segment) but resolve against different roots (the case workspace vs. `repor_dir`) and have independent diagnostic codes.
 
 ## Semantic spec file location
 
@@ -50,7 +89,7 @@ Example: `spec/language/semantics/assertion.exit.equals.json`.
 
 `spec/language/semantics/schema.json` defines the expected structure and is useful for editor integration (autocomplete, inline validation in VS Code and similar tools).
 
-CI validation is performed by typed Rust deserialization in `crates/reportage-core/tests/semantic_specs.rs`. Each spec file is deserialised into Rust structs marked with `#[serde(deny_unknown_fields)]`, which rejects unknown fields and enforces required fields and enum constraints. The same test module runs every conformance case against the production semantic evaluator by converting the normalised assertion representation and checkpoint data into evaluator inputs. Parser/source consistency is checked separately and is not the primary purpose of semantic conformance.
+CI validation is performed by typed Rust deserialization in `crates/reportage-core/tests/semantic_specs.rs`. Each spec file's top-level shape is deserialised into a Rust struct marked with `#[serde(deny_unknown_fields)]`; its `normative` field is then deserialised a second time into a category-specific struct (`assertion` and `logical-composition` categories) or checked as a non-empty, banned-key-free object (`value-reference` category), so unknown fields, missing required fields, and enum constraints are all rejected. The same test module runs every eval-shaped conformance case against the production semantic evaluator by converting the normalised assertion representation and checkpoint data into evaluator inputs, and every parser-shaped conformance case against the production parser directly. Parser/source consistency for eval-shaped cases is checked separately and is not the primary purpose of semantic conformance.
 
 The diagnostic code contract is defined in [`docs/semantic-diagnostics.md`](../../../docs/semantic-diagnostics.md). Expected diagnostic code checks remain optional: cases that carry an `expectedDiagnosticCode` can have that code verified once semantic conformance enables code verification (a follow-up to #41); cases without one are verified by pass/fail result only.
 
@@ -63,42 +102,80 @@ Every semantic spec must include:
 - `$schema` — relative JSON Schema path; currently `"./schema.json"`.
 - `schemaVersion` — integer, currently `1`.
 - `id` — stable string identifier in `<category>.<subject>.<operator-or-form>` form.
-- `category` — enum value; currently `"assertion"`.
+- `category` — enum value: `"assertion"`, `"logical-composition"`, or `"value-reference"`.
 - `syntax` — the Reportage syntax form this rule covers.
-- `normative` — structured normative fields (see below).
-- `conformanceCases` — at least one static conformance case.
+- `normative` — structured normative fields (see below); shape depends on `category`.
+- `conformanceCases` — at least one conformance case (see below); shape depends on the rule.
 
 ## Normative fields
 
+### `assertion` category
+
 The `normative` object carries structured, machine-processable normative data. It must include:
 
-- `checkpointField` — which field of the checkpoint this expectation reads.
-- `operator` — the matching operator (`"equals"` or `"contains"`).
-- `expectedValueType` — the type of the expected value (e.g. `"uint8"`, `"utf8String"`).
+- `checkpointField` — which field of the checkpoint this expectation reads: `"exitCode"`, `"stdout"`, `"stderr"`, `"file"`, or `"dir"`.
+- `operator` — the matching operator: `"equals"`, `"contains"`, `"empty"`, `"exists"`, `"contentsEquals"`, or `"textEquals"`.
+- `expectedValueType` — the type of the expected value: `"uint8"`, `"utf8String"`, `"fileContentsReference"`, or `"none"` (for `exists`/`empty`, which take no operand).
 - `matchSemantics` — structured description of the comparison behaviour (see below).
+- `referencedValueReferenceRule` — optional cross-reference to the `value-reference.*` rule ID governing this rule's expected-value resolution, when the expected value is itself a reference (e.g. `assertion.file.contents_equals` references `value-reference.file-contents-reference.resolve`).
+- `noImplicitConversionFrom` — optional list of expected-value categories this rule's `expectedValueType` never implicitly converts from (e.g. `assertion.file.text_equals` lists `"fileContentsReference"`, since `TextValue` and `FileContentsReference` do not implicitly convert).
+
+### `logical-composition` category
+
+The `normative` object must include:
+
+- `operator` — `"not"`, `"all"`, or `"any"`.
+- `evaluatesAllChildren` — always `true` in v0: every child is evaluated regardless of earlier results, so a failing composition still reports each child's own outcome (no short-circuiting).
+- `passCondition` — how the operator derives its own pass/fail from its children's pass/fail: `"notAllChildrenPassed"` (for `not`, which negates the implicit-`all` grouping of its children, not each child individually), `"allChildrenPassed"` (for `all`), or `"anyChildPassed"` (for `any`).
+- `emptyBlockPolicy` — always `"semanticError"` in v0: an empty `not`/`all`/`any` block is rejected, never evaluated as vacuously true or false.
+- `emptyBlockDiagnosticCode` — the diagnostic code for the empty-block rejection (`"semantic.expectation.empty_block"`).
+
+### `value-reference` category
+
+The `normative` object is a free-form object: at least one property, and none of the banned keys listed below. Its shape is not otherwise fixed by this schema, because `value-reference` rules are heterogeneous point-facts (e.g. which lexical forms a literal rejects, which diagnostic code each rejection produces, which other rule a union type defers to) rather than a uniform operator/comparison model. See the existing `value-reference.*.json` files for the shape each rule currently uses.
 
 ## Match semantics
 
-The `matchSemantics` object describes how comparison is performed. It must include:
+The `matchSemantics` object (an `assertion`-category normative field) describes how comparison is performed. It must include:
 
-- `comparison` — the comparison kind: `"exact"` for equality, `"byteSubstring"` for substring search.
+- `comparison` — the comparison kind: `"exact"` (scalar equality, e.g. `exit`'s `uint8`), `"byteSubstring"` (raw-byte substring search, `stdout`/`stderr contains`), `"textSubstring"` (UTF-8 text substring search, `file contains`), `"byteExact"` (full-byte-buffer equality with no normalization, `contents_equals`/`text_equals`), `"existence"` (filesystem presence-and-type check, `exists`), `"emptiness"` (byte-length-zero check, `empty`), or `"entryNameEquality"` (exact match against one member of a directory entry name set, `dir contains`).
 
-For `"byteSubstring"` comparisons, additional boolean fields document the behaviour:
+For `"byteSubstring"` and `"textSubstring"` comparisons, additional boolean fields document the behaviour:
 
 - `caseSensitive` — whether matching is case-sensitive.
 - `lineEndingNormalization` — whether line endings are normalised before comparison.
-- `emptyExpectedAlwaysMatches` — whether an empty expected value always matches.
+- `emptyExpectedAlwaysMatches` — whether an empty expected value always matches (given any other precondition, such as the file existing and being readable, is met).
 
 ## Conformance cases
 
-Each conformance case provides enough static data to run the semantic evaluator without executing an external command. Each case includes:
+Not every semantic rule is a checkpoint-field comparison, so `conformanceCases` items use one of two shapes. Every item in the array is checked independently, so a single spec file may mix both shapes.
+
+### Eval cases
+
+An eval case provides enough static data to run the production semantic evaluator without executing an external command. It includes:
 
 - `description` — a short sentence describing what the case verifies.
 - `assertionSource` — the Reportage assertion source text.
-- `assertion` — the normalised assertion representation: `subject`, `operator`, and `expected`.
-- `checkpoint` — static checkpoint data used as input to the semantic evaluator.
-- `expectedResult` — either `"pass"` or `"fail"`.
-- `expectedDiagnosticCode` — optional diagnostic code string for diagnostic-code conformance. The value must be a dot-separated diagnostic code as defined in [`docs/semantic-diagnostics.md`](../../../docs/semantic-diagnostics.md) (e.g. `assertion.stdout.contains_mismatch`). Until semantic conformance enables code verification, CI may ignore this field and verify only `expectedResult`.
+- `assertion` — the normalised assertion representation: `subject` (`"exit"`, `"stdout"`, `"stderr"`, `"file"`, `"dir"`, or `"logical"`), `path` (required when `subject` is `"file"` or `"dir"`), `operator`, `expected` (a string, integer, `null`, or `{"kind": "workspacePath"|"fixtureReference", "value": "..."}` for a `FileContentsReference`), and `children` (required, non-empty, and recursive when `subject` is `"logical"`).
+- `checkpoint` — static checkpoint data used as input to the semantic evaluator: `exitCode`, `stdout`, `stderr`, and an optional `workspace` object (see below).
+- `expectedResult` — `"pass"`, `"fail"`, or `"scriptError"` (the expected value failed to resolve to bytes, e.g. a missing `contents_equals` expected file — a test-definition problem, not an assertion outcome).
+- `expectedDiagnosticCode` — optional diagnostic code string. Required for `"scriptError"` cases; optional otherwise. The value must be a dot-separated diagnostic code as defined in [`docs/semantic-diagnostics.md`](../../../docs/semantic-diagnostics.md) (e.g. `assertion.stdout.contains_mismatch`).
+
+`checkpoint.workspace`, when present, materializes real files and directories on disk before evaluation runs:
+
+- `files` — files to create under the case workspace root, as `{"path": "...", "contents": <StreamData>}`.
+- `dirs` — empty directories to create under the case workspace root.
+- `reporDirFiles` — files to create under `repor_dir`, for resolving a `contents_equals` expected `@"..."` fixture reference.
+- `reporDirDirs` — empty directories to create under `repor_dir`.
+
+### Parser cases
+
+A parser case is verified against the production parser directly, for rules that concern acceptance or rejection of syntax or a literal, not a checkpoint comparison (`value-reference.*` rules, and the empty-block cases of `logical-composition.*` rules). It includes:
+
+- `description` — a short sentence describing what the case verifies.
+- `assertionSource` — the Reportage assertion source text, parsed by wrapping it in a minimal `case { assert { ... } }` script.
+- `expectedResult` — `"valid"` (the wrapped script parses successfully) or `"parseError"` (parsing fails).
+- `expectedDiagnosticCode` — required for `"parseError"` cases: the diagnostic code the parse error must carry.
 
 ### Checkpoint bytes representation
 

@@ -1,0 +1,112 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "assertion.file.text_equals",
+  "category": "assertion",
+  "syntax": "file <ActualValue<WorkspacePath>> text_equals <ExpectedValue<TextValue>>",
+  "normative": {
+    "checkpointField": "file",
+    "operator": "textEquals",
+    "expectedValueType": "utf8String",
+    "matchSemantics": {
+      "comparison": "byteExact"
+    },
+    "noImplicitConversionFrom": ["fileContentsReference"]
+  },
+  "conformanceCases": [
+    {
+      "description": "text_equals passes on a byte-for-byte match against a string literal",
+      "assertionSource": "file <\"actual.txt\"> text_equals \"hello\\n\"",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "textEquals",
+        "expected": "hello\n"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8K", "encoding": "base64", "text": "hello\n" } }
+          ]
+        }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "text_equals fails on a missing trailing newline; comparison is byte-exact with no normalization",
+      "assertionSource": "file <\"actual.txt\"> text_equals \"hello\"",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "textEquals",
+        "expected": "hello"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8K", "encoding": "base64", "text": "hello\n" } }
+          ]
+        }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.file.text_equals_mismatch"
+    },
+    {
+      "description": "text_equals fails when actual is CRLF and expected is LF; no line-ending normalization is applied",
+      "assertionSource": "file <\"actual.txt\"> text_equals \"hello\\n\"",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "textEquals",
+        "expected": "hello\n"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8NCg==", "encoding": "base64", "text": "hello\r\n" } }
+          ]
+        }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.file.text_equals_mismatch"
+    },
+    {
+      "description": "text_equals is an assertion failure, not a script error, when the actual file is missing",
+      "assertionSource": "file <\"missing.txt\"> text_equals \"hello\"",
+      "assertion": {
+        "subject": "file",
+        "path": "missing.txt",
+        "operator": "textEquals",
+        "expected": "hello"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.file.text_equals_actual_missing"
+    },
+    {
+      "description": "invalid: text_equals rejects a workspace path literal as the expected value; TextValue and FileContentsReference do not implicitly convert",
+      "assertionSource": "file <\"actual.txt\"> text_equals <\"expected.txt\">",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.literal.kind_mismatch"
+    },
+    {
+      "description": "invalid: text_equals rejects a fixture reference literal as the expected value; TextValue and FileContentsReference do not implicitly convert",
+      "assertionSource": "file <\"actual.txt\"> text_equals @\"expected.txt\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.literal.kind_mismatch"
+    }
+  ]
+}

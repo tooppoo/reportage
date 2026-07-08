@@ -1,0 +1,115 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "value-reference.fixture-reference.resolve",
+  "category": "value-reference",
+  "syntax": "@\"path\"",
+  "normative": {
+    "lexicalRejects": ["empty", "absolute", "dotSegment"],
+    "resolutionRejects": ["missing", "notARegularFile", "escapesReporDirectory"],
+    "resolvedRelativeTo": "reporDir",
+    "diagnosticCodes": {
+      "empty": "semantic.fixture_reference.empty",
+      "absolute": "semantic.fixture_reference.absolute",
+      "dotSegment": "semantic.fixture_reference.dot_segment",
+      "missing": "semantic.fixture_reference.missing",
+      "notARegularFile": "semantic.fixture_reference.not_a_regular_file",
+      "escapesReporDirectory": "semantic.fixture_reference.escapes_repor_directory"
+    },
+    "usedBy": ["assertion.file.contents_equals"]
+  },
+  "conformanceCases": [
+    {
+      "description": "a relative fixture reference with no dot segments resolves",
+      "assertionSource": "file <\"actual.txt\"> contents_equals @\"expected.txt\"",
+      "expectedResult": "valid"
+    },
+    {
+      "description": "invalid: an empty fixture reference is rejected",
+      "assertionSource": "file <\"actual.txt\"> contents_equals @\"\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.fixture_reference.empty"
+    },
+    {
+      "description": "invalid: an absolute fixture reference is rejected",
+      "assertionSource": "file <\"actual.txt\"> contents_equals @\"/etc/passwd\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.fixture_reference.absolute"
+    },
+    {
+      "description": "invalid: a fixture reference with a '..' segment is rejected",
+      "assertionSource": "file <\"actual.txt\"> contents_equals @\"a/../b\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.fixture_reference.dot_segment"
+    },
+    {
+      "description": "a fixture reference resolves and materializes when the fixture file exists next to repor_dir",
+      "assertionSource": "file <\"actual.txt\"> contents_equals @\"expected.txt\"",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "fixtureReference", "value": "expected.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ],
+          "reporDirFiles": [
+            { "path": "expected.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ]
+        }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "invalid: a fixture reference is a script error when the fixture file does not exist next to repor_dir",
+      "assertionSource": "file <\"actual.txt\"> contents_equals @\"expected.txt\"",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "fixtureReference", "value": "expected.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ]
+        }
+      },
+      "expectedResult": "scriptError",
+      "expectedDiagnosticCode": "semantic.fixture_reference.missing"
+    },
+    {
+      "description": "invalid: a fixture reference is a script error when it resolves to a directory, not a regular file",
+      "assertionSource": "file <\"actual.txt\"> contents_equals @\"expected.txt\"",
+      "assertion": {
+        "subject": "file",
+        "path": "actual.txt",
+        "operator": "contentsEquals",
+        "expected": { "kind": "fixtureReference", "value": "expected.txt" }
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" },
+        "workspace": {
+          "files": [
+            { "path": "actual.txt", "contents": { "data": "aGVsbG8=", "encoding": "base64", "text": "hello" } }
+          ],
+          "reporDirDirs": ["expected.txt"]
+        }
+      },
+      "expectedResult": "scriptError",
+      "expectedDiagnosticCode": "semantic.fixture_reference.not_a_regular_file"
+    }
+  ]
+}

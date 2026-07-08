@@ -1,0 +1,58 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "logical-composition.expectation.all",
+  "category": "logical-composition",
+  "syntax": "all { <expectation>... }",
+  "normative": {
+    "operator": "all",
+    "evaluatesAllChildren": true,
+    "passCondition": "allChildrenPassed",
+    "emptyBlockPolicy": "semanticError",
+    "emptyBlockDiagnosticCode": "semantic.expectation.empty_block"
+  },
+  "conformanceCases": [
+    {
+      "description": "all passes when every child passes",
+      "assertionSource": "all {\n      exit 0\n      stdout empty\n    }",
+      "assertion": {
+        "subject": "logical",
+        "operator": "all",
+        "children": [
+          { "subject": "exit", "operator": "equals", "expected": 0 },
+          { "subject": "stdout", "operator": "empty" }
+        ]
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "all fails when one child fails, even though another child passes",
+      "assertionSource": "all {\n      exit 0\n      stdout contains \"nope\"\n    }",
+      "assertion": {
+        "subject": "logical",
+        "operator": "all",
+        "children": [
+          { "subject": "exit", "operator": "equals", "expected": 0 },
+          { "subject": "stdout", "operator": "contains", "expected": "nope" }
+        ]
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "aGVsbG8K", "encoding": "base64", "text": "hello\n" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail"
+    },
+    {
+      "description": "invalid: an empty all block is a semantic error, not evaluated as vacuously true",
+      "assertionSource": "all {\n    }",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.expectation.empty_block"
+    }
+  ]
+}

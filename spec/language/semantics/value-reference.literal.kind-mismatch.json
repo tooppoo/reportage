@@ -1,0 +1,50 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "value-reference.literal.kind-mismatch",
+  "category": "value-reference",
+  "syntax": "\"...\" | <\"...\"> | @\"...\"",
+  "normative": {
+    "mechanism": "argumentPositionKindCheck",
+    "literalKinds": ["stringLiteral", "workspacePath", "fixtureReference"],
+    "diagnosticCode": "semantic.literal.kind_mismatch",
+    "enforcedAt": "parseTime"
+  },
+  "conformanceCases": [
+    {
+      "description": "a workspace path literal in a contents_equals expected-value position is valid",
+      "assertionSource": "file <\"actual.txt\"> contents_equals <\"expected.txt\">",
+      "expectedResult": "valid"
+    },
+    {
+      "description": "invalid: a bare string literal in a contents_equals expected-value position is rejected; contents_equals requires a FileContentsReference",
+      "assertionSource": "file <\"actual.txt\"> contents_equals \"expected text\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.literal.kind_mismatch"
+    },
+    {
+      "description": "invalid: a workspace path literal in a text_equals expected-value position is rejected; text_equals requires a TextValue",
+      "assertionSource": "file <\"actual.txt\"> text_equals <\"expected.txt\">",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.literal.kind_mismatch"
+    },
+    {
+      "description": "invalid: a fixture reference literal in a text_equals expected-value position is rejected; text_equals requires a TextValue",
+      "assertionSource": "file <\"actual.txt\"> text_equals @\"expected.txt\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.literal.kind_mismatch"
+    },
+    {
+      "description": "invalid: a workspace path literal in a dir contains entry-name position is rejected; the entry name requires a plain string literal",
+      "assertionSource": "dir <\"out\"> contains <\"entry\">",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.literal.kind_mismatch"
+    },
+    {
+      "description": "invalid: a bare string literal as the file checkpoint subject is rejected; the subject requires a workspace path literal",
+      "assertionSource": "file \"out.txt\" exists",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.literal.kind_mismatch"
+    }
+  ]
+}
