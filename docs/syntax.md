@@ -312,7 +312,7 @@ value_literal             = { workspace_path_literal | fixture_reference_literal
 
 // v0 forbids raw newlines (LF, CRLF, and bare CR) inside string literals and
 // allows exactly four escape sequences: \\, \", \n, \t. Any other backslash
-// sequence is rejected. See docs/adr/20260701T214658Z_string-literal-escape-sequences.md.
+// sequence is rejected. See [docs/adr/20260701T214658Z_string-literal-escape-sequences.md](adr/20260701T214658Z_string-literal-escape-sequences.md).
 //
 // A quoted_string is one of the two forms of a `text_literal` (conceptually,
 // text_literal = string literal | heredoc literal — see "Heredoc literal"
@@ -323,7 +323,7 @@ value_literal             = { workspace_path_literal | fixture_reference_literal
 // every position that accepts a text_literal is expressed as two ordered
 // grammar alternatives instead (write_step_string / write_step_heredoc;
 // file_contains / file_exp_heredoc). Both forms resolve to the same
-// TextValue at the semantic level; see docs/semantics.md — Text literal.
+// TextValue at the semantic level; see [docs/semantics.md](semantics.md) — Text literal.
 quoted_string = { "\"" ~ string_inner ~ "\"" }
 string_inner  = @{ string_char* }
 string_char   = _{ escape_seq | (!("\"" | "\\" | "\r" | "\n") ~ ANY) }
