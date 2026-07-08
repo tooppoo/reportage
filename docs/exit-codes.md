@@ -2,6 +2,8 @@
 
 This document defines the reportage CLI exit code policy and the exit codes introduced in v0.
 
+Everything below "v0 Exit Code Table" through "Precedence" describes the default run behavior (`reportage <script>...` / `reportage --config <path>`): running `.repor` scripts and writing the `result.json` artifact. `reportage shim scaffold` is a separate subcommand with its own, narrower exit code table; see "`shim scaffold` exit codes" below.
+
 ## Policy
 
 - Exit code `0` means success: every case in the run passed, or the run was a no-op because no cases were found in otherwise-valid selected input.
@@ -59,3 +61,16 @@ This means `config_error` is used when discovery/configuration cannot produce a 
 - Exit code `3` is reserved for infrastructure failures such as the POSIX shell not being found on `PATH`, or required artifact generation failing. It does not mean "the action exited non-zero".
 - A `write` step's runtime step error (create-only target already exists, a regular file blocking its parent path, or an OS-level I/O failure) is exit code `3`, not `1`. There is no expectation being compared against evidence, so it is never an assertion failure. See [`docs/semantics.md`](semantics.md) — Write step.
 - Empty and whitespace-only scripts are syntax-valid inputs. At execution time they produce a no-op success with exit code `0`, no command execution, and no assertion evaluation.
+
+## `shim scaffold` exit codes
+
+`reportage shim scaffold` (see [`docs/shim-scaffold.md`](shim-scaffold.md)) never runs a `.repor` script, so the "Test/assertion failure" and artifact `result` categories above do not apply to it. It uses a smaller, independent table:
+
+| Code | Meaning |
+|------|---------|
+| `0`  | **Success** — the template was rendered and written to `--out`. |
+| `2`  | **Request validation error** — `--template`, `--entry-point`, or `--out` was missing, empty, or otherwise invalid (including an unknown template name), or `--out` conflicts with an existing directory or symlink, or an existing file without `--force`. Nothing is written to disk when this code is returned. |
+| `3`  | **Runtime/infrastructure error** — creating `--out`'s parent directory, writing the rendered file, or setting its permissions failed at the OS level. |
+| `4`  | **CLI usage error** — clap itself rejected the invocation (e.g. an unrecognized flag, or `shim` given without a further subcommand). Shared with every other malformed invocation of the `reportage` binary; see `e2e/options/unknown-options.repor` for an example on the default run command. |
+
+Code `2` here intentionally reuses the same number as the run command's "script/config validation error": both mean "the requested operation could not be treated as valid input," even though `shim scaffold` has no script or config file to speak of. Code `3` likewise reuses "runtime/infrastructure error" for the same reason the run command does: an OS-level failure while doing required I/O, not a normal outcome the caller is expected to branch on.

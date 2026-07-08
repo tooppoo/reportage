@@ -1,0 +1,56 @@
+case "existing file is rejected without --force" {
+  write <"out.sh"> ```
+    old content
+    ```
+
+  $ reportage shim scaffold --template anything --entry-point ./bin/app --out out.sh
+
+  assert {
+    exit 2
+    stderr contains "already exists; use --force to overwrite"
+  }
+}
+
+case "--force bypasses the exists check, reaching template resolution instead" {
+  # v0 has no builtin templates (see docs/shim-scaffold.md), so this cannot demonstrate a
+  # successful overwrite yet — but the shift from "already exists" to "unknown template" shows
+  # --force did let the existing-file check pass.
+  write <"out.sh"> ```
+    old content
+    ```
+
+  $ reportage shim scaffold --template anything --entry-point ./bin/app --out out.sh --force
+
+  assert {
+    exit 2
+    stderr contains "unknown template"
+    not {
+      stderr contains "already exists"
+    }
+  }
+}
+
+case "existing directory is rejected even with --force" {
+  $ mkdir -p out.sh
+
+  $ reportage shim scaffold --template anything --entry-point ./bin/app --out out.sh --force
+
+  assert {
+    exit 2
+    stderr contains "it is a directory"
+  }
+}
+
+case "existing symlink is rejected even with --force" {
+  write <"target.sh"> ```
+    target content
+    ```
+  $ ln -s target.sh out.sh
+
+  $ reportage shim scaffold --template anything --entry-point ./bin/app --out out.sh --force
+
+  assert {
+    exit 2
+    stderr contains "it is a symlink"
+  }
+}

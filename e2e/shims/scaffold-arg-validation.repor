@@ -1,0 +1,71 @@
+case "missing --template fails" {
+  $ reportage shim scaffold --entry-point ./bin/app --out out.sh
+
+  assert {
+    exit 2
+    stderr contains "--template must not be empty"
+  }
+}
+
+case "empty --template fails" {
+  $ reportage shim scaffold --template "" --entry-point ./bin/app --out out.sh
+
+  assert {
+    exit 2
+    stderr contains "--template must not be empty"
+  }
+}
+
+case "missing --entry-point fails" {
+  $ reportage shim scaffold --template anything --out out.sh
+
+  assert {
+    exit 2
+    stderr contains "--entry-point must not be empty"
+  }
+}
+
+case "empty --entry-point fails" {
+  $ reportage shim scaffold --template anything --entry-point "" --out out.sh
+
+  assert {
+    exit 2
+    stderr contains "--entry-point must not be empty"
+  }
+}
+
+case "missing --out fails" {
+  $ reportage shim scaffold --template anything --entry-point ./bin/app
+
+  assert {
+    exit 2
+    stderr contains "--out must not be empty"
+  }
+}
+
+case "empty --out fails" {
+  $ reportage shim scaffold --template anything --entry-point ./bin/app --out ""
+
+  assert {
+    exit 2
+    stderr contains "--out must not be empty"
+  }
+}
+
+case "--entry-point with an embedded line feed fails" {
+  $ reportage shim scaffold --template anything --entry-point "$(printf 'a\nb')" --out out.sh
+
+  assert {
+    exit 2
+    stderr contains "line feed"
+  }
+}
+
+case "--entry-point with an embedded carriage return fails" {
+  $ reportage shim scaffold --template anything --entry-point "$(printf 'a\rb')" --out out.sh
+
+  assert {
+    exit 2
+    stderr contains "carriage return"
+  }
+}

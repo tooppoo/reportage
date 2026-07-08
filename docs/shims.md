@@ -98,6 +98,8 @@ PATH overlay shims and coverage collection are related but distinct. Shims decid
 
 A target may be runnable even when coverage is unavailable.
 
+`reportage shim scaffold` (see [shim-scaffold.md](shim-scaffold.md)) generates a starting-point adapter script from a static template, but the generated file is then a project-owned artifact: reportage takes no further role in it once it is written.
+
 ## Executable invocation targets
 
 A shim target is an executable invocation, not merely a binary path.
@@ -176,3 +178,4 @@ These diagnostics remain observable stderr. reportage does not automatically fil
 - [execution-model.md](execution-model.md)
 - [testing/self-testing.md](testing/self-testing.md)
 - [shims/event-protocol.md](shims/event-protocol.md)
+- [shim-scaffold.md](shim-scaffold.md) — generating a coverage-integration shim file from a static template, a distinct concern from the PATH-overlay shims described in this document
