@@ -2,13 +2,14 @@ mod render;
 
 use std::path::{Path, PathBuf};
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use reportage_core::{
     artifact::{ArtifactWriter, RunId},
     config, evaluator,
     executor::ExecutionEnvironment,
     result::ExecutionReport,
     shim::{CommandName, CommandRegistry, ExecutableInvocation},
+    shim_scaffold::{ScaffoldError, ScaffoldRequest, TemplateRegistry, scaffold},
     suite,
 };
 
@@ -34,6 +35,13 @@ enum OutputFormat {
     override_usage = "reportage [OPTIONS] [SUBCOMMAND]..."
 )]
 struct Cli {
+    /// Tooling subcommand. When present, no test scripts are run: see each subcommand's own
+    /// help for its behavior. A bare filename that happens to match a subcommand name (e.g. a
+    /// script literally named `shim`) cannot be run positionally; pass its path with a `./`
+    /// prefix or a directory component to disambiguate.
+    #[command(subcommand)]
+    command: Option<Commands>,
+
     /// Explicit script paths to execute. Cannot be combined with --config.
     scripts: Vec<PathBuf>,
 
@@ -51,6 +59,76 @@ struct Cli {
     /// See docs/TBD.md — "Self-test run ID control".
     #[arg(long = "debug-run-id", hide = true)]
     debug_run_id: Option<String>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Coverage-integration shim tooling. See docs/shim-scaffold.md.
+    Shim(ShimArgs),
+}
+
+#[derive(Parser)]
+struct ShimArgs {
+    #[command(subcommand)]
+    command: ShimCommand,
+}
+
+#[derive(Subcommand)]
+enum ShimCommand {
+    /// Render a builtin template into a shim file. See docs/shim-scaffold.md.
+    Scaffold(ScaffoldArgs),
+}
+
+#[derive(Parser)]
+struct ScaffoldArgs {
+    /// Name of the builtin template to render.
+    #[arg(long)]
+    template: Option<String>,
+
+    /// Value embedded into the rendered template as its entry point. Not checked against the
+    /// filesystem; see docs/shim-scaffold.md — Template model.
+    #[arg(long = "entry-point")]
+    entry_point: Option<String>,
+
+    /// Destination path for the generated shim file.
+    #[arg(long)]
+    out: Option<String>,
+
+    /// Overwrite an existing regular file at `--out`. Has no effect when `--out` is a
+    /// directory or a symlink: those are always rejected. See docs/shim-scaffold.md — Output
+    /// path policy.
+    #[arg(long)]
+    force: bool,
+}
+
+/// Runs `reportage shim scaffold` and always terminates the process: this subcommand renders a
+/// template to a file and exits, without going through the script-execution/report/artifact
+/// pipeline the rest of the CLI uses. See docs/shim-scaffold.md.
+///
+/// `--template`/`--entry-point`/`--out` are `Option<String>` at the clap layer (not
+/// `required = true`) specifically so that an omitted flag and an explicitly empty value
+/// (`--template ''`) collapse to the same empty string and get one validation path in
+/// `reportage_core::shim_scaffold::scaffold`, matching the "empty or unspecified" acceptance
+/// criteria for each argument.
+fn run_shim_scaffold(args: &ScaffoldArgs) -> ! {
+    let request = ScaffoldRequest {
+        template: args.template.clone().unwrap_or_default(),
+        entry_point: args.entry_point.clone().unwrap_or_default(),
+        out: PathBuf::from(args.out.clone().unwrap_or_default()),
+        force: args.force,
+    };
+
+    match scaffold(&request, &TemplateRegistry::builtin()) {
+        Ok(()) => std::process::exit(0),
+        Err(ScaffoldError::Io(e)) => {
+            eprintln!("error: failed to generate shim: {e}");
+            std::process::exit(3);
+        }
+        Err(e) => {
+            eprintln!("error: {e}");
+            std::process::exit(2);
+        }
+    }
 }
 
 enum InvocationMode {
@@ -74,6 +152,15 @@ fn main() {
             }
         },
     };
+
+    // Tooling subcommands (`reportage shim scaffold ...`) exit here and never reach the
+    // script-execution/report/artifact pipeline below: they are not test runs, and the
+    // artifact-writing exit codes (2/3) further down have no meaning for them.
+    if let Some(Commands::Shim(shim_args)) = &cli.command {
+        match &shim_args.command {
+            ShimCommand::Scaffold(args) => run_shim_scaffold(args),
+        }
+    }
 
     let mode = determine_mode(&cli);
 

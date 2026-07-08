@@ -1,6 +1,7 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+use crate::shell_quote::single_quote as shell_single_quote;
 use crate::shim_event::SHIM_EVENT_DIR_VAR;
 
 #[derive(Debug)]
@@ -224,11 +225,6 @@ impl CommandRegistry {
     }
 }
 
-/// Wrap `s` in POSIX single quotes, escaping any embedded single quotes as `'\''`.
-fn shell_single_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', r"'\''"))
-}
-
 /// Build the JSON event content for a shim invocation event.
 ///
 /// All values are known at shim materialization time and embedded statically.
@@ -364,40 +360,8 @@ mod tests {
         ));
     }
 
-    // --- shell_single_quote ---
-
-    #[test]
-    fn plain_string_is_single_quoted() {
-        assert_eq!(shell_single_quote("/usr/bin/true"), "'/usr/bin/true'");
-    }
-
-    #[test]
-    fn string_with_spaces_is_safely_quoted() {
-        assert_eq!(
-            shell_single_quote("/path with spaces/prog"),
-            "'/path with spaces/prog'"
-        );
-    }
-
-    #[test]
-    fn string_with_single_quote_is_escaped() {
-        assert_eq!(shell_single_quote("it's"), "'it'\\''s'");
-    }
-
-    #[test]
-    fn string_with_dollar_sign_is_safe() {
-        assert_eq!(shell_single_quote("$HOME"), "'$HOME'");
-    }
-
-    #[test]
-    fn string_with_semicolon_is_safe() {
-        assert_eq!(shell_single_quote("arg;rm -rf /"), "'arg;rm -rf /'");
-    }
-
-    #[test]
-    fn string_with_backtick_is_safe() {
-        assert_eq!(shell_single_quote("`cmd`"), "'`cmd`'");
-    }
+    // shell_single_quote itself is tested in `crate::shell_quote`; the tests below only cover
+    // how `wrapper_content` uses it.
 
     // --- wrapper_content ---
     //

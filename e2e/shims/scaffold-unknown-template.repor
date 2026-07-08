@@ -1,0 +1,19 @@
+case "unknown template fails with a diagnostic naming the requested template" {
+  $ reportage shim scaffold --template does-not-exist --entry-point ./bin/app --out out.sh
+
+  assert {
+    exit 2
+    stderr contains "unknown template 'does-not-exist'"
+  }
+}
+
+case "unknown template diagnostic reports that no templates are registered" {
+  # v0 ships no builtin templates (see docs/shim-scaffold.md), so every --template value is
+  # "unknown" today; #128/#129 add the first real entries to the registry.
+  $ reportage shim scaffold --template does-not-exist --entry-point ./bin/app --out out.sh
+
+  assert {
+    exit 2
+    stderr contains "no templates are currently registered"
+  }
+}
