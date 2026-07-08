@@ -55,3 +55,15 @@ lang-docs-check:
   fi
   echo "docs/syntax.md is up to date."
 
+[group('check')]
+[group('docs')]
+find-hardcode-path *args:
+  #!/usr/bin/env bash
+  matches=$(scripts/docs/find-bare-markdown-path.sh {{ args }})
+  if [ "$(echo "$matches" | wc -l)" -ne 0 ]; then
+    echo "Found hardcoded paths in docs:"
+    echo "$matches"
+    exit 1
+  else
+    echo "No hardcoded paths found in docs."
+  fi

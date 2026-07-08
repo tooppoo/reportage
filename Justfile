@@ -13,6 +13,7 @@ get-version:
 # run all check actions
 [group('check')]
 check: examples-shim::go-build examples-shim::js-install test lint fmt build semantic-docs-check semantic-specs-check semantic-rule-coverage-check
+  just find-hardcode-path -n
 
 # build as debug
 [group('check')]
