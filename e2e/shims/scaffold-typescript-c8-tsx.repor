@@ -1,0 +1,49 @@
+case "typescript-c8-tsx generates a shim embedding the entry point" {
+  $ reportage shim scaffold --template typescript-c8-tsx --entry-point my-app/index.ts --out shim.sh
+
+  assert {
+    exit 0
+    file <"shim.sh"> contains "#!/bin/sh"
+    file <"shim.sh"> contains "entry_point='my-app/index.ts'"
+    file <"shim.sh"> contains "exec npx c8"
+    file <"shim.sh"> contains "npx tsx \"$entry_point\" \"$@\""
+  }
+}
+
+case "typescript-c8-tsx includes the project-editable and package.json-management comments" {
+  $ reportage shim scaffold --template typescript-c8-tsx --entry-point my-app/index.ts --out shim.sh
+
+  assert {
+    exit 0
+    file <"shim.sh"> contains "Edit the c8 / tsx invocation below to match this project."
+    file <"shim.sh"> contains "Manage c8 and tsx in this project's package.json."
+  }
+}
+
+case "typescript-c8-tsx generated shim is valid POSIX sh" {
+  $ reportage shim scaffold --template typescript-c8-tsx --entry-point my-app/index.ts --out shim.sh
+  $ sh -n shim.sh
+
+  assert {
+    exit 0
+  }
+}
+
+case "typescript-c8-tsx quotes an entry point containing a space and a single quote without breaking POSIX sh" {
+  $ reportage shim scaffold --template typescript-c8-tsx --entry-point "it's/my app/index.ts" --out shim.sh
+  $ sh -n shim.sh
+
+  assert {
+    exit 0
+    file <"shim.sh"> contains "entry_point='it'\\''s/my app/index.ts'"
+  }
+}
+
+case "typescript-c8-tsx is registered: an unrelated unknown template still names it as available" {
+  $ reportage shim scaffold --template bogus-template --entry-point ./bin/app --out out.sh
+
+  assert {
+    exit 2
+    stderr contains "unknown template 'bogus-template': available templates are: typescript-c8-tsx"
+  }
+}
