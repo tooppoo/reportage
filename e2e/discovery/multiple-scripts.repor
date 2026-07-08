@@ -1,0 +1,26 @@
+case "explicit multiple script arguments run all cases across every named file" {
+  write <"a.repor"> ```
+    case "a" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+  write <"b.repor"> ```
+    case "b" {
+      $ false
+      assert {
+        exit 1
+      }
+    }
+    ```
+
+  $ reportage a.repor b.repor
+
+  assert {
+    exit 0
+    stdout contains "a.repor"
+    stdout contains "b.repor"
+  }
+}

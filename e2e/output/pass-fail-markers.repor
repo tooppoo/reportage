@@ -1,0 +1,37 @@
+case "human-readable stdout marks a passing case with PASS and its case name" {
+  write <"inner.repor"> ```
+    case "prints hello and exits 0" {
+      $ echo hello
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+    stdout contains "prints hello and exits 0"
+  }
+}
+
+case "human-readable stdout marks a failing case with FAIL and its case name" {
+  write <"inner.repor"> ```
+    case "wrong exit code" {
+      $ false
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+    stdout contains "FAIL"
+    stdout contains "wrong exit code"
+  }
+}

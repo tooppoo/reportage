@@ -1,0 +1,67 @@
+case "all block passes only when every child expectation passes" {
+  write <"inner.repor"> ```
+    case "checks exit code and empty stdout together" {
+      $ true
+      assert {
+        all {
+          exit 0
+          stdout empty
+        }
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+  }
+}
+
+case "any block passes when at least one child expectation passes" {
+  write <"inner.repor"> ```
+    case "checks against two mutually exclusive exit codes" {
+      $ false
+      assert {
+        any {
+          exit 0
+          exit 1
+        }
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+  }
+}
+
+# `not { A B }` evaluates as `not(all(A, B))`, never as `not(A) and not(B)`; see
+# docs/language/semantics.md ("Logical composition") and the ADR at
+# docs/adr/20260704T150000Z_block-form-logical-composition.md.
+#
+# Below, one child (`exit 0`) passes and the other (`stdout contains "..."`) fails, so
+# `all(A, B)` is false and `not(all(A, B))` is true: the `not` block, and therefore the
+# case, passes. Item-wise negation would fail here, because negating the passing child on
+# its own would fail. This is the representative case that tells the two groupings apart.
+case "not block negates the group result as a whole, not each child individually" {
+  write <"inner.repor"> ```
+    case "one child expectation passes and the other fails" {
+      $ true
+      assert {
+        not {
+          exit 0
+          stdout contains "this text never appears"
+        }
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+  }
+}

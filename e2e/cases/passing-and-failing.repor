@@ -1,0 +1,51 @@
+case "a passing case exits 0" {
+  write <"inner.repor"> ```
+    case "prints hello and exits 0" {
+      $ echo hello
+      assert {
+        exit 0
+        stdout contains "hello"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+  }
+}
+
+case "a non-zero process exit code that matches the exit assertion is a pass, not a failure" {
+  write <"inner.repor"> ```
+    case "false counts as pass when exit 1 is asserted" {
+      $ false
+      assert {
+        exit 1
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+  }
+}
+
+case "a failing assertion makes the case fail and the run exit 1" {
+  write <"inner.repor"> ```
+    case "wrong exit code" {
+      $ false
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+  }
+}
