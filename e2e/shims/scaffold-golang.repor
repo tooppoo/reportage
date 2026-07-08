@@ -1,0 +1,153 @@
+case "golang generates a shim embedding the entry point" {
+  $ reportage shim scaffold --template golang --entry-point cli.go --out shim.sh
+
+  assert {
+    exit 0
+    file <"shim.sh"> contains "#!/bin/sh"
+    file <"shim.sh"> contains "entry_point='cli.go'"
+    file <"shim.sh"> contains "go build -cover -o \"$bin_path\" \"$entry_point\""
+    file <"shim.sh"> contains "GOCOVERDIR=\"$cover_dir\" exec \"$bin_path\" \"$@\""
+  }
+}
+
+case "golang generated shim is valid POSIX sh" {
+  $ reportage shim scaffold --template golang --entry-point cli.go --out shim.sh
+  $ sh -n shim.sh
+
+  assert {
+    exit 0
+  }
+}
+
+case "golang accepts a build target that is not a file path" {
+  # #129's --entry-point is whatever `go build` accepts as a target: `.`, a package directory, or a single file.
+  # This case uses `.` to show the template embeds it verbatim rather than assuming a file-path shape.
+  $ reportage shim scaffold --template golang --entry-point . --out shim.sh
+  $ sh -n shim.sh
+
+  assert {
+    exit 0
+    file <"shim.sh"> contains "entry_point='.'"
+  }
+}
+
+case "golang quotes an entry point containing a space and a single quote without breaking POSIX sh" {
+  $ reportage shim scaffold --template golang --entry-point "it's/my app/cmd" --out shim.sh
+  $ sh -n shim.sh
+
+  assert {
+    exit 0
+    file <"shim.sh"> contains "entry_point='it'\\''s/my app/cmd'"
+  }
+}
+
+case "golang is registered: an unrelated unknown template still names it as available" {
+  $ reportage shim scaffold --template bogus-template --entry-point ./cmd/app --out out.sh
+
+  assert {
+    exit 2
+    stderr contains "unknown template 'bogus-template': available templates are: golang, typescript-c8-tsx"
+  }
+}
+
+case "golang generated shim has the owner-execute permission bit set" {
+  $ reportage shim scaffold --template golang --entry-point cli.go --out shim.sh
+  $ test -x shim.sh
+
+  assert {
+    exit 0
+  }
+}
+
+case "golang: --force overwrites a previously generated shim with freshly rendered content" {
+  $ reportage shim scaffold --template golang --entry-point old-entry.go --out shim.sh
+  $ reportage shim scaffold --template golang --entry-point new-entry.go --out shim.sh --force
+
+  assert {
+    exit 0
+    file <"shim.sh"> contains "entry_point='new-entry.go'"
+    not {
+      file <"shim.sh"> contains "entry_point='old-entry.go'"
+    }
+  }
+}
+
+case "golang generated shim actually runs when wired up as a reportage command" {
+  # A real Go toolchain is not available offline in this test environment, so a fake `go` stands in for it.
+  # This lets the case exercise the generated shim's own build-then-exec chain through reportage's real command-resolution mechanism (docs/configuration.md — Commands), rather than only inspecting the rendered file's text as the cases above do.
+  #
+  # The fake `go` mimics only what the shim actually invokes: `go build -cover -o <bin_path> <entry_point>`.
+  # It writes a stand-in binary to <bin_path> that reports the entry point it was built for, the GOCOVERDIR it ran with, and any arguments passed through to it.
+  write <"fake-bin/go"> ```
+    #!/bin/sh
+    set -eu
+    shift
+    out=""
+    entry=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -cover)
+          shift
+          ;;
+        -o)
+          out="$2"
+          shift 2
+          ;;
+        *)
+          entry="$1"
+          shift
+          ;;
+      esac
+    done
+    mkdir -p "$(dirname "$out")"
+    printf '#!/bin/sh\n' > "$out"
+    printf 'echo "go-ran entry=%s gocoverdir=$GOCOVERDIR args=$*"\n' "$entry" >> "$out"
+    printf 'exit "${FAKE_GO_EXIT:-0}"\n' >> "$out"
+    chmod +x "$out"
+    ```
+  $ chmod +x fake-bin/go
+
+  $ reportage shim scaffold --template golang --entry-point entry.go --out my-app
+
+  write <"reportage.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+      commands {
+        command "my-app" {
+          exec "my-app"
+        }
+      }
+      tests {
+        path "inner.repor"
+      }
+    }
+    ```
+  write <"inner.repor"> ```
+    case "success: passes extra arguments through to the built binary" {
+      $ my-app one two
+
+      assert {
+        exit 0
+        stdout contains "go-ran entry=entry.go gocoverdir=coverage/reportage/go args=one two"
+      }
+    }
+
+    case "failure: propagates the wrapped invocation's non-zero exit status" {
+      $ FAKE_GO_EXIT=7 my-app
+
+      assert {
+        exit 7
+      }
+    }
+    ```
+
+  $ PATH="$PWD/fake-bin:$PATH" reportage
+
+  assert {
+    exit 0
+    stdout contains "PASS  inner.repor :: success: passes extra arguments through to the built binary"
+    stdout contains "PASS  inner.repor :: failure: propagates the wrapped invocation's non-zero exit status"
+  }
+}

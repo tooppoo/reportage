@@ -40,7 +40,7 @@ See [ADR 20260708T062146Z](adr/20260708T062146Z_shim-scaffold-command.md) for th
 
 ## Template model
 
-- `typescript-c8-tsx` (documented below) is the only builtin template today. Any other `--template` name currently fails as unknown.
+- `typescript-c8-tsx` and `golang` (both documented below) are the only builtin templates today. Any other `--template` name currently fails as unknown.
 - Templates are resolved from a name through a registry built into the `reportage` binary. There is no support for loading a template file from disk in v0.
 - The template resolution, template context, and rendering steps are kept as separate seams internally (see `reportage_core::shim_scaffold::ShimTemplate`), specifically so that a future external-template loader has somewhere to plug in without reworking the scaffold pipeline. v0 does not commit to what that loader would look like.
 - A template renders against a small context. In v0 the only context field is `entry_point`, taken directly from `--entry-point`.
@@ -74,6 +74,35 @@ This template provides only an initial `c8 + tsx` scaffold, not a complete or gu
 - running already-built JavaScript instead of a TypeScript source file directly;
 - changing the `c8` reporter flags or `--reports-dir` output location.
 
+## `golang` template
+
+```sh
+reportage shim scaffold --template golang --entry-point cli.go --out shims/my-app
+```
+
+This template assumes Go 1.20 or later, which introduced integration coverage via `go build -cover` plus the `GOCOVERDIR` environment variable. The generated shim is a POSIX `sh` script that single-quotes `--entry-point` (reusing the same quoting `reportage_core::shim_scaffold::single_quote` applies to every template) and, on every invocation, builds a coverage-instrumented binary with `go build -cover -o "$bin_path" "$entry_point"`, then execs that binary with `GOCOVERDIR` set to a fixed coverage output directory.
+
+`--entry-point` is a `go build` target, not necessarily a file path: `cli.go`, `.`, and `./cmd/my-app` are all valid values, and the template embeds whatever is given verbatim.
+
+Go coverage instrumentation is a build-time flag, not a runtime one, so the generated shim rebuilds the binary on every invocation rather than exec-ing a pre-built one. A project that wants to run an already-built binary instead must edit the generated shim after scaffold to remove the `go build` step and point `bin_path` at that binary directly.
+
+At scaffold time, reportage does not read this project's `go.mod`, does not detect the installed Go version, and does not check that the `go` command exists.
+
+By default, `go build -cover` instruments only packages in the main module; it does not instrument the standard library or external dependencies. Add `-coverpkg` to the generated shim's `go build` invocation if this project needs a different instrumentation scope.
+
+Go coverage data is written when the program returns normally from `main` or exits via `os.Exit`. If the program terminates through an unrecovered panic or a fatal exception, coverage data from that run may be lost; reportage neither detects nor works around this.
+
+`work_dir`, `bin_path`, and `cover_dir` in the generated shim are fixed initial values, not derived from `--out`: v0's template context carries only `entry_point`, so scaffold has no project-specific destination to embed here even if it wanted to. Edit these paths to fit the project after generation.
+
+### Assumptions and limits
+
+This template assumes Go 1.20 or later (`go build -cover` and `GOCOVERDIR` were introduced in that release) and a build-on-run workflow. Depending on the project, the generated file may need further edits after generation:
+
+- changing the `go build` target or flags, for example adding `-coverpkg`;
+- running an already-built binary instead of building on every invocation;
+- changing `work_dir`, `bin_path`, or `cover_dir` to project-specific locations;
+- reconciling `GOCOVERDIR` with an existing coverage-collection setup.
+
 ## Output path policy
 
 - The parent directory of `--out` is created automatically if it does not already exist.
@@ -84,7 +113,7 @@ This template provides only an initial `c8 + tsx` scaffold, not a complete or gu
 
 ## Failure diagnostics
 
-An unknown `--template` value fails with a message that names the requested template and lists every template name currently registered (or states that none are registered, for an embedder that constructs an empty registry directly; the CLI's own registry always has at least `typescript-c8-tsx`). `--template`, `--entry-point`, and `--out` each fail the same way whether the flag was omitted entirely or given an explicit empty value.
+An unknown `--template` value fails with a message that names the requested template and lists every template name currently registered (or states that none are registered, for an embedder that constructs an empty registry directly; the CLI's own registry always has at least `golang` and `typescript-c8-tsx`). `--template`, `--entry-point`, and `--out` each fail the same way whether the flag was omitted entirely or given an explicit empty value.
 
 `--template`, `--entry-point`, and `--out` are validated independently of each other. If more than one is empty, missing, or (for `--entry-point`) lexically unsafe in the same invocation, every one of those problems is reported together in a single failure, not just the first one `scaffold` happens to check. A caller who fixes the reported problems should not have to rerun `scaffold` once per remaining problem it already could have reported.
 

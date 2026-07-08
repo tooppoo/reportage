@@ -7,7 +7,7 @@
 //! See `docs/shim-scaffold.md` and the ADR at
 //! `docs/adr/20260708T062146Z_shim-scaffold-command.md`.
 //!
-//! [`TemplateRegistry::builtin`] ships `typescript-c8-tsx` (added by #128); #129 adds `golang`.
+//! [`TemplateRegistry::builtin`] ships `typescript-c8-tsx` (added by #128) and `golang` (added by #129).
 //! This module's own tests also exercise template resolution and rendering through a
 //! locally-defined test-fixture template, so the scaffolding pipeline itself (validation,
 //! lookup, rendering, output-path policy, permissions) has coverage that does not depend on any
@@ -106,9 +106,7 @@ where
 
 /// A name-resolved set of templates the scaffold command can render.
 ///
-/// Registration is a plain `Vec`, not a `HashMap`: v0's template count is small (1 today, a
-/// handful once #129 lands) and [`TemplateRegistry::available_names`] wants a stable sorted
-/// order for diagnostics regardless of registration order.
+/// Registration is a plain `Vec`, not a `HashMap`: v0's template count is small (2 today) and [`TemplateRegistry::available_names`] wants a stable sorted order for diagnostics regardless of registration order.
 pub struct TemplateRegistry {
     entries: Vec<(String, Box<dyn ShimTemplate>)>,
 }
@@ -118,13 +116,19 @@ impl TemplateRegistry {
         Self { entries }
     }
 
-    /// The registry the CLI uses. `--template` values other than the ones registered here are
-    /// "unknown" until #129 (`golang`) adds another entry.
+    /// The registry the CLI uses.
+    /// `--template` values other than the ones registered here are "unknown".
     pub fn builtin() -> Self {
-        Self::new(vec![(
-            "typescript-c8-tsx".to_string(),
-            Box::new(typescript_c8_tsx_template) as Box<dyn ShimTemplate>,
-        )])
+        Self::new(vec![
+            (
+                "typescript-c8-tsx".to_string(),
+                Box::new(typescript_c8_tsx_template) as Box<dyn ShimTemplate>,
+            ),
+            (
+                "golang".to_string(),
+                Box::new(golang_template) as Box<dyn ShimTemplate>,
+            ),
+        ])
     }
 
     pub fn resolve(&self, name: &str) -> Option<&dyn ShimTemplate> {
@@ -401,6 +405,44 @@ fn typescript_c8_tsx_template(ctx: &TemplateContext) -> String {
     )
 }
 
+/// The `golang` builtin template: a POSIX `sh` shim that builds a coverage-instrumented Go binary via `go build -cover`, then execs it with `GOCOVERDIR` set so a normal-exit or `os.Exit` run writes Go coverage data to that directory.
+///
+/// Go coverage instrumentation is a build-time flag, not a runtime one, so this shim rebuilds the binary on every invocation rather than exec-ing a pre-built one; see docs/shim-scaffold.md — `golang` template for why, and for what a project that wants a build-once workflow needs to edit after generation.
+///
+/// `entry_point` is embedded through [`single_quote`], the same quoting `typescript_c8_tsx_template` uses, so this template does not reimplement its own quoting.
+///
+/// `work_dir` and `cover_dir` are fixed initial values, not derived from `--out`: v0's `TemplateContext` carries only `entry_point` (see [`TemplateContext`]), so this template has no project-specific destination to embed here even if it wanted to.
+fn golang_template(ctx: &TemplateContext) -> String {
+    format!(
+        "#!/bin/sh\n\
+         set -eu\n\
+         \n\
+         # Scaffolded by reportage.\n\
+         # This file is owned by this project after generation.\n\
+         # Edit the go build target and coverage paths to match this project.\n\
+         #\n\
+         # By default, `go build -cover` instruments packages in the main module.\n\
+         # It does not include standard library packages or external dependencies by default.\n\
+         # Add `-coverpkg` if this project needs a different instrumentation scope.\n\
+         #\n\
+         # Go coverage data is written when the program returns normally from main\n\
+         # or exits via os.Exit. If the program terminates by unrecovered panic\n\
+         # or fatal exception, coverage data from that run may be lost.\n\
+         \n\
+         entry_point={entry_point}\n\
+         work_dir='.reportage/shims/go'\n\
+         bin_path=\"$work_dir/app\"\n\
+         cover_dir='coverage/reportage/go'\n\
+         \n\
+         mkdir -p \"$work_dir\" \"$cover_dir\"\n\
+         \n\
+         go build -cover -o \"$bin_path\" \"$entry_point\"\n\
+         \n\
+         GOCOVERDIR=\"$cover_dir\" exec \"$bin_path\" \"$@\"\n",
+        entry_point = single_quote(ctx.entry_point()),
+    )
+}
+
 /// A shell-script test-fixture template used only by this module's own tests, to exercise
 /// rendering (including safe entry-point quoting) and the project-ownership notice contract
 /// independently of any particular real template's content.
@@ -512,10 +554,10 @@ mod tests {
     }
 
     #[test]
-    fn typescript_c8_tsx_is_listed_among_available_names() {
+    fn builtin_available_names_include_both_registered_templates_sorted() {
         assert_eq!(
             TemplateRegistry::builtin().available_names(),
-            vec!["typescript-c8-tsx"]
+            vec!["golang", "typescript-c8-tsx"]
         );
     }
 
@@ -572,6 +614,110 @@ mod tests {
         // structure fails here even if the substring assertions above happen not to catch it.
         let ctx = TemplateContext::new("it's/my app/index.ts".to_string()).unwrap();
         let rendered = typescript_c8_tsx_template(&ctx);
+
+        let mut child = std::process::Command::new("sh")
+            .arg("-n")
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .expect("failed to spawn sh -n");
+        use std::io::Write;
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(rendered.as_bytes())
+            .unwrap();
+        let status = child.wait().expect("failed to wait on sh -n");
+        assert!(
+            status.success(),
+            "rendered template is not valid POSIX sh:\n{rendered}"
+        );
+    }
+
+    // --- golang template rendering ---
+
+    #[test]
+    fn golang_registers_under_its_template_name() {
+        assert!(TemplateRegistry::builtin().resolve("golang").is_some());
+    }
+
+    #[test]
+    fn golang_embeds_the_entry_point() {
+        let ctx = TemplateContext::new("cli.go".to_string()).unwrap();
+        let rendered = golang_template(&ctx);
+        assert!(rendered.contains("entry_point='cli.go'"));
+    }
+
+    #[test]
+    fn golang_accepts_a_build_target_that_is_not_a_file_path() {
+        // #129's `--entry-point` is a `go build` target, not necessarily a file path: `.` and a package directory are both valid targets, so the template must embed them verbatim rather than assuming a file-path shape.
+        let ctx = TemplateContext::new(".".to_string()).unwrap();
+        let rendered = golang_template(&ctx);
+        assert!(rendered.contains("entry_point='.'"));
+    }
+
+    #[test]
+    fn golang_quotes_an_entry_point_containing_a_space_and_a_single_quote() {
+        // Exercises the same `single_quote` helper `fixture_shell_template`'s tests exercise (see `fixture_template_quotes_entry_point_containing_single_quote` above), so this asserts the template reuses #127's quoting rather than embedding the value unquoted.
+        let ctx = TemplateContext::new("it's/my app/cmd".to_string()).unwrap();
+        let rendered = golang_template(&ctx);
+        assert!(rendered.contains("entry_point='it'\\''s/my app/cmd'"));
+    }
+
+    #[test]
+    fn golang_builds_with_the_cover_flag() {
+        let ctx = TemplateContext::new("cli.go".to_string()).unwrap();
+        let rendered = golang_template(&ctx);
+        assert!(rendered.contains("go build -cover -o \"$bin_path\" \"$entry_point\""));
+    }
+
+    #[test]
+    fn golang_sets_gocoverdir_before_running_the_built_binary() {
+        let ctx = TemplateContext::new("cli.go".to_string()).unwrap();
+        let rendered = golang_template(&ctx);
+        assert!(rendered.contains("GOCOVERDIR=\"$cover_dir\" exec \"$bin_path\" \"$@\""));
+    }
+
+    #[test]
+    fn golang_passes_additional_arguments_through_to_the_built_binary() {
+        let ctx = TemplateContext::new("cli.go".to_string()).unwrap();
+        let rendered = golang_template(&ctx);
+        assert!(rendered.contains("exec \"$bin_path\" \"$@\""));
+    }
+
+    #[test]
+    fn golang_includes_project_editable_comment() {
+        let ctx = TemplateContext::new("cli.go".to_string()).unwrap();
+        let rendered = golang_template(&ctx);
+        assert!(
+            rendered.contains("Edit the go build target and coverage paths to match this project.")
+        );
+    }
+
+    #[test]
+    fn golang_documents_the_default_coverpkg_scope() {
+        let ctx = TemplateContext::new("cli.go".to_string()).unwrap();
+        let rendered = golang_template(&ctx);
+        assert!(rendered.contains("`go build -cover` instruments packages in the main module."));
+        assert!(
+            rendered.contains(
+                "Add `-coverpkg` if this project needs a different instrumentation scope."
+            )
+        );
+    }
+
+    #[test]
+    fn golang_documents_coverage_data_loss_on_unrecovered_panic() {
+        let ctx = TemplateContext::new("cli.go".to_string()).unwrap();
+        let rendered = golang_template(&ctx);
+        assert!(rendered.contains("unrecovered panic"));
+    }
+
+    #[test]
+    fn golang_renders_as_a_syntactically_valid_posix_shell_script() {
+        // A behavioral, not merely textual, check: feeds the rendered content to `sh -n` (parse-only, no execution) so a regression that breaks quoting or line-continuation structure fails here even if the substring assertions above happen not to catch it.
+        let ctx = TemplateContext::new("it's/my app/cmd".to_string()).unwrap();
+        let rendered = golang_template(&ctx);
 
         let mut child = std::process::Command::new("sh")
             .arg("-n")
