@@ -1222,8 +1222,10 @@ case "not wrapping a passing text_equals" {
 // --- dir assertions (#66) ---
 //
 // Representative pass/fail scenarios for `dir exists` and `dir contains` live in
-// e2e/artifacts/dir-assertion-evidence.repor. The tests below verify stable diagnostic codes
-// and source-path attribution that the self-test does not check.
+// e2e/artifacts/dir-assertion-evidence.repor. The tests below verify diagnostic codes not
+// covered there (missing path, not-a-directory, broken symlink), or additional source-path
+// attribution alongside a diagnostic code (absolute/dot-segment rejection) that the self-test
+// already checks without the source-path assertion.
 
 #[test]
 fn dir_exists_fails_against_a_regular_file() {

@@ -30,5 +30,7 @@ case "config-driven mode exits non-zero when any discovered file's case fails" {
 
   assert {
     exit 1
+    stdout contains "a.repor"
+    stdout contains "b.repor"
   }
 }
