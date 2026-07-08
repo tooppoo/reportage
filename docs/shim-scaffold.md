@@ -40,7 +40,7 @@ See [ADR 20260708T062146Z](adr/20260708T062146Z_shim-scaffold-command.md) for th
 
 ## Template model
 
-- `typescript-c8-tsx` (issue #128, documented below) is the first builtin template. `golang` (issue #129) has not landed yet, so any `--template` name other than `typescript-c8-tsx` currently fails as unknown.
+- `typescript-c8-tsx` (documented below) is the only builtin template today. Any other `--template` name currently fails as unknown.
 - Templates are resolved from a name through a registry built into the `reportage` binary. There is no support for loading a template file from disk in v0.
 - The template resolution, template context, and rendering steps are kept as separate seams internally (see `reportage_core::shim_scaffold::ShimTemplate`), specifically so that a future external-template loader has somewhere to plug in without reworking the scaffold pipeline. v0 does not commit to what that loader would look like.
 - A template renders against a small context. In v0 the only context field is `entry_point`, taken directly from `--entry-point`.

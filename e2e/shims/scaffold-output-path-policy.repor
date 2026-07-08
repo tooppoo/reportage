@@ -12,12 +12,9 @@ case "existing file is rejected without --force, naming --out and the concrete p
 }
 
 case "--force bypasses the exists check, reaching template resolution instead" {
-  # "does-not-exist" is a placeholder name that is never registered (see
-  # scaffold-unknown-template.repor); this case only needs the shift from "already exists" to
-  # "unknown template" to show --force did let the existing-file check pass, not a successful
-  # overwrite. The same placeholder template name as scaffold-unknown-template.repor is used
-  # deliberately: there is nothing special about this name, any non-empty, non-registered name
-  # behaves identically.
+  # "does-not-exist" is a placeholder name that is never registered (see scaffold-unknown-template.repor).
+  # This case only needs the shift from "already exists" to "unknown template" to show --force did let the existing-file check pass, not a successful overwrite.
+  # Any non-empty, non-registered name behaves identically; the same placeholder is used here as in scaffold-unknown-template.repor for consistency, not because it is special.
   write <"out.sh"> ```
     old content
     ```

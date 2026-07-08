@@ -8,12 +8,6 @@ case "unknown template fails with a diagnostic naming the requested template" {
 }
 
 case "unknown template diagnostic lists the currently registered templates" {
-  # #128 registered the first real template (`typescript-c8-tsx`); the CLI's registry is
-  # therefore no longer empty, so an unknown `--template` now names it as available rather than
-  # reporting that no templates are registered at all. The "no templates are currently
-  # registered" wording is still exercised directly against an explicitly empty registry by
-  # `unknown_template_against_empty_registry_reports_no_templates` in
-  # `crates/reportage-core/src/shim_scaffold.rs`, since the real CLI never constructs one.
   $ reportage shim scaffold --template does-not-exist --entry-point ./bin/app --out out.sh
 
   assert {

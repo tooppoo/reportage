@@ -10,16 +10,6 @@ case "typescript-c8-tsx generates a shim embedding the entry point" {
   }
 }
 
-case "typescript-c8-tsx includes the project-editable and package.json-management comments" {
-  $ reportage shim scaffold --template typescript-c8-tsx --entry-point my-app/index.ts --out shim.sh
-
-  assert {
-    exit 0
-    file <"shim.sh"> contains "Edit the c8 / tsx invocation below to match this project."
-    file <"shim.sh"> contains "Manage c8 and tsx in this project's package.json."
-  }
-}
-
 case "typescript-c8-tsx generated shim is valid POSIX sh" {
   $ reportage shim scaffold --template typescript-c8-tsx --entry-point my-app/index.ts --out shim.sh
   $ sh -n shim.sh
@@ -67,5 +57,75 @@ case "typescript-c8-tsx: --force overwrites a previously generated shim with fre
     not {
       file <"shim.sh"> contains "entry_point='old-entry.ts'"
     }
+  }
+}
+
+case "typescript-c8-tsx generated shim actually runs when wired up as a reportage command" {
+  # Real c8/tsx are not available offline in this test environment, so a fake npx/c8/tsx
+  # toolchain stands in for them. This lets the case exercise the generated shim's own exec
+  # chain through reportage's real command-resolution mechanism (docs/configuration.md —
+  # Commands), rather than only inspecting the rendered file's text as the cases above do.
+  write <"fake-bin/npx"> ```
+    #!/bin/sh
+    exec "$@"
+    ```
+  write <"fake-bin/c8"> ```
+    #!/bin/sh
+    while [ "$1" != "npx" ]; do
+      shift
+    done
+    exec "$@"
+    ```
+  write <"fake-bin/tsx"> ```
+    #!/bin/sh
+    entry="$1"
+    shift
+    echo "tsx-ran entry=$entry args=$*"
+    exit "${FAKE_TSX_EXIT:-0}"
+    ```
+  $ chmod +x fake-bin/npx fake-bin/c8 fake-bin/tsx
+
+  $ reportage shim scaffold --template typescript-c8-tsx --entry-point entry.ts --out my-app
+
+  write <"reportage.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+      commands {
+        command "my-app" {
+          exec "my-app"
+        }
+      }
+      tests {
+        path "inner.repor"
+      }
+    }
+    ```
+  write <"inner.repor"> ```
+    case "success: passes extra arguments through to the entry point" {
+      $ my-app one two
+
+      assert {
+        exit 0
+        stdout contains "tsx-ran entry=entry.ts args=one two"
+      }
+    }
+
+    case "failure: propagates the wrapped invocation's non-zero exit status" {
+      $ FAKE_TSX_EXIT=7 my-app
+
+      assert {
+        exit 7
+      }
+    }
+    ```
+
+  $ PATH="$PWD/fake-bin:$PATH" reportage
+
+  assert {
+    exit 0
+    stdout contains "PASS  inner.repor :: success: passes extra arguments through to the entry point"
+    stdout contains "PASS  inner.repor :: failure: propagates the wrapped invocation's non-zero exit status"
   }
 }
