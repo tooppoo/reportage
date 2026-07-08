@@ -37,6 +37,31 @@ Use this skill when the user asks for a workflow like: "start one subagent, ask 
 4. If there are unrelated uncommitted changes, do not overwrite or discard them. Either avoid touching them or stop with a clear blocker.
 5. Identify available verification commands from project guidance and manifests. Prefer repository-defined commands over guessed commands.
 
+## Reviewer selection
+
+Select exactly one reviewer subagent role.
+
+Reviewer selection order:
+
+1. If the user explicitly names a reviewer subagent for this task, use that reviewer unless it conflicts with repository guidance or the hard constraints of this skill.
+2. If repository guidance files specify a reviewer subagent for the current repository, change type, or workflow, use that reviewer.
+3. Otherwise, choose the nearest available read-only reviewer-capable subagent.
+
+When choosing a fallback reviewer, prefer a subagent whose name or description indicates code review capability, such as:
+
+- `reviewer`
+- `code-reviewer`
+- names containing review or reviewer
+- `general-purpose`
+- `explorer`
+- the nearest host-supported equivalent
+
+If multiple reviewer candidates are available, choose the single best match for the changed files and repository guidance.
+
+Do not use more than one reviewer subagent.
+Do not run specialized reviewers in parallel.
+Do not switch reviewers during the loop unless the selected reviewer is unavailable or cannot perform read-only review at all.
+
 ## Initial reviewer delegation
 
 Start exactly one reviewer subagent, preferably named `reviewer`, `code-reviewer`, `general-purpose`, `explorer`, or the nearest host-supported equivalent.
