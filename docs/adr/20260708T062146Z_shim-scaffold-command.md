@@ -40,6 +40,14 @@ A NUL byte can never actually arrive through `--entry-point` in practice: the OS
 
 `--template`, `--entry-point`, and `--out` are `Option<String>` at the clap layer (`required = true` is deliberately not used), and the CLI layer collapses an absent flag and an explicitly empty value (`--template ''`) to the same empty `String`/`PathBuf` before calling into `reportage_core::shim_scaffold::scaffold`. This gives every argument exactly one validation path and one error message for "you didn't give me a usable value," instead of clap producing one message for "flag not given" and application code producing a different one for "flag given as empty."
 
+### All argument-shape violations are collected, not reported one at a time
+
+`--template`, `--entry-point`, and `--out` are independent of each other: none of their emptiness or (for `--entry-point`) lexical-safety checks depends on another argument's value. `scaffold` collects every violation among these three into a single `ScaffoldError::InvalidRequest(Vec<RequestViolation>)` and reports all of them together, rather than returning on the first one found.
+
+This was added after review feedback pointed out that fail-fast validation forces a caller who invoked `scaffold` with several missing arguments to fix them one at a time, rediscovering each remaining problem only by rerunning the command. Since these checks are pure string/path inspections with no filesystem access and no dependency on each other, there is no ordering reason to stop at the first failure. The output-path policy and template resolution remain fail-fast (see below): those checks do depend on state (the filesystem, the template registry) and on each other in ways the argument-shape checks do not, so collecting *all* possible failures across the whole command would require doing filesystem I/O and template lookups speculatively even when the argument shape alone is already invalid.
+
+Every `--out`-conflict message (existing file, existing directory, existing symlink) was also reworded during the same pass to explicitly name `--out` and include the concrete rejected path, rather than an ambiguous "it" referring back to a quoted path. `docs/shim-scaffold.md`'s "Failure diagnostics" section and the `e2e/shims/*.repor` fixtures reflect the current wording.
+
 ### Output-path policy: read-only checks before template resolution
 
 `--out`'s existing-file/directory/symlink policy is checked before template name resolution, and that check performs no filesystem mutation (no directory creation, no write). This ordering was chosen over checking the template first for two reasons:

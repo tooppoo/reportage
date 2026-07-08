@@ -1,56 +1,58 @@
-case "existing file is rejected without --force" {
+case "existing file is rejected without --force, naming --out and the concrete path" {
   write <"out.sh"> ```
     old content
     ```
 
-  $ reportage shim scaffold --template anything --entry-point ./bin/app --out out.sh
+  $ reportage shim scaffold --template does-not-exist --entry-point ./bin/app --out out.sh
 
   assert {
     exit 2
-    stderr contains "already exists; use --force to overwrite"
+    stderr contains "--out path 'out.sh' already exists: use --force to overwrite it"
   }
 }
 
 case "--force bypasses the exists check, reaching template resolution instead" {
   # v0 has no builtin templates (see docs/shim-scaffold.md), so this cannot demonstrate a
   # successful overwrite yet — but the shift from "already exists" to "unknown template" shows
-  # --force did let the existing-file check pass.
+  # --force did let the existing-file check pass. The same placeholder template name
+  # ("does-not-exist") as scaffold-unknown-template.repor is used deliberately: there is nothing
+  # special about this name, any non-empty, non-registered name behaves identically.
   write <"out.sh"> ```
     old content
     ```
 
-  $ reportage shim scaffold --template anything --entry-point ./bin/app --out out.sh --force
+  $ reportage shim scaffold --template does-not-exist --entry-point ./bin/app --out out.sh --force
 
   assert {
     exit 2
-    stderr contains "unknown template"
+    stderr contains "unknown template 'does-not-exist': no templates are currently registered"
     not {
       stderr contains "already exists"
     }
   }
 }
 
-case "existing directory is rejected even with --force" {
+case "existing directory is rejected even with --force, naming --out and the concrete path" {
   $ mkdir -p out.sh
 
-  $ reportage shim scaffold --template anything --entry-point ./bin/app --out out.sh --force
+  $ reportage shim scaffold --template does-not-exist --entry-point ./bin/app --out out.sh --force
 
   assert {
     exit 2
-    stderr contains "it is a directory"
+    stderr contains "--out path 'out.sh' is a directory: a shim file cannot be created there, with or without --force"
   }
 }
 
-case "existing symlink is rejected even with --force" {
+case "existing symlink is rejected even with --force, naming --out and the concrete path" {
   write <"target.sh"> ```
     target content
     ```
   $ ln -s target.sh out.sh
 
-  $ reportage shim scaffold --template anything --entry-point ./bin/app --out out.sh --force
+  $ reportage shim scaffold --template does-not-exist --entry-point ./bin/app --out out.sh --force
 
   assert {
     exit 2
-    stderr contains "it is a symlink"
+    stderr contains "--out path 'out.sh' is a symlink: reportage refuses to write a shim file through a symlink, with or without --force"
   }
 }

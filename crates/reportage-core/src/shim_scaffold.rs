@@ -28,7 +28,7 @@ pub struct TemplateContext {
     entry_point: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum TemplateContextError {
     EntryPointContainsNul,
     EntryPointContainsNewline,
@@ -159,12 +159,40 @@ pub struct ScaffoldRequest {
     pub force: bool,
 }
 
-#[derive(Debug)]
-pub enum ScaffoldError {
+/// A single defect in an argument's shape: empty/missing, or (for `--entry-point`) lexically
+/// unsafe. See [`ScaffoldError::InvalidRequest`] for why these are collected rather than
+/// reported one at a time.
+#[derive(Debug, PartialEq, Eq)]
+pub enum RequestViolation {
     EmptyTemplate,
     EmptyEntryPoint,
     InvalidEntryPoint(TemplateContextError),
     EmptyOut,
+}
+
+impl std::fmt::Display for RequestViolation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RequestViolation::EmptyTemplate => write!(f, "--template must not be empty"),
+            RequestViolation::EmptyEntryPoint => write!(f, "--entry-point must not be empty"),
+            RequestViolation::InvalidEntryPoint(e) => write!(f, "{e}"),
+            RequestViolation::EmptyOut => write!(f, "--out must not be empty"),
+        }
+    }
+}
+
+impl std::error::Error for RequestViolation {}
+
+#[derive(Debug)]
+pub enum ScaffoldError {
+    /// One or more of `--template`/`--entry-point`/`--out` was empty, missing, or (for
+    /// `--entry-point`) lexically unsafe.
+    ///
+    /// Every such violation present in a single invocation is collected here and reported
+    /// together, rather than reporting only the first one found: a caller who fixes the
+    /// reported problem and reruns should not be met with a second, previously-hidden problem
+    /// the first `scaffold` call already could have told them about.
+    InvalidRequest(Vec<RequestViolation>),
     UnknownTemplate {
         requested: String,
         available: Vec<String>,
@@ -178,10 +206,14 @@ pub enum ScaffoldError {
 impl std::fmt::Display for ScaffoldError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ScaffoldError::EmptyTemplate => write!(f, "--template must not be empty"),
-            ScaffoldError::EmptyEntryPoint => write!(f, "--entry-point must not be empty"),
-            ScaffoldError::InvalidEntryPoint(e) => write!(f, "{e}"),
-            ScaffoldError::EmptyOut => write!(f, "--out must not be empty"),
+            ScaffoldError::InvalidRequest(violations) => {
+                let joined = violations
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                write!(f, "{joined}")
+            }
             ScaffoldError::UnknownTemplate {
                 requested,
                 available,
@@ -201,17 +233,17 @@ impl std::fmt::Display for ScaffoldError {
             }
             ScaffoldError::OutIsSymlink(path) => write!(
                 f,
-                "refusing to write to '{}': it is a symlink",
+                "--out path '{}' is a symlink: reportage refuses to write a shim file through a symlink, with or without --force",
                 path.display()
             ),
             ScaffoldError::OutIsDirectory(path) => write!(
                 f,
-                "refusing to write to '{}': it is a directory",
+                "--out path '{}' is a directory: a shim file cannot be created there, with or without --force",
                 path.display()
             ),
             ScaffoldError::OutAlreadyExists(path) => write!(
                 f,
-                "'{}' already exists; use --force to overwrite",
+                "--out path '{}' already exists: use --force to overwrite it",
                 path.display()
             ),
             ScaffoldError::Io(e) => write!(f, "failed to write shim: {e}"),
@@ -223,28 +255,48 @@ impl std::error::Error for ScaffoldError {}
 
 /// Renders `request.template` and writes it to `request.out`.
 ///
-/// Validation order is: empty/missing arguments, entry-point lexical safety, the output-path
-/// policy (see docs/shim-scaffold.md — Output path policy), then template resolution. The
-/// output-path policy is checked before template resolution deliberately, and is read-only (no
-/// directory is created and nothing is written yet) — so an unknown `--template` never masks an
-/// `--out` conflict the caller also needs to fix, and checking it costs nothing when the
-/// template turns out to be unknown anyway. Nothing is written to disk until every check
-/// (including template resolution) has passed.
+/// Validation order is: empty/missing arguments (all at once, see below), entry-point lexical
+/// safety, the output-path policy (see docs/shim-scaffold.md — Output path policy), then
+/// template resolution. The output-path policy is checked before template resolution
+/// deliberately, and is read-only (no directory is created and nothing is written yet) — so an
+/// unknown `--template` never masks an `--out` conflict the caller also needs to fix, and
+/// checking it costs nothing when the template turns out to be unknown anyway. Nothing is
+/// written to disk until every check (including template resolution) has passed.
 pub fn scaffold(
     request: &ScaffoldRequest,
     registry: &TemplateRegistry,
 ) -> Result<(), ScaffoldError> {
+    // `--template`/`--entry-point`/`--out` are independent of each other, so every violation
+    // among them is collected and reported in one `InvalidRequest`, instead of returning on the
+    // first one found: a caller fixing one problem at a time would otherwise have to run
+    // `scaffold` again just to learn about the next one.
+    let mut violations = Vec::new();
+
     if request.template.is_empty() {
-        return Err(ScaffoldError::EmptyTemplate);
+        violations.push(RequestViolation::EmptyTemplate);
     }
-    if request.entry_point.is_empty() {
-        return Err(ScaffoldError::EmptyEntryPoint);
-    }
-    let ctx = TemplateContext::new(request.entry_point.clone())
-        .map_err(ScaffoldError::InvalidEntryPoint)?;
+
+    let entry_point_ctx = if request.entry_point.is_empty() {
+        violations.push(RequestViolation::EmptyEntryPoint);
+        None
+    } else {
+        match TemplateContext::new(request.entry_point.clone()) {
+            Ok(ctx) => Some(ctx),
+            Err(e) => {
+                violations.push(RequestViolation::InvalidEntryPoint(e));
+                None
+            }
+        }
+    };
+
     if request.out.as_os_str().is_empty() {
-        return Err(ScaffoldError::EmptyOut);
+        violations.push(RequestViolation::EmptyOut);
     }
+
+    if !violations.is_empty() {
+        return Err(ScaffoldError::InvalidRequest(violations));
+    }
+    let ctx = entry_point_ctx.expect("empty/invalid --entry-point would have been collected above");
 
     // `symlink_metadata` (not `metadata`) so a symlink is detected as such even when it points
     // at a regular file or is dangling: v0 refuses to write through a symlink regardless of
@@ -435,7 +487,7 @@ mod tests {
         };
         assert!(matches!(
             scaffold(&request, &fixture_registry()),
-            Err(ScaffoldError::EmptyTemplate)
+            Err(ScaffoldError::InvalidRequest(v)) if v == vec![RequestViolation::EmptyTemplate]
         ));
     }
 
@@ -449,7 +501,7 @@ mod tests {
         };
         assert!(matches!(
             scaffold(&request, &fixture_registry()),
-            Err(ScaffoldError::EmptyEntryPoint)
+            Err(ScaffoldError::InvalidRequest(v)) if v == vec![RequestViolation::EmptyEntryPoint]
         ));
     }
 
@@ -463,9 +515,10 @@ mod tests {
         };
         assert!(matches!(
             scaffold(&request, &fixture_registry()),
-            Err(ScaffoldError::InvalidEntryPoint(
-                TemplateContextError::EntryPointContainsNewline
-            ))
+            Err(ScaffoldError::InvalidRequest(v))
+                if v == vec![RequestViolation::InvalidEntryPoint(
+                    TemplateContextError::EntryPointContainsNewline
+                )]
         ));
     }
 
@@ -479,8 +532,64 @@ mod tests {
         };
         assert!(matches!(
             scaffold(&request, &fixture_registry()),
-            Err(ScaffoldError::EmptyOut)
+            Err(ScaffoldError::InvalidRequest(v)) if v == vec![RequestViolation::EmptyOut]
         ));
+    }
+
+    #[test]
+    fn multiple_simultaneous_violations_are_all_collected() {
+        // Combining several independent violations must report every one of them, not just the
+        // first one `scaffold` happens to check, so a caller fixing the reported problems does
+        // not have to rerun `scaffold` once per remaining violation.
+        let request = ScaffoldRequest {
+            template: "".to_string(),
+            entry_point: "".to_string(),
+            out: PathBuf::from(""),
+            force: false,
+        };
+        let err = scaffold(&request, &fixture_registry()).unwrap_err();
+        match &err {
+            ScaffoldError::InvalidRequest(violations) => {
+                assert_eq!(
+                    violations,
+                    &vec![
+                        RequestViolation::EmptyTemplate,
+                        RequestViolation::EmptyEntryPoint,
+                        RequestViolation::EmptyOut,
+                    ]
+                );
+            }
+            other => panic!("expected InvalidRequest, got {other:?}"),
+        }
+        let message = err.to_string();
+        assert!(message.contains("--template must not be empty"));
+        assert!(message.contains("--entry-point must not be empty"));
+        assert!(message.contains("--out must not be empty"));
+    }
+
+    #[test]
+    fn empty_template_and_invalid_entry_point_are_both_collected() {
+        let request = ScaffoldRequest {
+            template: "".to_string(),
+            entry_point: "a\nb".to_string(),
+            out: PathBuf::from("out.sh"),
+            force: false,
+        };
+        let err = scaffold(&request, &fixture_registry()).unwrap_err();
+        match &err {
+            ScaffoldError::InvalidRequest(violations) => {
+                assert_eq!(
+                    violations,
+                    &vec![
+                        RequestViolation::EmptyTemplate,
+                        RequestViolation::InvalidEntryPoint(
+                            TemplateContextError::EntryPointContainsNewline
+                        ),
+                    ]
+                );
+            }
+            other => panic!("expected InvalidRequest, got {other:?}"),
+        }
     }
 
     #[test]

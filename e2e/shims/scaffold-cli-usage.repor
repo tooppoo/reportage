@@ -7,20 +7,22 @@ case "bare 'shim' without a further subcommand fails as a CLI usage error" {
   }
 }
 
-case "'shim' with an unrecognized subcommand fails as a CLI usage error" {
+case "'shim' with an unrecognized subcommand fails as a CLI usage error, showing Usage" {
   $ reportage shim bogus-subcommand
 
   assert {
     exit 4
     stderr contains "error: unrecognized subcommand 'bogus-subcommand'"
+    stderr contains "Usage: reportage shim <COMMAND>"
   }
 }
 
-case "'shim scaffold' with an unrecognized flag fails as a CLI usage error" {
+case "'shim scaffold' with an unrecognized flag fails as a CLI usage error, showing Usage" {
   $ reportage shim scaffold --bogus-flag
 
   assert {
     exit 4
     stderr contains "error: unexpected argument '--bogus-flag' found"
+    stderr contains "Usage: reportage shim scaffold"
   }
 }

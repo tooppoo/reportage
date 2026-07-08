@@ -52,20 +52,31 @@ case "empty --out fails" {
   }
 }
 
-case "--entry-point with an embedded line feed fails" {
+case "--entry-point with an embedded line feed fails, naming --entry-point specifically" {
   $ reportage shim scaffold --template anything --entry-point "$(printf 'a\nb')" --out out.sh
 
   assert {
     exit 2
-    stderr contains "line feed"
+    stderr contains "--entry-point must not contain line feed (LF) characters"
   }
 }
 
-case "--entry-point with an embedded carriage return fails" {
+case "--entry-point with an embedded carriage return fails, naming --entry-point specifically" {
   $ reportage shim scaffold --template anything --entry-point "$(printf 'a\rb')" --out out.sh
 
   assert {
     exit 2
-    stderr contains "carriage return"
+    stderr contains "--entry-point must not contain carriage return (CR) characters"
+  }
+}
+
+case "combining multiple violations reports every one of them, not just the first" {
+  $ reportage shim scaffold
+
+  assert {
+    exit 2
+    stderr contains "--template must not be empty"
+    stderr contains "--entry-point must not be empty"
+    stderr contains "--out must not be empty"
   }
 }

@@ -63,6 +63,10 @@ Adding a template means adding an entry to the builtin registry (name plus a ren
 
 An unknown `--template` value fails with a message that names the requested template and lists every template name currently registered (or states that none are registered, which is always true in v0). `--template`, `--entry-point`, and `--out` each fail the same way whether the flag was omitted entirely or given an explicit empty value.
 
+`--template`, `--entry-point`, and `--out` are validated independently of each other. If more than one is empty, missing, or (for `--entry-point`) lexically unsafe in the same invocation, every one of those problems is reported together in a single failure, not just the first one `scaffold` happens to check. A caller who fixes the reported problems should not have to rerun `scaffold` once per remaining problem it already could have reported.
+
+Every `--out` conflict message (existing file, existing directory, existing symlink) names `--out` explicitly and includes the concrete path that was rejected, so the message is unambiguous about which argument and which path it concerns.
+
 ## Related documents
 
 - [shims.md](shims.md)
