@@ -176,7 +176,13 @@ The actual side and the expected side are classified differently when either can
 - **Actual side** (`file`'s subject; `stdout` / `stderr`'s captured bytes): a missing, non-regular-file, or unreadable actual `file` is an **assertion failure** — the subject under test did not produce the expected output. `stdout` / `stderr` have no such failure mode; captured output is always available once an action has run.
 - **Expected side** (`contents_equals`'s `FileContentReference` operand): a missing, non-regular-file, or unreadable expected `WorkspacePath` is a **test-definition error** (`CaseStatus::ScriptError`, exit code 2, `semantic.file_contents_reference.*`), not an assertion failure — the expected value itself could not be sourced. An unresolvable `FixtureReference` is classified the same way, using the existing `semantic.fixture_reference.*` codes (see "Fixture reference value" below). A `contents_equals` expected-value error nested inside a `not` / `all` / `any` composition aborts the whole case immediately, exactly like a bare (non-composed) one — it is never swallowed as an ordinary failing child.
 
-A mismatch's diagnostic is bounded: CLI stdout/stderr (`--format=json` and the human renderer) never print the full actual/expected bytes, only the actual/expected byte lengths, the first differing byte offset, the byte-line number it falls on (LF-delimited, CRLF not normalized), and an escaped, size-capped context window around it (falling back from line-context to a fixed byte window for a huge single line or binary-like content). Persisting the full mismatch bytes as run evidence is not required; the `.reportage/runs/<id>/result.json` artifact does embed the full actual/expected bytes today, consistent with how it already records other expectations' captured output.
+A mismatch's diagnostic is bounded: CLI stdout/stderr (`--format=json` and the human renderer) never print the full actual/expected bytes, only the actual/expected byte lengths, the first differing byte offset, the byte-line number it falls on (LF-delimited, CRLF not normalized), and an escaped, size-capped context window around it (falling back from line-context to a fixed byte window for a huge single line or binary-like content). Persisting the full mismatch bytes as run evidence is not required;
+the `.reportage/runs/<id>/result.json` artifact records only the same bounded mismatch information
+(actual/expected byte lengths, first-diff offset and line, escaped context windows)
+and never embeds the full actual/expected bytes —
+raw byte evidence is stored as separate artifact files and referenced by
+`artifactRef` / `sizeBytes` / `sha256`
+(see [ADR: Artifact Run Result as Canonical Manifest](adr/20260708T130500Z_artifact-run-result-canonical-manifest.md)).
 
 ### `text_equals` comparison semantics
 
@@ -340,7 +346,7 @@ In v0, structured output expectations use external `jq`.
 ```reportage
 assert {
   file <".reportage/runs/self-test/result.json"> exists
-  file <".reportage/runs/self-test/result.json"> contains "\"result\""
+  file <".reportage/runs/self-test/result.json"> contains "\"status\""
 }
 ```
 

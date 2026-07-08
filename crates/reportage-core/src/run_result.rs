@@ -1383,6 +1383,77 @@ mod tests {
     }
 
     #[test]
+    fn contents_equals_fixture_source_and_stream_shapes_use_contract_field_names() {
+        // The representative fixtures only exercise `contents_equals` with a workspace
+        // expected source (see tests/fixtures/run_result/contents_equals.repor), so the
+        // `fixture` expected-source shape and `stderrContentsEquals` would otherwise have no
+        // coverage pinning their manifest field names against the schema.
+        let mismatch = ContentsEqualsComparison::compare(b"hellp\n".to_vec(), b"hello\n".to_vec());
+        let matching = ContentsEqualsComparison::compare(b"".to_vec(), b"".to_vec());
+        let case = CaseResult {
+            name: "contents_equals shapes".to_string(),
+            source_path: Some(PathBuf::from("contentsequals.repor")),
+            status: CaseStatus::Fail,
+            actions: vec![passing_action()],
+            assertion_blocks: vec![AssertionBlockResult {
+                step_index: 1,
+                checkpoint_action_index: Some(0),
+                expectations: vec![
+                    ExpectationResult {
+                        kind: ExpectationKind::FileContentsEquals {
+                            path: "actual.txt".to_string(),
+                            expected_source: ContentsEqualsExpectedSource::Fixture(
+                                "expected.txt".to_string(),
+                            ),
+                            observation: ContentsEqualsObservation::Compared(mismatch),
+                        },
+                        passed: false,
+                    },
+                    ExpectationResult {
+                        kind: ExpectationKind::StderrContentsEquals {
+                            expected_source: ContentsEqualsExpectedSource::Workspace(
+                                "empty.txt".to_string(),
+                            ),
+                            comparison: matching,
+                        },
+                        passed: true,
+                    },
+                ],
+            }],
+            side_effects_executed: 0,
+        };
+        let doc = build_run_result_document(&report_with_cases(vec![case]));
+
+        let file_expectation = &doc["tests"][0]["assertions"][0]["expectation"];
+        assert_eq!(file_expectation["kind"], "fileContentsEquals");
+        assert_eq!(file_expectation["expectedSource"]["kind"], "fixture");
+        assert_eq!(file_expectation["expectedSource"]["path"], "expected.txt");
+        assert_eq!(file_expectation["observed"], "compared");
+        assert_eq!(file_expectation["outcome"], "mismatch");
+        assert_eq!(file_expectation["actualSizeBytes"], 6);
+        assert_eq!(file_expectation["expectedSizeBytes"], 6);
+        let mismatch_json = &file_expectation["mismatch"];
+        assert_eq!(mismatch_json["firstDiffOffset"], 4);
+        assert_eq!(mismatch_json["firstDiffLine"], 1);
+        assert!(mismatch_json["actualContext"].is_string());
+        assert!(mismatch_json["expectedContext"].is_string());
+        assert_eq!(
+            doc["diagnostics"][0]["code"],
+            "assertion.file.contents_equals_mismatch"
+        );
+
+        let stderr_expectation = &doc["tests"][0]["assertions"][1]["expectation"];
+        assert_eq!(stderr_expectation["kind"], "stderrContentsEquals");
+        assert_eq!(stderr_expectation["expectedSource"]["kind"], "workspace");
+        assert_eq!(
+            stderr_expectation["actualRef"],
+            "test-1/action-1/stderr.bin"
+        );
+        assert_eq!(stderr_expectation["outcome"], "match");
+        assert!(stderr_expectation.get("mismatch").is_none());
+    }
+
+    #[test]
     fn file_text_equals_heredoc_expected_source_json_shape() {
         // Mirrors `file_text_equals_expectation_kind_json_shape`, but for the `Heredoc` variant
         // of `TextEqualsExpectedSource`: the `Quoted` case above must not be the only one

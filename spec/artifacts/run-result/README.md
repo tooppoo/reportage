@@ -72,7 +72,11 @@ not only the shapes the representative fixtures happen to exercise.
 - `runtime_error` — a runtime infrastructure failure before any action ran;
 - `partial_execution_after_runtime_error` — evidence recorded before a later runtime error survives;
 - `expectation_kinds` — exercises file/dir/text-equals/empty/logical expectation shapes
-  beyond the exit/stdoutContains kinds the scenarios above use.
+  beyond the exit/stdoutContains kinds the scenarios above use;
+- `contents_equals` — exercises `fileContentsEquals` / `stdoutContentsEquals`
+  with a workspace expected source, including a bounded `mismatch` object;
+- `noop` — valid zero-case input recorded as `noop: true`
+  with empty `tests` and a zeroed summary.
 
 The first six scenarios mirror `tests/fixtures/json_report/`'s required scenario set,
 so projection parity can be checked over the same run shapes.
