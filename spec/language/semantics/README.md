@@ -32,19 +32,19 @@ Each ID uses the form:
 
 `assertion` rules verify a single checkpoint field (`exitCode`, `stdout`, `stderr`, `file`, or `dir`) against an expected value using one operator.
 
-| ID | Syntax form |
-|----|-------------|
-| `assertion.exit.equals` | `exit <code>` |
-| `assertion.stdout.contains` | `stdout contains <string>` |
-| `assertion.stderr.contains` | `stderr contains <string>` |
-| `assertion.stdout.empty` | `stdout empty` |
-| `assertion.stderr.empty` | `stderr empty` |
-| `assertion.file.exists` | `file <"path"> exists` |
-| `assertion.file.contains` | `file <"path"> contains <text_literal>` |
-| `assertion.file.contents_equals` | `file <ActualValue<WorkspacePath>> contents_equals <ExpectedValue<FileContentsReference>>` |
-| `assertion.file.text_equals` | `file <ActualValue<WorkspacePath>> text_equals <ExpectedValue<TextValue>>` |
-| `assertion.dir.exists` | `dir <"path"> exists` |
-| `assertion.dir.contains` | `dir <"path"> contains "name"` |
+- `assertion.exit.equals`
+- `assertion.stdout.contains`
+- `assertion.stderr.contains`
+- `assertion.stdout.empty`
+- `assertion.stderr.empty`
+- `assertion.file.exists`
+- `assertion.file.contains`
+- `assertion.file.contents_equals`
+- `assertion.file.text_equals`
+- `assertion.dir.exists`
+- `assertion.dir.contains`
+
+Each rule's syntax form is normative in its own spec file's `syntax` field, not restated here; see the generated catalog at `docs/language/semantic-rules.md` for the full ID-to-syntax mapping.
 
 Note: `exit <code>` does not spell out `equals` in syntax, but the semantic rule treats it as an exit code equals expectation.
 
@@ -54,11 +54,11 @@ Note: `exit <code>` does not spell out `equals` in syntax, but the semantic rule
 
 `logical-composition` rules verify block-form logical composition (`not`/`all`/`any`) over nested expectations. A composition is not a checkpoint-field comparison, so its normative fields and conformance cases use a different shape from `assertion` (see below).
 
-| ID | Syntax form |
-|----|-------------|
-| `logical-composition.expectation.not` | `not { <expectation>... }` |
-| `logical-composition.expectation.all` | `all { <expectation>... }` |
-| `logical-composition.expectation.any` | `any { <expectation>... }` |
+- `logical-composition.expectation.not`
+- `logical-composition.expectation.all`
+- `logical-composition.expectation.any`
+
+Each rule's syntax form is normative in its own spec file's `syntax` field, not restated here; see the generated catalog at `docs/language/semantic-rules.md` for the full ID-to-syntax mapping.
 
 ### `value-reference` category
 
