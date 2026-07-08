@@ -12,18 +12,6 @@ release-tag version:
 
   git tag -a {{ version }} -m "Release {{ version }}"
 
-# create release tag(latest) for the given version
-[group('release')]
-release-latest:
-  #!/usr/bin/env sh
-  set -eu
-  version=$(git tag | head -n 1) # get the latest tag
-  rellog ready "$version"
-  just assert-version "$version"
-
-  git tag -d latest || true
-  git tag -a latest -m "Release latest($version)"
-
 # check if the given version matches the version in Cargo.toml
 [group('release')]
 assert-version version:
