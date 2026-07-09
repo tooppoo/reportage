@@ -57,7 +57,7 @@
         }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.file.contents_equals_mismatch"
+      "expectedDiagnosticCode": "assertion.file.contents_equals.mismatch"
     },
     {
       "description": "contents_equals fails on a missing trailing newline; comparison is byte-exact with no normalization",
@@ -80,7 +80,7 @@
         }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.file.contents_equals_mismatch"
+      "expectedDiagnosticCode": "assertion.file.contents_equals.mismatch"
     },
     {
       "description": "contents_equals fails as an assertion failure, not a script error, when the actual file is missing",
@@ -102,7 +102,7 @@
         }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.file.contents_equals_actual_missing"
+      "expectedDiagnosticCode": "assertion.file.contents_equals.actual_missing"
     },
     {
       "description": "contents_equals passes against a fixture-file expected value, resolved relative to repor_dir",

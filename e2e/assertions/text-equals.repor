@@ -32,7 +32,7 @@ case "file text_equals reports an assertion failure for a byte mismatch" {
 
   assert {
     exit 1
-    stderr contains "assertion.file.text_equals_mismatch"
+    stderr contains "assertion.file.text_equals.mismatch"
   }
 }
 
@@ -50,7 +50,7 @@ case "file text_equals reports an assertion failure for a missing actual file" {
 
   assert {
     exit 1
-    stderr contains "assertion.file.text_equals_actual_missing"
+    stderr contains "assertion.file.text_equals.actual_missing"
   }
 }
 

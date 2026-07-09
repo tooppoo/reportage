@@ -47,7 +47,7 @@
         }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.file.contains_mismatch"
+      "expectedDiagnosticCode": "assertion.file.contains.mismatch"
     },
     {
       "description": "empty expected text always matches an existing, readable, UTF-8 file",
@@ -75,7 +75,7 @@
         "stderr": { "data": "", "encoding": "base64", "text": "" }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.file.contains_precondition_unmet"
+      "expectedDiagnosticCode": "assertion.file.contains.precondition_unmet"
     },
     {
       "description": "match is case-sensitive; uppercase file content does not match a lowercase expected substring",
@@ -92,7 +92,7 @@
         }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.file.contains_mismatch"
+      "expectedDiagnosticCode": "assertion.file.contains.mismatch"
     }
   ]
 }

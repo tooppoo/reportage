@@ -25,24 +25,34 @@ Uppercase prefix forms such as `RPT-ASSERT-EXIT-MISMATCH` are **not** adopted.
 
 ## Naming Convention
 
-Semantic and assertion codes use the form:
+Semantic codes use the form:
 
 ```text
-<namespace>.<subject>.<reason>
+semantic.<subject>.<reason>
 ```
+
+Assertion codes are owned by exactly one semantic rule, so they embed the owning rule's id (see `crates/reportage-core/src/semantic_rule_registry.rs`):
+
+```text
+<semantic-rule-id>.<reason>
+```
+
+For example, `assertion.file.exists.missing` is the `missing` reason of the `assertion.file.exists` semantic rule.
+CI verifies this correspondence for every rule-owned code in the registry: the code must carry the `<rule-id>.` prefix followed by a non-empty reason (`tests/semantic_rule_coverage.rs`).
+`semantic.*` codes are exempt because the same validation can fire from several syntactic positions (e.g. `semantic.workspace_path.*` from both a `write` step's path and a `dir` subject path); their namespace, not a rule id, owns the name.
 
 All segments are lowercase; multi-word segments use `snake_case`.
 
 Examples:
 
 ```text
-assertion.exit.mismatch
-assertion.stdout.contains_mismatch
-assertion.stderr.contains_mismatch
-assertion.file.exists_missing
-assertion.file.contains_mismatch
-assertion.dir.exists_missing
-assertion.dir.contains_entry_missing
+assertion.exit.equals.mismatch
+assertion.stdout.contains.mismatch
+assertion.stderr.contains.mismatch
+assertion.file.exists.missing
+assertion.file.contains.mismatch
+assertion.dir.exists.missing
+assertion.dir.contains.entry_missing
 semantic.file_path.absolute
 semantic.file_path.dot_segment
 semantic.dir_entry_name.empty
@@ -64,16 +74,16 @@ semantic.fixture_reference.escapes_repor_directory
 semantic.file_contents_reference.missing
 semantic.file_contents_reference.not_regular_file
 semantic.file_contents_reference.read_error
-assertion.file.contents_equals_mismatch
-assertion.file.contents_equals_actual_missing
-assertion.file.contents_equals_actual_not_a_regular_file
-assertion.file.contents_equals_actual_unreadable
-assertion.stdout.contents_equals_mismatch
-assertion.stderr.contents_equals_mismatch
-assertion.file.text_equals_mismatch
-assertion.file.text_equals_actual_missing
-assertion.file.text_equals_actual_not_a_regular_file
-assertion.file.text_equals_actual_unreadable
+assertion.file.contents_equals.mismatch
+assertion.file.contents_equals.actual_missing
+assertion.file.contents_equals.actual_not_regular_file
+assertion.file.contents_equals.actual_unreadable
+assertion.stdout.contents_equals.mismatch
+assertion.stderr.contents_equals.mismatch
+assertion.file.text_equals.mismatch
+assertion.file.text_equals.actual_missing
+assertion.file.text_equals.actual_not_regular_file
+assertion.file.text_equals.actual_unreadable
 step.write.target_exists
 step.write.parent_not_a_directory
 step.write.io_error
@@ -109,11 +119,11 @@ Classification examples:
 - A fixture reference literal whose raw path is empty, absolute, or contains a `.` / `..` segment — semantic error (`semantic.fixture_reference.empty` / `.absolute` / `.dot_segment`), detected during AST construction, mirroring `semantic.workspace_path.*`.
 - A fixture reference whose resolved source is missing, is not a regular file, or escapes the referencing `*.repor` file's directory once canonicalized (e.g. via a symlink) — semantic error (`semantic.fixture_reference.missing` / `.not_a_regular_file` / `.escapes_repor_directory`). See [`docs/semantics.md`](semantics.md) — Fixture reference value.
 - A valid `dir <"path"> exists` whose target does not exist, or is a regular file rather than a directory — assertion failure.
-- `file <"actual"> contents_equals <"expected">` whose *actual* side is missing, not a regular file, or unreadable — assertion failure (`assertion.file.contents_equals_actual_missing` / `.contents_equals_actual_not_a_regular_file` / `.contents_equals_actual_unreadable`): the subject under test did not produce the expected output.
+- `file <"actual"> contents_equals <"expected">` whose *actual* side is missing, not a regular file, or unreadable — assertion failure (`assertion.file.contents_equals.actual_missing` / `.contents_equals_actual_not_a_regular_file` / `.contents_equals_actual_unreadable`): the subject under test did not produce the expected output.
 - `contents_equals`'s expected `WorkspacePath` side missing, not a regular file, or unreadable — semantic error (`semantic.file_contents_reference.missing` / `.not_regular_file` / `.read_error`), surfaced as `CaseStatus::ScriptError` (exit code 2): the expected value itself, not the subject under test, could not be sourced. An unresolvable expected `FixtureReference` is classified the same way, reusing `semantic.fixture_reference.*`.
-- `contents_equals` observing byte-for-byte equal actual and expected content — pass, no diagnostic; a mismatch — assertion failure (`assertion.file.contents_equals_mismatch` / `assertion.stdout.contents_equals_mismatch` / `assertion.stderr.contents_equals_mismatch`).
-- `file <"actual"> text_equals <text_literal>` whose *actual* side is missing, not a regular file, or unreadable — assertion failure (`assertion.file.text_equals_actual_missing` / `.text_equals_actual_not_a_regular_file` / `.text_equals_actual_unreadable`), the same classification as `contents_equals`'s actual side. `text_equals` has no expected-side test-definition error: its expected value is always an inline `TextValue`, never a reference that could fail to resolve.
-- `text_equals` observing byte-for-byte equal actual bytes and expected `TextValue` UTF-8 bytes — pass, no diagnostic; a mismatch — assertion failure (`assertion.file.text_equals_mismatch`).
+- `contents_equals` observing byte-for-byte equal actual and expected content — pass, no diagnostic; a mismatch — assertion failure (`assertion.file.contents_equals.mismatch` / `assertion.stdout.contents_equals.mismatch` / `assertion.stderr.contents_equals.mismatch`).
+- `file <"actual"> text_equals <text_literal>` whose *actual* side is missing, not a regular file, or unreadable — assertion failure (`assertion.file.text_equals.actual_missing` / `.text_equals_actual_not_a_regular_file` / `.text_equals_actual_unreadable`), the same classification as `contents_equals`'s actual side. `text_equals` has no expected-side test-definition error: its expected value is always an inline `TextValue`, never a reference that could fail to resolve.
+- `text_equals` observing byte-for-byte equal actual bytes and expected `TextValue` UTF-8 bytes — pass, no diagnostic; a mismatch — assertion failure (`assertion.file.text_equals.mismatch`).
 
 This classification is a premise for the diagnostic design of file assertions (#24), logical composition (#25), and directory assertions (#66).
 
@@ -151,7 +161,7 @@ Example (source-derived):
 
 ```json
 {
-  "code": "assertion.exit.mismatch",
+  "code": "assertion.exit.equals.mismatch",
   "severity": "failure",
   "message": "expected exit code 0, but got 1",
   "origin": {
@@ -174,7 +184,7 @@ Example (no source text — a semantic conformance case):
 
 ```json
 {
-  "code": "assertion.stdout.contains_mismatch",
+  "code": "assertion.stdout.contains.mismatch",
   "severity": "failure",
   "message": "stdout did not contain expected substring",
   "origin": {
@@ -234,29 +244,29 @@ The stable contract is limited, in principle, to `code` and the stable `details`
 The `details` field itself is part of the diagnostic model, but `details` as a whole is **not** unconditionally stable API. Stable fields are defined per diagnostic code:
 
 ```text
-assertion.exit.mismatch:
+assertion.exit.equals.mismatch:
   stable details:
     expected: number
     actual: number
 
-assertion.stdout.contains_mismatch:
+assertion.stdout.contains.mismatch:
   stable details:
     expected_substring: string
 
-assertion.file.exists_missing:
+assertion.file.exists.missing:
   stable details:
     path: string
 
-assertion.file.contains_mismatch:
+assertion.file.contains.mismatch:
   stable details:
     path: string
     expected_substring: string
 
-assertion.dir.exists_missing:
+assertion.dir.exists.missing:
   stable details:
     path: string
 
-assertion.dir.contains_entry_missing:
+assertion.dir.contains.entry_missing:
   stable details:
     path: string
     expected_entry: string
@@ -294,7 +304,7 @@ A semantic conformance case may specify an expected diagnostic code via the opti
 {
   "description": "stdout missing the expected substring fails",
   "expectedResult": "fail",
-  "expectedDiagnosticCode": "assertion.stdout.contains_mismatch"
+  "expectedDiagnosticCode": "assertion.stdout.contains.mismatch"
 }
 ```
 
@@ -326,12 +336,12 @@ This document does **not** require implementing nested / child diagnostics. It d
   "details": {},
   "children": [
     {
-      "code": "assertion.file.exists_missing",
+      "code": "assertion.file.exists.missing",
       "severity": "failure",
       "details": { "path": "a.txt" }
     },
     {
-      "code": "assertion.stdout.contains_mismatch",
+      "code": "assertion.stdout.contains.mismatch",
       "severity": "failure",
       "details": { "expected_substring": "PASS" }
     }

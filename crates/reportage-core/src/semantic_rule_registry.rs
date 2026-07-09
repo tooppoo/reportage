@@ -1,14 +1,24 @@
-//! Semantic rule coverage registry — the inventory of semantic rules known to exist in Reportage.
+//! Semantic rule registry — the inventory of semantic rules known to exist in Reportage.
 //!
-//! This registry is a spec coverage inventory, not runtime implementation. It does not implement
-//! evaluation behavior; the parser (`parser.rs`), evaluator (`evaluator.rs`), and model (`model.rs`)
-//! own that. This registry only enumerates which semantic rules exist, which category each belongs
-//! to, and whether each one is required to have a semantic spec, conformance cases, and generated
-//! docs. `spec/language/semantics/*.json` remains the source of truth for a rule's normative fields
-//! and conformance cases; this registry does not duplicate that detail. See
-//! docs/adr/20260708T065700Z_semantic-rule-coverage-registry.md for the full rationale, including
-//! why this is not derived directly from `Expectation`/AST/parser shapes and why it is not (yet) a
-//! JSON registry.
+//! This module owns semantic rule identity ([`SemanticRuleId`]) and the coverage obligations attached to each known semantic rule.
+//! It is not the runtime implementation of semantic behavior: parser construction, semantic validation, and evaluation remain owned by `parser`, `semantic`, `evaluator`, and the domain model.
+//!
+//! The registry is a coverage inventory. It answers:
+//!
+//! - which semantic rules are known to exist;
+//! - which category each rule belongs to;
+//! - whether a rule must have a semantic spec, conformance cases, and generated docs;
+//! - which diagnostics and syntax rules are related to the rule for cross-reference checks.
+//!
+//! [`SemanticRuleId::as_str`] is the canonical string representation used by spec JSON, generated docs, and coverage checks.
+//! [`DiagnosticCode`] remains the canonical identity for diagnostics, and `reportage.pest` remains the canonical syntax definition.
+//! The registry links these identities, but it does not make diagnostic codes or pest grammar rules subordinate to semantic rules.
+//!
+//! `spec/language/semantics/*.json` remains the source of truth for each rule's normative fields and conformance cases; this registry does not duplicate that detail.
+//! See docs/adr/20260708T065700Z_semantic-rule-coverage-registry.md for the full rationale, including how cross-references are verified in CI.
+
+use crate::diagnostic::DiagnosticCode;
+use std::fmt;
 
 /// The broad classification of a semantic rule. `runner-lifecycle`, `artifact`, and `diagnostic`
 /// concerns are owned elsewhere (see the ADR) and are deliberately not represented here.
@@ -30,29 +40,153 @@ pub enum ImplementationStatus {
     Deferred,
 }
 
+/// The identity of a semantic rule known to exist in Reportage.
+///
+/// This enum is the source of truth for semantic rule identity.
+/// Rust code that needs to name a semantic rule must reference a variant, not a string literal; [`SemanticRuleId::as_str`] is the only place the string form is defined.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum SemanticRuleId {
+    AssertionExitEquals,
+    AssertionStdoutContains,
+    AssertionStderrContains,
+    AssertionStdoutEmpty,
+    AssertionStderrEmpty,
+    AssertionStdoutContentsEquals,
+    AssertionStderrContentsEquals,
+    AssertionFileExists,
+    AssertionFileContains,
+    AssertionFileContentsEquals,
+    AssertionFileTextEquals,
+    AssertionDirExists,
+    AssertionDirContains,
+    LogicalCompositionExpectationNot,
+    LogicalCompositionExpectationAll,
+    LogicalCompositionExpectationAny,
+    ValueReferenceWorkspacePathResolve,
+    ValueReferenceFilePathValidate,
+    ValueReferenceDirEntryNameValidate,
+    ValueReferenceFixtureReferenceResolve,
+    ValueReferenceFileContentsReferenceResolve,
+    ValueReferenceLiteralKindMismatch,
+}
+
+impl SemanticRuleId {
+    /// Every variant, in declaration order, for iteration by coverage checks.
+    ///
+    /// When adding a variant, add it here too; `all_lists_every_variant_once_in_declaration_order` fails on any non-trailing omission, duplicate, or ordering drift.
+    pub const ALL: &'static [SemanticRuleId] = &[
+        Self::AssertionExitEquals,
+        Self::AssertionStdoutContains,
+        Self::AssertionStderrContains,
+        Self::AssertionStdoutEmpty,
+        Self::AssertionStderrEmpty,
+        Self::AssertionStdoutContentsEquals,
+        Self::AssertionStderrContentsEquals,
+        Self::AssertionFileExists,
+        Self::AssertionFileContains,
+        Self::AssertionFileContentsEquals,
+        Self::AssertionFileTextEquals,
+        Self::AssertionDirExists,
+        Self::AssertionDirContains,
+        Self::LogicalCompositionExpectationNot,
+        Self::LogicalCompositionExpectationAll,
+        Self::LogicalCompositionExpectationAny,
+        Self::ValueReferenceWorkspacePathResolve,
+        Self::ValueReferenceFilePathValidate,
+        Self::ValueReferenceDirEntryNameValidate,
+        Self::ValueReferenceFixtureReferenceResolve,
+        Self::ValueReferenceFileContentsReferenceResolve,
+        Self::ValueReferenceLiteralKindMismatch,
+    ];
+
+    /// The canonical string representation of this rule id.
+    ///
+    /// Spec JSON `id` fields, generated docs section headings, and coverage checks all match against this string.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::AssertionExitEquals => "assertion.exit.equals",
+            Self::AssertionStdoutContains => "assertion.stdout.contains",
+            Self::AssertionStderrContains => "assertion.stderr.contains",
+            Self::AssertionStdoutEmpty => "assertion.stdout.empty",
+            Self::AssertionStderrEmpty => "assertion.stderr.empty",
+            Self::AssertionStdoutContentsEquals => "assertion.stdout.contents_equals",
+            Self::AssertionStderrContentsEquals => "assertion.stderr.contents_equals",
+            Self::AssertionFileExists => "assertion.file.exists",
+            Self::AssertionFileContains => "assertion.file.contains",
+            Self::AssertionFileContentsEquals => "assertion.file.contents_equals",
+            Self::AssertionFileTextEquals => "assertion.file.text_equals",
+            Self::AssertionDirExists => "assertion.dir.exists",
+            Self::AssertionDirContains => "assertion.dir.contains",
+            Self::LogicalCompositionExpectationNot => "logical-composition.expectation.not",
+            Self::LogicalCompositionExpectationAll => "logical-composition.expectation.all",
+            Self::LogicalCompositionExpectationAny => "logical-composition.expectation.any",
+            Self::ValueReferenceWorkspacePathResolve => "value-reference.workspace-path.resolve",
+            Self::ValueReferenceFilePathValidate => "value-reference.file-path.validate",
+            Self::ValueReferenceDirEntryNameValidate => "value-reference.dir-entry-name.validate",
+            Self::ValueReferenceFixtureReferenceResolve => {
+                "value-reference.fixture-reference.resolve"
+            }
+            Self::ValueReferenceFileContentsReferenceResolve => {
+                "value-reference.file-contents-reference.resolve"
+            }
+            Self::ValueReferenceLiteralKindMismatch => "value-reference.literal.kind-mismatch",
+        }
+    }
+}
+
+impl fmt::Display for SemanticRuleId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// How a diagnostic code relates to the semantic rule whose entry references it.
+///
+/// The relation kind decides which naming check CI applies to the cross-reference; see `tests/semantic_rule_coverage.rs`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RelatedDiagnostic {
+    /// A diagnostic code owned by exactly this rule.
+    /// Its string form must be `<rule-id>.<reason>` with a non-empty reason, and no other registry entry may reference it.
+    RuleOwned(DiagnosticCode),
+    /// A diagnostic code shared by two or more semantic rules, e.g. the empty-block diagnostic of `not` / `all` / `any`.
+    /// Exempt from the rule-id prefix check; CI instead verifies that at least two registry entries reference it.
+    Shared(DiagnosticCode),
+    /// A diagnostic code emitted by validating or resolving a value that this rule describes.
+    ///
+    /// These codes live in the `semantic.*` namespace defined by docs/semantic-diagnostics.md, because the same validation also fires outside the rule's own assertion position (e.g. `semantic.workspace_path.*` from a `write` step's path, `semantic.literal.kind_mismatch` from any argument position).
+    /// Renaming them to `<rule-id>.<reason>` would misattribute those emissions to one syntactic position, so they are exempt from the rule-id prefix check; CI instead verifies the `semantic.` namespace.
+    SemanticValidation(DiagnosticCode),
+}
+
+impl RelatedDiagnostic {
+    pub const fn code(self) -> DiagnosticCode {
+        match self {
+            Self::RuleOwned(code) | Self::Shared(code) | Self::SemanticValidation(code) => code,
+        }
+    }
+}
+
 /// One semantic rule's coverage-requirement record.
 ///
-/// `related_syntax_rule` and `related_diagnostic_codes` are optional cross-references — pest
-/// grammar rule names and `DiagnosticCode::as_str()` strings, respectively — kept as plain
-/// `&'static str` rather than typed handles so this module never depends on `parser`, `model`, or
-/// `diagnostic`. A dependency in that direction would make the registry couple to implementation
-/// shape, which is exactly what it must not do (see the ADR).
+/// `related_diagnostic_codes` references [`DiagnosticCode`] values directly, so a diagnostic rename or removal that misses the registry fails to compile instead of going stale.
+/// `related_syntax_rule` stays a plain pest grammar rule name because grammar rule identity is owned by `reportage.pest`, not by Rust code; its existence is verified against the grammar file in CI.
 #[derive(Debug, Clone, Copy)]
 pub struct SemanticRuleEntry {
-    pub id: &'static str,
+    pub id: SemanticRuleId,
     pub category: RuleCategory,
     pub implementation_status: ImplementationStatus,
     pub spec_required: bool,
     pub conformance_required: bool,
     pub docs_required: bool,
     pub related_syntax_rule: Option<&'static str>,
-    pub related_diagnostic_codes: &'static [&'static str],
+    pub related_diagnostic_codes: &'static [RelatedDiagnostic],
 }
 
 use ImplementationStatus::Implemented;
+use RelatedDiagnostic::{RuleOwned, SemanticValidation, Shared};
 use RuleCategory::{Assertion, LogicalComposition, ValueReference};
 
-/// The full semantic rule inventory.
+/// The full semantic rule inventory, one entry per [`SemanticRuleId`] variant.
 ///
 /// `#[doc(hidden)]` because this is consumed by integration tests, the docs generator, and CI
 /// checks within this workspace, not by external `reportage-core` consumers; it is not part of the
@@ -67,77 +201,81 @@ use RuleCategory::{Assertion, LogicalComposition, ValueReference};
 #[doc(hidden)]
 pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
     SemanticRuleEntry {
-        id: "assertion.exit.equals",
+        id: SemanticRuleId::AssertionExitEquals,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: true,
         conformance_required: true,
         docs_required: true,
         related_syntax_rule: Some("exit_exp"),
-        related_diagnostic_codes: &["assertion.exit.mismatch"],
+        related_diagnostic_codes: &[RuleOwned(DiagnosticCode::AssertionExitMismatch)],
     },
     SemanticRuleEntry {
-        id: "assertion.stdout.contains",
+        id: SemanticRuleId::AssertionStdoutContains,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: true,
         conformance_required: true,
         docs_required: true,
         related_syntax_rule: Some("stdout_exp"),
-        related_diagnostic_codes: &["assertion.stdout.contains_mismatch"],
+        related_diagnostic_codes: &[RuleOwned(DiagnosticCode::AssertionStdoutContainsMismatch)],
     },
     SemanticRuleEntry {
-        id: "assertion.stderr.contains",
+        id: SemanticRuleId::AssertionStderrContains,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: true,
         conformance_required: true,
         docs_required: true,
         related_syntax_rule: Some("stderr_exp"),
-        related_diagnostic_codes: &["assertion.stderr.contains_mismatch"],
+        related_diagnostic_codes: &[RuleOwned(DiagnosticCode::AssertionStderrContainsMismatch)],
     },
     SemanticRuleEntry {
-        id: "assertion.stdout.empty",
+        id: SemanticRuleId::AssertionStdoutEmpty,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: true,
         conformance_required: true,
         docs_required: true,
         related_syntax_rule: Some("stdout_exp"),
-        related_diagnostic_codes: &["assertion.stdout.not_empty"],
+        related_diagnostic_codes: &[RuleOwned(DiagnosticCode::AssertionStdoutNotEmpty)],
     },
     SemanticRuleEntry {
-        id: "assertion.stderr.empty",
+        id: SemanticRuleId::AssertionStderrEmpty,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: true,
         conformance_required: true,
         docs_required: true,
         related_syntax_rule: Some("stderr_exp"),
-        related_diagnostic_codes: &["assertion.stderr.not_empty"],
+        related_diagnostic_codes: &[RuleOwned(DiagnosticCode::AssertionStderrNotEmpty)],
     },
     SemanticRuleEntry {
-        id: "assertion.stdout.contents_equals",
+        id: SemanticRuleId::AssertionStdoutContentsEquals,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: false,
         conformance_required: false,
         docs_required: false,
         related_syntax_rule: Some("output_contents_equals"),
-        related_diagnostic_codes: &["assertion.stdout.contents_equals_mismatch"],
+        related_diagnostic_codes: &[RuleOwned(
+            DiagnosticCode::AssertionStdoutContentsEqualsMismatch,
+        )],
     },
     SemanticRuleEntry {
-        id: "assertion.stderr.contents_equals",
+        id: SemanticRuleId::AssertionStderrContentsEquals,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: false,
         conformance_required: false,
         docs_required: false,
         related_syntax_rule: Some("output_contents_equals"),
-        related_diagnostic_codes: &["assertion.stderr.contents_equals_mismatch"],
+        related_diagnostic_codes: &[RuleOwned(
+            DiagnosticCode::AssertionStderrContentsEqualsMismatch,
+        )],
     },
     SemanticRuleEntry {
-        id: "assertion.file.exists",
+        id: SemanticRuleId::AssertionFileExists,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: true,
@@ -145,12 +283,12 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         docs_required: true,
         related_syntax_rule: Some("file_exp"),
         related_diagnostic_codes: &[
-            "assertion.file.exists_missing",
-            "assertion.file.exists_not_a_file",
+            RuleOwned(DiagnosticCode::AssertionFileExistsMissing),
+            RuleOwned(DiagnosticCode::AssertionFileExistsNotAFile),
         ],
     },
     SemanticRuleEntry {
-        id: "assertion.file.contains",
+        id: SemanticRuleId::AssertionFileContains,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: true,
@@ -158,12 +296,12 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         docs_required: true,
         related_syntax_rule: Some("file_exp"),
         related_diagnostic_codes: &[
-            "assertion.file.contains_precondition_unmet",
-            "assertion.file.contains_mismatch",
+            RuleOwned(DiagnosticCode::AssertionFileContainsPreconditionUnmet),
+            RuleOwned(DiagnosticCode::AssertionFileContainsMismatch),
         ],
     },
     SemanticRuleEntry {
-        id: "assertion.file.contents_equals",
+        id: SemanticRuleId::AssertionFileContentsEquals,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: true,
@@ -171,14 +309,14 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         docs_required: true,
         related_syntax_rule: Some("file_exp"),
         related_diagnostic_codes: &[
-            "assertion.file.contents_equals_mismatch",
-            "assertion.file.contents_equals_actual_missing",
-            "assertion.file.contents_equals_actual_not_a_regular_file",
-            "assertion.file.contents_equals_actual_unreadable",
+            RuleOwned(DiagnosticCode::AssertionFileContentsEqualsMismatch),
+            RuleOwned(DiagnosticCode::AssertionFileContentsEqualsActualMissing),
+            RuleOwned(DiagnosticCode::AssertionFileContentsEqualsActualNotARegularFile),
+            RuleOwned(DiagnosticCode::AssertionFileContentsEqualsActualUnreadable),
         ],
     },
     SemanticRuleEntry {
-        id: "assertion.file.text_equals",
+        id: SemanticRuleId::AssertionFileTextEquals,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: true,
@@ -186,14 +324,14 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         docs_required: true,
         related_syntax_rule: Some("file_exp"),
         related_diagnostic_codes: &[
-            "assertion.file.text_equals_mismatch",
-            "assertion.file.text_equals_actual_missing",
-            "assertion.file.text_equals_actual_not_a_regular_file",
-            "assertion.file.text_equals_actual_unreadable",
+            RuleOwned(DiagnosticCode::AssertionFileTextEqualsMismatch),
+            RuleOwned(DiagnosticCode::AssertionFileTextEqualsActualMissing),
+            RuleOwned(DiagnosticCode::AssertionFileTextEqualsActualNotARegularFile),
+            RuleOwned(DiagnosticCode::AssertionFileTextEqualsActualUnreadable),
         ],
     },
     SemanticRuleEntry {
-        id: "assertion.dir.exists",
+        id: SemanticRuleId::AssertionDirExists,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: true,
@@ -201,12 +339,12 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         docs_required: true,
         related_syntax_rule: Some("dir_exp"),
         related_diagnostic_codes: &[
-            "assertion.dir.exists_missing",
-            "assertion.dir.exists_not_directory",
+            RuleOwned(DiagnosticCode::AssertionDirExistsMissing),
+            RuleOwned(DiagnosticCode::AssertionDirExistsNotADirectory),
         ],
     },
     SemanticRuleEntry {
-        id: "assertion.dir.contains",
+        id: SemanticRuleId::AssertionDirContains,
         category: Assertion,
         implementation_status: Implemented,
         spec_required: true,
@@ -214,47 +352,47 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         docs_required: true,
         related_syntax_rule: Some("dir_exp"),
         related_diagnostic_codes: &[
-            "assertion.dir.contains_subject_missing",
-            "assertion.dir.contains_subject_not_directory",
-            "assertion.dir.contains_entry_missing",
-            "assertion.dir.contains_subject_unreadable",
+            RuleOwned(DiagnosticCode::AssertionDirContainsSubjectMissing),
+            RuleOwned(DiagnosticCode::AssertionDirContainsSubjectNotADirectory),
+            RuleOwned(DiagnosticCode::AssertionDirContainsEntryMissing),
+            RuleOwned(DiagnosticCode::AssertionDirContainsSubjectUnreadable),
         ],
     },
     SemanticRuleEntry {
-        id: "logical-composition.expectation.not",
+        id: SemanticRuleId::LogicalCompositionExpectationNot,
         category: LogicalComposition,
         implementation_status: Implemented,
         spec_required: true,
         conformance_required: true,
         docs_required: true,
         related_syntax_rule: Some("not_block"),
-        related_diagnostic_codes: &["semantic.expectation.empty_block"],
+        related_diagnostic_codes: &[Shared(DiagnosticCode::SemanticExpectationEmptyBlock)],
     },
     SemanticRuleEntry {
-        id: "logical-composition.expectation.all",
+        id: SemanticRuleId::LogicalCompositionExpectationAll,
         category: LogicalComposition,
         implementation_status: Implemented,
         spec_required: true,
         conformance_required: true,
         docs_required: true,
         related_syntax_rule: Some("all_block"),
-        related_diagnostic_codes: &["semantic.expectation.empty_block"],
+        related_diagnostic_codes: &[Shared(DiagnosticCode::SemanticExpectationEmptyBlock)],
     },
     SemanticRuleEntry {
-        id: "logical-composition.expectation.any",
+        id: SemanticRuleId::LogicalCompositionExpectationAny,
         category: LogicalComposition,
         implementation_status: Implemented,
         spec_required: true,
         conformance_required: true,
         docs_required: true,
         related_syntax_rule: Some("any_block"),
-        related_diagnostic_codes: &["semantic.expectation.empty_block"],
+        related_diagnostic_codes: &[Shared(DiagnosticCode::SemanticExpectationEmptyBlock)],
     },
     SemanticRuleEntry {
         // `dir <"path">`'s subject path reuses this exact rule (via `WorkspacePath::parse` and
         // the same three diagnostic codes) rather than defining a separate dir-path rule; see
         // `semantic::validate_dir_path`.
-        id: "value-reference.workspace-path.resolve",
+        id: SemanticRuleId::ValueReferenceWorkspacePathResolve,
         category: ValueReference,
         implementation_status: Implemented,
         spec_required: true,
@@ -262,9 +400,9 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         docs_required: true,
         related_syntax_rule: Some("workspace_path_literal"),
         related_diagnostic_codes: &[
-            "semantic.workspace_path.empty",
-            "semantic.workspace_path.absolute",
-            "semantic.workspace_path.dot_segment",
+            SemanticValidation(DiagnosticCode::SemanticWorkspacePathEmpty),
+            SemanticValidation(DiagnosticCode::SemanticWorkspacePathAbsolute),
+            SemanticValidation(DiagnosticCode::SemanticWorkspacePathDotSegment),
         ],
     },
     SemanticRuleEntry {
@@ -272,7 +410,7 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         // path is validated by `semantic::validate_file_path`, a separate, narrower check (no
         // leading `/`, no `.`/`..` segments) with its own diagnostic codes, not by
         // `WorkspacePath::parse`. See docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
-        id: "value-reference.file-path.validate",
+        id: SemanticRuleId::ValueReferenceFilePathValidate,
         category: ValueReference,
         implementation_status: Implemented,
         spec_required: false,
@@ -280,12 +418,12 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         docs_required: false,
         related_syntax_rule: Some("file_exp"),
         related_diagnostic_codes: &[
-            "semantic.file_path.absolute",
-            "semantic.file_path.dot_segment",
+            SemanticValidation(DiagnosticCode::SemanticFilePathAbsolute),
+            SemanticValidation(DiagnosticCode::SemanticFilePathDotSegment),
         ],
     },
     SemanticRuleEntry {
-        id: "value-reference.dir-entry-name.validate",
+        id: SemanticRuleId::ValueReferenceDirEntryNameValidate,
         category: ValueReference,
         implementation_status: Implemented,
         spec_required: false,
@@ -293,14 +431,14 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         docs_required: false,
         related_syntax_rule: Some("dir_contains"),
         related_diagnostic_codes: &[
-            "semantic.dir_entry_name.empty",
-            "semantic.dir_entry_name.path_separator",
-            "semantic.dir_entry_name.dot_entry",
-            "semantic.dir_entry_name.control_char",
+            SemanticValidation(DiagnosticCode::SemanticDirEntryNameEmpty),
+            SemanticValidation(DiagnosticCode::SemanticDirEntryNamePathSeparator),
+            SemanticValidation(DiagnosticCode::SemanticDirEntryNameDotEntry),
+            SemanticValidation(DiagnosticCode::SemanticDirEntryNameControlChar),
         ],
     },
     SemanticRuleEntry {
-        id: "value-reference.fixture-reference.resolve",
+        id: SemanticRuleId::ValueReferenceFixtureReferenceResolve,
         category: ValueReference,
         implementation_status: Implemented,
         spec_required: true,
@@ -308,16 +446,16 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         docs_required: true,
         related_syntax_rule: Some("fixture_reference_literal"),
         related_diagnostic_codes: &[
-            "semantic.fixture_reference.empty",
-            "semantic.fixture_reference.absolute",
-            "semantic.fixture_reference.dot_segment",
-            "semantic.fixture_reference.missing",
-            "semantic.fixture_reference.not_a_regular_file",
-            "semantic.fixture_reference.escapes_repor_directory",
+            SemanticValidation(DiagnosticCode::SemanticFixtureReferenceEmpty),
+            SemanticValidation(DiagnosticCode::SemanticFixtureReferenceAbsolute),
+            SemanticValidation(DiagnosticCode::SemanticFixtureReferenceDotSegment),
+            SemanticValidation(DiagnosticCode::SemanticFixtureReferenceMissing),
+            SemanticValidation(DiagnosticCode::SemanticFixtureReferenceNotARegularFile),
+            SemanticValidation(DiagnosticCode::SemanticFixtureReferenceEscapesReporDirectory),
         ],
     },
     SemanticRuleEntry {
-        id: "value-reference.file-contents-reference.resolve",
+        id: SemanticRuleId::ValueReferenceFileContentsReferenceResolve,
         category: ValueReference,
         implementation_status: Implemented,
         spec_required: true,
@@ -325,19 +463,45 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         docs_required: true,
         related_syntax_rule: None,
         related_diagnostic_codes: &[
-            "semantic.file_contents_reference.missing",
-            "semantic.file_contents_reference.not_regular_file",
-            "semantic.file_contents_reference.read_error",
+            SemanticValidation(DiagnosticCode::SemanticFileContentsReferenceMissing),
+            SemanticValidation(DiagnosticCode::SemanticFileContentsReferenceNotARegularFile),
+            SemanticValidation(DiagnosticCode::SemanticFileContentsReferenceReadError),
         ],
     },
     SemanticRuleEntry {
-        id: "value-reference.literal.kind-mismatch",
+        id: SemanticRuleId::ValueReferenceLiteralKindMismatch,
         category: ValueReference,
         implementation_status: Implemented,
         spec_required: true,
         conformance_required: true,
         docs_required: true,
         related_syntax_rule: Some("value_literal"),
-        related_diagnostic_codes: &["semantic.literal.kind_mismatch"],
+        related_diagnostic_codes: &[SemanticValidation(
+            DiagnosticCode::SemanticLiteralKindMismatch,
+        )],
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_matches_as_str() {
+        for id in SemanticRuleId::ALL {
+            assert_eq!(id.to_string(), id.as_str());
+        }
+    }
+
+    /// `as usize` yields the declaration index of a fieldless variant, so requiring `ALL[i] as usize == i` proves `ALL` matches declaration order with no duplicate and no gap.
+    /// A variant appended after the last `ALL` element is the one omission this cannot see; the doc comment on `ALL` covers that case.
+    #[test]
+    fn all_lists_every_variant_once_in_declaration_order() {
+        for (index, id) in SemanticRuleId::ALL.iter().enumerate() {
+            assert_eq!(
+                *id as usize, index,
+                "SemanticRuleId::ALL out of sync at index {index} ({id})"
+            );
+        }
+    }
+}

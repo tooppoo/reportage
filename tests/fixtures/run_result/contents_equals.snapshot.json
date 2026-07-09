@@ -2,7 +2,7 @@
   "diagnostics": [
     {
       "category": "assertion",
-      "code": "assertion.stdout.contents_equals_mismatch",
+      "code": "assertion.stdout.contents_equals.mismatch",
       "id": "diagnostic-1",
       "location": null,
       "message": "stdout contents did not match expected bytes (first differing byte at offset 4, line 1)",

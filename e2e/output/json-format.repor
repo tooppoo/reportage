@@ -47,6 +47,6 @@ case "--format=json reports the assertion diagnostic code for an assertion failu
   assert {
     exit 1
     stdout contains "\"category\": \"assertion\""
-    stdout contains "\"code\": \"assertion.stdout.contains_mismatch\""
+    stdout contains "\"code\": \"assertion.stdout.contains.mismatch\""
   }
 }

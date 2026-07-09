@@ -24,7 +24,7 @@ case "file contains fails when the substring is absent" {
 
   assert {
     exit 1
-    stderr contains "assertion.file.contains_mismatch"
+    stderr contains "assertion.file.contains.mismatch"
   }
 }
 

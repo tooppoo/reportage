@@ -449,7 +449,7 @@ fn assertion_failure_fixture_reports_the_same_diagnostic_code_in_both_renderers(
     assert_eq!(json["status"], "failed");
     assert_eq!(exit_code, 1);
     let code = json["diagnostics"][0]["code"].as_str().unwrap();
-    assert_eq!(code, "assertion.stdout.contains_mismatch");
+    assert_eq!(code, "assertion.stdout.contains.mismatch");
 
     let human = run_human(&path);
     assert!(

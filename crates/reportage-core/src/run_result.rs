@@ -943,7 +943,7 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0]["category"], "assertion");
         assert_eq!(diagnostics[0]["severity"], "failure");
-        assert_eq!(diagnostics[0]["code"], "assertion.stdout.contains_mismatch");
+        assert_eq!(diagnostics[0]["code"], "assertion.stdout.contains.mismatch");
         assert_eq!(
             doc["tests"][0]["assertions"][0]["diagnosticRef"],
             "diagnostic-1"
@@ -1267,7 +1267,10 @@ mod tests {
         assert_eq!(expectation["kind"], "exit");
         assert_eq!(expectation["expected"], 1);
         assert_eq!(expectation["actual"], 0);
-        assert_eq!(doc["diagnostics"][0]["code"], "assertion.exit.mismatch");
+        assert_eq!(
+            doc["diagnostics"][0]["code"],
+            "assertion.exit.equals.mismatch"
+        );
     }
 
     #[test]
@@ -1320,11 +1323,11 @@ mod tests {
 
         let diagnostics = doc["diagnostics"].as_array().unwrap();
         assert_eq!(diagnostics.len(), 3);
-        assert_eq!(diagnostics[0]["code"], "assertion.file.contains_mismatch");
-        assert_eq!(diagnostics[1]["code"], "assertion.dir.exists_missing");
+        assert_eq!(diagnostics[0]["code"], "assertion.file.contains.mismatch");
+        assert_eq!(diagnostics[1]["code"], "assertion.dir.exists.missing");
         assert_eq!(
             diagnostics[2]["code"],
-            "assertion.dir.contains_entry_missing"
+            "assertion.dir.contains.entry_missing"
         );
     }
 
@@ -1361,7 +1364,7 @@ mod tests {
         assert_eq!(expectation["outcome"], "mismatch");
         assert_eq!(
             doc["diagnostics"][0]["code"],
-            "assertion.file.text_equals_mismatch"
+            "assertion.file.text_equals.mismatch"
         );
     }
 
@@ -1420,7 +1423,7 @@ mod tests {
         assert!(mismatch_json["expectedContext"].is_string());
         assert_eq!(
             doc["diagnostics"][0]["code"],
-            "assertion.file.contents_equals_mismatch"
+            "assertion.file.contents_equals.mismatch"
         );
 
         let stderr_expectation = &doc["tests"][0]["assertions"][1]["expectation"];

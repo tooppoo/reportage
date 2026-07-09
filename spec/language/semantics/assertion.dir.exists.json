@@ -38,7 +38,7 @@
         "stderr": { "data": "", "encoding": "base64", "text": "" }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.dir.exists_missing"
+      "expectedDiagnosticCode": "assertion.dir.exists.missing"
     },
     {
       "description": "dir exists fails when the path is a regular file, not a directory",
@@ -55,7 +55,7 @@
         }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.dir.exists_not_directory"
+      "expectedDiagnosticCode": "assertion.dir.exists.not_directory"
     }
   ]
 }

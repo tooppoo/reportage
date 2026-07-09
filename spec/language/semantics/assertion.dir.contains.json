@@ -45,7 +45,7 @@
         }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.dir.contains_entry_missing"
+      "expectedDiagnosticCode": "assertion.dir.contains.entry_missing"
     },
     {
       "description": "dir contains matches the full entry name only, never a substring of it",
@@ -62,7 +62,7 @@
         }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.dir.contains_entry_missing"
+      "expectedDiagnosticCode": "assertion.dir.contains.entry_missing"
     },
     {
       "description": "dir contains fails when the subject path does not exist",
@@ -74,7 +74,7 @@
         "stderr": { "data": "", "encoding": "base64", "text": "" }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.dir.contains_subject_missing"
+      "expectedDiagnosticCode": "assertion.dir.contains.subject_missing"
     },
     {
       "description": "dir contains fails when the subject path is a regular file, not a directory",
@@ -91,7 +91,7 @@
         }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.dir.contains_subject_not_directory"
+      "expectedDiagnosticCode": "assertion.dir.contains.subject_not_directory"
     }
   ]
 }
