@@ -1,0 +1,94 @@
+{
+  "documents": [
+    {
+      "id": "syntax",
+      "path": "docs/syntax.md",
+      "title": "Syntax reference",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/syntax.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/syntax.md"
+      }
+    },
+    {
+      "id": "semantics",
+      "path": "docs/semantics.md",
+      "title": "Semantics",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/semantics.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/semantics.md"
+      }
+    },
+    {
+      "id": "semantic-rules",
+      "path": "docs/language/semantic-rules.md",
+      "title": "Semantic rule catalog",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/language/semantic-rules.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/language/semantic-rules.md"
+      }
+    },
+    {
+      "id": "diagnostics",
+      "path": "docs/diagnostics.md",
+      "title": "Diagnostics",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/diagnostics.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/diagnostics.md"
+      }
+    },
+    {
+      "id": "execution-model",
+      "path": "docs/execution-model.md",
+      "title": "Execution model",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/execution-model.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/execution-model.md"
+      }
+    },
+    {
+      "id": "exit-codes",
+      "path": "docs/exit-codes.md",
+      "title": "Exit codes",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/exit-codes.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/exit-codes.md"
+      }
+    },
+    {
+      "id": "configuration",
+      "path": "docs/configuration.md",
+      "title": "Configuration",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/configuration.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/configuration.md"
+      }
+    },
+    {
+      "id": "json-report",
+      "path": "spec/output/json-report/README.md",
+      "title": "JSON execution report contract",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/spec/output/json-report/README.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/spec/output/json-report/README.md"
+      }
+    },
+    {
+      "id": "run-result",
+      "path": "spec/artifacts/run-result/README.md",
+      "title": "Run result artifact contract",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/spec/artifacts/run-result/README.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/spec/artifacts/run-result/README.md"
+      }
+    }
+  ],
+  "schema_version": 1,
+  "tool": {
+    "name": "reportage",
+    "tag": "vX.Y.Z",
+    "version": "X.Y.Z"
+  },
+  "validation": {
+    "command": "reportage <file.repor> --format=json"
+  }
+}

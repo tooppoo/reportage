@@ -7,3 +7,15 @@ case "with --help" {
     stdout contains "Usage: reportage [OPTIONS] [SUBCOMMAND]..."
   }
 }
+
+# --help points at `reportage docs` instead of enumerating documentation URLs.
+# See docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md.
+case "--help points to the docs discovery command" {
+  $ reportage --help
+
+  assert {
+    exit 0
+    stdout contains "Run `reportage docs` to list versioned documentation URLs."
+    stdout contains "Run `reportage docs --format=json` for a machine-readable docs index."
+  }
+}

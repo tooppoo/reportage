@@ -1,0 +1,51 @@
+# `reportage docs` is a side-effect-free documentation discovery command (issue #137):
+# it prints the versioned URL index for the running binary and must not run scripts,
+# load config, or create the .reportage/ artifact directory.
+# The exact version varies per build, so assertions pin the stable URL prefixes and the
+# `v`-prefixed tag shape instead of a concrete version number.
+
+case "docs prints a human-readable URL index without touching .reportage" {
+  $ reportage docs
+
+  assert {
+    exit 0
+    stdout contains "(docs tag: v"
+    stdout contains "Documents (recommended reading order):"
+    stdout contains "https://github.com/tooppoo/reportage/blob/v"
+    stdout contains "https://raw.githubusercontent.com/tooppoo/reportage/v"
+    stdout contains "After editing a .repor file, run: reportage <file.repor> --format=json"
+    stderr empty
+    not {
+      dir <".reportage"> exists
+    }
+  }
+}
+
+case "docs --format=json prints the machine-readable docs index without touching .reportage" {
+  $ reportage docs --format=json
+
+  assert {
+    exit 0
+    stdout contains "\"schema_version\": 1"
+    stdout contains "\"name\": \"reportage\""
+    stdout contains "\"tag\": \"v"
+    stdout contains "\"human\": \"https://github.com/tooppoo/reportage/blob/v"
+    stdout contains "\"ai\": \"https://raw.githubusercontent.com/tooppoo/reportage/v"
+    stdout contains "\"command\": \"reportage <file.repor> --format=json\""
+    stderr empty
+    not {
+      dir <".reportage"> exists
+    }
+  }
+}
+
+# The docs subcommand follows the existing CLI argument-error policy: clap rejects the value
+# and the reportage process exits 4, the same as e2e/options/unknown-options.repor.
+case "docs rejects an unsupported format as an argument error" {
+  $ reportage docs --format=yaml
+
+  assert {
+    exit 4
+    stderr contains "error: invalid value 'yaml' for '--format <FORMAT>'"
+  }
+}

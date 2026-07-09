@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tooppoo/reportage/spec/output/docs-index/schema.json",
+  "title": "Reportage docs --format=json Documentation Index",
+  "description": "External contract for `reportage docs --format=json`'s CLI stdout document: the versioned documentation URL index for the running reportage binary. This is an independent contract from the run report document (spec/output/json-report/schema.json) even though both are selected with `--format=json`. The order of `documents[]` is the recommended reading order for AI consumers and is part of the contract. This schema validates output structure only; the repository-existence of `documents[].path` is verified by a separate repository consistency check (crates/reportage-cli/tests/docs_index.rs), and tag existence / URL reachability are not verified at all. See docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md and issue #137.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tool", "documents", "validation"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Version of this docs index contract."
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "tag"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "const": "reportage",
+          "description": "The binary/tool name, not the Rust package name."
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The runtime version of the reportage binary that produced this index."
+        },
+        "tag": {
+          "type": "string",
+          "pattern": "^v.+$",
+          "description": "The `v{version}` git tag the URLs point at. Built mechanically from `version`; its existence is not verified."
+        }
+      }
+    },
+    "documents": {
+      "type": "array",
+      "description": "The documentation URL index, in the recommended reading order for AI consumers. `id` values are unique within the array (cross-item uniqueness is enforced by CI, not expressible here).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "path", "urls"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Stable identifier for the document. Survives title and path renames."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Repository-root-relative path of the document inside the tooppoo/reportage repository."
+          },
+          "urls": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["human", "ai"],
+            "properties": {
+              "human": {
+                "type": "string",
+                "pattern": "^https://github\\.com/tooppoo/reportage/blob/v.+$",
+                "description": "GitHub rendered-view URL for human readers."
+              },
+              "ai": {
+                "type": "string",
+                "pattern": "^https://raw\\.githubusercontent\\.com/tooppoo/reportage/v.+$",
+                "description": "Raw source URL for AI consumers."
+              }
+            }
+          }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command"],
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The CLI invocation to run after editing a `.repor` file. Always an invocation that exists in the reportage version that produced this index."
+        }
+      }
+    }
+  }
+}
