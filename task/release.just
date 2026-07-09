@@ -1,9 +1,4 @@
 
-# create archives for release
-[group('release')]
-archive dist:
-  @sh scripts/release/archive.sh {{ dist }}
-
 # create release tag(version pin) for the given version
 [group('release')]
 release-tag version:
