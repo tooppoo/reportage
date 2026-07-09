@@ -60,7 +60,7 @@ jobs:
           use_oidc: true
 
   setup-artifacts:
-    uses: tooppoo/release-workflows/.github/workflows/_setup_artifacts.yml@v1
+    uses: tooppoo/release-workflows/.github/workflows/wf-cross-platform-build.yml@v1
     with:
       config_path: .github/workflows/artifacts.manifest.json
 
