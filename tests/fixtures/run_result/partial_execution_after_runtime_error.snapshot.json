@@ -1,0 +1,82 @@
+{
+  "diagnostics": [
+    {
+      "category": "runtime",
+      "code": "step.write.target_exists",
+      "id": "diagnostic-1",
+      "location": null,
+      "message": "case 'one action runs before a later runtime error': write step at step 4 failed: target path already exists; write is create-only",
+      "origin": {
+        "kind": "source",
+        "source": "partial_execution_after_runtime_error.repor"
+      },
+      "severity": "error"
+    }
+  ],
+  "noop": false,
+  "processExitCode": 3,
+  "schemaVersion": 1,
+  "status": "error",
+  "summary": {
+    "actions": 1,
+    "assertions": 2,
+    "errors": 1,
+    "failed": 0,
+    "passed": 0,
+    "scripts": 1
+  },
+  "tests": [
+    {
+      "actions": [
+        {
+          "command": "echo hello",
+          "exitCode": 0,
+          "id": "action-1",
+          "stderr": {
+            "artifactRef": "test-1/action-1/stderr.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-1/action-1/stdout.bin",
+            "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+            "sizeBytes": 6
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "checkpoint": "action-1",
+          "expectation": {
+            "actual": 0,
+            "expected": 0,
+            "kind": "exit",
+            "status": "passed"
+          },
+          "id": "assertion-1",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-1",
+          "expectation": {
+            "actualRef": "test-1/action-1/stdout.bin",
+            "actualSizeBytes": 6,
+            "expected": "hello",
+            "kind": "stdoutContains",
+            "status": "passed"
+          },
+          "id": "assertion-2",
+          "status": "passed"
+        }
+      ],
+      "id": "test-1",
+      "name": "one action runs before a later runtime error",
+      "path": "partial_execution_after_runtime_error.repor",
+      "status": "error"
+    }
+  ],
+  "tool": {
+    "name": "reportage",
+    "version": "<VERSION>"
+  }
+}

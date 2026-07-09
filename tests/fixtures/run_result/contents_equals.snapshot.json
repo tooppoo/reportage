@@ -1,0 +1,144 @@
+{
+  "diagnostics": [
+    {
+      "category": "assertion",
+      "code": "assertion.stdout.contents_equals_mismatch",
+      "id": "diagnostic-1",
+      "location": null,
+      "message": "stdout contents did not match expected bytes (first differing byte at offset 4, line 1)",
+      "origin": {
+        "kind": "test",
+        "test": "test-2"
+      },
+      "severity": "failure"
+    }
+  ],
+  "noop": false,
+  "processExitCode": 1,
+  "schemaVersion": 1,
+  "status": "failed",
+  "summary": {
+    "actions": 2,
+    "assertions": 3,
+    "errors": 0,
+    "failed": 1,
+    "passed": 1,
+    "scripts": 1
+  },
+  "tests": [
+    {
+      "actions": [
+        {
+          "command": "cat actual.txt",
+          "exitCode": 0,
+          "id": "action-1",
+          "stderr": {
+            "artifactRef": "test-1/action-1/stderr.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-1/action-1/stdout.bin",
+            "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+            "sizeBytes": 6
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "checkpoint": "action-1",
+          "expectation": {
+            "actualSizeBytes": 6,
+            "expectedSizeBytes": 6,
+            "expectedSource": {
+              "kind": "workspace",
+              "path": "expected.txt"
+            },
+            "kind": "fileContentsEquals",
+            "observed": "compared",
+            "outcome": "match",
+            "path": "actual.txt",
+            "status": "passed"
+          },
+          "id": "assertion-1",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-1",
+          "expectation": {
+            "actualRef": "test-1/action-1/stdout.bin",
+            "actualSizeBytes": 6,
+            "expectedSizeBytes": 6,
+            "expectedSource": {
+              "kind": "workspace",
+              "path": "expected.txt"
+            },
+            "kind": "stdoutContentsEquals",
+            "outcome": "match",
+            "status": "passed"
+          },
+          "id": "assertion-2",
+          "status": "passed"
+        }
+      ],
+      "id": "test-1",
+      "name": "contents_equals matches a workspace expected file",
+      "path": "contents_equals.repor",
+      "status": "passed"
+    },
+    {
+      "actions": [
+        {
+          "command": "printf 'hellp\\n'",
+          "exitCode": 0,
+          "id": "action-1",
+          "stderr": {
+            "artifactRef": "test-2/action-1/stderr.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-2/action-1/stdout.bin",
+            "sha256": "bf8c83416f31143ee2fa5db7ebbbb54589626c4c2046a91d28545bc403e3cda6",
+            "sizeBytes": 6
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "checkpoint": "action-1",
+          "diagnosticRef": "diagnostic-1",
+          "expectation": {
+            "actualRef": "test-2/action-1/stdout.bin",
+            "actualSizeBytes": 6,
+            "diagnosticRef": "diagnostic-1",
+            "expectedSizeBytes": 6,
+            "expectedSource": {
+              "kind": "workspace",
+              "path": "expected.txt"
+            },
+            "kind": "stdoutContentsEquals",
+            "mismatch": {
+              "actualContext": "hellp\\n",
+              "expectedContext": "hello\\n",
+              "firstDiffLine": 1,
+              "firstDiffOffset": 4
+            },
+            "outcome": "mismatch",
+            "status": "failed"
+          },
+          "id": "assertion-1",
+          "status": "failed"
+        }
+      ],
+      "id": "test-2",
+      "name": "contents_equals records a bounded mismatch",
+      "path": "contents_equals.repor",
+      "status": "failed"
+    }
+  ],
+  "tool": {
+    "name": "reportage",
+    "version": "<VERSION>"
+  }
+}

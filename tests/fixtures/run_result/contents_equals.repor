@@ -1,0 +1,23 @@
+case "contents_equals matches a workspace expected file" {
+  write <"expected.txt"> ```
+    hello
+    ```
+  write <"actual.txt"> ```
+    hello
+    ```
+  $ cat actual.txt
+  assert {
+    file <"actual.txt"> contents_equals <"expected.txt">
+    stdout contents_equals <"expected.txt">
+  }
+}
+
+case "contents_equals records a bounded mismatch" {
+  write <"expected.txt"> ```
+    hello
+    ```
+  $ printf 'hellp\n'
+  assert {
+    stdout contents_equals <"expected.txt">
+  }
+}

@@ -1,0 +1,1100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tooppoo/reportage/spec/artifacts/run-result/schema.json",
+  "title": "Reportage Artifact Run Result (result.json)",
+  "description": "Canonical contract for the artifact `result.json` written to `.reportage/runs/<run-id>/` by `reportage run`. The artifact bundle (this manifest plus the evidence files it references) is the canonical record of a run; the `--format=json` CLI stdout document (spec/output/json-report/schema.json) is a stdout-safe projection derived from this document. Raw byte evidence (captured stdout/stderr) is never inlined here: it is stored as separate files inside the bundle and referenced via `artifactRef` / `sizeBytes` / `sha256`. See docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md and docs/artifacts.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "tool",
+    "status",
+    "processExitCode",
+    "noop",
+    "summary",
+    "diagnostics",
+    "tests"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Version of this canonical artifact result contract. Distinct from the `--format=json` stdout contract's own schemaVersion and from the reportage CLI/crate version (see `tool.version`)."
+    },
+    "tool": {
+      "$ref": "#/$defs/Tool"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed",
+        "error"
+      ],
+      "description": "Top-level outcome. Precedence: error > failed > passed."
+    },
+    "processExitCode": {
+      "type": "integer",
+      "description": "The exit code `reportage run` will terminate with. Distinct from any individual action's `exitCode`."
+    },
+    "noop": {
+      "type": "boolean",
+      "description": "True when the run was a no-op success: the selected input was valid but produced zero concrete cases, so nothing was executed and `tests` is empty. See docs/exit-codes.md \u2014 Empty and zero-case scripts."
+    },
+    "summary": {
+      "$ref": "#/$defs/Summary"
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Diagnostic"
+      }
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Test"
+      }
+    }
+  },
+  "$defs": {
+    "Tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "Summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scripts",
+        "actions",
+        "assertions",
+        "passed",
+        "failed",
+        "errors"
+      ],
+      "properties": {
+        "scripts": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Distinct source files, not concrete cases."
+        },
+        "actions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "assertions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of passed tests."
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of failed tests."
+        },
+        "errors": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of file-level errors plus error-status tests."
+        }
+      }
+    },
+    "DiagnosticCode": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$",
+      "description": "A stable diagnostic code (e.g. 'parse.syntax', 'assertion.stdout.contains_mismatch', 'step.write.target_exists'). This is an open, growing set documented in docs/diagnostics.md and docs/semantic-diagnostics.md, not a fixed enum: new codes may be added without a schemaVersion bump, but existing codes are stable identifiers and must not be repurposed."
+    },
+    "DiagnosticRefField": {
+      "type": "string",
+      "description": "References `diagnostics[].id`. Present only when this expectation node itself failed and produced a diagnostic."
+    },
+    "Origin": {
+      "description": "Where a diagnostic originates: a source file (before any case exists) or a specific test.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "source"
+          ],
+          "properties": {
+            "kind": {
+              "const": "source"
+            },
+            "source": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "test"
+          ],
+          "properties": {
+            "kind": {
+              "const": "test"
+            },
+            "test": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "Location": {
+      "description": "Source line/column of a diagnostic. Only populated for parse-domain diagnostics (category 'parse') in v0; every other category currently reports `location: null` and relies on `origin` instead, because source ranges are not yet tracked on the evaluator side (see the non-goals in issue #89 and docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "line"
+      ],
+      "properties": {
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "description": "Not every parse-domain error variant tracks a column; null when only the line is known."
+        }
+      }
+    },
+    "Diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "category",
+        "severity",
+        "message",
+        "origin",
+        "location"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document-local id (e.g. 'diagnostic-1'). Stable within this document only, not a long-term stable identifier across runs."
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "parse",
+            "semantic",
+            "runtime",
+            "assertion",
+            "internal"
+          ],
+          "description": "'internal' covers failures that predate parsing (e.g. a file read error) and do not fit the four namespaces defined in docs/semantic-diagnostics.md."
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "error",
+            "failure"
+          ],
+          "description": "'failure' is used only for assertion diagnostics, to distinguish an unmet expectation from every other error category."
+        },
+        "message": {
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/Origin"
+        },
+        "location": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Location"
+            }
+          ]
+        },
+        "code": {
+          "$ref": "#/$defs/DiagnosticCode"
+        }
+      }
+    },
+    "Test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "path",
+        "status",
+        "actions",
+        "assertions"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document-local id (e.g. 'test-1')."
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "error"
+          ]
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Action"
+          }
+        },
+        "assertions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Assertion"
+          }
+        }
+      }
+    },
+    "StreamArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactRef",
+        "sizeBytes",
+        "sha256"
+      ],
+      "properties": {
+        "artifactRef": {
+          "type": "string",
+          "description": "Path of the evidence file, relative to the directory containing this `result.json` (the run directory). Captured stdout/stderr bytes are never inlined; see docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md."
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Lowercase hex SHA-256 digest of the referenced evidence file's bytes. Required so a consumer can verify that the bundle's evidence file is the one this manifest describes."
+        }
+      },
+      "description": "Reference to one action's captured stdout or stderr, stored as a raw byte evidence file inside the artifact bundle."
+    },
+    "ShimInvocation": {
+      "description": "One recorded shim invocation event. `additionalProperties` is intentionally not `false` here: this shape is emitted by the shim runtime rather than the JSON renderer itself and may grow new fields as shim tooling evolves, independently of this document's own schemaVersion.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "schemaVersion",
+        "commandName",
+        "shimPath",
+        "target",
+        "forwardsCallerArgs"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "commandName": {
+          "type": "string"
+        },
+        "shimPath": {
+          "type": "string"
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "program",
+            "args"
+          ],
+          "properties": {
+            "program": {
+              "type": "string"
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "forwardsCallerArgs": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "command",
+        "exitCode",
+        "stdout",
+        "stderr"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document-local id (e.g. 'action-1')."
+        },
+        "command": {
+          "type": "string"
+        },
+        "exitCode": {
+          "type": "integer"
+        },
+        "stdout": {
+          "$ref": "#/$defs/StreamArtifact"
+        },
+        "stderr": {
+          "$ref": "#/$defs/StreamArtifact"
+        },
+        "shimInvocations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ShimInvocation"
+          }
+        },
+        "shimEventParseWarnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "Assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "status",
+        "checkpoint",
+        "expectation"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document-local id (e.g. 'assertion-1')."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "checkpoint": {
+          "type": "string",
+          "description": "'initial' or an action id (e.g. 'action-2') identifying which action's result this assertion was evaluated against."
+        },
+        "expectation": {
+          "$ref": "#/$defs/Expectation"
+        },
+        "diagnosticRef": {
+          "type": "string",
+          "description": "References `diagnostics[].id`. Present only when this assertion (or, for a logical composition, the composition itself) failed."
+        }
+      }
+    },
+    "ExpectedSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "path"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "workspace",
+            "fixture"
+          ]
+        },
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "TextExpectedSource": {
+      "description": "A `text_equals` expected value's source: an inline `TextLiteral`, not a reference to another file. Unlike `ExpectedSource`, `value` carries the full inline text verbatim, mirroring `fileContains`'s `expected` field.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "quoted",
+            "heredoc"
+          ]
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "ContentsMismatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "firstDiffOffset",
+        "firstDiffLine",
+        "actualContext",
+        "expectedContext"
+      ],
+      "properties": {
+        "firstDiffOffset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "firstDiffLine": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "actualContext": {
+          "type": "string",
+          "description": "A bounded, escaped window of actual bytes around the first difference. Never the full actual content."
+        },
+        "expectedContext": {
+          "type": "string",
+          "description": "A bounded, escaped window of expected bytes around the first difference. Never the full expected content."
+        }
+      }
+    },
+    "Expectation": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ExitExpectation"
+        },
+        {
+          "$ref": "#/$defs/StreamContainsExpectation"
+        },
+        {
+          "$ref": "#/$defs/StreamEmptyExpectation"
+        },
+        {
+          "$ref": "#/$defs/FileExistsExpectation"
+        },
+        {
+          "$ref": "#/$defs/FileContainsExpectation"
+        },
+        {
+          "$ref": "#/$defs/FileContentsEqualsExpectation"
+        },
+        {
+          "$ref": "#/$defs/FileTextEqualsExpectation"
+        },
+        {
+          "$ref": "#/$defs/StreamContentsEqualsExpectation"
+        },
+        {
+          "$ref": "#/$defs/DirExistsExpectation"
+        },
+        {
+          "$ref": "#/$defs/DirContainsExpectation"
+        },
+        {
+          "$ref": "#/$defs/LogicalExpectation"
+        }
+      ]
+    },
+    "ExitExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "status",
+        "expected",
+        "actual"
+      ],
+      "properties": {
+        "kind": {
+          "const": "exit"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "expected": {
+          "type": "integer"
+        },
+        "actual": {
+          "type": "integer"
+        },
+        "diagnosticRef": {
+          "$ref": "#/$defs/DiagnosticRefField"
+        }
+      }
+    },
+    "StreamContainsExpectation": {
+      "description": "kind is 'stdoutContains' or 'stderrContains'.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "status",
+        "expected",
+        "actualSizeBytes"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "stdoutContains",
+            "stderrContains"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "expected": {
+          "type": "string"
+        },
+        "actualRef": {
+          "type": "string",
+          "description": "Present only when this assertion was evaluated after at least one action ran."
+        },
+        "actualSizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "diagnosticRef": {
+          "$ref": "#/$defs/DiagnosticRefField"
+        }
+      }
+    },
+    "StreamEmptyExpectation": {
+      "description": "kind is 'stdoutEmpty' or 'stderrEmpty'.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "status",
+        "actualSizeBytes"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "stdoutEmpty",
+            "stderrEmpty"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "actualRef": {
+          "type": "string"
+        },
+        "actualSizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "diagnosticRef": {
+          "$ref": "#/$defs/DiagnosticRefField"
+        }
+      }
+    },
+    "FileExistsExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "status",
+        "path",
+        "observed"
+      ],
+      "properties": {
+        "kind": {
+          "const": "fileExists"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "observed": {
+          "type": "string",
+          "enum": [
+            "regularFile",
+            "notRegularFile",
+            "missing"
+          ]
+        },
+        "diagnosticRef": {
+          "$ref": "#/$defs/DiagnosticRefField"
+        }
+      }
+    },
+    "FileContainsExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "status",
+        "path",
+        "expected",
+        "observed"
+      ],
+      "properties": {
+        "kind": {
+          "const": "fileContains"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "expected": {
+          "type": "string"
+        },
+        "observed": {
+          "type": "string",
+          "enum": [
+            "found",
+            "notFound",
+            "missing",
+            "notRegularFile",
+            "unreadable",
+            "notUtf8"
+          ]
+        },
+        "diagnosticRef": {
+          "$ref": "#/$defs/DiagnosticRefField"
+        }
+      }
+    },
+    "FileContentsEqualsExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "status",
+        "path",
+        "expectedSource",
+        "observed"
+      ],
+      "properties": {
+        "kind": {
+          "const": "fileContentsEquals"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "expectedSource": {
+          "$ref": "#/$defs/ExpectedSource"
+        },
+        "observed": {
+          "type": "string",
+          "enum": [
+            "compared",
+            "actualMissing",
+            "actualNotARegularFile",
+            "actualUnreadable"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "match",
+            "mismatch"
+          ]
+        },
+        "actualSizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expectedSizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mismatch": {
+          "$ref": "#/$defs/ContentsMismatch"
+        },
+        "diagnosticRef": {
+          "$ref": "#/$defs/DiagnosticRefField"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "observed": {
+                "const": "compared"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "outcome",
+              "actualSizeBytes",
+              "expectedSizeBytes"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "mismatch"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "mismatch"
+            ]
+          }
+        }
+      ]
+    },
+    "FileTextEqualsExpectation": {
+      "description": "text_equals (#88): a file checkpoint's byte-for-byte comparison against an inline TextValue, never a FileContentsReference. observed/outcome/mismatch mirror fileContentsEquals; only expectedSource's shape differs (TextExpectedSource, not ExpectedSource).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "status",
+        "path",
+        "expectedSource",
+        "observed"
+      ],
+      "properties": {
+        "kind": {
+          "const": "fileTextEquals"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "expectedSource": {
+          "$ref": "#/$defs/TextExpectedSource"
+        },
+        "observed": {
+          "type": "string",
+          "enum": [
+            "compared",
+            "actualMissing",
+            "actualNotARegularFile",
+            "actualUnreadable"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "match",
+            "mismatch"
+          ]
+        },
+        "actualSizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expectedSizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mismatch": {
+          "$ref": "#/$defs/ContentsMismatch"
+        },
+        "diagnosticRef": {
+          "$ref": "#/$defs/DiagnosticRefField"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "observed": {
+                "const": "compared"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "outcome",
+              "actualSizeBytes",
+              "expectedSizeBytes"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "mismatch"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "mismatch"
+            ]
+          }
+        }
+      ]
+    },
+    "StreamContentsEqualsExpectation": {
+      "description": "kind is 'stdoutContentsEquals' or 'stderrContentsEquals'. Unlike fileContentsEquals, the actual side (a captured stream) is never 'missing': comparison outcome is always present.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "status",
+        "expectedSource",
+        "outcome",
+        "actualSizeBytes",
+        "expectedSizeBytes"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "stdoutContentsEquals",
+            "stderrContentsEquals"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "expectedSource": {
+          "$ref": "#/$defs/ExpectedSource"
+        },
+        "actualRef": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "match",
+            "mismatch"
+          ]
+        },
+        "actualSizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expectedSizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mismatch": {
+          "$ref": "#/$defs/ContentsMismatch"
+        },
+        "diagnosticRef": {
+          "$ref": "#/$defs/DiagnosticRefField"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "mismatch"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "mismatch"
+            ]
+          }
+        }
+      ]
+    },
+    "DirExistsExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "status",
+        "path",
+        "observed"
+      ],
+      "properties": {
+        "kind": {
+          "const": "dirExists"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "observed": {
+          "type": "string",
+          "enum": [
+            "directory",
+            "notADirectory",
+            "missing"
+          ]
+        },
+        "diagnosticRef": {
+          "$ref": "#/$defs/DiagnosticRefField"
+        }
+      }
+    },
+    "DirContainsExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "status",
+        "path",
+        "expectedEntry",
+        "observed"
+      ],
+      "properties": {
+        "kind": {
+          "const": "dirContains"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "expectedEntry": {
+          "type": "string"
+        },
+        "observed": {
+          "type": "string",
+          "enum": [
+            "found",
+            "entryMissing",
+            "subjectMissing",
+            "subjectNotADirectory",
+            "subjectUnreadable"
+          ]
+        },
+        "diagnosticRef": {
+          "$ref": "#/$defs/DiagnosticRefField"
+        }
+      }
+    },
+    "LogicalExpectation": {
+      "description": "A 'not' / 'all' / 'any' composition. Children are independently evaluated expectations; a child's own diagnosticRef is never set (see run_result.rs's expectation_json doc comment) \u2014 only the composition node itself may carry one, on its parent Assertion.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "status",
+        "operator",
+        "children"
+      ],
+      "properties": {
+        "kind": {
+          "const": "logical"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "operator": {
+          "type": "string",
+          "enum": [
+            "not",
+            "all",
+            "any"
+          ]
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Expectation"
+          }
+        },
+        "diagnosticRef": {
+          "$ref": "#/$defs/DiagnosticRefField",
+          "description": "Present only when this composition itself failed. Never present on a child expectation inside `children`."
+        }
+      }
+    }
+  }
+}

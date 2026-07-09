@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/tooppoo/reportage/spec/output/json-report/schema.json",
   "title": "Reportage --format=json Execution Report",
-  "description": "External contract for `reportage run --format=json`'s CLI stdout document. This is a structured execution report derived from the internal ExecutionReport, not a serialization of internal Rust types, and is a distinct machine-readable output from the separate `result.json` artifact written under artifactRoot (see docs/adr/20260706T001018Z_separate-execution-report-from-output-rendering.md). See docs/adr/20260707T045900Z_json-output-as-structured-execution-report.md, docs/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md, and docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md for the decisions this schema encodes.",
+  "description": "External contract for `reportage run --format=json`'s CLI stdout document. This is a structured execution report, not a serialization of internal Rust types. It is a stdout-safe projection of the canonical artifact run result document (`result.json`, spec/artifacts/run-result/schema.json): it adds `artifactRoot` and omits the artifact-only `noop` field and the evidence `sha256` digests (see docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md). See docs/adr/20260707T045900Z_json-output-as-structured-execution-report.md, docs/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md, and docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md for the decisions this schema encodes.",
   "type": "object",
   "additionalProperties": false,
   "required": [

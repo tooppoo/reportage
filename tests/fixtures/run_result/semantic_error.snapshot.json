@@ -1,0 +1,42 @@
+{
+  "diagnostics": [
+    {
+      "category": "semantic",
+      "code": "semantic.expectation.requires_action",
+      "id": "diagnostic-1",
+      "location": null,
+      "message": "case 'checks stdout before any action ran': assertion block at step 1 uses a process expectation (exit, stdout, stderr) but no '$' action has run yet; the initial checkpoint has no last action result",
+      "origin": {
+        "kind": "source",
+        "source": "semantic_error.repor"
+      },
+      "severity": "error"
+    }
+  ],
+  "noop": false,
+  "processExitCode": 2,
+  "schemaVersion": 1,
+  "status": "error",
+  "summary": {
+    "actions": 0,
+    "assertions": 0,
+    "errors": 1,
+    "failed": 0,
+    "passed": 0,
+    "scripts": 1
+  },
+  "tests": [
+    {
+      "actions": [],
+      "assertions": [],
+      "id": "test-1",
+      "name": "checks stdout before any action ran",
+      "path": "semantic_error.repor",
+      "status": "error"
+    }
+  ],
+  "tool": {
+    "name": "reportage",
+    "version": "<VERSION>"
+  }
+}

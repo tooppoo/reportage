@@ -18,8 +18,8 @@ use render::{OutputRenderer, human::HumanRenderer, json::JsonRenderer};
 /// Output format for the run result.
 ///
 /// `Json` is the structured execution report described in issue #75: a single JSON document
-/// on CLI stdout, distinct from the always-written `result.json` artifact file. See
-/// `render::json` for the document shape and the CLI-stdout-vs-captured-output contract.
+/// on CLI stdout, projected from the always-written `result.json` artifact manifest (#102).
+/// See `render::json` for the projection and the CLI-stdout-vs-captured-output contract.
 #[derive(Clone, Copy, Default, clap::ValueEnum)]
 enum OutputFormat {
     #[default]

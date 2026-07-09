@@ -108,7 +108,7 @@ These self-tests should complement, not replace, Rust unit and integration tests
 3. asserts that the nested run's `result.json` artifact file exists, using `file <"path"> exists`;
 4. asserts that `result.json` contains a stable marker, using `file <"path"> contains "<text>"`.
 
-The marker asserted (`"result": "pass"`) is a field name and enum-like value from the artifact schema, not a timestamp, absolute path, or platform-specific string, so it stays stable across runs and machines.
+The marker asserted (`"status": "passed"`) is a field name and enum-like value from the artifact schema, not a timestamp, absolute path, or platform-specific string, so it stays stable across runs and machines.
 
 The nested invocation uses the hidden `--debug-run-id <id>` option so its artifact path is deterministic (`.reportage/runs/<id>/result.json`) instead of the normal millisecond-timestamp run directory. `--debug-run-id` is an internal self-testing / development affordance, not a public stable CLI option, see [`../TBD.md`](../TBD.md), "Self-test run ID control".
 

@@ -33,3 +33,8 @@ lint:
 [group('check')]
 json-report-fixtures-check:
   cargo nextest run --locked -p reportage-cli --test json_report_fixtures
+
+# run the artifact result.json representative-fixture schema/snapshot/parity conformance tests
+[group('check')]
+run-result-fixtures-check:
+  cargo nextest run --locked -p reportage-cli --test run_result_fixtures

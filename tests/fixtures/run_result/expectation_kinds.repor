@@ -1,0 +1,34 @@
+case "exercises file, dir, text, empty, and logical expectation shapes" {
+  write <"data.txt"> ```
+    hello
+    world
+    ```
+  $ mkdir out
+  $ cp data.txt out/data.txt
+  $ cat data.txt
+  assert {
+    exit 0
+    stdout contains "hello"
+    stderr empty
+    file <"data.txt"> exists
+    file <"data.txt"> contains "world"
+    file <"data.txt"> text_equals ```
+    hello
+    world
+    ```
+    dir <"out"> exists
+    dir <"out"> contains "data.txt"
+    not {
+      file <"missing.txt"> exists
+    }
+    all {
+      exit 0
+      stdout contains "world"
+    }
+    any {
+      exit 1
+      stdout empty
+      exit 0
+    }
+  }
+}

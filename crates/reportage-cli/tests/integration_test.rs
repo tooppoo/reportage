@@ -70,15 +70,15 @@ fn empty_script_is_noop_success() {
         .stdout(predicates::str::contains("no cases found"));
 
     let (json, run_dir) = read_single_result_json(&dir);
-    assert_eq!(json["result"], "pass");
+    assert_eq!(json["status"], "passed");
     assert_eq!(json["noop"], true);
-    assert_eq!(json["summary"]["noop"], true);
-    assert_eq!(json["summary"]["cases"]["total"], 0);
-    assert_eq!(json["summary"]["cases"]["passed"], 0);
-    assert_eq!(json["summary"]["cases"]["failed"], 0);
-    assert_eq!(json["summary"]["steps"]["executed"], 0);
-    assert_eq!(json["summary"]["assertions"]["total"], 0);
-    assert_eq!(json["cases"].as_array().unwrap().len(), 0);
+    assert_eq!(json["summary"]["scripts"], 0);
+    assert_eq!(json["summary"]["actions"], 0);
+    assert_eq!(json["summary"]["assertions"], 0);
+    assert_eq!(json["summary"]["passed"], 0);
+    assert_eq!(json["summary"]["failed"], 0);
+    assert_eq!(json["summary"]["errors"], 0);
+    assert_eq!(json["tests"].as_array().unwrap().len(), 0);
     assert!(
         !run_dir.join("cases").exists(),
         "no-op run must not create case/checkpoint/evidence artifacts"
@@ -97,11 +97,10 @@ fn whitespace_only_script_is_noop_success() {
         .stdout(predicates::str::contains("NO-OP"));
 
     let (json, _run_dir) = read_single_result_json(&dir);
-    assert_eq!(json["result"], "pass");
+    assert_eq!(json["status"], "passed");
     assert_eq!(json["noop"], true);
-    assert_eq!(json["summary"]["cases"]["total"], 0);
-    assert_eq!(json["summary"]["steps"]["executed"], 0);
-    assert_eq!(json["summary"]["assertions"]["total"], 0);
+    assert_eq!(json["summary"]["actions"], 0);
+    assert_eq!(json["summary"]["assertions"], 0);
 }
 
 // --- failing assertions ---
@@ -149,10 +148,10 @@ case "nested composition" {
     reportage(&dir).arg(script).assert().code(0);
 
     let (json, _) = read_single_result_json(&dir);
-    let expectation = &json["cases"][0]["assertion_blocks"][0]["expectations"][0];
+    let expectation = &json["tests"][0]["assertions"][0]["expectation"];
     assert_eq!(expectation["kind"], "logical");
     assert_eq!(expectation["operator"], "all");
-    assert_eq!(expectation["result"], "pass");
+    assert_eq!(expectation["status"], "passed");
     assert_eq!(expectation["children"][0]["operator"], "not");
     assert_eq!(expectation["children"][1]["operator"], "any");
 }
@@ -353,7 +352,7 @@ case "pass" {
         run_dir.join("result.json").exists(),
         "result.json should exist"
     );
-    assert_eq!(json["result"], "pass");
+    assert_eq!(json["status"], "passed");
 }
 
 // --- source order execution ---
@@ -390,7 +389,7 @@ case "source order" {
     let content = std::fs::read_to_string(entries[0].path().join("result.json")).unwrap();
     let json: serde_json::Value = serde_json::from_str(&content).unwrap();
 
-    let actions = json["cases"][0]["actions"].as_array().unwrap();
+    let actions = json["tests"][0]["actions"].as_array().unwrap();
     assert_eq!(
         actions.len(),
         1,
@@ -639,25 +638,25 @@ case "shim artifact" {
         .code(0);
 
     let json = read_result_json(&dir);
-    let invocations = &json["cases"][0]["actions"][0]["shim_invocations"];
+    let invocations = &json["tests"][0]["actions"][0]["shimInvocations"];
     assert!(
         invocations.is_array(),
-        "shim_invocations must be an array in result.json"
+        "shimInvocations must be an array in result.json"
     );
     let invocations = invocations.as_array().unwrap();
     assert_eq!(invocations.len(), 1, "one shim invocation expected");
     assert_eq!(
-        invocations[0]["command_name"], "reportage-test-artifact-shim",
-        "command_name in artifact must match the shim name"
+        invocations[0]["commandName"], "reportage-test-artifact-shim",
+        "commandName in artifact must match the shim name"
     );
     assert!(
-        invocations[0]["shim_path"]
+        invocations[0]["shimPath"]
             .as_str()
             .unwrap()
             .contains("reportage-test-artifact-shim"),
-        "shim_path must reference the shim file"
+        "shimPath must reference the shim file"
     );
-    assert_eq!(invocations[0]["forwards_caller_args"], true);
+    assert_eq!(invocations[0]["forwardsCallerArgs"], true);
 }
 
 /// When a case fails and the action was resolved through a reportage-generated shim, the CLI diagnostics include the observed shim path and target invocation.

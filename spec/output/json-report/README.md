@@ -4,7 +4,7 @@ This directory records the external contract for `reportage run --format=json`'s
 
 ## Relationship to other machine-readable outputs
 
-This is **not** the same document as `result.json`, the pre-existing artifact written under `artifactRoot` by `ArtifactWriter::write` (see [`docs/adr/20260706T001018Z_separate-execution-report-from-output-rendering.md`](../../../docs/adr/20260706T001018Z_separate-execution-report-from-output-rendering.md)). `result.json` uses its own, older, snake_case vocabulary (`result: pass|test_failed|script_error|config_error|runtime_error`, see [`docs/exit-codes.md`](../../../docs/exit-codes.md)) and predates this schema. The `--format=json` document defined here uses camelCase and a different `status` vocabulary (`passed|failed|error`). This divergence is intentional and documented, not a bug — see the ADRs below.
+This is **not** the same document as `result.json`, the artifact manifest written under `artifactRoot` by `ArtifactWriter::write` (see [`spec/artifacts/run-result/schema.json`](../../artifacts/run-result/schema.json), issue #102). The artifact bundle is the canonical record of a run, and the `--format=json` document defined here is a stdout-safe projection derived from the canonical run result document: it adds `artifactRoot`, and omits the artifact-only `noop` field and the evidence `sha256` digests. The two contracts version independently; projection parity is verified by `crates/reportage-cli/tests/run_result_fixtures.rs`. See [`docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md`](../../../docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md).
 
 ## JSON Schema
 

@@ -34,7 +34,7 @@ The validation phase:
 3. Collect all file-level errors from the full set of selected files.
 4. If any file has a read or parse error, abort before executing any `$` actions.
 
-All file-level errors are reported in a single run. The run exits with code `2` and the artifact result is `script_error`.
+All file-level errors are reported in a single run. The run exits with code `2`, and the artifact manifest records `status: "error"` with one `diagnostics[]` entry per file-level error (`category: "parse"` for parse errors, `category: "internal"` for read errors; see [`artifacts.md`](artifacts.md)).
 
 If the validation phase passes with no errors, execution proceeds normally across all files.
 
@@ -52,7 +52,7 @@ When selected input is valid but produces zero concrete cases, the runner treats
 - no assertion is evaluated;
 - no case, checkpoint, or evidence artifacts are generated;
 - human-readable CLI output states that no cases were found;
-- the run result summary records `noop: true` and zero case, step, and assertion counts.
+- the run result manifest records `noop: true` and a zeroed summary.
 
 See ADR 20260703T000000Z_empty-and-whitespace-scripts-are-no-op-success for the rationale.
 
