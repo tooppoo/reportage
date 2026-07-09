@@ -55,7 +55,7 @@
         }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.file.text_equals_mismatch"
+      "expectedDiagnosticCode": "assertion.file.text_equals.mismatch"
     },
     {
       "description": "text_equals fails when actual is CRLF and expected is LF; no line-ending normalization is applied",
@@ -77,7 +77,7 @@
         }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.file.text_equals_mismatch"
+      "expectedDiagnosticCode": "assertion.file.text_equals.mismatch"
     },
     {
       "description": "text_equals is an assertion failure, not a script error, when the actual file is missing",
@@ -94,7 +94,7 @@
         "stderr": { "data": "", "encoding": "base64", "text": "" }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.file.text_equals_actual_missing"
+      "expectedDiagnosticCode": "assertion.file.text_equals.actual_missing"
     },
     {
       "description": "invalid: text_equals rejects a workspace path literal as the expected value; TextValue and FileContentsReference do not implicitly convert",

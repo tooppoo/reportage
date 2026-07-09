@@ -34,7 +34,7 @@
         "stderr": { "data": "aGVsbG8K", "encoding": "base64", "text": "hello\n" }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.stderr.not_empty"
+      "expectedDiagnosticCode": "assertion.stderr.empty.not_empty"
     },
     {
       "description": "stderr empty fails on a single newline byte; whitespace-only output is still output",
@@ -46,7 +46,7 @@
         "stderr": { "data": "Cg==", "encoding": "base64", "text": "\n" }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.stderr.not_empty"
+      "expectedDiagnosticCode": "assertion.stderr.empty.not_empty"
     },
     {
       "description": "stderr empty fails on a single space byte",
@@ -58,7 +58,7 @@
         "stderr": { "data": "IA==", "encoding": "base64", "text": " " }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.stderr.not_empty"
+      "expectedDiagnosticCode": "assertion.stderr.empty.not_empty"
     }
   ]
 }

@@ -899,7 +899,7 @@ case "file contents_equals workspace mismatch" {
         .assert()
         .code(1)
         .stderr(predicates::str::contains(
-            "assertion.file.contents_equals_mismatch",
+            "assertion.file.contents_equals.mismatch",
         ));
 }
 
@@ -988,7 +988,7 @@ case "file contents_equals missing actual" {
         .assert()
         .code(1)
         .stderr(predicates::str::contains(
-            "assertion.file.contents_equals_actual_missing",
+            "assertion.file.contents_equals.actual_missing",
         ));
 }
 
@@ -1042,7 +1042,7 @@ case "stderr contents_equals workspace mismatch" {
         .assert()
         .code(1)
         .stderr(predicates::str::contains(
-            "assertion.stderr.contents_equals_mismatch",
+            "assertion.stderr.contents_equals.mismatch",
         ));
 }
 
@@ -1067,7 +1067,7 @@ case "stdout contents_equals workspace mismatch" {
         .assert()
         .code(1)
         .stderr(predicates::str::contains(
-            "assertion.stdout.contents_equals_mismatch",
+            "assertion.stdout.contents_equals.mismatch",
         ));
 }
 
@@ -1092,7 +1092,7 @@ case "file contents_equals actual is a directory" {
         .assert()
         .code(1)
         .stderr(predicates::str::contains(
-            "assertion.file.contents_equals_actual_not_a_regular_file",
+            "assertion.file.contents_equals.actual_not_regular_file",
         ));
 }
 
@@ -1157,14 +1157,14 @@ case "file text_equals heredoc mismatch" {
         .assert()
         .code(1)
         .stderr(predicates::str::contains(
-            "assertion.file.text_equals_mismatch",
+            "assertion.file.text_equals.mismatch",
         ))
         .stderr(predicates::str::contains("<heredoc literal>"));
 }
 
 // The missing-actual-file assertion failure is covered by e2e/assertions/text-equals.repor
 // ("file text_equals reports an assertion failure for a missing actual file"), which checks
-// the same `assertion.file.text_equals_actual_missing` diagnostic code.
+// the same `assertion.file.text_equals.actual_missing` diagnostic code.
 
 #[test]
 fn file_text_equals_actual_directory_is_assertion_failure() {
@@ -1186,7 +1186,7 @@ case "file text_equals actual is a directory" {
         .assert()
         .code(1)
         .stderr(predicates::str::contains(
-            "assertion.file.text_equals_actual_not_a_regular_file",
+            "assertion.file.text_equals.actual_not_regular_file",
         ));
 }
 
@@ -1249,7 +1249,7 @@ case "dir exists against a file" {
             "it is not a directory (e.g. a regular file)",
         ))
         .stderr(predicates::str::contains(
-            "assertion.dir.exists_not_directory",
+            "assertion.dir.exists.not_directory",
         ));
 }
 
@@ -1272,7 +1272,7 @@ case "dir exists missing" {
         .arg(script)
         .assert()
         .code(1)
-        .stderr(predicates::str::contains("assertion.dir.exists_missing"));
+        .stderr(predicates::str::contains("assertion.dir.exists.missing"));
 }
 
 #[test]
@@ -1365,7 +1365,7 @@ case "broken symlink" {
         .arg(script)
         .assert()
         .code(1)
-        .stderr(predicates::str::contains("assertion.dir.exists_missing"));
+        .stderr(predicates::str::contains("assertion.dir.exists.missing"));
 }
 
 #[test]

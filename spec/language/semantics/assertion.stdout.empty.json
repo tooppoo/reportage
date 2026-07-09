@@ -34,7 +34,7 @@
         "stderr": { "data": "", "encoding": "base64", "text": "" }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.stdout.not_empty"
+      "expectedDiagnosticCode": "assertion.stdout.empty.not_empty"
     },
     {
       "description": "stdout empty fails on a single newline byte; whitespace-only output is still output",
@@ -46,7 +46,7 @@
         "stderr": { "data": "", "encoding": "base64", "text": "" }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.stdout.not_empty"
+      "expectedDiagnosticCode": "assertion.stdout.empty.not_empty"
     },
     {
       "description": "stdout empty fails on a single space byte",
@@ -58,7 +58,7 @@
         "stderr": { "data": "", "encoding": "base64", "text": "" }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.stdout.not_empty"
+      "expectedDiagnosticCode": "assertion.stdout.empty.not_empty"
     }
   ]
 }

@@ -75,7 +75,7 @@ Each rule's syntax form is normative in its own spec file's `syntax` field, not 
 
 `fixture-reference` is a `value-reference` rule in its own right, not a sub-concept of `workspace-path`: the two share a lexical validation shape (empty/absolute/dot-segment) but resolve against different roots (the case workspace vs. `repor_dir`) and have independent diagnostic codes.
 
-Permission-based rejections (`assertion.dir.contains_subject_unreadable`, `semantic.file_contents_reference.read_error`) are documented in normative fields but intentionally have no conformance case: reproducing them portably would require `chmod`-based fixtures, which are unreliable in CI environments that run as root (root bypasses permission bits). Adding dedicated coverage for these codes is tracked as follow-up work, not this issue's scope.
+Permission-based rejections (`assertion.dir.contains.subject_unreadable`, `semantic.file_contents_reference.read_error`) are documented in normative fields but intentionally have no conformance case: reproducing them portably would require `chmod`-based fixtures, which are unreliable in CI environments that run as root (root bypasses permission bits). Adding dedicated coverage for these codes is tracked as follow-up work, not this issue's scope.
 
 ## Semantic spec file location
 
@@ -161,7 +161,7 @@ An eval case provides enough static data to run the production semantic evaluato
 - `assertion` — the normalised assertion representation: `subject` (`"exit"`, `"stdout"`, `"stderr"`, `"file"`, `"dir"`, or `"logical"`), `path` (required when `subject` is `"file"` or `"dir"`), `operator`, `expected` (a string, integer, `null`, or `{"kind": "workspacePath"|"fixtureReference", "value": "..."}` for a `FileContentsReference`), and `children` (required, non-empty, and recursive when `subject` is `"logical"`).
 - `checkpoint` — static checkpoint data used as input to the semantic evaluator: `exitCode`, `stdout`, `stderr`, and an optional `workspace` object (see below).
 - `expectedResult` — `"pass"`, `"fail"`, or `"scriptError"` (the expected value failed to resolve to bytes, e.g. a missing `contents_equals` expected file — a test-definition problem, not an assertion outcome).
-- `expectedDiagnosticCode` — optional diagnostic code string. Required for `"scriptError"` cases; optional otherwise. The value must be a dot-separated diagnostic code as defined in [`docs/semantic-diagnostics.md`](../../../docs/semantic-diagnostics.md) (e.g. `assertion.stdout.contains_mismatch`).
+- `expectedDiagnosticCode` — optional diagnostic code string. Required for `"scriptError"` cases; optional otherwise. The value must be a dot-separated diagnostic code as defined in [`docs/semantic-diagnostics.md`](../../../docs/semantic-diagnostics.md) (e.g. `assertion.stdout.contains.mismatch`). The conformance runner currently compares this value against the actually emitted diagnostic only for `"scriptError"` and parser cases; for `"fail"` cases, CI verifies that the code exists and belongs to the owning rule (`semantic_rule_coverage.rs`), and asserting the emitted code is tracked as follow-up work.
 
 `checkpoint.workspace`, when present, materializes real files and directories on disk before evaluation runs:
 

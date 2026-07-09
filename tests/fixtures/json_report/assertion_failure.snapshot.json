@@ -3,7 +3,7 @@
   "diagnostics": [
     {
       "category": "assertion",
-      "code": "assertion.stdout.contains_mismatch",
+      "code": "assertion.stdout.contains.mismatch",
       "id": "diagnostic-1",
       "location": null,
       "message": "stdout did not contain expected substring \"world\"",

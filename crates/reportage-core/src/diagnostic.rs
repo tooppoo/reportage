@@ -152,6 +152,68 @@ pub enum DiagnosticCode {
 }
 
 impl DiagnosticCode {
+    /// Every variant, in declaration order, for crate-internal verification.
+    ///
+    /// `#[non_exhaustive]` keeps downstream `match` expressions open, but uniqueness and cross-reference checks (`diagnostic.rs` unit tests, `tests/semantic_rule_coverage.rs`) need a full enumeration to iterate.
+    /// When adding a variant, add it here too; `all_lists_every_variant_once_in_declaration_order` fails on any non-trailing omission, duplicate, or ordering drift.
+    pub const ALL: &'static [DiagnosticCode] = &[
+        Self::ParseSyntax,
+        Self::ParseEmptyCase,
+        Self::ParseMissingAssertionBlock,
+        Self::ParseEmptyAction,
+        Self::ParseInvalidExitCode,
+        Self::SemanticFilePathAbsolute,
+        Self::SemanticFilePathDotSegment,
+        Self::AssertionFileExistsMissing,
+        Self::AssertionFileExistsNotAFile,
+        Self::AssertionFileContainsPreconditionUnmet,
+        Self::AssertionFileContainsMismatch,
+        Self::AssertionFileContentsEqualsMismatch,
+        Self::AssertionFileContentsEqualsActualMissing,
+        Self::AssertionFileContentsEqualsActualNotARegularFile,
+        Self::AssertionFileContentsEqualsActualUnreadable,
+        Self::AssertionStdoutContentsEqualsMismatch,
+        Self::AssertionStderrContentsEqualsMismatch,
+        Self::AssertionFileTextEqualsMismatch,
+        Self::AssertionFileTextEqualsActualMissing,
+        Self::AssertionFileTextEqualsActualNotARegularFile,
+        Self::AssertionFileTextEqualsActualUnreadable,
+        Self::SemanticDirEntryNameEmpty,
+        Self::SemanticDirEntryNamePathSeparator,
+        Self::SemanticDirEntryNameDotEntry,
+        Self::SemanticDirEntryNameControlChar,
+        Self::AssertionDirExistsMissing,
+        Self::AssertionDirExistsNotADirectory,
+        Self::AssertionDirContainsSubjectMissing,
+        Self::AssertionDirContainsSubjectNotADirectory,
+        Self::AssertionDirContainsEntryMissing,
+        Self::AssertionDirContainsSubjectUnreadable,
+        Self::SemanticExpectationEmptyBlock,
+        Self::SemanticExpectationRequiresAction,
+        Self::AssertionExitMismatch,
+        Self::AssertionStdoutContainsMismatch,
+        Self::AssertionStderrContainsMismatch,
+        Self::AssertionStdoutNotEmpty,
+        Self::AssertionStderrNotEmpty,
+        Self::SemanticWorkspacePathEmpty,
+        Self::SemanticWorkspacePathAbsolute,
+        Self::SemanticWorkspacePathDotSegment,
+        Self::SemanticLiteralKindMismatch,
+        Self::ParseHeredocLiteralShallowIndent,
+        Self::SemanticFixtureReferenceEmpty,
+        Self::SemanticFixtureReferenceAbsolute,
+        Self::SemanticFixtureReferenceDotSegment,
+        Self::SemanticFixtureReferenceMissing,
+        Self::SemanticFixtureReferenceNotARegularFile,
+        Self::SemanticFixtureReferenceEscapesReporDirectory,
+        Self::SemanticFileContentsReferenceMissing,
+        Self::SemanticFileContentsReferenceNotARegularFile,
+        Self::SemanticFileContentsReferenceReadError,
+        Self::StepWriteTargetExists,
+        Self::StepWriteParentNotADirectory,
+        Self::StepWriteIoError,
+    ];
+
     /// The stable external string representation of this code.
     ///
     /// This is the identifier tests and tooling must depend on instead of `Display` message text or internal enum variant names.
@@ -164,59 +226,59 @@ impl DiagnosticCode {
             Self::ParseInvalidExitCode => "parse.invalid_exit_code",
             Self::SemanticFilePathAbsolute => "semantic.file_path.absolute",
             Self::SemanticFilePathDotSegment => "semantic.file_path.dot_segment",
-            Self::AssertionFileExistsMissing => "assertion.file.exists_missing",
-            Self::AssertionFileExistsNotAFile => "assertion.file.exists_not_a_file",
+            Self::AssertionFileExistsMissing => "assertion.file.exists.missing",
+            Self::AssertionFileExistsNotAFile => "assertion.file.exists.not_regular_file",
             Self::AssertionFileContainsPreconditionUnmet => {
-                "assertion.file.contains_precondition_unmet"
+                "assertion.file.contains.precondition_unmet"
             }
-            Self::AssertionFileContainsMismatch => "assertion.file.contains_mismatch",
-            Self::AssertionFileContentsEqualsMismatch => "assertion.file.contents_equals_mismatch",
+            Self::AssertionFileContainsMismatch => "assertion.file.contains.mismatch",
+            Self::AssertionFileContentsEqualsMismatch => "assertion.file.contents_equals.mismatch",
             Self::AssertionFileContentsEqualsActualMissing => {
-                "assertion.file.contents_equals_actual_missing"
+                "assertion.file.contents_equals.actual_missing"
             }
             Self::AssertionFileContentsEqualsActualNotARegularFile => {
-                "assertion.file.contents_equals_actual_not_a_regular_file"
+                "assertion.file.contents_equals.actual_not_regular_file"
             }
             Self::AssertionFileContentsEqualsActualUnreadable => {
-                "assertion.file.contents_equals_actual_unreadable"
+                "assertion.file.contents_equals.actual_unreadable"
             }
             Self::AssertionStdoutContentsEqualsMismatch => {
-                "assertion.stdout.contents_equals_mismatch"
+                "assertion.stdout.contents_equals.mismatch"
             }
             Self::AssertionStderrContentsEqualsMismatch => {
-                "assertion.stderr.contents_equals_mismatch"
+                "assertion.stderr.contents_equals.mismatch"
             }
-            Self::AssertionFileTextEqualsMismatch => "assertion.file.text_equals_mismatch",
+            Self::AssertionFileTextEqualsMismatch => "assertion.file.text_equals.mismatch",
             Self::AssertionFileTextEqualsActualMissing => {
-                "assertion.file.text_equals_actual_missing"
+                "assertion.file.text_equals.actual_missing"
             }
             Self::AssertionFileTextEqualsActualNotARegularFile => {
-                "assertion.file.text_equals_actual_not_a_regular_file"
+                "assertion.file.text_equals.actual_not_regular_file"
             }
             Self::AssertionFileTextEqualsActualUnreadable => {
-                "assertion.file.text_equals_actual_unreadable"
+                "assertion.file.text_equals.actual_unreadable"
             }
             Self::SemanticDirEntryNameEmpty => "semantic.dir_entry_name.empty",
             Self::SemanticDirEntryNamePathSeparator => "semantic.dir_entry_name.path_separator",
             Self::SemanticDirEntryNameDotEntry => "semantic.dir_entry_name.dot_entry",
             Self::SemanticDirEntryNameControlChar => "semantic.dir_entry_name.control_char",
-            Self::AssertionDirExistsMissing => "assertion.dir.exists_missing",
-            Self::AssertionDirExistsNotADirectory => "assertion.dir.exists_not_directory",
-            Self::AssertionDirContainsSubjectMissing => "assertion.dir.contains_subject_missing",
+            Self::AssertionDirExistsMissing => "assertion.dir.exists.missing",
+            Self::AssertionDirExistsNotADirectory => "assertion.dir.exists.not_directory",
+            Self::AssertionDirContainsSubjectMissing => "assertion.dir.contains.subject_missing",
             Self::AssertionDirContainsSubjectNotADirectory => {
-                "assertion.dir.contains_subject_not_directory"
+                "assertion.dir.contains.subject_not_directory"
             }
-            Self::AssertionDirContainsEntryMissing => "assertion.dir.contains_entry_missing",
+            Self::AssertionDirContainsEntryMissing => "assertion.dir.contains.entry_missing",
             Self::AssertionDirContainsSubjectUnreadable => {
-                "assertion.dir.contains_subject_unreadable"
+                "assertion.dir.contains.subject_unreadable"
             }
             Self::SemanticExpectationEmptyBlock => "semantic.expectation.empty_block",
             Self::SemanticExpectationRequiresAction => "semantic.expectation.requires_action",
-            Self::AssertionExitMismatch => "assertion.exit.mismatch",
-            Self::AssertionStdoutContainsMismatch => "assertion.stdout.contains_mismatch",
-            Self::AssertionStderrContainsMismatch => "assertion.stderr.contains_mismatch",
-            Self::AssertionStdoutNotEmpty => "assertion.stdout.not_empty",
-            Self::AssertionStderrNotEmpty => "assertion.stderr.not_empty",
+            Self::AssertionExitMismatch => "assertion.exit.equals.mismatch",
+            Self::AssertionStdoutContainsMismatch => "assertion.stdout.contains.mismatch",
+            Self::AssertionStderrContainsMismatch => "assertion.stderr.contains.mismatch",
+            Self::AssertionStdoutNotEmpty => "assertion.stdout.empty.not_empty",
+            Self::AssertionStderrNotEmpty => "assertion.stderr.empty.not_empty",
             Self::SemanticWorkspacePathEmpty => "semantic.workspace_path.empty",
             Self::SemanticWorkspacePathAbsolute => "semantic.workspace_path.absolute",
             Self::SemanticWorkspacePathDotSegment => "semantic.workspace_path.dot_segment",
@@ -307,64 +369,31 @@ mod tests {
 
     #[test]
     fn display_matches_as_str() {
-        for code in [
-            DiagnosticCode::ParseSyntax,
-            DiagnosticCode::ParseEmptyCase,
-            DiagnosticCode::ParseMissingAssertionBlock,
-            DiagnosticCode::ParseEmptyAction,
-            DiagnosticCode::ParseInvalidExitCode,
-            DiagnosticCode::SemanticFilePathAbsolute,
-            DiagnosticCode::SemanticFilePathDotSegment,
-            DiagnosticCode::AssertionFileExistsMissing,
-            DiagnosticCode::AssertionFileExistsNotAFile,
-            DiagnosticCode::AssertionFileContainsPreconditionUnmet,
-            DiagnosticCode::AssertionFileContainsMismatch,
-            DiagnosticCode::AssertionFileContentsEqualsMismatch,
-            DiagnosticCode::AssertionFileContentsEqualsActualMissing,
-            DiagnosticCode::AssertionFileContentsEqualsActualNotARegularFile,
-            DiagnosticCode::AssertionFileContentsEqualsActualUnreadable,
-            DiagnosticCode::AssertionStdoutContentsEqualsMismatch,
-            DiagnosticCode::AssertionStderrContentsEqualsMismatch,
-            DiagnosticCode::AssertionFileTextEqualsMismatch,
-            DiagnosticCode::AssertionFileTextEqualsActualMissing,
-            DiagnosticCode::AssertionFileTextEqualsActualNotARegularFile,
-            DiagnosticCode::AssertionFileTextEqualsActualUnreadable,
-            DiagnosticCode::SemanticDirEntryNameEmpty,
-            DiagnosticCode::SemanticDirEntryNamePathSeparator,
-            DiagnosticCode::SemanticDirEntryNameDotEntry,
-            DiagnosticCode::SemanticDirEntryNameControlChar,
-            DiagnosticCode::AssertionDirExistsMissing,
-            DiagnosticCode::AssertionDirExistsNotADirectory,
-            DiagnosticCode::AssertionDirContainsSubjectMissing,
-            DiagnosticCode::AssertionDirContainsSubjectNotADirectory,
-            DiagnosticCode::AssertionDirContainsEntryMissing,
-            DiagnosticCode::AssertionDirContainsSubjectUnreadable,
-            DiagnosticCode::SemanticExpectationEmptyBlock,
-            DiagnosticCode::SemanticExpectationRequiresAction,
-            DiagnosticCode::AssertionExitMismatch,
-            DiagnosticCode::AssertionStdoutContainsMismatch,
-            DiagnosticCode::AssertionStderrContainsMismatch,
-            DiagnosticCode::AssertionStdoutNotEmpty,
-            DiagnosticCode::AssertionStderrNotEmpty,
-            DiagnosticCode::SemanticWorkspacePathEmpty,
-            DiagnosticCode::SemanticWorkspacePathAbsolute,
-            DiagnosticCode::SemanticWorkspacePathDotSegment,
-            DiagnosticCode::SemanticLiteralKindMismatch,
-            DiagnosticCode::ParseHeredocLiteralShallowIndent,
-            DiagnosticCode::SemanticFixtureReferenceEmpty,
-            DiagnosticCode::SemanticFixtureReferenceAbsolute,
-            DiagnosticCode::SemanticFixtureReferenceDotSegment,
-            DiagnosticCode::SemanticFixtureReferenceMissing,
-            DiagnosticCode::SemanticFixtureReferenceNotARegularFile,
-            DiagnosticCode::SemanticFixtureReferenceEscapesReporDirectory,
-            DiagnosticCode::SemanticFileContentsReferenceMissing,
-            DiagnosticCode::SemanticFileContentsReferenceNotARegularFile,
-            DiagnosticCode::SemanticFileContentsReferenceReadError,
-            DiagnosticCode::StepWriteTargetExists,
-            DiagnosticCode::StepWriteParentNotADirectory,
-            DiagnosticCode::StepWriteIoError,
-        ] {
+        for code in DiagnosticCode::ALL {
             assert_eq!(code.to_string(), code.as_str());
+        }
+    }
+
+    /// `as usize` yields the declaration index of a fieldless variant, so requiring `ALL[i] as usize == i` proves `ALL` matches declaration order with no duplicate and no gap.
+    /// A variant appended after the last `ALL` element is the one omission this cannot see; the doc comment on `ALL` covers that case.
+    #[test]
+    fn all_lists_every_variant_once_in_declaration_order() {
+        for (index, code) in DiagnosticCode::ALL.iter().enumerate() {
+            assert_eq!(
+                *code as usize, index,
+                "DiagnosticCode::ALL out of sync at index {index} ({code})"
+            );
+        }
+    }
+
+    #[test]
+    fn as_str_values_are_unique() {
+        let mut seen = std::collections::BTreeSet::new();
+        for code in DiagnosticCode::ALL {
+            assert!(
+                seen.insert(code.as_str()),
+                "duplicate DiagnosticCode string '{code}'"
+            );
         }
     }
 }

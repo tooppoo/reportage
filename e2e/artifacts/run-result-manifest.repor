@@ -45,7 +45,7 @@ case "manifest records an assertion failure as status failed" {
     exit 1
     file <".reportage/runs/run-result-fail/result.json"> contains "\"status\": \"failed\""
     file <".reportage/runs/run-result-fail/result.json"> contains "\"processExitCode\": 1"
-    file <".reportage/runs/run-result-fail/result.json"> contains "\"code\": \"assertion.exit.mismatch\""
+    file <".reportage/runs/run-result-fail/result.json"> contains "\"code\": \"assertion.exit.equals.mismatch\""
   }
 }
 

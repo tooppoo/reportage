@@ -39,7 +39,7 @@
         "stderr": { "data": "", "encoding": "base64", "text": "" }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.file.exists_missing"
+      "expectedDiagnosticCode": "assertion.file.exists.missing"
     },
     {
       "description": "file exists fails when the path is a directory, not a regular file",
@@ -54,7 +54,7 @@
         }
       },
       "expectedResult": "fail",
-      "expectedDiagnosticCode": "assertion.file.exists_not_a_file"
+      "expectedDiagnosticCode": "assertion.file.exists.not_regular_file"
     }
   ]
 }
