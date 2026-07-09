@@ -23,7 +23,7 @@ jobs:
           version: v0.1.0
 
   setup-artifacts:
-    uses: tooppoo/release-workflows/.github/workflows/wf-cross-platform-build.yml@main
+    uses: tooppoo/github-release-workflows/.github/workflows/wf-cross-platform-build.yml@main
     needs: check-ready
     with:
       config_path: .github/workflows/artifacts.manifest.json
