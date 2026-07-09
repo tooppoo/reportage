@@ -23,9 +23,10 @@ jobs:
           version: v0.1.0
 
   setup-artifacts:
-    name: Setup artifacts
+    uses: tooppoo/release-workflows/.github/workflows/wf-cross-platform-build.yml@main
     needs: check-ready
-    uses: ./.github/workflows/_setup_artifacts.yml
+    with:
+      config_path: .github/workflows/artifacts.manifest.json
 
   release:
     name: Create GitHub Release
@@ -50,4 +51,3 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/checksums.txt
-            dist/VERSION
