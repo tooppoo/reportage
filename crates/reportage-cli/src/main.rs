@@ -1,3 +1,4 @@
+mod docs;
 mod render;
 
 use std::path::{Path, PathBuf};
@@ -32,7 +33,12 @@ enum OutputFormat {
     name = "reportage",
     about = "Run reportage test scripts",
     version,
-    override_usage = "reportage [OPTIONS] [SUBCOMMAND]..."
+    override_usage = "reportage [OPTIONS] [SUBCOMMAND]...",
+    // Deliberately a pointer, not a URL list: help stays short and the URL set has a single
+    // owner (`reportage docs`). See docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md.
+    after_help = "Documentation:\n  \
+        Run `reportage docs` to list versioned documentation URLs.\n  \
+        Run `reportage docs --format=json` for a machine-readable docs index."
 )]
 struct Cli {
     /// Tooling subcommand. When present, no test scripts are run: see each subcommand's own
@@ -65,6 +71,28 @@ struct Cli {
 enum Commands {
     /// Coverage-integration shim tooling. See docs/shim-scaffold.md.
     Shim(ShimArgs),
+
+    /// List versioned documentation URLs for this reportage version.
+    Docs(DocsArgs),
+}
+
+#[derive(Parser)]
+struct DocsArgs {
+    /// Output format for the docs index: `human` (default) or `json`.
+    #[arg(long, value_enum, default_value_t = DocsFormat::Human)]
+    format: DocsFormat,
+}
+
+/// Output format for the `docs` subcommand.
+///
+/// A separate enum from the run result's [`OutputFormat`] on purpose: both spell `--format=json`,
+/// but the docs index document (`spec/output/docs-index/schema.json`) and the run report document
+/// (`spec/output/json-report/schema.json`) are independent contracts. See issue #137.
+#[derive(Clone, Copy, Default, clap::ValueEnum)]
+enum DocsFormat {
+    #[default]
+    Human,
+    Json,
 }
 
 #[derive(Parser)]
@@ -131,6 +159,17 @@ fn run_shim_scaffold(args: &ScaffoldArgs) -> ! {
     }
 }
 
+/// Runs `reportage docs` and always terminates the process: like `run_shim_scaffold`, this is a
+/// tooling subcommand that must stay outside the script-execution/report/artifact pipeline. It
+/// only prints the documentation URL index and exits 0. See `docs` (module) and issue #137.
+fn run_docs(args: &DocsArgs) -> ! {
+    match args.format {
+        DocsFormat::Human => docs::render_human(),
+        DocsFormat::Json => docs::render_json(),
+    }
+    std::process::exit(0);
+}
+
 enum InvocationMode {
     /// One or more explicit script paths; no config file required.
     ExplicitScripts(Vec<PathBuf>),
@@ -153,13 +192,15 @@ fn main() {
         },
     };
 
-    // Tooling subcommands (`reportage shim scaffold ...`) exit here and never reach the
-    // script-execution/report/artifact pipeline below: they are not test runs, and the
+    // Tooling subcommands (`reportage shim scaffold ...`, `reportage docs`) exit here and never
+    // reach the script-execution/report/artifact pipeline below: they are not test runs, and the
     // artifact-writing exit codes (2/3) further down have no meaning for them.
-    if let Some(Commands::Shim(shim_args)) = &cli.command {
-        match &shim_args.command {
+    match &cli.command {
+        Some(Commands::Shim(shim_args)) => match &shim_args.command {
             ShimCommand::Scaffold(args) => run_shim_scaffold(args),
-        }
+        },
+        Some(Commands::Docs(docs_args)) => run_docs(docs_args),
+        None => {}
     }
 
     let mode = determine_mode(&cli);

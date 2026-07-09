@@ -38,3 +38,8 @@ json-report-fixtures-check:
 [group('check')]
 run-result-fixtures-check:
   cargo nextest run --locked -p reportage-cli --test run_result_fixtures
+
+# run the `reportage docs --format=json` schema/repository-consistency conformance tests
+[group('check')]
+docs-index-check:
+  cargo nextest run --locked -p reportage-cli --test docs_index
