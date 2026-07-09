@@ -1,4 +1,11 @@
 
+# update the version in Cargo.toml to the given version
+update-version version:
+  rellog ready {{ version }}
+
+  toml set ./Cargo.toml workspace.package.version {{ version }} > Cargo.toml.tmp
+  mv Cargo.toml.tmp Cargo.toml
+
 # create release tag(version pin) for the given version
 [group('release')]
 release-tag version:
