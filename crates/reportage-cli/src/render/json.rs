@@ -8,13 +8,9 @@
 //!
 //! ## A stdout-safe projection of the canonical artifact result
 //!
-//! The document is not built here from scratch: it is derived from the canonical run result
-//! document (`reportage_core::run_result::build_run_result_document`, the same document
-//! `ArtifactWriter::write` persists as the artifact `result.json`) by [`project_run_result`].
-//! The artifact bundle is the canonical record of a run; this renderer's output is the
-//! stdout-safe projection of it defined by `spec/output/json-report/schema.json` (issue #89,
-//! issue #102). The projection keeps the two contracts aligned by construction; their
-//! remaining differences are intentional and enumerated on [`project_run_result`].
+//! The document is not built here from scratch: it is derived from the canonical run result document (`reportage_core::run_result::build_run_result_document`, the same document `ArtifactWriter::write` persists as the artifact `result.json`) by [`project_run_result`].
+//! The artifact bundle is the canonical record of a run; this renderer's output is the stdout-safe projection of it defined by `spec/output/json-report/schema.json` (issue #89, issue #102).
+//! The projection keeps the two contracts aligned by construction; their remaining differences are intentional and enumerated on [`project_run_result`].
 //!
 //! ## CLI stdout vs. captured stdout / captured stderr
 //!
@@ -38,9 +34,7 @@ use serde_json::{Value, json};
 use super::OutputRenderer;
 
 /// Version of the `--format=json` stdout contract (`spec/output/json-report/schema.json`).
-/// Distinct from the artifact result contract's own `schemaVersion`
-/// (`reportage_core::run_result::RUN_RESULT_SCHEMA_VERSION`); the two contracts version
-/// independently even while their current values coincide.
+/// Distinct from the artifact result contract's own `schemaVersion` (`reportage_core::run_result::RUN_RESULT_SCHEMA_VERSION`); the two contracts version independently even while their current values coincide.
 const JSON_REPORT_SCHEMA_VERSION: u32 = 1;
 
 pub struct JsonRenderer {
@@ -73,17 +67,11 @@ fn build_document(report: &ExecutionReport, artifact_root: &Path) -> Value {
 /// The differences between the two contracts, applied here:
 ///
 /// - `schemaVersion` is replaced with this stdout contract's own version.
-/// - `noop` is dropped: the stdout contract does not carry it (a no-op run is recognizable
-///   from its empty `tests` and zeroed `summary`).
-/// - `artifactRoot` is added: the artifact `result.json` resolves `artifactRef` values
-///   against its own directory, while a stdout consumer needs to be told where that
-///   directory is.
-/// - Each action's `stdout` / `stderr` reference loses its `sha256`: evidence digests are
-///   part of the artifact bundle's integrity contract, not the stdout summary
-///   (`artifactRef` / `sizeBytes` are kept — see issue #102's projection parity items).
+/// - `noop` is dropped: the stdout contract does not carry it (a no-op run is recognizable from its empty `tests` and zeroed `summary`).
+/// - `artifactRoot` is added: the artifact `result.json` resolves `artifactRef` values against its own directory, while a stdout consumer needs to be told where that directory is.
+/// - Each action's `stdout` / `stderr` reference loses its `sha256`: evidence digests are part of the artifact bundle's integrity contract, not the stdout summary (`artifactRef` / `sizeBytes` are kept — see issue #102's projection parity items).
 ///
-/// Everything else passes through unchanged, so the stdout document stays a faithful
-/// projection of the canonical record.
+/// Everything else passes through unchanged, so the stdout document stays a faithful projection of the canonical record.
 fn project_run_result(mut doc: Value, artifact_root: &Path) -> Value {
     doc["schemaVersion"] = json!(JSON_REPORT_SCHEMA_VERSION);
     doc.as_object_mut()
@@ -205,10 +193,8 @@ mod tests {
 
     #[test]
     fn projection_matches_canonical_document_except_for_defined_differences() {
-        // The reverse direction of `project_run_result`'s difference list: adding back
-        // `sha256` digests and `noop`, and removing `artifactRoot`, must reproduce the
-        // canonical document exactly. This pins that the projection never silently drops
-        // or rewrites anything else.
+        // The reverse direction of `project_run_result`'s difference list: adding back `sha256` digests and `noop`, and removing `artifactRoot`, must reproduce the canonical document exactly.
+        // This pins that the projection never silently drops or rewrites anything else.
         let report = report();
         let canonical = build_run_result_document(&report);
         let mut projected = build_document(&report, Path::new(".reportage/runs/1"));

@@ -34,10 +34,7 @@ The validation phase:
 3. Collect all file-level errors from the full set of selected files.
 4. If any file has a read or parse error, abort before executing any `$` actions.
 
-All file-level errors are reported in a single run.
-The run exits with code `2`,
-and the artifact manifest records `status: "error"` with one `diagnostics[]` entry per file-level error
-(`category: "parse"` for parse errors, `category: "internal"` for read errors; see [`artifacts.md`](artifacts.md)).
+All file-level errors are reported in a single run. The run exits with code `2`, and the artifact manifest records `status: "error"` with one `diagnostics[]` entry per file-level error (`category: "parse"` for parse errors, `category: "internal"` for read errors; see [`artifacts.md`](artifacts.md)).
 
 If the validation phase passes with no errors, execution proceeds normally across all files.
 

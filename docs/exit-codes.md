@@ -23,11 +23,7 @@ Everything below "v0 Exit Code Table" through "Precedence" describes the default
 
 ## Run outcome categories in the artifact manifest
 
-The run outcome categories below are conceptual severity classes.
-The artifact manifest (`result.json`, see [`artifacts.md`](artifacts.md)) records them as the combination of
-top-level `status` (`passed` / `failed` / `error`, not a boolean pass/fail field),
-`processExitCode`,
-and `diagnostics[]` category / code.
+The run outcome categories below are conceptual severity classes. The artifact manifest (`result.json`, see [`artifacts.md`](artifacts.md)) records them as the combination of top-level `status` (`passed` / `failed` / `error`, not a boolean pass/fail field), `processExitCode`, and `diagnostics[]` category / code.
 
 v0 outcome categories:
 
@@ -39,12 +35,9 @@ v0 outcome categories:
 | `config_error` | `error` | `2` | The configuration itself is invalid, unsupported, or cannot be used for discovery. |
 | `runtime_error` | `error` | `3` | The runner failed due to infrastructure/runtime conditions such as shell spawn failure or required artifact write failure. |
 
-`script_error` is intentionally broader than a parse error.
-Read errors and parse errors for selected reportage files both produce `status: "error"` and process exit code `2`.
+`script_error` is intentionally broader than a parse error. Read errors and parse errors for selected reportage files both produce `status: "error"` and process exit code `2`.
 
-Concrete causes must remain distinguishable in structured diagnostics:
-the manifest's `diagnostics[]` entries carry `category` (`parse` / `internal` for file-level errors) and stable `code` values,
-so the collapsed `status: "error"` never loses the failing layer.
+Concrete causes must remain distinguishable in structured diagnostics: the manifest's `diagnostics[]` entries carry `category` (`parse` / `internal` for file-level errors) and stable `code` values, so the collapsed `status: "error"` never loses the failing layer.
 
 ## Precedence
 

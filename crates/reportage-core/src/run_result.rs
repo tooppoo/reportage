@@ -1,24 +1,13 @@
 //! The canonical run result document builder (artifact `result.json`).
 //!
-//! `build_run_result_document` turns an [`ExecutionReport`] into the canonical manifest
-//! written to `.reportage/runs/<run-id>/result.json` by [`crate::artifact::ArtifactWriter`].
-//! The artifact bundle (`result.json` plus the evidence files it references) is the
-//! canonical record of a `reportage run`;
-//! the `--format=json` CLI stdout document is a stdout-safe projection derived from this
-//! document by the CLI renderer.
-//! See `spec/artifacts/run-result/schema.json` for the external contract this builder
-//! implements, and
-//! docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md for the decisions.
+//! `build_run_result_document` turns an [`ExecutionReport`] into the canonical manifest written to `.reportage/runs/<run-id>/result.json` by [`crate::artifact::ArtifactWriter`].
+//! The artifact bundle (`result.json` plus the evidence files it references) is the canonical record of a `reportage run`; the `--format=json` CLI stdout document is a stdout-safe projection derived from this document by the CLI renderer.
+//! See `spec/artifacts/run-result/schema.json` for the external contract this builder implements, and docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md for the decisions.
 //!
 //! ## Raw byte evidence is referenced, never inlined
 //!
-//! Captured stdout/stderr bytes are written as separate artifact files
-//! (`<test-id>/<action-id>/{stdout,stderr}.bin`, see
-//! [`crate::artifact::ArtifactWriter`]) and referenced from this document as
-//! `{ artifactRef, sizeBytes, sha256 }`.
-//! `artifactRef` is relative to the directory containing `result.json`,
-//! and `sha256` makes it verifiable that the referenced evidence file is the one this
-//! manifest describes.
+//! Captured stdout/stderr bytes are written as separate artifact files (`<test-id>/<action-id>/{stdout,stderr}.bin`, see [`crate::artifact::ArtifactWriter`]) and referenced from this document as `{ artifactRef, sizeBytes, sha256 }`.
+//! `artifactRef` is relative to the directory containing `result.json`, and `sha256` makes it verifiable that the referenced evidence file is the one this manifest describes.
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -33,10 +22,8 @@ use crate::result::{
     FileExistsObservation, TextEqualsExpectedSource,
 };
 
-/// Version of the canonical artifact result contract
-/// (`spec/artifacts/run-result/schema.json`).
-/// Distinct from the `--format=json` stdout contract's own `schemaVersion`
-/// (`spec/output/json-report/schema.json`) and from the reportage CLI/crate version.
+/// Version of the canonical artifact result contract (`spec/artifacts/run-result/schema.json`).
+/// Distinct from the `--format=json` stdout contract's own `schemaVersion` (`spec/output/json-report/schema.json`) and from the reportage CLI/crate version.
 pub const RUN_RESULT_SCHEMA_VERSION: u32 = 1;
 
 /// Accumulates `diagnostics[]` entries and assigns each one a document-local id
@@ -100,8 +87,7 @@ impl DiagnosticsBuilder {
 
 /// Builds the canonical run result document for `report`.
 ///
-/// The returned document is what `ArtifactWriter::write` persists as `result.json`, and what
-/// the CLI's `--format=json` renderer projects its stdout document from.
+/// The returned document is what `ArtifactWriter::write` persists as `result.json`, and what the CLI's `--format=json` renderer projects its stdout document from.
 pub fn build_run_result_document(report: &ExecutionReport) -> Value {
     let mut diagnostics = DiagnosticsBuilder::new();
 
@@ -332,11 +318,8 @@ fn action_json(test_id: &str, action_index: usize, action: &ActionResult) -> Val
     value
 }
 
-/// The evidence reference for one action's captured stdout or stderr: a path relative to the
-/// directory containing `result.json` (`<test_id>/<action_id>/<stream>.bin`), the byte size,
-/// and the SHA-256 digest of the referenced bytes — never the raw bytes themselves.
-/// The digest is computed from the same in-memory bytes `ArtifactWriter` writes to the
-/// referenced file, so a consumer can verify the bundle's evidence file matches this manifest.
+/// The evidence reference for one action's captured stdout or stderr: a path relative to the directory containing `result.json` (`<test_id>/<action_id>/<stream>.bin`), the byte size, and the SHA-256 digest of the referenced bytes — never the raw bytes themselves.
+/// The digest is computed from the same in-memory bytes `ArtifactWriter` writes to the referenced file, so a consumer can verify the bundle's evidence file matches this manifest.
 fn stream_artifact_json(test_id: &str, action_id: &str, stream: &str, bytes: &[u8]) -> Value {
     json!({
         "artifactRef": format!("{test_id}/{action_id}/{stream}.bin"),
@@ -1384,10 +1367,8 @@ mod tests {
 
     #[test]
     fn contents_equals_fixture_source_and_stream_shapes_use_contract_field_names() {
-        // The representative fixtures only exercise `contents_equals` with a workspace
-        // expected source (see tests/fixtures/run_result/contents_equals.repor), so the
-        // `fixture` expected-source shape and `stderrContentsEquals` would otherwise have no
-        // coverage pinning their manifest field names against the schema.
+        // The representative fixtures only exercise `contents_equals` with a workspace expected source (see tests/fixtures/run_result/contents_equals.repor).
+        // Without this test, the `fixture` expected-source shape and `stderrContentsEquals` would have no coverage pinning their manifest field names against the schema.
         let mismatch = ContentsEqualsComparison::compare(b"hellp\n".to_vec(), b"hello\n".to_vec());
         let matching = ContentsEqualsComparison::compare(b"".to_vec(), b"".to_vec());
         let case = CaseResult {

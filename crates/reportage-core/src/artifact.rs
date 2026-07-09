@@ -122,10 +122,8 @@ impl ArtifactWriter {
         &self.run_dir
     }
 
-    /// Writes the artifact bundle for `result`: the canonical `result.json` manifest (see
-    /// [`crate::run_result::build_run_result_document`] and
-    /// `spec/artifacts/run-result/schema.json`) plus the captured-output evidence files it
-    /// references.
+    /// Writes the artifact bundle for `result`: the canonical `result.json` manifest plus the captured-output evidence files it references.
+    /// See [`crate::run_result::build_run_result_document`] and `spec/artifacts/run-result/schema.json`.
     pub fn write(&self, result: &ExecutionReport) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.run_dir)?;
         let value = build_run_result_document(result);
@@ -139,11 +137,8 @@ impl ArtifactWriter {
     /// Writes each action's captured stdout/stderr as raw bytes under
     /// `<run-dir>/<test_id>/<action_id>/{stdout,stderr}.bin`.
     ///
-    /// This is the artifact-file side of the "captured stdout/stderr are never inlined" policy:
-    /// the `result.json` manifest and the `--format=json` document reference these files by
-    /// relative path (`artifactRef`) instead of embedding raw bytes.
-    /// See `crate::run_result` and
-    /// docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md.
+    /// This is the artifact-file side of the "captured stdout/stderr are never inlined" policy: the `result.json` manifest and the `--format=json` document reference these files by relative path (`artifactRef`) instead of embedding raw bytes.
+    /// See `crate::run_result` and docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md.
     fn write_captured_output(&self, result: &ExecutionReport) -> std::io::Result<()> {
         for (case_index, case) in result.cases.iter().enumerate() {
             for (action_index, action) in case.actions.iter().enumerate() {

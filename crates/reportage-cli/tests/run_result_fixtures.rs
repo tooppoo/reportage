@@ -1,30 +1,20 @@
 //! Representative-fixture conformance for the artifact `result.json` manifest (issue #102).
 //!
-//! Mirrors `json_report_fixtures.rs`'s approach to "schema validation": each fixture run's
-//! `result.json` is deserialised into typed Rust structs marked `#[serde(deny_unknown_fields)]`,
-//! rather than run through an external JSON Schema validator. See
-//! `spec/artifacts/run-result/schema.json` for the authoritative contract.
+//! Mirrors `json_report_fixtures.rs`'s approach to "schema validation": each fixture run's `result.json` is deserialised into typed Rust structs marked `#[serde(deny_unknown_fields)]`, rather than run through an external JSON Schema validator.
+//! See `spec/artifacts/run-result/schema.json` for the authoritative contract.
 //!
-//! Unlike `json_report_fixtures.rs` (whose structs deliberately model only the expectation
-//! kinds its fixtures exercise), the structs here model the *full* stable contract the schema
-//! defines — every expectation kind, observation enum, and diagnostic shape — because
-//! `result.json` is the canonical manifest of a run (see issue #102's requirement that typed
-//! validation covers the whole stable contract, not just fixture-exercised shapes).
+//! Unlike `json_report_fixtures.rs` (whose structs deliberately model only the expectation kinds its fixtures exercise), the structs here model the *full* stable contract the schema defines — every expectation kind, observation enum, and diagnostic shape — because `result.json` is the canonical manifest of a run (see issue #102's requirement that typed validation covers the whole stable contract, not just fixture-exercised shapes).
 //!
-//! Fixtures live in `tests/fixtures/run_result/*.repor`. Each has a companion
-//! `<name>.snapshot.json` with the volatile field (`tool.version`) normalised out, refreshed
-//! via `UPDATE_RUN_RESULT_SNAPSHOTS`, mirroring `json_report_fixtures.rs`'s convention.
+//! Fixtures live in `tests/fixtures/run_result/*.repor`.
+//! Each has a companion `<name>.snapshot.json` with the volatile field (`tool.version`) normalised out, refreshed via `UPDATE_RUN_RESULT_SNAPSHOTS`, mirroring `json_report_fixtures.rs`'s convention.
 //!
 //! This suite also verifies:
 //!
-//! - evidence integrity: every `artifactRef` in `result.json` names an existing file inside
-//!   the bundle whose byte size and SHA-256 digest match the manifest;
-//! - projection parity: for the same run, the `--format=json` stdout document agrees with
-//!   `result.json` on the parity items required by issue #102, and is exactly the canonical
-//!   document minus the defined projection differences.
+//! - evidence integrity: every `artifactRef` in `result.json` names an existing file inside the bundle whose byte size and SHA-256 digest match the manifest;
+//! - projection parity: for the same run, the `--format=json` stdout document agrees with `result.json` on the parity items required by issue #102, and is exactly the canonical document minus the defined projection differences.
 
-// Serde-populated struct fields are not "used" in the conventional sense; their value comes
-// from deserialisation rather than direct assignment. Mirrors json_report_fixtures.rs.
+// Serde-populated struct fields are not "used" in the conventional sense; their value comes from deserialisation rather than direct assignment.
+// Mirrors json_report_fixtures.rs.
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
@@ -89,18 +79,15 @@ struct Diagnostic {
     severity: Severity,
     message: String,
     origin: Origin,
-    /// Deliberately not `Option<Location>`: with no `#[serde(default)]`, a required
-    /// non-`Option` field makes a *missing* `location` key a deserialization error, distinct
-    /// from a *present* `location: null`. An `Option<Location>` would silently accept both,
-    /// defeating the point of testing that this field is always present. Its shape
-    /// (`null` or a `Location`) is checked separately by `assert_location_shape_is_valid`.
+    /// Deliberately not `Option<Location>`: with no `#[serde(default)]`, a required non-`Option` field makes a *missing* `location` key a deserialization error, distinct from a *present* `location: null`.
+    /// An `Option<Location>` would silently accept both, defeating the point of testing that this field is always present.
+    /// Its shape (`null` or a `Location`) is checked separately by `assert_location_shape_is_valid`.
     /// Mirrors `json_report_fixtures.rs`.
     location: Value,
     code: Option<String>,
 }
 
-/// Asserts `location` is JSON `null` or deserializes as a valid `Location`, without collapsing
-/// "missing key" and "present but null" the way an `Option<Location>` struct field would.
+/// Asserts `location` is JSON `null` or deserializes as a valid `Location`, without collapsing "missing key" and "present but null" the way an `Option<Location>` struct field would.
 fn assert_location_shape_is_valid(location: &Value) {
     if location.is_null() {
         return;
@@ -174,8 +161,8 @@ struct Action {
     shim_event_parse_warnings: Vec<String>,
 }
 
-/// The `{ artifactRef, sizeBytes, sha256 }` evidence reference triple. `sha256` is required
-/// here, unlike the `--format=json` stdout contract's two-field reference.
+/// The `{ artifactRef, sizeBytes, sha256 }` evidence reference triple.
+/// `sha256` is required here, unlike the `--format=json` stdout contract's two-field reference.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct EvidenceReference {
@@ -287,13 +274,12 @@ enum LogicalOperator {
     Any,
 }
 
-/// The full 13-kind expectation contract of `spec/artifacts/run-result/schema.json`. Every
-/// variant the schema defines is modelled, whether or not a fixture currently exercises it.
+/// The full 13-kind expectation contract of `spec/artifacts/run-result/schema.json`.
+/// Every variant the schema defines is modelled, whether or not a fixture currently exercises it.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
 enum Expectation {
-    // `rename_all` on the enum itself only renames variant names, not the fields inside a
-    // struct-like variant, so each variant needs its own `rename_all` for its fields.
+    // `rename_all` on the enum itself only renames variant names, not the fields inside a struct-like variant, so each variant needs its own `rename_all` for its fields.
     #[serde(rename_all = "camelCase")]
     Exit {
         status: Status,
@@ -447,10 +433,8 @@ enum Expectation {
 }
 
 impl Expectation {
-    /// Enforces the schema's conditional requirements that `deny_unknown_fields` alone cannot
-    /// express: `observed: compared` requires the comparison fields, and `outcome: mismatch`
-    /// requires `mismatch`. Recurses into logical children, which must also never carry their
-    /// own `diagnosticRef` (diagnostic attribution is composition-level only).
+    /// Enforces the schema's conditional requirements that `deny_unknown_fields` alone cannot express: `observed: compared` requires the comparison fields, and `outcome: mismatch` requires `mismatch`.
+    /// Recurses into logical children, which must also never carry their own `diagnosticRef` (diagnostic attribution is composition-level only).
     fn assert_conditional_invariants(&self, is_logical_child: bool) {
         if is_logical_child {
             let diagnostic_ref = match self {
@@ -571,14 +555,11 @@ fn update_snapshots_enabled() -> bool {
     std::env::var_os("UPDATE_RUN_RESULT_SNAPSHOTS").is_some()
 }
 
-/// The fixed run id every fixture run in this suite uses; each run gets its own temp dir, so
-/// reuse across runs never collides.
+/// The fixed run id every fixture run in this suite uses; each run gets its own temp dir, so reuse across runs never collides.
 const RUN_ID: &str = "run-result-fixture";
 
-/// Copies `fixture` into a fresh temp dir (under its own file name) and runs
-/// `reportage --debug-run-id <RUN_ID> [--format json] <file>` there. Returns the run
-/// directory containing `result.json`, the parsed stdout (JSON document when `json_stdout`,
-/// otherwise `None`), the process exit code, and the temp dir keeping everything alive.
+/// Copies `fixture` into a fresh temp dir (under its own file name) and runs `reportage --debug-run-id <RUN_ID> [--format json] <file>` there.
+/// Returns the run directory containing `result.json`, the parsed stdout (JSON document when `json_stdout`, otherwise `None`), the process exit code, and the temp dir keeping everything alive.
 fn run_fixture(fixture: &Path, json_stdout: bool) -> (PathBuf, Option<Value>, i32, TempDir) {
     let dir = TempDir::new().unwrap();
     let name = fixture.file_name().unwrap().to_str().unwrap();
@@ -614,9 +595,7 @@ fn read_result_json(run_dir: &Path) -> Value {
 }
 
 /// Replaces the volatile field (`tool.version`) with a fixed placeholder before snapshotting.
-/// Unlike the `--format=json` snapshots there is no `artifactRoot` to normalise: the artifact
-/// document resolves references against its own directory, and evidence digests/sizes are
-/// deterministic for these fixtures.
+/// Unlike the `--format=json` snapshots there is no `artifactRoot` to normalise: the artifact document resolves references against its own directory, and evidence digests/sizes are deterministic for these fixtures.
 fn normalize_for_snapshot(mut doc: Value) -> Value {
     doc["tool"]["version"] = Value::String("<VERSION>".to_string());
     doc
@@ -739,8 +718,7 @@ fn evidence_files_match_their_manifest_references() {
                 }
             }
         }
-        // Only fixtures whose run executed at least one action produce references; for those,
-        // an accidentally empty loop must not vacuously pass.
+        // Only fixtures whose run executed at least one action produce references; for those, an accidentally empty loop must not vacuously pass.
         if !json["tests"]
             .as_array()
             .unwrap()
@@ -800,9 +778,7 @@ fn snapshots_for_run_result_fixtures_are_current() {
 // ---------------------------------------------------------------------------
 // Projection parity with --format=json
 //
-// Issue #102's minimum parity items, checked field-by-field, plus a strict structural check
-// that the stdout document is exactly the canonical document minus the defined projection
-// differences (artifactRoot added; noop and evidence sha256 dropped).
+// Issue #102's minimum parity items, checked field-by-field, plus a strict structural check that the stdout document is exactly the canonical document minus the defined projection differences (artifactRoot added; noop and evidence sha256 dropped).
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -813,8 +789,7 @@ fn stdout_projection_agrees_with_the_artifact_result_from_the_same_run() {
         let artifact_doc = read_result_json(&run_dir);
         let context = path.display();
 
-        // The stdout document's artifactRoot must name the run directory this result.json
-        // and its evidence files were written to.
+        // The stdout document's artifactRoot must name the run directory this result.json and its evidence files were written to.
         assert_eq!(
             dir.path()
                 .join(stdout_doc["artifactRoot"].as_str().unwrap()),
@@ -906,8 +881,7 @@ fn stdout_projection_is_the_artifact_result_minus_the_defined_differences() {
         let stdout_doc = stdout_doc.unwrap();
         let mut artifact_doc = read_result_json(&run_dir);
 
-        // Apply the projection differences documented in spec/artifacts/run-result/README.md
-        // to the canonical document; the outcome must be the stdout document exactly.
+        // Apply the projection differences documented in spec/artifacts/run-result/README.md to the canonical document; the outcome must be the stdout document exactly.
         let object = artifact_doc.as_object_mut().unwrap();
         object.remove("noop").expect("result.json must carry noop");
         object.insert(
@@ -938,11 +912,8 @@ fn stdout_projection_is_the_artifact_result_minus_the_defined_differences() {
 // ---------------------------------------------------------------------------
 // Docs drift check
 //
-// docs/artifacts.md marks each fixture-derived example with a
-// `<!-- checked-against: `<repo-relative snapshot path>` -->` comment directly above a
-// ```json fence. Those examples are the "checked" sections of the generated / checked /
-// handwritten boundary defined in docs/artifacts.md: this test fails when an example
-// drifts from the snapshot it claims to mirror.
+// docs/artifacts.md marks each fixture-derived example with a `<!-- checked-against: `<repo-relative snapshot path>` -->` comment directly above a ```json fence.
+// Those examples are the "checked" sections of the generated / checked / handwritten boundary defined in docs/artifacts.md: this test fails when an example drifts from the snapshot it claims to mirror.
 // ---------------------------------------------------------------------------
 
 #[test]
