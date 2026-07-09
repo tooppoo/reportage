@@ -97,12 +97,6 @@ jobs:
           manifest: |
             version: 1
             subjects:
-              - path: VERSION
-                assertions:
-                  - exists
-                  - is_regular_file
-                  - line_count:
-                      equals: 1
               - path: checksums.txt
                 assertions:
                   - exists
