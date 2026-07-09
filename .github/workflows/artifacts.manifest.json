@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "artifact_name": "artifacts",
-  "version_command": "just get-version",
+  "version_command": "scripts/get-version.sh",
   "build_script": "scripts/release/build.sh",
   "build_dist": "build/bin",
   "archive_prefix": "reportage",
