@@ -60,7 +60,9 @@ jobs:
           use_oidc: true
 
   setup-artifacts:
-    uses: ./.github/workflows/_setup_artifacts.yml
+    uses: tooppoo/release-workflows/.github/workflows/_setup_artifacts.yml@v1
+    with:
+      config_path: .github/workflows/artifacts.manifest.json
 
   assert-archive:
     name: Assert archive
