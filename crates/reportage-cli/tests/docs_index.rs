@@ -156,6 +156,26 @@ fn docs_index_document_conforms_to_the_contract() {
         "documents[].id values must be unique"
     );
 
+    // The sequence itself is contract: it is the recommended reading order for AI consumers
+    // (issue #137). Reordering must be a deliberate change made both in the DOCUMENTS table
+    // (crates/reportage-cli/src/docs.rs) and here, never a refactoring side effect.
+    let ordered_ids: Vec<&str> = doc.documents.iter().map(|d| d.id.as_str()).collect();
+    assert_eq!(
+        ordered_ids,
+        [
+            "syntax",
+            "semantics",
+            "semantic-rules",
+            "diagnostics",
+            "execution-model",
+            "exit-codes",
+            "configuration",
+            "json-report",
+            "run-result",
+        ],
+        "documents[] order is the recommended reading order and must only change deliberately"
+    );
+
     assert_eq!(
         doc.validation.command,
         "reportage <file.repor> --format=json"
