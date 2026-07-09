@@ -2,6 +2,14 @@ reportage X.Y.Z (docs tag: vX.Y.Z)
 
 Documents (recommended reading order):
 
+  AI documentation guide
+    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/README.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/README.md
+
+  AI quick reference
+    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/quick-reference.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/quick-reference.md
+
   Syntax reference
     human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/syntax.md
     ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/syntax.md
@@ -37,6 +45,18 @@ Documents (recommended reading order):
   Run result artifact contract
     human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/spec/artifacts/run-result/README.md
     ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/spec/artifacts/run-result/README.md
+
+  AI generation rules
+    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/generation-rules.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/generation-rules.md
+
+  AI validation flow
+    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/validation-flow.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/validation-flow.md
+
+  AI common mistakes
+    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/common-mistakes.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/common-mistakes.md
 
 Validation:
   After editing a .repor file, run: reportage <file.repor> --format=json

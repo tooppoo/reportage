@@ -163,6 +163,8 @@ fn docs_index_document_conforms_to_the_contract() {
     assert_eq!(
         ordered_ids,
         [
+            "ai-readme",
+            "ai-quick-reference",
             "syntax",
             "semantics",
             "semantic-rules",
@@ -172,6 +174,9 @@ fn docs_index_document_conforms_to_the_contract() {
             "configuration",
             "json-report",
             "run-result",
+            "ai-generation-rules",
+            "ai-validation-flow",
+            "ai-common-mistakes",
         ],
         "documents[] order is the recommended reading order and must only change deliberately"
     );

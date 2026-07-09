@@ -1,6 +1,24 @@
 {
   "documents": [
     {
+      "id": "ai-readme",
+      "path": "docs/ai/README.md",
+      "title": "AI documentation guide",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/README.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/README.md"
+      }
+    },
+    {
+      "id": "ai-quick-reference",
+      "path": "docs/ai/quick-reference.md",
+      "title": "AI quick reference",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/quick-reference.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/quick-reference.md"
+      }
+    },
+    {
       "id": "syntax",
       "path": "docs/syntax.md",
       "title": "Syntax reference",
@@ -79,6 +97,33 @@
       "urls": {
         "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/spec/artifacts/run-result/README.md",
         "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/spec/artifacts/run-result/README.md"
+      }
+    },
+    {
+      "id": "ai-generation-rules",
+      "path": "docs/ai/generation-rules.md",
+      "title": "AI generation rules",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/generation-rules.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/generation-rules.md"
+      }
+    },
+    {
+      "id": "ai-validation-flow",
+      "path": "docs/ai/validation-flow.md",
+      "title": "AI validation flow",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/validation-flow.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/validation-flow.md"
+      }
+    },
+    {
+      "id": "ai-common-mistakes",
+      "path": "docs/ai/common-mistakes.md",
+      "title": "AI common mistakes",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/common-mistakes.md",
+        "human": "https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/common-mistakes.md"
       }
     }
   ],

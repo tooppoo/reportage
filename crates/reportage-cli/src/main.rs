@@ -1,9 +1,9 @@
-mod docs;
 mod render;
 
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
+use reportage_cli::docs;
 use reportage_core::{
     artifact::{ArtifactWriter, RunId},
     config, evaluator,
