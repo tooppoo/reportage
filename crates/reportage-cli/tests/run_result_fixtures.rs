@@ -274,7 +274,7 @@ enum LogicalOperator {
     Any,
 }
 
-/// The full 15-kind expectation contract of `spec/artifacts/run-result/schema.json`.
+/// The full expectation contract of `spec/artifacts/run-result/schema.json`.
 /// Every variant the schema defines is modelled, whether or not a fixture currently exercises it.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]

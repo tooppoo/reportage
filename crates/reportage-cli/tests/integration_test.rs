@@ -1231,7 +1231,7 @@ fn stdout_text_equals_fails_on_heredoc_byte_mismatch() {
     // Mirrors `file_text_equals_fails_on_heredoc_byte_mismatch` for a captured stream: a failing
     // heredoc-form stdout text_equals must report its own stream-scoped diagnostic code, and its
     // human-rendered subject description must use the `text_equals` operator keyword and the
-    // heredoc literal label (see `format_text_equals_source` / `print_contents_equals_detail`).
+    // heredoc literal label (see `format_text_equals_source` / `print_byte_comparison_detail`).
     let dir = TempDir::new().unwrap();
     let script = write_script(
         &dir,
