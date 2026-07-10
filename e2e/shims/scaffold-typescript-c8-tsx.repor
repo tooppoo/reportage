@@ -46,7 +46,7 @@ case "typescript-c8-tsx is registered: an unrelated unknown template still names
 
   assert {
     exit 2
-    stderr contains "unknown template 'bogus-template': available templates are: golang, typescript-c8-tsx"
+    stderr contains "unknown template 'bogus-template': available templates are: golang, rust, typescript-c8-tsx"
   }
 }
 

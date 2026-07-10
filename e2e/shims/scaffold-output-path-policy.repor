@@ -23,7 +23,7 @@ case "--force bypasses the exists check, reaching template resolution instead" {
 
   assert {
     exit 2
-    stderr contains "unknown template 'does-not-exist': available templates are: golang, typescript-c8-tsx"
+    stderr contains "unknown template 'does-not-exist': available templates are: golang, rust, typescript-c8-tsx"
     not {
       stderr contains "already exists"
     }

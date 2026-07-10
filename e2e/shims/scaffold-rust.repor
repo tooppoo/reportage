@@ -1,0 +1,225 @@
+
+case "rust generates a shim embedding the entry point" {
+  $ reportage shim scaffold --template rust --entry-point my-app --out shim.sh
+
+  assert {
+    exit 0
+    file <"shim.sh"> contains "#!/bin/sh"
+    file <"shim.sh"> contains "entry_point='my-app'"
+    file <"shim.sh"> contains "RUSTFLAGS='-C instrument-coverage' cargo build --quiet --bin \"$entry_point\" --target-dir \"$target_dir\""
+    file <"shim.sh"> contains "LLVM_PROFILE_FILE=\"$PWD/$cover_dir/%p-%m.profraw\" exec \"$bin_path\" \"$@\""
+  }
+}
+
+case "rust generated shim is valid POSIX sh" {
+  $ reportage shim scaffold --template rust --entry-point my-app --out shim.sh
+  $ sh -n shim.sh
+
+  assert {
+    exit 0
+  }
+}
+
+case "rust quotes an entry point containing a space and a single quote without breaking POSIX sh" {
+  # A cargo binary target name with a space or quote is unusual but lexically possible, and the template must not let it break out of the generated script's quoting.
+  $ reportage shim scaffold --template rust --entry-point "it's my app" --out shim.sh
+  $ sh -n shim.sh
+
+  assert {
+    exit 0
+    file <"shim.sh"> contains "entry_point='it'\\''s my app'"
+  }
+}
+
+case "rust is registered: an unrelated unknown template still names it as available" {
+  $ reportage shim scaffold --template bogus-template --entry-point my-app --out out.sh
+
+  assert {
+    exit 2
+    stderr contains "unknown template 'bogus-template': available templates are: golang, rust, typescript-c8-tsx"
+  }
+}
+
+case "rust generated shim has the owner-execute permission bit set" {
+  $ reportage shim scaffold --template rust --entry-point my-app --out shim.sh
+  $ test -x shim.sh
+
+  assert {
+    exit 0
+  }
+}
+
+case "rust: --force overwrites a previously generated shim with freshly rendered content" {
+  $ reportage shim scaffold --template rust --entry-point old-app --out shim.sh
+  $ reportage shim scaffold --template rust --entry-point new-app --out shim.sh --force
+
+  assert {
+    exit 0
+    file <"shim.sh"> contains "entry_point='new-app'"
+    not {
+      file <"shim.sh"> contains "entry_point='old-app'"
+    }
+  }
+}
+
+case "rust generated shim actually runs when wired up as a reportage command" {
+  # A real Rust toolchain is not exercised in this test environment, so a fake `cargo` stands in for it.
+  # This lets the case exercise the generated shim's own build-then-exec chain through reportage's real command-resolution mechanism (docs/configuration.md — Commands), rather than only inspecting the rendered file's text as the cases above do.
+  #
+  # The fake `cargo` mimics only what the shim actually invokes: `cargo build --quiet --bin <entry_point> --target-dir <target_dir>`.
+  # It writes a stand-in binary to <target_dir>/debug/<entry_point> that reports the bin target it was built for, the RUSTFLAGS it was built with, the LLVM_PROFILE_FILE it ran with, and any arguments passed through to it.
+  write <"fake-bin/cargo"> ```
+    #!/bin/sh
+    set -eu
+    shift
+    bin=""
+    target_dir=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --quiet)
+          shift
+          ;;
+        --bin)
+          bin="$2"
+          shift 2
+          ;;
+        --target-dir)
+          target_dir="$2"
+          shift 2
+          ;;
+        *)
+          shift
+          ;;
+      esac
+    done
+    out="$target_dir/debug/$bin"
+    mkdir -p "$(dirname "$out")"
+    printf '#!/bin/sh\n' > "$out"
+    printf 'echo "cargo-ran bin=%s rustflags=%s llvm_profile_file=$LLVM_PROFILE_FILE args=$*"\n' "$bin" "$RUSTFLAGS" >> "$out"
+    printf 'exit "${FAKE_CARGO_EXIT:-0}"\n' >> "$out"
+    chmod +x "$out"
+    ```
+  $ chmod +x fake-bin/cargo
+
+  $ reportage shim scaffold --template rust --entry-point my-app --out my-app
+
+  write <"reportage.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+      commands {
+        command "my-app" {
+          exec "my-app"
+        }
+      }
+      tests {
+        path "inner.repor"
+      }
+    }
+    ```
+  write <"inner.repor"> ```
+    case "success: builds with instrument-coverage and passes extra arguments through to the built binary" {
+      $ my-app one two
+
+      assert {
+        exit 0
+        stdout contains "cargo-ran bin=my-app rustflags=-C instrument-coverage"
+        stdout contains "coverage/reportage/rust/%p-%m.profraw"
+        stdout contains "args=one two"
+      }
+    }
+
+    case "failure: propagates the wrapped invocation's non-zero exit status" {
+      $ FAKE_CARGO_EXIT=7 my-app
+
+      assert {
+        exit 7
+      }
+    }
+    ```
+
+  $ PATH="$PWD/fake-bin:$PATH" reportage
+
+  assert {
+    exit 0
+    stdout contains "PASS  inner.repor :: success: builds with instrument-coverage and passes extra arguments through to the built binary"
+    stdout contains "PASS  inner.repor :: failure: propagates the wrapped invocation's non-zero exit status"
+  }
+}
+
+case "rust generated shim resolves this project's Cargo.toml relative to its own directory, not the caller's working directory" {
+  # reportage runs a wired-up command with the *inner* suite's own case workspace as its working directory, not the directory the shim file lives in (docs/execution-model.md).
+  # This case therefore places Cargo.toml next to the shim and has the fake `cargo` fail unless it can actually find that file in its working directory: that is only possible if the shim cd'd into its own directory instead of staying in the caller's working directory.
+  write <"Cargo.toml"> ""
+  write <"fake-bin/cargo"> ```
+    #!/bin/sh
+    set -eu
+    shift
+    bin=""
+    target_dir=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --quiet)
+          shift
+          ;;
+        --bin)
+          bin="$2"
+          shift 2
+          ;;
+        --target-dir)
+          target_dir="$2"
+          shift 2
+          ;;
+        *)
+          shift
+          ;;
+      esac
+    done
+    if [ ! -f Cargo.toml ]; then
+      echo "Cargo.toml not found (cwd $(pwd))" >&2
+      exit 1
+    fi
+    out="$target_dir/debug/$bin"
+    mkdir -p "$(dirname "$out")"
+    printf '#!/bin/sh\n' > "$out"
+    printf 'echo built-ok\n' >> "$out"
+    chmod +x "$out"
+    ```
+  $ chmod +x fake-bin/cargo
+
+  $ reportage shim scaffold --template rust --entry-point my-app --out my-app
+
+  write <"reportage.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+      commands {
+        command "my-app" {
+          exec "my-app"
+        }
+      }
+      tests {
+        path "inner.repor"
+      }
+    }
+    ```
+  write <"inner.repor"> ```
+    case "shim finds its own Cargo.toml regardless of the inner suite's case workspace" {
+      $ my-app
+
+      assert {
+        exit 0
+        stdout contains "built-ok"
+      }
+    }
+    ```
+
+  $ PATH="$PWD/fake-bin:$PATH" reportage
+
+  assert {
+    exit 0
+    stdout contains "PASS  inner.repor :: shim finds its own Cargo.toml regardless of the inner suite's case workspace"
+  }
+}

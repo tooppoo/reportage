@@ -381,6 +381,9 @@ jobs:
       - name: build go shim example's coverage-instrumented binary
         run: just examples-shim::go-build
 
+      - name: build rust shim example's coverage-instrumented binary
+        run: just examples-shim::rust-build
+
       - name: install javascript shim example's dependencies
         run: just examples-shim::js-install
 
@@ -392,6 +395,9 @@ jobs:
 
       - name: check go shim example coverage is 100%
         run: just examples-shim::go-coverage-100
+
+      - name: check rust shim example coverage is 100%
+        run: just examples-shim::rust-coverage-100
 
   vscode-package:
     runs-on: ubuntu-latest

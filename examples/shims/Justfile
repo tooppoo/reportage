@@ -37,3 +37,27 @@ go-coverage-100:
     echo "ERROR: go coverage (${total}%) does not meet threshold (100%)"
     exit 1
   }
+
+# warm the rust shim's instrumented build cache, and clear coverage output left over from a prior local run for the same stale-coverage reason `go-build` documents.
+# the shim rebuilds on every invocation anyway (cargo makes that incremental), so this recipe exists to clear stale coverage and to keep the first suite invocation from paying the full cold-build cost.
+rust-build:
+  rm -rf rust/coverage rust/.reportage
+  cd rust && RUSTFLAGS='-C instrument-coverage' cargo build --quiet --bin sample --target-dir .reportage/shims/rust/target
+
+# llvm-profdata/llvm-cov come from rustup's llvm-tools component (pinned in rust-toolchain.toml), which installs them into the toolchain sysroot rather than onto PATH.
+# the percentage is taken from `llvm-cov export` JSON via jq instead of parsing the human-readable report's columns, whose layout is not stable across llvm-cov versions.
+rust-coverage-100:
+  #!/usr/bin/env sh
+  set -eu
+  cd rust
+  bin='.reportage/shims/rust/target/debug/sample'
+  tools_dir="$(dirname "$(rustc --print target-libdir)")/bin"
+  tmp=$(mktemp)
+  trap 'rm -f "$tmp"' EXIT
+  "$tools_dir/llvm-profdata" merge -sparse coverage/reportage/rust/*.profraw -o "$tmp"
+  "$tools_dir/llvm-cov" report "$bin" -instr-profile="$tmp" src/main.rs
+  total=$("$tools_dir/llvm-cov" export --summary-only "$bin" -instr-profile="$tmp" src/main.rs | jq '.data[0].totals.lines.percent')
+  awk -v total="$total" 'BEGIN { exit (total >= 100.0) ? 0 : 1 }' || {
+    echo "ERROR: rust line coverage (${total}%) does not meet threshold (100%)"
+    exit 1
+  }

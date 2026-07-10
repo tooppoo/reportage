@@ -7,7 +7,7 @@
 //! See `docs/shim-scaffold.md` and the ADR at
 //! `docs/adr/20260708T062146Z_shim-scaffold-command.md`.
 //!
-//! [`TemplateRegistry::builtin`] ships `typescript-c8-tsx` (added by #128) and `golang` (added by #129).
+//! [`TemplateRegistry::builtin`] ships `typescript-c8-tsx` (added by #128), `golang` (added by #129), and `rust`.
 //! This module's own tests also exercise template resolution and rendering through a
 //! locally-defined test-fixture template, so the scaffolding pipeline itself (validation,
 //! lookup, rendering, output-path policy, permissions) has coverage that does not depend on any
@@ -106,7 +106,7 @@ where
 
 /// A name-resolved set of templates the scaffold command can render.
 ///
-/// Registration is a plain `Vec`, not a `HashMap`: v0's template count is small (2 today) and [`TemplateRegistry::available_names`] wants a stable sorted order for diagnostics regardless of registration order.
+/// Registration is a plain `Vec`, not a `HashMap`: v0's template count is small (3 today) and [`TemplateRegistry::available_names`] wants a stable sorted order for diagnostics regardless of registration order.
 pub struct TemplateRegistry {
     entries: Vec<(String, Box<dyn ShimTemplate>)>,
 }
@@ -127,6 +127,10 @@ impl TemplateRegistry {
             (
                 "golang".to_string(),
                 Box::new(golang_template) as Box<dyn ShimTemplate>,
+            ),
+            (
+                "rust".to_string(),
+                Box::new(rust_template) as Box<dyn ShimTemplate>,
             ),
         ])
     }
@@ -464,6 +468,55 @@ fn golang_template(ctx: &TemplateContext) -> String {
     )
 }
 
+/// The `rust` builtin template: a POSIX `sh` shim that builds a coverage-instrumented Rust binary via `RUSTFLAGS='-C instrument-coverage' cargo build`, then execs it with `LLVM_PROFILE_FILE` set so each run writes one LLVM `.profraw` file into a fixed coverage directory.
+///
+/// `--entry-point` is a cargo binary target name (the value `cargo build --bin` accepts), not a file path: the shim both selects the build target and derives the built binary's path from it. See docs/shim-scaffold.md — `rust` template.
+///
+/// `-C instrument-coverage` is a build-time flag, not a runtime one, so this shim rebuilds the binary on every invocation rather than exec-ing a pre-built one — the same trade-off `golang_template` documents; cargo's incremental compilation keeps rebuilds after the first one cheap.
+///
+/// `entry_point` is embedded through [`single_quote`], the same quoting `typescript_c8_tsx_template` and `golang_template` use, so this template does not reimplement its own quoting.
+///
+/// `work_dir` and `cover_dir` are fixed initial values, not derived from `--out`: v0's `TemplateContext` carries only `entry_point` (see [`TemplateContext`]), so this template has no project-specific destination to embed here even if it wanted to.
+fn rust_template(ctx: &TemplateContext) -> String {
+    format!(
+        "#!/bin/sh\n\
+         set -eu\n\
+         \n\
+         # Scaffolded by reportage.\n\
+         # This file is owned by this project after generation.\n\
+         # Edit the cargo build target and coverage paths to match this project.\n\
+         #\n\
+         # entry_point is a cargo binary target name (`cargo build --bin`), not a file path.\n\
+         # The build gets its own target directory under work_dir so instrumented artifacts do not share (and repeatedly invalidate) this project's regular target/ cache.\n\
+         #\n\
+         # `--quiet` keeps a successful build silent: cargo's normal progress output goes to stderr, which a test asserting on this command's stderr would not expect.\n\
+         #\n\
+         # Rust/LLVM coverage data is written when the program exits normally, including via std::process::exit.\n\
+         # If the program terminates by abort or a fatal signal, coverage data from that run may be lost.\n\
+         #\n\
+         # LLVM_PROFILE_FILE names one .profraw file per process run (%p is the process ID, %m the binary signature), so coverage from multiple invocations accumulates in cover_dir.\n\
+         # The path is made absolute so the data still lands under this project even if the program changes its own working directory before exiting.\n\
+         #\n\
+         # A command wired up through reportage runs with the case workspace as its working directory, not this file's directory, so this shim cd's into its own directory first: cargo resolves this project's Cargo.toml from there.\n\
+         # If this project's Cargo.toml lives somewhere else relative to this file, adjust the cd target.\n\
+         \n\
+         CDPATH= cd -- \"$(dirname -- \"$0\")\"\n\
+         \n\
+         entry_point={entry_point}\n\
+         work_dir='.reportage/shims/rust'\n\
+         target_dir=\"$work_dir/target\"\n\
+         bin_path=\"$target_dir/debug/$entry_point\"\n\
+         cover_dir='coverage/reportage/rust'\n\
+         \n\
+         mkdir -p \"$work_dir\" \"$cover_dir\"\n\
+         \n\
+         RUSTFLAGS='-C instrument-coverage' cargo build --quiet --bin \"$entry_point\" --target-dir \"$target_dir\"\n\
+         \n\
+         LLVM_PROFILE_FILE=\"$PWD/$cover_dir/%p-%m.profraw\" exec \"$bin_path\" \"$@\"\n",
+        entry_point = single_quote(ctx.entry_point()),
+    )
+}
+
 /// A shell-script test-fixture template used only by this module's own tests, to exercise
 /// rendering (including safe entry-point quoting) and the project-ownership notice contract
 /// independently of any particular real template's content.
@@ -575,10 +628,10 @@ mod tests {
     }
 
     #[test]
-    fn builtin_available_names_include_both_registered_templates_sorted() {
+    fn builtin_available_names_include_all_registered_templates_sorted() {
         assert_eq!(
             TemplateRegistry::builtin().available_names(),
-            vec!["golang", "typescript-c8-tsx"]
+            vec!["golang", "rust", "typescript-c8-tsx"]
         );
     }
 
@@ -771,6 +824,113 @@ mod tests {
         // A behavioral, not merely textual, check: feeds the rendered content to `sh -n` (parse-only, no execution) so a regression that breaks quoting or line-continuation structure fails here even if the substring assertions above happen not to catch it.
         let ctx = TemplateContext::new("it's/my app/cmd".to_string()).unwrap();
         let rendered = golang_template(&ctx);
+
+        let mut child = std::process::Command::new("sh")
+            .arg("-n")
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .expect("failed to spawn sh -n");
+        use std::io::Write;
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(rendered.as_bytes())
+            .unwrap();
+        let status = child.wait().expect("failed to wait on sh -n");
+        assert!(
+            status.success(),
+            "rendered template is not valid POSIX sh:\n{rendered}"
+        );
+    }
+
+    // --- rust template rendering ---
+
+    #[test]
+    fn rust_registers_under_its_template_name() {
+        assert!(TemplateRegistry::builtin().resolve("rust").is_some());
+    }
+
+    #[test]
+    fn rust_embeds_the_entry_point() {
+        let ctx = TemplateContext::new("my-app".to_string()).unwrap();
+        let rendered = rust_template(&ctx);
+        assert!(rendered.contains("entry_point='my-app'"));
+    }
+
+    #[test]
+    fn rust_quotes_an_entry_point_containing_a_space_and_a_single_quote() {
+        // Exercises the same `single_quote` helper `fixture_shell_template`'s tests exercise (see `fixture_template_quotes_entry_point_containing_single_quote` above), so this asserts the template reuses #127's quoting rather than embedding the value unquoted.
+        let ctx = TemplateContext::new("it's my app".to_string()).unwrap();
+        let rendered = rust_template(&ctx);
+        assert!(rendered.contains("entry_point='it'\\''s my app'"));
+    }
+
+    #[test]
+    fn rust_resolves_paths_relative_to_its_own_directory() {
+        // reportage runs a wired-up command with the case workspace as its working directory, not this shim's own directory, so cargo's manifest lookup and work_dir/cover_dir must be resolved against this file's own location rather than left to resolve against whatever directory the shim happened to be invoked from.
+        let ctx = TemplateContext::new("my-app".to_string()).unwrap();
+        let rendered = rust_template(&ctx);
+        assert!(rendered.contains("CDPATH= cd -- \"$(dirname -- \"$0\")\""));
+    }
+
+    #[test]
+    fn rust_builds_with_the_instrument_coverage_flag() {
+        let ctx = TemplateContext::new("my-app".to_string()).unwrap();
+        let rendered = rust_template(&ctx);
+        assert!(rendered.contains(
+            "RUSTFLAGS='-C instrument-coverage' cargo build --quiet --bin \"$entry_point\" --target-dir \"$target_dir\""
+        ));
+    }
+
+    #[test]
+    fn rust_sets_llvm_profile_file_before_running_the_built_binary() {
+        let ctx = TemplateContext::new("my-app".to_string()).unwrap();
+        let rendered = rust_template(&ctx);
+        assert!(rendered.contains(
+            "LLVM_PROFILE_FILE=\"$PWD/$cover_dir/%p-%m.profraw\" exec \"$bin_path\" \"$@\""
+        ));
+    }
+
+    #[test]
+    fn rust_passes_additional_arguments_through_to_the_built_binary() {
+        let ctx = TemplateContext::new("my-app".to_string()).unwrap();
+        let rendered = rust_template(&ctx);
+        assert!(rendered.contains("exec \"$bin_path\" \"$@\""));
+    }
+
+    #[test]
+    fn rust_includes_project_editable_comment() {
+        let ctx = TemplateContext::new("my-app".to_string()).unwrap();
+        let rendered = rust_template(&ctx);
+        assert!(
+            rendered
+                .contains("Edit the cargo build target and coverage paths to match this project.")
+        );
+    }
+
+    #[test]
+    fn rust_documents_the_entry_point_as_a_cargo_bin_target_name() {
+        // The rust template's `--entry-point` is not a file path, unlike typescript-c8-tsx's; the generated file must say so, or an edited copy could plausibly be "fixed" to pass a path that `cargo build --bin` rejects.
+        let ctx = TemplateContext::new("my-app".to_string()).unwrap();
+        let rendered = rust_template(&ctx);
+        assert!(rendered.contains(
+            "entry_point is a cargo binary target name (`cargo build --bin`), not a file path."
+        ));
+    }
+
+    #[test]
+    fn rust_documents_coverage_data_loss_on_abort() {
+        let ctx = TemplateContext::new("my-app".to_string()).unwrap();
+        let rendered = rust_template(&ctx);
+        assert!(rendered.contains("abort"));
+    }
+
+    #[test]
+    fn rust_renders_as_a_syntactically_valid_posix_shell_script() {
+        // A behavioral, not merely textual, check: feeds the rendered content to `sh -n` (parse-only, no execution) so a regression that breaks quoting or line-continuation structure fails here even if the substring assertions above happen not to catch it.
+        let ctx = TemplateContext::new("it's my app".to_string()).unwrap();
+        let rendered = rust_template(&ctx);
 
         let mut child = std::process::Command::new("sh")
             .arg("-n")

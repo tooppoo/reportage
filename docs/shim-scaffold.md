@@ -40,7 +40,7 @@ See [ADR 20260708T062146Z](adr/20260708T062146Z_shim-scaffold-command.md) for th
 
 ## Template model
 
-- `typescript-c8-tsx` and `golang` (both documented below) are the only builtin templates today. Any other `--template` name currently fails as unknown.
+- `typescript-c8-tsx`, `golang`, and `rust` (all documented below) are the only builtin templates today. Any other `--template` name currently fails as unknown.
 - Templates are resolved from a name through a registry built into the `reportage` binary. There is no support for loading a template file from disk in v0.
 - The template resolution, template context, and rendering steps are kept as separate seams internally (see `reportage_core::shim_scaffold::ShimTemplate`), specifically so that a future external-template loader has somewhere to plug in without reworking the scaffold pipeline. v0 does not commit to what that loader would look like.
 - A template renders against a small context. In v0 the only context field is `entry_point`, taken directly from `--entry-point`.
@@ -109,6 +109,38 @@ This template assumes Go 1.20 or later (`go build -cover` and `GOCOVERDIR` were 
 - reconciling `GOCOVERDIR` with an existing coverage-collection setup;
 - adjusting the `cd` target if `entry_point` or `go.mod` live somewhere other than the shim's own directory — for example if `--out` places the shim in a nested `shim/` subdirectory of the project, as in this repo's own `examples/shims/go`.
 
+## `rust` template
+
+```sh
+reportage shim scaffold --template rust --entry-point my-app --out shims/my-app
+```
+
+This template targets Rust's LLVM source-based coverage instrumentation (`-C instrument-coverage`, stable since Rust 1.60). The generated shim is a POSIX `sh` script that single-quotes `--entry-point` (reusing the same quoting `reportage_core::shim_scaffold::single_quote` applies to every template) and, on every invocation, builds a coverage-instrumented binary with `RUSTFLAGS='-C instrument-coverage' cargo build --quiet --bin "$entry_point" --target-dir "$target_dir"`, then execs that binary with `LLVM_PROFILE_FILE` pointing into a fixed coverage output directory.
+
+`--entry-point` is a cargo binary target name (the value `cargo build --bin` accepts), not a file path: the generated shim both selects the build target with it and derives the built binary's path (`$target_dir/debug/$entry_point`) from it.
+
+`-C instrument-coverage` is a build-time rustc flag, not a runtime one, so the generated shim rebuilds the binary on every invocation rather than exec-ing a pre-built one, for the same reason the `golang` template documents above; cargo's incremental compilation keeps rebuilds after the first one cheap. The build uses its own target directory under `work_dir` so instrumented artifacts do not share (and repeatedly invalidate) the project's regular `target/` cache. A project that wants to run an already-built binary instead must edit the generated shim after scaffold to remove the `cargo build` step and point `bin_path` at that binary directly.
+
+The generated shim passes `--quiet` to `cargo build` so a successful build stays silent: cargo's normal progress output goes to stderr, and a test asserting on the wired-up command's stderr would otherwise see build progress it did not expect.
+
+At scaffold time, reportage does not read the project's `Cargo.toml`, does not detect the installed Rust version, and does not check that the `cargo` command exists.
+
+Rust/LLVM coverage data is written when the program exits normally, including via `std::process::exit`. If the program terminates through an abort or a fatal signal, coverage data from that run may be lost; reportage neither detects nor works around this. `LLVM_PROFILE_FILE` names one `.profraw` file per process run (`%p` expands to the process ID, `%m` to the instrumented binary's signature), which is what lets coverage from multiple invocations within one suite run add up correctly; it also means a stale file left over from an earlier suite run stays in `cover_dir` and can mask a real coverage regression unless the project clears `cover_dir` before each fresh suite run — the generated shim does not do this itself. Turning the accumulated `.profraw` files into a report needs LLVM's `llvm-profdata`/`llvm-cov` (shipped by rustup's `llvm-tools` component) or a wrapper such as `cargo-llvm-cov`; the shim only collects the data.
+
+`work_dir`, `target_dir`, `bin_path`, and `cover_dir` in the generated shim are fixed initial values, not derived from `--out`: v0's template context carries only `entry_point`, so scaffold has no project-specific destination to embed here even if it wanted to. Edit these paths to fit the project after generation.
+
+The generated shim `cd`s into its own directory (derived from `$0`) before doing anything else, so cargo resolves the project's `Cargo.toml` from where the shim file itself lives, and `work_dir`/`cover_dir` are created there rather than in whatever directory the shim happens to be invoked from. This matters because a command wired up through reportage runs with the case workspace as its working directory, not the shim's own directory (see [execution-model.md](execution-model.md)); if the project's `Cargo.toml` lives somewhere other than the shim's own directory, edit the `cd` target after generation to match. `LLVM_PROFILE_FILE` is made absolute (prefixed with the shim's `$PWD` after that `cd`) so the coverage data still lands under the project even if the program changes its own working directory before exiting.
+
+### Assumptions and limits
+
+This template assumes `-C instrument-coverage` support (stable since Rust 1.60), a `cargo`-managed project whose `Cargo.toml` lives in the shim's own directory, and a build-on-run workflow. Depending on the project, the generated file may need further edits after generation:
+
+- selecting a different build target or profile, for example `--release`, `-p <package>` in a cargo workspace, or feature flags;
+- running an already-built binary instead of building on every invocation;
+- changing `work_dir`, `target_dir`, `bin_path`, or `cover_dir` to project-specific locations;
+- reconciling `RUSTFLAGS`/`LLVM_PROFILE_FILE` with an existing coverage-collection setup (for example `cargo-llvm-cov`, which manages both itself);
+- adjusting the `cd` target if the project's `Cargo.toml` lives somewhere other than the shim's own directory — for example if `--out` places the shim in a nested `shim/` subdirectory of the project, as in this repo's own `examples/shims/rust`.
+
 ## Output path policy
 
 - The parent directory of `--out` is created automatically if it does not already exist.
@@ -119,7 +151,7 @@ This template assumes Go 1.20 or later (`go build -cover` and `GOCOVERDIR` were 
 
 ## Failure diagnostics
 
-An unknown `--template` value fails with a message that names the requested template and lists every template name currently registered (or states that none are registered, for an embedder that constructs an empty registry directly; the CLI's own registry always has at least `golang` and `typescript-c8-tsx`). `--template`, `--entry-point`, and `--out` each fail the same way whether the flag was omitted entirely or given an explicit empty value.
+An unknown `--template` value fails with a message that names the requested template and lists every template name currently registered (or states that none are registered, for an embedder that constructs an empty registry directly; the CLI's own registry always has at least `golang`, `rust`, and `typescript-c8-tsx`). `--template`, `--entry-point`, and `--out` each fail the same way whether the flag was omitted entirely or given an explicit empty value.
 
 `--template`, `--entry-point`, and `--out` are validated independently of each other. If more than one is empty, missing, or (for `--entry-point`) lexically unsafe in the same invocation, every one of those problems is reported together in a single failure, not just the first one `scaffold` happens to check. A caller who fixes the reported problems should not have to rerun `scaffold` once per remaining problem it already could have reported.
 

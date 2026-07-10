@@ -1,0 +1,36 @@
+#!/bin/sh
+set -eu
+
+# Scaffolded by reportage.
+# This file is owned by this project after generation.
+# Edit the cargo build target and coverage paths to match this project.
+#
+# bin_name is a cargo binary target name (`cargo build --bin`), not a file path.
+# The build gets its own target directory under work_dir so instrumented artifacts do not share (and repeatedly invalidate) this project's regular target/ cache.
+#
+# `--quiet` keeps a successful build silent: cargo's normal progress output goes to stderr, which this example's `stderr empty` assertions do not expect.
+#
+# Rust/LLVM coverage data is written when the program exits normally, including via std::process::exit.
+# If the program terminates by abort or a fatal signal, coverage data from that run may be lost.
+#
+# LLVM_PROFILE_FILE names one .profraw file per process run (%p is the process ID, %m the binary signature), so coverage from multiple invocations accumulates in cover_dir the same way the go example's GOCOVERDIR does.
+# The path is made absolute so the data still lands under this project even if the program changes its own working directory before exiting.
+#
+# reportage runs `$` steps with the case workspace as the working directory, not this shim's own directory (see docs/execution-model.md), so this shim cd's into its own project directory first.
+# Without that, cargo would not find this project's Cargo.toml at all.
+
+shim_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+project_root=$(CDPATH= cd -- "$shim_dir/.." && pwd)
+cd "$project_root"
+
+bin_name='sample'
+work_dir='.reportage/shims/rust'
+target_dir="$work_dir/target"
+bin_path="$target_dir/debug/$bin_name"
+cover_dir='coverage/reportage/rust'
+
+mkdir -p "$work_dir" "$cover_dir"
+
+RUSTFLAGS='-C instrument-coverage' cargo build --quiet --bin "$bin_name" --target-dir "$target_dir"
+
+LLVM_PROFILE_FILE="$project_root/$cover_dir/%p-%m.profraw" exec "$bin_path" "$@"
