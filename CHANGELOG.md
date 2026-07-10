@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 0.0.4
+
+### changed
+
+#### cli / docs
+
+<!-- rellog:entry:start -->
+<!-- rellog:body:start -->
+Add navigation to docs in `reportage docs`
+<!-- rellog:body:end -->
+<!-- rellog:entry:end -->
+
 ## 0.0.3
 
 ### added
