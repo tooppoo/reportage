@@ -1,0 +1,38 @@
+{
+  "cases": [
+    {
+      "name": "stdout and stderr text_equals string literals",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "printf 'hello\\n'"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "text_equals",
+                "value": {
+                  "kind": "quoted",
+                  "value": "hello\n"
+                }
+              }
+            },
+            {
+              "kind": "stderr",
+              "matcher": {
+                "kind": "text_equals",
+                "value": {
+                  "kind": "quoted",
+                  "value": ""
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

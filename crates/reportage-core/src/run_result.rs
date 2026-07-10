@@ -497,6 +497,28 @@ fn expectation_json(
             expected_source,
             comparison,
         ),
+        ExpectationKind::StdoutTextEquals {
+            expected_source,
+            comparison,
+        } => stream_text_equals_json(
+            "stdoutTextEquals",
+            "stdout",
+            test_id,
+            action_ref.as_deref(),
+            expected_source,
+            comparison,
+        ),
+        ExpectationKind::StderrTextEquals {
+            expected_source,
+            comparison,
+        } => stream_text_equals_json(
+            "stderrTextEquals",
+            "stderr",
+            test_id,
+            action_ref.as_deref(),
+            expected_source,
+            comparison,
+        ),
         ExpectationKind::DirExists { path, observation } => json!({
             "kind": "dirExists",
             "path": path,
@@ -660,6 +682,29 @@ fn stream_contents_equals_json(
     value
 }
 
+/// Builds the `expectation` object for `stdout` / `stderr text_equals`. Mirrors
+/// `stream_contents_equals_json` — same `actualRef` per-action artifact reference, same
+/// comparison fields — differing only in the expected side's shape: an inline
+/// `TextExpectedSource`, not a reference to another file.
+fn stream_text_equals_json(
+    kind: &str,
+    stream: &str,
+    test_id: &str,
+    action_ref: Option<&str>,
+    expected_source: &TextEqualsExpectedSource,
+    comparison: &ContentsEqualsComparison,
+) -> Value {
+    let mut value = json!({
+        "kind": kind,
+        "expectedSource": text_equals_expected_source_json(expected_source),
+    });
+    if let Some(action_ref) = action_ref {
+        value["actualRef"] = json!(format!("{test_id}/{action_ref}/{stream}.bin"));
+    }
+    contents_equals_comparison_json(&mut value, comparison);
+    value
+}
+
 fn stream_expectation_json(
     kind: &str,
     stream: &str,
@@ -730,6 +775,12 @@ fn assertion_failure_message(kind: &ExpectationKind, code: DiagnosticCode) -> St
             contents_equals_mismatch_message("stdout", comparison)
         }
         ExpectationKind::StderrContentsEquals { comparison, .. } => {
+            contents_equals_mismatch_message("stderr", comparison)
+        }
+        ExpectationKind::StdoutTextEquals { comparison, .. } => {
+            contents_equals_mismatch_message("stdout", comparison)
+        }
+        ExpectationKind::StderrTextEquals { comparison, .. } => {
             contents_equals_mismatch_message("stderr", comparison)
         }
         ExpectationKind::DirExists { path, .. } => {

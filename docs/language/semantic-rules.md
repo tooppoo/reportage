@@ -240,6 +240,33 @@ Semantic conformance verifies the expected pass/fail result by passing the norma
 | stderr empty fails on a single newline byte; whitespace-only output is still output | `"stderr empty"` | `{"operator":"empty","subject":"stderr"}` | `{"exitCode":1,"stderr":{"data":"Cg==","encoding":"base64","text":"\\n"},"stdout":{"data":"","encoding":"base64","text":""}}` | `fail` | `assertion.stderr.empty.not_empty` |
 | stderr empty fails on a single space byte | `"stderr empty"` | `{"operator":"empty","subject":"stderr"}` | `{"exitCode":1,"stderr":{"data":"IA==","encoding":"base64","text":" "},"stdout":{"data":"","encoding":"base64","text":""}}` | `fail` | `assertion.stderr.empty.not_empty` |
 
+## assertion.stderr.text_equals
+
+- Source: `spec/language/semantics/assertion.stderr.text_equals.json`
+- Syntax form: `stderr text_equals <ExpectedValue<TextValue>>`
+- Category: `assertion`
+
+### Normative Fields
+
+| Field | Value |
+|---|---|
+| checkpointField | `"stderr"` |
+| expectedValueType | `"utf8String"` |
+| matchSemantics | `{"comparison":"byteExact"}` |
+| noImplicitConversionFrom | `["fileContentsReference"]` |
+| operator | `"textEquals"` |
+
+### Conformance Cases
+
+| Description | Assertion source | Normalized assertion | Checkpoint | Expected result | Expected diagnostic |
+|---|---|---|---|---|---|
+| stderr text_equals passes on a byte-for-byte match against a string literal | `"stderr text_equals \\"warn\\\\n\\""` | `{"expected":"warn\\n","operator":"textEquals","subject":"stderr"}` | `{"exitCode":0,"stderr":{"data":"d2Fybgo=","encoding":"base64","text":"warn\\n"},"stdout":{"data":"","encoding":"base64","text":""}}` | `pass` | - |
+| stderr text_equals fails on a missing trailing newline; comparison is byte-exact with no normalization | `"stderr text_equals \\"warn\\""` | `{"expected":"warn","operator":"textEquals","subject":"stderr"}` | `{"exitCode":0,"stderr":{"data":"d2Fybgo=","encoding":"base64","text":"warn\\n"},"stdout":{"data":"","encoding":"base64","text":""}}` | `fail` | `assertion.stderr.text_equals.mismatch` |
+| stderr text_equals passes when both captured stderr and the expected text are empty; two empty inputs are equal | `"stderr text_equals \\"\\""` | `{"expected":"","operator":"textEquals","subject":"stderr"}` | `{"exitCode":0,"stderr":{"data":"","encoding":"base64","text":""},"stdout":{"data":"","encoding":"base64","text":""}}` | `pass` | - |
+| stderr text_equals compares only stderr; identical bytes on stdout do not satisfy it | `"stderr text_equals \\"warn\\\\n\\""` | `{"expected":"warn\\n","operator":"textEquals","subject":"stderr"}` | `{"exitCode":0,"stderr":{"data":"","encoding":"base64","text":""},"stdout":{"data":"d2Fybgo=","encoding":"base64","text":"warn\\n"}}` | `fail` | `assertion.stderr.text_equals.mismatch` |
+| invalid: stderr text_equals rejects a workspace path literal as the expected value; TextValue and FileContentsReference do not implicitly convert | `"stderr text_equals <\\"expected.txt\\">"` | - | - | `parseError` | `semantic.literal.kind_mismatch` |
+| invalid: stderr text_equals rejects a fixture reference literal as the expected value; TextValue and FileContentsReference do not implicitly convert | `"stderr text_equals @\\"expected.txt\\""` | - | - | `parseError` | `semantic.literal.kind_mismatch` |
+
 ## assertion.stdout.contains
 
 - Source: `spec/language/semantics/assertion.stdout.contains.json`
@@ -291,6 +318,33 @@ Semantic conformance verifies the expected pass/fail result by passing the norma
 | stdout empty fails when stdout contains any text | `"stdout empty"` | `{"operator":"empty","subject":"stdout"}` | `{"exitCode":0,"stderr":{"data":"","encoding":"base64","text":""},"stdout":{"data":"aGVsbG8K","encoding":"base64","text":"hello\\n"}}` | `fail` | `assertion.stdout.empty.not_empty` |
 | stdout empty fails on a single newline byte; whitespace-only output is still output | `"stdout empty"` | `{"operator":"empty","subject":"stdout"}` | `{"exitCode":0,"stderr":{"data":"","encoding":"base64","text":""},"stdout":{"data":"Cg==","encoding":"base64","text":"\\n"}}` | `fail` | `assertion.stdout.empty.not_empty` |
 | stdout empty fails on a single space byte | `"stdout empty"` | `{"operator":"empty","subject":"stdout"}` | `{"exitCode":0,"stderr":{"data":"","encoding":"base64","text":""},"stdout":{"data":"IA==","encoding":"base64","text":" "}}` | `fail` | `assertion.stdout.empty.not_empty` |
+
+## assertion.stdout.text_equals
+
+- Source: `spec/language/semantics/assertion.stdout.text_equals.json`
+- Syntax form: `stdout text_equals <ExpectedValue<TextValue>>`
+- Category: `assertion`
+
+### Normative Fields
+
+| Field | Value |
+|---|---|
+| checkpointField | `"stdout"` |
+| expectedValueType | `"utf8String"` |
+| matchSemantics | `{"comparison":"byteExact"}` |
+| noImplicitConversionFrom | `["fileContentsReference"]` |
+| operator | `"textEquals"` |
+
+### Conformance Cases
+
+| Description | Assertion source | Normalized assertion | Checkpoint | Expected result | Expected diagnostic |
+|---|---|---|---|---|---|
+| stdout text_equals passes on a byte-for-byte match against a string literal | `"stdout text_equals \\"hello\\\\n\\""` | `{"expected":"hello\\n","operator":"textEquals","subject":"stdout"}` | `{"exitCode":0,"stderr":{"data":"","encoding":"base64","text":""},"stdout":{"data":"aGVsbG8K","encoding":"base64","text":"hello\\n"}}` | `pass` | - |
+| stdout text_equals fails on a missing trailing newline; comparison is byte-exact with no normalization | `"stdout text_equals \\"hello\\""` | `{"expected":"hello","operator":"textEquals","subject":"stdout"}` | `{"exitCode":0,"stderr":{"data":"","encoding":"base64","text":""},"stdout":{"data":"aGVsbG8K","encoding":"base64","text":"hello\\n"}}` | `fail` | `assertion.stdout.text_equals.mismatch` |
+| stdout text_equals passes when both captured stdout and the expected text are empty; two empty inputs are equal | `"stdout text_equals \\"\\""` | `{"expected":"","operator":"textEquals","subject":"stdout"}` | `{"exitCode":0,"stderr":{"data":"","encoding":"base64","text":""},"stdout":{"data":"","encoding":"base64","text":""}}` | `pass` | - |
+| stdout text_equals compares only stdout; identical bytes on stderr do not satisfy it | `"stdout text_equals \\"hello\\\\n\\""` | `{"expected":"hello\\n","operator":"textEquals","subject":"stdout"}` | `{"exitCode":0,"stderr":{"data":"aGVsbG8K","encoding":"base64","text":"hello\\n"},"stdout":{"data":"","encoding":"base64","text":""}}` | `fail` | `assertion.stdout.text_equals.mismatch` |
+| invalid: stdout text_equals rejects a workspace path literal as the expected value; TextValue and FileContentsReference do not implicitly convert | `"stdout text_equals <\\"expected.txt\\">"` | - | - | `parseError` | `semantic.literal.kind_mismatch` |
+| invalid: stdout text_equals rejects a fixture reference literal as the expected value; TextValue and FileContentsReference do not implicitly convert | `"stdout text_equals @\\"expected.txt\\""` | - | - | `parseError` | `semantic.literal.kind_mismatch` |
 
 ## logical-composition.expectation.all
 

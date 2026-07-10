@@ -1,0 +1,6 @@
+case "stderr text_equals expected text requires a TextValue, not a fixture reference" {
+  $ true
+  assert {
+    stderr text_equals @"expected.txt"
+  }
+}

@@ -84,6 +84,8 @@ assertion.file.text_equals.mismatch
 assertion.file.text_equals.actual_missing
 assertion.file.text_equals.actual_not_regular_file
 assertion.file.text_equals.actual_unreadable
+assertion.stdout.text_equals.mismatch
+assertion.stderr.text_equals.mismatch
 step.write.target_exists
 step.write.parent_not_a_directory
 step.write.io_error
@@ -115,7 +117,7 @@ Classification examples:
 - A valid path whose target is a directory or has non-UTF-8 content for `file <"path"> contains "text"` — assertion failure in principle, because the expectation itself is valid and the observed evidence fails the predicate's requirement.
 - An invalid entry name such as `dir <"artifacts"> contains "a/b"` — semantic error, for the same reason as a path policy violation: the value violates a policy the evaluator must reject before evidence comparison.
 - A literal of the wrong kind, such as `file "out.txt" exists` (a `StringLiteral` where the `file` subject requires a `WorkspacePath`) — semantic error (`semantic.literal.kind_mismatch`), detected during AST construction. The script parses at the grammar level; the diagnostic names the expected kind, the actual kind, and the suggested replacement (`use <"out.txt"> instead`). See [`docs/semantics.md`](semantics.md) — Value literals.
-- A fixture reference literal (`@"<path>"`) in a position that does not accept a `FileContentsReference`, such as a `file` checkpoint subject (`file @"actual.txt" contents_equals ...`) or `text_equals` expected text (`file <"out.txt"> text_equals @"expected.txt"`) — semantic error (`semantic.literal.kind_mismatch`), for the same reason as any other literal kind mismatch.
+- A fixture reference literal (`@"<path>"`) in a position that does not accept a `FileContentsReference`, such as a `file` checkpoint subject (`file @"actual.txt" contents_equals ...`) or `text_equals` expected text (`file <"out.txt"> text_equals @"expected.txt"`, `stdout text_equals @"expected.txt"`) — semantic error (`semantic.literal.kind_mismatch`), for the same reason as any other literal kind mismatch.
 - A fixture reference literal whose raw path is empty, absolute, or contains a `.` / `..` segment — semantic error (`semantic.fixture_reference.empty` / `.absolute` / `.dot_segment`), detected during AST construction, mirroring `semantic.workspace_path.*`.
 - A fixture reference whose resolved source is missing, is not a regular file, or escapes the referencing `*.repor` file's directory once canonicalized (e.g. via a symlink) — semantic error (`semantic.fixture_reference.missing` / `.not_a_regular_file` / `.escapes_repor_directory`). See [`docs/semantics.md`](semantics.md) — Fixture reference value.
 - A valid `dir <"path"> exists` whose target does not exist, or is a regular file rather than a directory — assertion failure.
@@ -123,7 +125,7 @@ Classification examples:
 - `contents_equals`'s expected `WorkspacePath` side missing, not a regular file, or unreadable — semantic error (`semantic.file_contents_reference.missing` / `.not_regular_file` / `.read_error`), surfaced as `CaseStatus::ScriptError` (exit code 2): the expected value itself, not the subject under test, could not be sourced. An unresolvable expected `FixtureReference` is classified the same way, reusing `semantic.fixture_reference.*`.
 - `contents_equals` observing byte-for-byte equal actual and expected content — pass, no diagnostic; a mismatch — assertion failure (`assertion.file.contents_equals.mismatch` / `assertion.stdout.contents_equals.mismatch` / `assertion.stderr.contents_equals.mismatch`).
 - `file <"actual"> text_equals <text_literal>` whose *actual* side is missing, not a regular file, or unreadable — assertion failure (`assertion.file.text_equals.actual_missing` / `.actual_not_regular_file` / `.actual_unreadable`), the same classification as `contents_equals`'s actual side. `text_equals` has no expected-side test-definition error: its expected value is always an inline `TextValue`, never a reference that could fail to resolve.
-- `text_equals` observing byte-for-byte equal actual bytes and expected `TextValue` UTF-8 bytes — pass, no diagnostic; a mismatch — assertion failure (`assertion.file.text_equals.mismatch`).
+- `text_equals` observing byte-for-byte equal actual bytes and expected `TextValue` UTF-8 bytes — pass, no diagnostic; a mismatch — assertion failure (`assertion.file.text_equals.mismatch` / `assertion.stdout.text_equals.mismatch` / `assertion.stderr.text_equals.mismatch`). `stdout` / `stderr text_equals` have no `actual_*` codes: captured output is always available once an action has run, exactly as for `stdout` / `stderr contents_equals`.
 
 This classification is a premise for the diagnostic design of file assertions (#24), logical composition (#25), and directory assertions (#66).
 

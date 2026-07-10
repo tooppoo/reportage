@@ -1,0 +1,6 @@
+case "single line assert heredoc stdout text_equals" {
+  $ true
+  assert { stdout text_equals ```
+  hello
+  ``` }
+}

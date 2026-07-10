@@ -1,0 +1,38 @@
+{
+  "cases": [
+    {
+      "name": "stdout and stderr text_equals heredoc literals",
+      "steps": [
+        {
+          "kind": "action",
+          "command": "sh -c 'printf \"hello\\nworld\\n\"; printf \"warn\\nline\\n\" >&2'"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "text_equals",
+                "value": {
+                  "kind": "heredoc",
+                  "value": "hello\nworld\n"
+                }
+              }
+            },
+            {
+              "kind": "stderr",
+              "matcher": {
+                "kind": "text_equals",
+                "value": {
+                  "kind": "heredoc",
+                  "value": "warn\nline\n"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

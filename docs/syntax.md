@@ -197,18 +197,24 @@ exit_code       = @{ ASCII_DIGIT+ }
 stdout_exp      = { "stdout" ~ ws+ ~ output_matcher }
 stderr_exp      = { "stderr" ~ ws+ ~ output_matcher }
 
-output_matcher  = { output_contains | output_contents_equals | output_empty }
+output_matcher  = { output_contains | output_contents_equals | output_text_equals | output_empty }
 output_contains = { "contains" ~ ws+ ~ value_literal }
 output_empty    = { "empty" }
 
 // `stdout` / `stderr contents_equals @"<path>"` / `contents_equals <"path">`:
 // byte-for-byte comparison against a `FileContentsReference` (a workspace
 // path literal or a fixture reference literal), parsed as the kind-agnostic
-// `value_literal` (see "Value literals" below). There is no
-// `output_text_equals`: v0 does not wire `text_equals` for `stdout` /
-// `stderr` (see #88's scope). See #92 and
+// `value_literal` (see "Value literals" below). See #92 and
 // docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
 output_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
+
+// `stdout text_equals "<text>"` / `stderr text_equals "<text>"`:
+// byte-for-byte comparison of the captured stream's bytes against inline
+// expected text (a `TextValue`), mirroring file_text_equals. This rule only
+// wires the string-literal form; the heredoc-literal forms are
+// stdout_text_equals_heredoc / stderr_text_equals_heredoc below.
+// See docs/adr/20260710T100918Z_output-text-equals-evaluation.md.
+output_text_equals = { "text_equals" ~ ws+ ~ value_literal }
 
 // `file <"path"> exists` / `file <"path"> contains "<text>"`.
 // Subject-first: `file <"path">` is the common subject, `exists` / `contains`
@@ -233,15 +239,19 @@ file_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
 file_text_equals     = { "text_equals" ~ ws+ ~ value_literal }
 
 // `file <"path"> contains <heredoc literal>` / `file <"path"> text_equals
-// <heredoc literal>`: the heredoc-literal forms of file_contains and
-// file_text_equals. Deliberately separate rules from file_exp/file_predicate,
-// not variants folded into file_predicate, because they must not be followed
-// by the generic `trail` the way every other expectation is (see
+// <heredoc literal>` / `stdout text_equals <heredoc literal>` / `stderr
+// text_equals <heredoc literal>`: the heredoc-literal forms of file_contains,
+// file_text_equals, and output_text_equals. Deliberately separate rules from
+// file_exp/file_predicate and stdout_exp/stderr_exp, not variants folded into
+// file_predicate/output_matcher, because they must not be followed by the
+// generic `trail` the way every other expectation is (see
 // heredoc_assertion_line above) — the heredoc literal already consumed its
 // own trailing line. Reachable only through multi_assert. See #88.
-heredoc_expectation       = { file_exp_heredoc | file_text_equals_heredoc }
-file_exp_heredoc          = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "contains" ~ ws+ ~ heredoc_literal }
-file_text_equals_heredoc  = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_literal }
+heredoc_expectation        = { file_exp_heredoc | file_text_equals_heredoc | stdout_text_equals_heredoc | stderr_text_equals_heredoc }
+file_exp_heredoc           = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "contains" ~ ws+ ~ heredoc_literal }
+file_text_equals_heredoc   = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_literal }
+stdout_text_equals_heredoc = { "stdout" ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_literal }
+stderr_text_equals_heredoc = { "stderr" ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_literal }
 
 // `dir <"path"> exists` / `dir <"path"> contains "<name>"`.
 // Subject-first, mirroring file_exp: `dir <"path">` is the common subject,

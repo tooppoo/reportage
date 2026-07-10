@@ -41,6 +41,8 @@ Each ID uses the form:
 - `assertion.file.contains`
 - `assertion.file.contents_equals`
 - `assertion.file.text_equals`
+- `assertion.stdout.text_equals`
+- `assertion.stderr.text_equals`
 - `assertion.dir.exists`
 - `assertion.dir.contains`
 

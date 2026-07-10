@@ -608,6 +608,9 @@ fn expectation_from_assertion(a: &Assertion, description: &str) -> Expectation {
                     OutputMatcher::Contains(json_expected_str(&a.expected, description).to_string())
                 }
                 AssertionOperator::Empty => OutputMatcher::Empty,
+                AssertionOperator::TextEquals => OutputMatcher::TextEquals(TextLiteral::Quoted(
+                    json_expected_str(&a.expected, description).to_string(),
+                )),
                 other => {
                     panic!("case '{description}': unsupported stdout/stderr operator {other:?}")
                 }
@@ -739,6 +742,11 @@ fn assert_expectation_matches_assertion(
                     "case '{description}': contains expected mismatch"
                 ),
                 (OutputMatcher::Empty, AssertionOperator::Empty) => {}
+                (OutputMatcher::TextEquals(t), AssertionOperator::TextEquals) => assert_eq!(
+                    t.to_text_value().as_str(),
+                    json_expected_str(&declared.expected, description),
+                    "case '{description}': stdout/stderr text_equals expected mismatch"
+                ),
                 (matcher, operator) => panic!(
                     "case '{description}': parsed matcher {matcher:?} does not match declared operator {operator:?}"
                 ),

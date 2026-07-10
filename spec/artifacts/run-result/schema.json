@@ -528,6 +528,9 @@
           "$ref": "#/$defs/StreamContentsEqualsExpectation"
         },
         {
+          "$ref": "#/$defs/StreamTextEqualsExpectation"
+        },
+        {
           "$ref": "#/$defs/DirExistsExpectation"
         },
         {
@@ -934,6 +937,77 @@
         },
         "expectedSource": {
           "$ref": "#/$defs/ExpectedSource"
+        },
+        "actualRef": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "match",
+            "mismatch"
+          ]
+        },
+        "actualSizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expectedSizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mismatch": {
+          "$ref": "#/$defs/ContentsMismatch"
+        },
+        "diagnosticRef": {
+          "$ref": "#/$defs/DiagnosticRefField"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "mismatch"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "mismatch"
+            ]
+          }
+        }
+      ]
+    },
+    "StreamTextEqualsExpectation": {
+      "description": "kind is 'stdoutTextEquals' or 'stderrTextEquals': a captured stream's byte-for-byte comparison against an inline TextValue, never a FileContentsReference. Mirrors StreamContentsEqualsExpectation (the actual side is never 'missing': comparison outcome is always present); only expectedSource's shape differs (TextExpectedSource, not ExpectedSource).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "status",
+        "expectedSource",
+        "outcome",
+        "actualSizeBytes",
+        "expectedSizeBytes"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "stdoutTextEquals",
+            "stderrTextEquals"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed"
+          ]
+        },
+        "expectedSource": {
+          "$ref": "#/$defs/TextExpectedSource"
         },
         "actualRef": {
           "type": "string"

@@ -17,3 +17,26 @@ case "file text_equals against a heredoc literal" {
     ```
   }
 }
+
+case "stdout text_equals against a string literal" {
+  $ printf 'hello\n'
+
+  assert {
+    stdout text_equals "hello\n"
+  }
+}
+
+case "stdout and stderr text_equals against heredoc literals" {
+  $ sh -c 'printf "hello\nworld\n"; printf "warn\nline\n" >&2'
+
+  assert {
+    stdout text_equals ```
+    hello
+    world
+    ```
+    stderr text_equals ```
+    warn
+    line
+    ```
+  }
+}

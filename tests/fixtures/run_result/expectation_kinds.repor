@@ -10,6 +10,11 @@ case "exercises file, dir, text, empty, and logical expectation shapes" {
     exit 0
     stdout contains "hello"
     stderr empty
+    stdout text_equals ```
+    hello
+    world
+    ```
+    stderr text_equals ""
     file <"data.txt"> exists
     file <"data.txt"> contains "world"
     file <"data.txt"> text_equals ```

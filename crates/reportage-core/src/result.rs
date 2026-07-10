@@ -76,6 +76,14 @@ pub enum ExpectationKind {
         expected_source: TextEqualsExpectedSource,
         observation: ContentsEqualsObservation,
     },
+    StdoutTextEquals {
+        expected_source: TextEqualsExpectedSource,
+        comparison: ContentsEqualsComparison,
+    },
+    StderrTextEquals {
+        expected_source: TextEqualsExpectedSource,
+        comparison: ContentsEqualsComparison,
+    },
     DirExists {
         path: String,
         observation: DirExistsObservation,
@@ -169,6 +177,18 @@ impl ExpectationKind {
                 }
                 ContentsEqualsObservation::ActualUnreadable => {
                     Some(DiagnosticCode::AssertionFileTextEqualsActualUnreadable)
+                }
+            },
+            ExpectationKind::StdoutTextEquals { comparison, .. } => match comparison.outcome {
+                ContentsEqualsOutcome::Match => None,
+                ContentsEqualsOutcome::Mismatch(_) => {
+                    Some(DiagnosticCode::AssertionStdoutTextEqualsMismatch)
+                }
+            },
+            ExpectationKind::StderrTextEquals { comparison, .. } => match comparison.outcome {
+                ContentsEqualsOutcome::Match => None,
+                ContentsEqualsOutcome::Mismatch(_) => {
+                    Some(DiagnosticCode::AssertionStderrTextEqualsMismatch)
                 }
             },
             ExpectationKind::DirExists { observation, .. } => match observation {
