@@ -1,0 +1,200 @@
+{
+  "Case block": {
+    "prefix": "case",
+    "body": [
+      "case \"${1:case name}\" {",
+      "\t$0",
+      "}"
+    ],
+    "description": "Reportage case block"
+  },
+  "Action step": {
+    "prefix": ["$", "action"],
+    "body": [
+      "$ ${1:command}"
+    ],
+    "description": "Run a command (action step)"
+  },
+  "Write step (string)": {
+    "prefix": "write",
+    "body": [
+      "write <\"${1:path}\"> \"${2:content}\""
+    ],
+    "description": "Write a string literal to a workspace path"
+  },
+  "Write step (heredoc)": {
+    "prefix": "writeh",
+    "body": [
+      "write <\"${1:path}\"> ```",
+      "\t${2:content}",
+      "```"
+    ],
+    "description": "Write a heredoc literal to a workspace path"
+  },
+  "Assert (single expectation)": {
+    "prefix": "assert",
+    "body": [
+      "assert { ${1:exit 0} }"
+    ],
+    "description": "Single-line assertion block with exactly one expectation"
+  },
+  "Assert (block)": {
+    "prefix": "assertb",
+    "body": [
+      "assert {",
+      "\t${1:exit 0}",
+      "}"
+    ],
+    "description": "Multi-line assertion block, one expectation per line"
+  },
+  "Exit expectation": {
+    "prefix": "exit",
+    "body": [
+      "exit ${1:0}"
+    ],
+    "description": "Assert the process exit code"
+  },
+  "Stdout contains": {
+    "prefix": "stdout-contains",
+    "body": [
+      "stdout contains \"${1:text}\""
+    ],
+    "description": "Assert stdout contains the given text"
+  },
+  "Stdout empty": {
+    "prefix": "stdout-empty",
+    "body": [
+      "stdout empty"
+    ],
+    "description": "Assert stdout is empty"
+  },
+  "Stdout contents_equals": {
+    "prefix": "stdout-contents-equals",
+    "body": [
+      "stdout contents_equals <\"${1:path}\">"
+    ],
+    "description": "Assert stdout is byte-for-byte equal to a workspace file (use @\"...\" for a fixture reference)"
+  },
+  "Stderr contains": {
+    "prefix": "stderr-contains",
+    "body": [
+      "stderr contains \"${1:text}\""
+    ],
+    "description": "Assert stderr contains the given text"
+  },
+  "Stderr empty": {
+    "prefix": "stderr-empty",
+    "body": [
+      "stderr empty"
+    ],
+    "description": "Assert stderr is empty"
+  },
+  "Stderr contents_equals": {
+    "prefix": "stderr-contents-equals",
+    "body": [
+      "stderr contents_equals <\"${1:path}\">"
+    ],
+    "description": "Assert stderr is byte-for-byte equal to a workspace file (use @\"...\" for a fixture reference)"
+  },
+  "File exists": {
+    "prefix": "file-exists",
+    "body": [
+      "file <\"${1:path}\"> exists"
+    ],
+    "description": "Assert a file exists"
+  },
+  "File contains": {
+    "prefix": "file-contains",
+    "body": [
+      "file <\"${1:path}\"> contains \"${2:text}\""
+    ],
+    "description": "Assert a file contains the given text"
+  },
+  "File contains (heredoc)": {
+    "prefix": "file-contains-heredoc",
+    "body": [
+      "file <\"${1:path}\"> contains ```",
+      "\t${2:content}",
+      "```"
+    ],
+    "description": "Assert a file contains a heredoc literal's content"
+  },
+  "File contents_equals": {
+    "prefix": "file-contents-equals",
+    "body": [
+      "file <\"${1:path}\"> contents_equals <\"${2:path}\">"
+    ],
+    "description": "Assert a file is byte-for-byte equal to a workspace file (use @\"...\" for a fixture reference)"
+  },
+  "File text_equals": {
+    "prefix": "file-text-equals",
+    "body": [
+      "file <\"${1:path}\"> text_equals \"${2:text}\""
+    ],
+    "description": "Assert a file is byte-for-byte equal to inline text"
+  },
+  "File text_equals (heredoc)": {
+    "prefix": "file-text-equals-heredoc",
+    "body": [
+      "file <\"${1:path}\"> text_equals ```",
+      "\t${2:content}",
+      "```"
+    ],
+    "description": "Assert a file is byte-for-byte equal to a heredoc literal's content"
+  },
+  "Dir exists": {
+    "prefix": "dir-exists",
+    "body": [
+      "dir <\"${1:path}\"> exists"
+    ],
+    "description": "Assert a directory exists"
+  },
+  "Dir contains": {
+    "prefix": "dir-contains",
+    "body": [
+      "dir <\"${1:path}\"> contains \"${2:name}\""
+    ],
+    "description": "Assert a directory contains an entry with the given name"
+  },
+  "Not block": {
+    "prefix": "not",
+    "body": [
+      "not {",
+      "\t${1:exit 0}",
+      "}"
+    ],
+    "description": "Negate the group result of the child expectations as a whole"
+  },
+  "All block": {
+    "prefix": "all",
+    "body": [
+      "all {",
+      "\t${1:exit 0}",
+      "}"
+    ],
+    "description": "Pass only when every child expectation passes"
+  },
+  "Any block": {
+    "prefix": "any",
+    "body": [
+      "any {",
+      "\t${1:exit 0}",
+      "}"
+    ],
+    "description": "Pass when at least one child expectation passes"
+  },
+  "Workspace path literal": {
+    "prefix": "wpath",
+    "body": [
+      "<\"${1:path}\">"
+    ],
+    "description": "Workspace path literal (case-workspace filesystem reference)"
+  },
+  "Fixture reference literal": {
+    "prefix": "fixture",
+    "body": [
+      "@\"${1:path}\""
+    ],
+    "description": "Fixture reference literal (test-definition-side file reference, contents_equals only)"
+  }
+}
