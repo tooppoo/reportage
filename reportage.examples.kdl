@@ -14,6 +14,7 @@ reportage {
 
   tests {
     path "examples/**/*.repor"
+    path "editors/vscode/examples/*.repor"
   }
 }
 

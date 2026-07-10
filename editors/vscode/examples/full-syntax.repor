@@ -1,0 +1,75 @@
+# Reportage syntax reference for the VS Code extension.
+# Open it in the Extension Development Host to preview highlighting for every construct.
+# It is also run by the project's own e2e suite (see reportage.examples.kdl), so it must keep passing when the grammar changes.
+
+case "actions and write steps" {
+  $ printf 'one\ntwo\nthree\n' \
+    | grep --color=never 'two' \
+    | tr 'a-z' 'A-Z'
+
+  write <"greeting.txt"> "hello\n"
+
+  write <"quoted.txt"> "she said \"hi\" and used a \\ backslash\n"
+
+  write <"report.md"> ```
+    # Report
+    Indentation here is dedented relative to the closing fence,
+    so the body can be indented without affecting its content.
+    ```
+
+  assert {
+    exit 0 # trailing comment example
+    stdout contains "TWO"
+    file <"quoted.txt"> text_equals "she said \"hi\" and used a \\ backslash\n"
+  }
+}
+
+case "single-line assert" {
+  $ true
+
+  assert { exit 0 }
+}
+
+case "expectations across all kinds and literal forms" {
+  $ printf 'hello\n' > actual.txt
+  $ printf 'hello\n' > expected.txt
+  $ printf 'hello\n'; printf 'hello\n' 1>&2
+
+  assert {
+    exit 0
+    stdout contains "hello"
+    stdout contents_equals <"expected.txt">
+    stderr contains "hello"
+    file <"actual.txt"> exists
+    file <"actual.txt"> contains "hello"
+    file <"actual.txt"> contents_equals @"fixtures/expected.txt"
+    file <"actual.txt"> text_equals ```
+    hello
+    ```
+  }
+}
+
+case "directory expectations" {
+  $ mkdir out && touch out/result.json
+
+  assert {
+    dir <"out"> exists
+    dir <"out"> contains "result.json"
+  }
+}
+
+case "logical composition" {
+  $ printf 'alpha\n'
+
+  assert {
+    all {
+      any {
+        not {
+          stdout contains "missing"
+        }
+        stdout contains "unused"
+      }
+      exit 0
+    }
+  }
+}
