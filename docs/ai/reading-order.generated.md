@@ -84,7 +84,7 @@ This is the recommended reading order for AI agents authoring, editing, or revie
 - Link: [Artifacts](../artifacts.md)
 - Path: `docs/artifacts.md`
 - Role: Artifact bundle overview: the .reportage/runs layout and result.json as the canonical run record
-- Note: reportage run --format=json prints a projection derived from result.json, not the artifact document itself.
+- Note: reportage <file.repor> --format=json prints a projection derived from result.json, not the artifact document itself.
 
 ## JSON execution report contract
 

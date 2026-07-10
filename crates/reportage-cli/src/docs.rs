@@ -125,7 +125,7 @@ pub const DOCUMENTS: &[DocumentEntry] = &[
         title: "Artifacts",
         path: "docs/artifacts.md",
         role: "Artifact bundle overview: the .reportage/runs layout and result.json as the canonical run record",
-        note: "reportage run --format=json prints a projection derived from result.json, not the artifact document itself.",
+        note: "reportage <file.repor> --format=json prints a projection derived from result.json, not the artifact document itself.",
     },
     DocumentEntry {
         id: "json-report",
