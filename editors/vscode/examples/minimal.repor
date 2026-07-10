@@ -4,6 +4,6 @@ case "example" {
 
   assert {
     stdout contains "hello"
-    exit-code 0
+    exit 0
   }
 }
