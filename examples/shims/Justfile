@@ -55,8 +55,8 @@ rust-coverage-100:
   tmp=$(mktemp)
   trap 'rm -f "$tmp"' EXIT
   "$tools_dir/llvm-profdata" merge -sparse coverage/reportage/rust/*.profraw -o "$tmp"
-  "$tools_dir/llvm-cov" report "$bin" -instr-profile="$tmp" src/main.rs
-  total=$("$tools_dir/llvm-cov" export --summary-only "$bin" -instr-profile="$tmp" src/main.rs | jq '.data[0].totals.lines.percent')
+  "$tools_dir/llvm-cov" report "$bin" -instr-profile="$tmp" src
+  total=$("$tools_dir/llvm-cov" export --summary-only "$bin" -instr-profile="$tmp" src | jq '.data[0].totals.lines.percent')
   awk -v total="$total" 'BEGIN { exit (total >= 100.0) ? 0 : 1 }' || {
     echo "ERROR: rust line coverage (${total}%) does not meet threshold (100%)"
     exit 1
