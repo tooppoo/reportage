@@ -71,7 +71,7 @@
               "name": "punctuation.definition.workspace-path.begin.reportage"
             },
             "2": {
-              "name": "string.quoted.double.workspace-path.reportage",
+              "name": "variable.other.constant.workspace-path.reportage",
               "patterns": [
                 {
                   "name": "constant.character.escape.reportage",
@@ -96,7 +96,7 @@
               "name": "punctuation.definition.fixture-reference.reportage"
             },
             "2": {
-              "name": "string.quoted.double.fixture-reference.reportage",
+              "name": "support.function.fixture-reference.reportage",
               "patterns": [
                 {
                   "name": "constant.character.escape.reportage",
