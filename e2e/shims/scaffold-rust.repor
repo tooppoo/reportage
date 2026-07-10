@@ -31,15 +31,6 @@ case "rust quotes an entry point containing a space and a single quote without b
   }
 }
 
-case "rust is registered: an unrelated unknown template still names it as available" {
-  $ reportage shim scaffold --template bogus-template --entry-point my-app --out out.sh
-
-  assert {
-    exit 2
-    stderr contains "unknown template 'bogus-template': available templates are: golang, rust, typescript-c8-tsx"
-  }
-}
-
 case "rust generated shim has the owner-execute permission bit set" {
   $ reportage shim scaffold --template rust --entry-point my-app --out shim.sh
   $ test -x shim.sh

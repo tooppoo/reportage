@@ -7,7 +7,7 @@
 //! See `docs/shim-scaffold.md` and the ADR at
 //! `docs/adr/20260708T062146Z_shim-scaffold-command.md`.
 //!
-//! [`TemplateRegistry::builtin`] ships `typescript-c8-tsx` (added by #128), `golang` (added by #129), and `rust`.
+//! [`TemplateRegistry::builtin`] ships `typescript-c8-tsx`, `golang`, and `rust`.
 //! This module's own tests also exercise template resolution and rendering through a
 //! locally-defined test-fixture template, so the scaffolding pipeline itself (validation,
 //! lookup, rendering, output-path policy, permissions) has coverage that does not depend on any
