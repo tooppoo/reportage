@@ -1,6 +1,6 @@
 # Syntax Conformance Fixtures
 
-Syntax conformance fixtures live under `tests/fixtures/syntax/`.
+Syntax conformance fixtures live under [`tests/fixtures/syntax/`](../tests/fixtures/syntax/).
 
 - `valid/*.repor` fixtures must parse successfully and must produce an AST snapshot that matches the adjacent `valid/*.ast.json` file.
 - `invalid/*.repor` fixtures must be rejected by the production `parse()` entrypoint.
