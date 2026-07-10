@@ -1,5 +1,6 @@
 
 # update the version in Cargo.toml to the given version
+[group('release')]
 update-version version:
   rellog ready {{ version }}
 
