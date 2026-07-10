@@ -1,7 +1,7 @@
 {
   "name": "reportage-vscode",
   "displayName": "Reportage",
-  "description": "Syntax highlighting support for reportage files.",
+  "description": "Syntax highlighting and code snippets for reportage files.",
   "version": "0.0.0",
   "publisher": "philomagi",
   "engines": {

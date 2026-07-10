@@ -9,7 +9,7 @@
     "description": "Reportage case block"
   },
   "Action step": {
-    "prefix": "$",
+    "prefix": ["$", "action"],
     "body": [
       "$ ${1:command}"
     ],
@@ -30,15 +30,6 @@
       "```"
     ],
     "description": "Write a heredoc literal to a workspace path"
-  },
-  "Heredoc literal": {
-    "prefix": "heredoc",
-    "body": [
-      "```",
-      "${1:content}",
-      "```"
-    ],
-    "description": "Fenced heredoc literal (text_literal alternative to a string literal)"
   },
   "Assert (single expectation)": {
     "prefix": "assert",
