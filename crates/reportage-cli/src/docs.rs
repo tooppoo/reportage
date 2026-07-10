@@ -65,6 +65,13 @@ pub const DOCUMENTS: &[DocumentEntry] = &[
         note: "Generated from the grammar; a construct absent here is not available, regardless of what seems plausible.",
     },
     DocumentEntry {
+        id: "syntax-conformance",
+        title: "Syntax conformance fixtures",
+        path: "docs/syntax-conformance.md",
+        role: "Where the syntax conformance fixtures live: known-valid and known-invalid .repor examples with AST snapshots",
+        note: "Describes repository test fixtures; the fixtures under tests/fixtures/syntax/ are the example set itself.",
+    },
+    DocumentEntry {
         id: "semantics",
         title: "Semantics",
         path: "docs/semantics.md",
@@ -86,6 +93,13 @@ pub const DOCUMENTS: &[DocumentEntry] = &[
         note: "",
     },
     DocumentEntry {
+        id: "semantic-diagnostics",
+        title: "Semantic and assertion diagnostics",
+        path: "docs/semantic-diagnostics.md",
+        role: "Semantic, assertion, and step diagnostic code reference, extending the parse.* model above",
+        note: "A specification: parts may not yet be applied to the parser, evaluator, or CLI diagnostic rendering.",
+    },
+    DocumentEntry {
         id: "execution-model",
         title: "Execution model",
         path: "docs/execution-model.md",
@@ -105,6 +119,13 @@ pub const DOCUMENTS: &[DocumentEntry] = &[
         path: "docs/configuration.md",
         role: "reportage.kdl config file reference",
         note: "",
+    },
+    DocumentEntry {
+        id: "artifacts",
+        title: "Artifacts",
+        path: "docs/artifacts.md",
+        role: "Artifact bundle overview: the .reportage/runs layout and result.json as the canonical run record",
+        note: "reportage <file.repor> --format=json prints a projection derived from result.json, not the artifact document itself.",
     },
     DocumentEntry {
         id: "json-report",

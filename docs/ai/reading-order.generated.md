@@ -28,6 +28,13 @@ This is the recommended reading order for AI agents authoring, editing, or revie
 - Role: Normative syntax reference
 - Note: Generated from the grammar; a construct absent here is not available, regardless of what seems plausible.
 
+## Syntax conformance fixtures
+
+- Link: [Syntax conformance fixtures](../syntax-conformance.md)
+- Path: `docs/syntax-conformance.md`
+- Role: Where the syntax conformance fixtures live: known-valid and known-invalid .repor examples with AST snapshots
+- Note: Describes repository test fixtures; the fixtures under tests/fixtures/syntax/ are the example set itself.
+
 ## Semantics
 
 - Link: [Semantics](../semantics.md)
@@ -47,6 +54,13 @@ This is the recommended reading order for AI agents authoring, editing, or revie
 - Path: `docs/diagnostics.md`
 - Role: Parser and validator diagnostic code reference
 
+## Semantic and assertion diagnostics
+
+- Link: [Semantic and assertion diagnostics](../semantic-diagnostics.md)
+- Path: `docs/semantic-diagnostics.md`
+- Role: Semantic, assertion, and step diagnostic code reference, extending the parse.* model above
+- Note: A specification: parts may not yet be applied to the parser, evaluator, or CLI diagnostic rendering.
+
 ## Execution model
 
 - Link: [Execution model](../execution-model.md)
@@ -64,6 +78,13 @@ This is the recommended reading order for AI agents authoring, editing, or revie
 - Link: [Configuration](../configuration.md)
 - Path: `docs/configuration.md`
 - Role: reportage.kdl config file reference
+
+## Artifacts
+
+- Link: [Artifacts](../artifacts.md)
+- Path: `docs/artifacts.md`
+- Role: Artifact bundle overview: the .reportage/runs layout and result.json as the canonical run record
+- Note: reportage <file.repor> --format=json prints a projection derived from result.json, not the artifact document itself.
 
 ## JSON execution report contract
 

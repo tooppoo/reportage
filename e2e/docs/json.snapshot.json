@@ -28,6 +28,15 @@
       }
     },
     {
+      "id": "syntax-conformance",
+      "path": "docs/syntax-conformance.md",
+      "title": "Syntax conformance fixtures",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/syntax-conformance.md",
+        "human": "https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/syntax-conformance.md"
+      }
+    },
+    {
       "id": "semantics",
       "path": "docs/semantics.md",
       "title": "Semantics",
@@ -55,6 +64,15 @@
       }
     },
     {
+      "id": "semantic-diagnostics",
+      "path": "docs/semantic-diagnostics.md",
+      "title": "Semantic and assertion diagnostics",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/semantic-diagnostics.md",
+        "human": "https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/semantic-diagnostics.md"
+      }
+    },
+    {
       "id": "execution-model",
       "path": "docs/execution-model.md",
       "title": "Execution model",
@@ -79,6 +97,15 @@
       "urls": {
         "ai": "https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/configuration.md",
         "human": "https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/configuration.md"
+      }
+    },
+    {
+      "id": "artifacts",
+      "path": "docs/artifacts.md",
+      "title": "Artifacts",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/artifacts.md",
+        "human": "https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/artifacts.md"
       }
     },
     {
