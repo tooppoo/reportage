@@ -75,6 +75,22 @@
     ],
     "description": "Assert stdout is byte-for-byte equal to a workspace file (use @\"...\" for a fixture reference)"
   },
+  "Stdout text_equals": {
+    "prefix": "stdout-text-equals",
+    "body": [
+      "stdout text_equals \"${1:text}\""
+    ],
+    "description": "Assert stdout is byte-for-byte equal to inline text"
+  },
+  "Stdout text_equals (heredoc)": {
+    "prefix": "stdout-text-equals-heredoc",
+    "body": [
+      "stdout text_equals ```",
+      "\t${1:content}",
+      "```"
+    ],
+    "description": "Assert stdout is byte-for-byte equal to a heredoc literal's content"
+  },
   "Stderr contains": {
     "prefix": "stderr-contains",
     "body": [
@@ -95,6 +111,22 @@
       "stderr contents_equals <\"${1:path}\">"
     ],
     "description": "Assert stderr is byte-for-byte equal to a workspace file (use @\"...\" for a fixture reference)"
+  },
+  "Stderr text_equals": {
+    "prefix": "stderr-text-equals",
+    "body": [
+      "stderr text_equals \"${1:text}\""
+    ],
+    "description": "Assert stderr is byte-for-byte equal to inline text"
+  },
+  "Stderr text_equals (heredoc)": {
+    "prefix": "stderr-text-equals-heredoc",
+    "body": [
+      "stderr text_equals ```",
+      "\t${1:content}",
+      "```"
+    ],
+    "description": "Assert stderr is byte-for-byte equal to a heredoc literal's content"
   },
   "File exists": {
     "prefix": "file-exists",

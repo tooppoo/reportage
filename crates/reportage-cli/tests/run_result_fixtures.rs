@@ -658,6 +658,7 @@ fn all_required_representative_scenarios_are_present() {
         "partial_execution_after_runtime_error",
         "expectation_kinds",
         "contents_equals",
+        "text_equals",
         "noop",
     ];
 
