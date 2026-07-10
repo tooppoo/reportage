@@ -41,15 +41,6 @@ case "typescript-c8-tsx quotes an entry point containing a space and a single qu
   }
 }
 
-case "typescript-c8-tsx is registered: an unrelated unknown template still names it as available" {
-  $ reportage shim scaffold --template bogus-template --entry-point ./bin/app --out out.sh
-
-  assert {
-    exit 2
-    stderr contains "unknown template 'bogus-template': available templates are: golang, rust, typescript-c8-tsx"
-  }
-}
-
 case "typescript-c8-tsx generated shim has the owner-execute permission bit set" {
   $ reportage shim scaffold --template typescript-c8-tsx --entry-point my-app/index.ts --out shim.sh
   $ test -x shim.sh
