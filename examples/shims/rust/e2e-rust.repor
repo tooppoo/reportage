@@ -1,0 +1,50 @@
+
+case "sample-rust without arguments" {
+  $ sample-rust
+
+  assert {
+    exit 1
+    stdout contains "Unknown command"
+    stderr empty
+  }
+}
+
+case "sample-rust with arguments" {
+  $ sample-rust greet
+
+  assert {
+    exit 2
+    stdout contains "sample: Unknown command"
+    stderr empty
+  }
+}
+
+case "sample-rust with greet 'hello'" {
+  $ sample-rust greet hello
+
+  assert {
+    exit 0
+    stdout contains "Hello, World!"
+    stderr empty
+  }
+}
+
+case "sample-rust with greet 'goodbye'" {
+  $ sample-rust greet goodbye
+
+  assert {
+    exit 0
+    stdout contains "Goodbye, World!"
+    stderr empty
+  }
+}
+
+case "sample-rust with greet 'fizzbuzz'" {
+  $ sample-rust greet fizzbuzz
+
+  assert {
+    exit 2
+    stdout contains "sample: Unknown command"
+    stderr empty
+  }
+}

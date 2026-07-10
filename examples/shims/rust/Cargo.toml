@@ -1,0 +1,7 @@
+[package]
+name = "sample"
+version = "0.0.1"
+edition = "2024"
+
+# An explicit empty workspace table detaches this example from the repository's root cargo workspace, so it builds standalone the way a real downstream project would.
+[workspace]

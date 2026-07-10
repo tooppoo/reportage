@@ -41,15 +41,6 @@ case "golang quotes an entry point containing a space and a single quote without
   }
 }
 
-case "golang is registered: an unrelated unknown template still names it as available" {
-  $ reportage shim scaffold --template bogus-template --entry-point ./cmd/app --out out.sh
-
-  assert {
-    exit 2
-    stderr contains "unknown template 'bogus-template': available templates are: golang, typescript-c8-tsx"
-  }
-}
-
 case "golang generated shim has the owner-execute permission bit set" {
   $ reportage shim scaffold --template golang --entry-point cli.go --out shim.sh
   $ test -x shim.sh

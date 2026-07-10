@@ -10,6 +10,9 @@ reportage {
     command "sample-go" {
       exec "examples/shims/go/shim/sample"
     }
+    command "sample-rust" {
+      exec "examples/shims/rust/shim/sample"
+    }
   }
 
   tests {
