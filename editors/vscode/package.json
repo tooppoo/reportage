@@ -19,6 +19,7 @@
   "scripts": {
     "package": "vsce package --out ./reportage-vscode.vsix"
   },
+  "packageManager": "pnpm@11.9.0",
   "categories": [
     "Programming Languages"
   ],

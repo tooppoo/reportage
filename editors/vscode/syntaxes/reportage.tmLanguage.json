@@ -4,10 +4,13 @@
   "scopeName": "source.reportage",
   "patterns": [
     {
-      "include": "#write-step"
+      "include": "#heredoc-block"
     },
     {
       "include": "#comments"
+    },
+    {
+      "include": "#case-block"
     },
     {
       "include": "#action-line"
@@ -26,6 +29,12 @@
     },
     {
       "include": "#numbers"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#punctuation"
     }
   ],
   "repository": {
@@ -42,11 +51,11 @@
         {
           "name": "string.quoted.double.reportage",
           "begin": "\"",
-          "end": "\"",
+          "end": "\"|$",
           "patterns": [
             {
               "name": "constant.character.escape.reportage",
-              "match": "\\\\."
+              "match": "\\\\(?:\\\\|\\\"|n|t)"
             }
           ]
         }
@@ -62,11 +71,11 @@
               "name": "punctuation.definition.workspace-path.begin.reportage"
             },
             "2": {
-              "name": "string.quoted.double.workspace-path.reportage",
+              "name": "variable.other.constant.workspace-path.reportage",
               "patterns": [
                 {
                   "name": "constant.character.escape.reportage",
-                  "match": "\\\\."
+                  "match": "\\\\(?:\\\\|\\\"|n|t)"
                 }
               ]
             },
@@ -87,11 +96,11 @@
               "name": "punctuation.definition.fixture-reference.reportage"
             },
             "2": {
-              "name": "string.quoted.double.fixture-reference.reportage",
+              "name": "support.function.fixture-reference.reportage",
               "patterns": [
                 {
                   "name": "constant.character.escape.reportage",
-                  "match": "\\\\."
+                  "match": "\\\\(?:\\\\|\\\"|n|t)"
                 }
               ]
             }
@@ -99,14 +108,30 @@
         }
       ]
     },
-    "write-step": {
+    "case-block": {
       "patterns": [
         {
-          "name": "meta.write.block.reportage",
-          "begin": "^(\\s*)(write)\\b(.*?)(`{3,})\\s*$",
+          "match": "^(\\s*)(case)\\b",
+          "captures": {
+            "2": {
+              "name": "keyword.control.case.reportage"
+            }
+          }
+        }
+      ]
+    },
+    "heredoc-block": {
+      "patterns": [
+        {
+          "name": "meta.heredoc.block.reportage",
+          "begin": "^(\\s*)(write|file)\\b(.*?)(`{3,})\\s*$",
           "beginCaptures": {
             "2": {
-              "name": "keyword.control.write.reportage"
+              "patterns": [
+                {
+                  "include": "#keywords"
+                }
+              ]
             },
             "3": {
               "patterns": [
@@ -118,6 +143,9 @@
                 },
                 {
                   "include": "#strings"
+                },
+                {
+                  "include": "#keywords"
                 }
               ]
             },
@@ -181,7 +209,7 @@
               "name": "punctuation.section.block.begin.reportage"
             }
           },
-          "end": "^(\\s*)(\\})",
+          "end": "(\\s*)(\\})",
           "endCaptures": {
             "2": {
               "name": "punctuation.section.block.end.reportage"
@@ -192,16 +220,64 @@
               "include": "#comments"
             },
             {
-              "match": "^(\\s*)(exit|stdout|stderr)\\b",
-              "captures": {
-                "2": {
-                  "name": "entity.name.function.expectation.reportage"
-                }
-              }
+              "include": "#heredoc-block"
             },
             {
-              "name": "keyword.operator.expectation.reportage",
-              "match": "\\b(contains|equals|matches|exists)\\b"
+              "include": "#logical-block"
+            },
+            {
+              "include": "#keywords"
+            },
+            {
+              "include": "#workspace-path"
+            },
+            {
+              "include": "#fixture-reference"
+            },
+            {
+              "include": "#strings"
+            },
+            {
+              "include": "#numbers"
+            },
+            {
+              "include": "#punctuation"
+            }
+          ]
+        }
+      ]
+    },
+    "logical-block": {
+      "patterns": [
+        {
+          "name": "meta.logical.block.reportage",
+          "begin": "(\\s*)(not|all|any)\\b\\s*(\\{)?",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.logical.reportage"
+            },
+            "3": {
+              "name": "punctuation.section.block.begin.reportage"
+            }
+          },
+          "end": "(\\s*)(\\})",
+          "endCaptures": {
+            "2": {
+              "name": "punctuation.section.block.end.reportage"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#heredoc-block"
+            },
+            {
+              "include": "#logical-block"
+            },
+            {
+              "include": "#keywords"
             },
             {
               "include": "#workspace-path"
@@ -227,6 +303,22 @@
         {
           "name": "constant.numeric.integer.reportage",
           "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.write.reportage",
+          "match": "\\bwrite\\b"
+        },
+        {
+          "name": "entity.name.function.expectation.reportage",
+          "match": "\\b(exit|stdout|stderr|file|dir)\\b"
+        },
+        {
+          "name": "keyword.operator.expectation.reportage",
+          "match": "\\b(contains|contents_equals|text_equals|exists|empty)\\b"
         }
       ]
     },

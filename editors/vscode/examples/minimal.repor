@@ -1,9 +1,0 @@
-
-case "example" {
-  $ echo "hello"
-
-  assert {
-    stdout contains "hello"
-    exit 0
-  }
-}
