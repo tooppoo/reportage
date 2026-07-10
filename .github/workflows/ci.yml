@@ -408,6 +408,12 @@ jobs:
         with:
           node-version: 24
       - uses: pnpm/action-setup@v6
+        with:
+          # working-directory affect only `run` step, not `uses` step
+          # so we need to set package_json_file explicitly for `uses` step
+          # https://docs.github.com/ja/actions/how-tos/write-workflows/choose-what-workflows-do/set-default-values-for-jobs
+          package_json_file: editors/vscode/package.json
+          cache: true
 
-      - run: pnpm install -g @vscode/vsce
-      - run: vsce package
+      - run: pnpm install
+      - run: pnpm run package
