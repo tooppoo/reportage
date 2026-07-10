@@ -38,8 +38,8 @@ New `ExpectationKind::StdoutTextEquals` / `StderrTextEquals` variants carry `Tex
 
 ### Human rendering names the operator the author wrote
 
-`print_contents_equals_detail` previously hard-coded `contents_equals` in its subject description line, so a failing `file text_equals` comparison printed `file "..." contents_equals ... — bytes differ`.
-The operator keyword is now a parameter, so `text_equals` failures (file and stream) print `text_equals` and `contents_equals` failures keep printing `contents_equals`.
+The shared comparison-detail renderer previously hard-coded `contents_equals` in its subject description line, so a failing `file text_equals` comparison printed `file "..." contents_equals ... — bytes differ`.
+The operator keyword is now a parameter, so `text_equals` failures (file and stream) print `text_equals` and `contents_equals` failures keep printing `contents_equals`; the helper is named `print_byte_comparison_detail` to match that operator-agnostic responsibility.
 The heredoc-source rendering rule is unchanged: a `Quoted` source renders the literal compactly, a `Heredoc` source renders the bounded `<heredoc literal>` label.
 
 ## Rationale
