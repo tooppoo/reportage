@@ -516,6 +516,13 @@ pub enum OutputMatcher {
     /// comparison against a workspace file or fixture file. See
     /// `evaluator::evaluate_expectation_at_checkpoint`.
     ContentsEquals(FileContentsReference),
+    /// `stdout` / `stderr text_equals <text_literal>`: byte-for-byte comparison
+    /// of the captured stream's bytes against the `TextLiteral`'s `TextValue`
+    /// encoded as UTF-8, with no normalization, exactly like
+    /// [`FileMatcher::TextEquals`]. `text_literal` may be either a string
+    /// literal or a heredoc literal. See [`TextLiteral`] and
+    /// docs/adr — output text_equals evaluation.
+    TextEquals(TextLiteral),
 }
 
 /// File existence / content expectation.

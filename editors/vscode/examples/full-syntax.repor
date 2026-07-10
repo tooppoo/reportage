@@ -39,7 +39,11 @@ case "expectations across all kinds and literal forms" {
     exit 0
     stdout contains "hello"
     stdout contents_equals <"expected.txt">
+    stdout text_equals "hello\n"
     stderr contains "hello"
+    stderr text_equals ```
+    hello
+    ```
     file <"actual.txt"> exists
     file <"actual.txt"> contains "hello"
     file <"actual.txt"> contents_equals @"fixtures/expected.txt"

@@ -67,6 +67,12 @@ pub enum DiagnosticCode {
     /// `file <"path"> text_equals <text_literal>` observed an actual regular file that
     /// could not be read.
     AssertionFileTextEqualsActualUnreadable,
+    /// `stdout text_equals <text_literal>` observed captured stdout that did not
+    /// byte-for-byte match the expected `TextValue`'s UTF-8 bytes.
+    AssertionStdoutTextEqualsMismatch,
+    /// `stderr text_equals <text_literal>` observed captured stderr that did not
+    /// byte-for-byte match the expected `TextValue`'s UTF-8 bytes.
+    AssertionStderrTextEqualsMismatch,
     /// A `dir <"path"> contains "<name>"` entry name was empty.
     SemanticDirEntryNameEmpty,
     /// A `dir <"path"> contains "<name>"` entry name contained a path separator (`/`).
@@ -178,6 +184,8 @@ impl DiagnosticCode {
         Self::AssertionFileTextEqualsActualMissing,
         Self::AssertionFileTextEqualsActualNotARegularFile,
         Self::AssertionFileTextEqualsActualUnreadable,
+        Self::AssertionStdoutTextEqualsMismatch,
+        Self::AssertionStderrTextEqualsMismatch,
         Self::SemanticDirEntryNameEmpty,
         Self::SemanticDirEntryNamePathSeparator,
         Self::SemanticDirEntryNameDotEntry,
@@ -258,6 +266,8 @@ impl DiagnosticCode {
             Self::AssertionFileTextEqualsActualUnreadable => {
                 "assertion.file.text_equals.actual_unreadable"
             }
+            Self::AssertionStdoutTextEqualsMismatch => "assertion.stdout.text_equals.mismatch",
+            Self::AssertionStderrTextEqualsMismatch => "assertion.stderr.text_equals.mismatch",
             Self::SemanticDirEntryNameEmpty => "semantic.dir_entry_name.empty",
             Self::SemanticDirEntryNamePathSeparator => "semantic.dir_entry_name.path_separator",
             Self::SemanticDirEntryNameDotEntry => "semantic.dir_entry_name.dot_entry",

@@ -6,7 +6,7 @@
   "status": "passed",
   "summary": {
     "actions": 3,
-    "assertions": 11,
+    "assertions": 13,
     "errors": 0,
     "failed": 0,
     "passed": 1,
@@ -99,12 +99,46 @@
         {
           "checkpoint": "action-3",
           "expectation": {
+            "actualRef": "test-1/action-3/stdout.bin",
+            "actualSizeBytes": 12,
+            "expectedSizeBytes": 12,
+            "expectedSource": {
+              "kind": "heredoc",
+              "value": "hello\nworld\n"
+            },
+            "kind": "stdoutTextEquals",
+            "outcome": "match",
+            "status": "passed"
+          },
+          "id": "assertion-4",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-3",
+          "expectation": {
+            "actualRef": "test-1/action-3/stderr.bin",
+            "actualSizeBytes": 0,
+            "expectedSizeBytes": 0,
+            "expectedSource": {
+              "kind": "quoted",
+              "value": ""
+            },
+            "kind": "stderrTextEquals",
+            "outcome": "match",
+            "status": "passed"
+          },
+          "id": "assertion-5",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-3",
+          "expectation": {
             "kind": "fileExists",
             "observed": "regularFile",
             "path": "data.txt",
             "status": "passed"
           },
-          "id": "assertion-4",
+          "id": "assertion-6",
           "status": "passed"
         },
         {
@@ -116,7 +150,7 @@
             "path": "data.txt",
             "status": "passed"
           },
-          "id": "assertion-5",
+          "id": "assertion-7",
           "status": "passed"
         },
         {
@@ -134,7 +168,7 @@
             "path": "data.txt",
             "status": "passed"
           },
-          "id": "assertion-6",
+          "id": "assertion-8",
           "status": "passed"
         },
         {
@@ -145,7 +179,7 @@
             "path": "out",
             "status": "passed"
           },
-          "id": "assertion-7",
+          "id": "assertion-9",
           "status": "passed"
         },
         {
@@ -157,7 +191,7 @@
             "path": "out",
             "status": "passed"
           },
-          "id": "assertion-8",
+          "id": "assertion-10",
           "status": "passed"
         },
         {
@@ -175,7 +209,7 @@
             "operator": "not",
             "status": "passed"
           },
-          "id": "assertion-9",
+          "id": "assertion-11",
           "status": "passed"
         },
         {
@@ -200,7 +234,7 @@
             "operator": "all",
             "status": "passed"
           },
-          "id": "assertion-10",
+          "id": "assertion-12",
           "status": "passed"
         },
         {
@@ -230,7 +264,7 @@
             "operator": "any",
             "status": "passed"
           },
-          "id": "assertion-11",
+          "id": "assertion-13",
           "status": "passed"
         }
       ],

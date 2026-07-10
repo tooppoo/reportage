@@ -54,6 +54,118 @@ case "file text_equals reports an assertion failure for a missing actual file" {
   }
 }
 
+case "stdout text_equals passes on a byte-for-byte match against a string literal" {
+  $ printf 'hello\n'
+
+  assert {
+    stdout text_equals "hello\n"
+  }
+}
+
+case "stdout and stderr text_equals pass against heredoc literals" {
+  $ sh -c 'printf "hello\nworld\n"; printf "warn\nline\n" >&2'
+
+  assert {
+    stdout text_equals ```
+    hello
+    world
+    ```
+    stderr text_equals ```
+    warn
+    line
+    ```
+  }
+}
+
+case "stderr text_equals passes when the target command fails" {
+  # The target command's non-zero exit code and its captured stderr are independent
+  # observations: the inner command failing is asserted via `exit 1`, while
+  # `stderr text_equals` still passes against the captured bytes.
+  $ sh -c 'printf "boom\n" >&2; exit 1'
+
+  assert {
+    exit 1
+    stderr text_equals "boom\n"
+  }
+}
+
+case "stdout text_equals reports an assertion failure for a byte mismatch" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello
+      assert {
+        stdout text_equals "hellp"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+    stderr contains "assertion.stdout.text_equals.mismatch"
+  }
+}
+
+case "stderr text_equals reports an assertion failure for a missing trailing newline" {
+  # Comparison is byte-exact with no normalization: captured "warn\n" does not equal "warn".
+  write <"inner.repor"> ```
+    case "inner" {
+      $ sh -c 'printf "warn\n" >&2'
+      assert {
+        stderr text_equals "warn"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+    stderr contains "assertion.stderr.text_equals.mismatch"
+  }
+}
+
+case "stdout text_equals rejects a workspace path literal as the expected value" {
+  # A workspace path literal (<"...">) names a file to compare against, not inline text;
+  # `contents_equals` is the expectation for comparing against a workspace file's contents.
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello
+      assert {
+        stdout text_equals <"expected.txt">
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.literal.kind_mismatch"
+  }
+}
+
+case "stderr text_equals rejects a fixture reference as the expected value" {
+  # A fixture reference (@"...") names test-definition-side content; text_equals only ever
+  # accepts an inline TextValue, never a FileContentsReference.
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello
+      assert {
+        stderr text_equals @"expected.txt"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.literal.kind_mismatch"
+  }
+}
+
 case "file text_equals rejects a fixture reference as the expected value" {
   # A fixture reference (@"...") names test-definition-side content; text_equals only ever
   # accepts an inline TextValue, never a FileContentsReference. See #87's contents_equals for

@@ -1,0 +1,16 @@
+case "text_equals matches inline expected text" {
+  $ sh -c 'printf "hello\n"; printf "warn\n" >&2'
+  assert {
+    stdout text_equals "hello\n"
+    stderr text_equals ```
+    warn
+    ```
+  }
+}
+
+case "text_equals records a bounded mismatch" {
+  $ printf 'hellp\n'
+  assert {
+    stdout text_equals "hello\n"
+  }
+}

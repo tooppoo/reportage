@@ -270,6 +270,9 @@ enum SnapshotOutputMatcher<'a> {
     ContentsEquals {
         value: SnapshotFileContentsReference<'a>,
     },
+    TextEquals {
+        value: SnapshotTextLiteral<'a>,
+    },
 }
 
 impl<'a> From<&'a OutputMatcher> for SnapshotOutputMatcher<'a> {
@@ -281,6 +284,9 @@ impl<'a> From<&'a OutputMatcher> for SnapshotOutputMatcher<'a> {
             OutputMatcher::Matches(value) => Self::Matches { value },
             OutputMatcher::ContentsEquals(value) => Self::ContentsEquals {
                 value: SnapshotFileContentsReference::from(value),
+            },
+            OutputMatcher::TextEquals(value) => Self::TextEquals {
+                value: SnapshotTextLiteral::from(value),
             },
         }
     }
@@ -550,6 +556,7 @@ fn invalid_syntax_fixtures_are_rejected() {
             | "write_step_content_workspace_path_literal"
             | "file_contains_expected_workspace_path_literal"
             | "file_text_equals_workspace_path_literal"
+            | "stdout_text_equals_workspace_path_literal"
             | "stdout_contains_workspace_path_literal"
             | "dir_contains_entry_workspace_path_literal"
             // A FixtureReference is only valid in a FileContentsReference
@@ -559,6 +566,7 @@ fn invalid_syntax_fixtures_are_rejected() {
             // docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
             | "file_contents_equals_subject_fixture_reference"
             | "file_text_equals_fixture_reference"
+            | "stderr_text_equals_fixture_reference"
             | "write_step_path_fixture_reference"
             | "write_step_content_fixture_reference" => {
                 assert!(matches!(err, ParseError::LiteralKindMismatch { .. }));

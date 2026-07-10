@@ -1,0 +1,92 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "assertion.stdout.text_equals",
+  "category": "assertion",
+  "syntax": "stdout text_equals <ExpectedValue<TextValue>>",
+  "normative": {
+    "checkpointField": "stdout",
+    "operator": "textEquals",
+    "expectedValueType": "utf8String",
+    "matchSemantics": {
+      "comparison": "byteExact"
+    },
+    "noImplicitConversionFrom": ["fileContentsReference"]
+  },
+  "conformanceCases": [
+    {
+      "description": "stdout text_equals passes on a byte-for-byte match against a string literal",
+      "assertionSource": "stdout text_equals \"hello\\n\"",
+      "assertion": {
+        "subject": "stdout",
+        "operator": "textEquals",
+        "expected": "hello\n"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "aGVsbG8K", "encoding": "base64", "text": "hello\n" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "stdout text_equals fails on a missing trailing newline; comparison is byte-exact with no normalization",
+      "assertionSource": "stdout text_equals \"hello\"",
+      "assertion": {
+        "subject": "stdout",
+        "operator": "textEquals",
+        "expected": "hello"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "aGVsbG8K", "encoding": "base64", "text": "hello\n" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.stdout.text_equals.mismatch"
+    },
+    {
+      "description": "stdout text_equals passes when both captured stdout and the expected text are empty; two empty inputs are equal",
+      "assertionSource": "stdout text_equals \"\"",
+      "assertion": {
+        "subject": "stdout",
+        "operator": "textEquals",
+        "expected": ""
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "stdout text_equals compares only stdout; identical bytes on stderr do not satisfy it",
+      "assertionSource": "stdout text_equals \"hello\\n\"",
+      "assertion": {
+        "subject": "stdout",
+        "operator": "textEquals",
+        "expected": "hello\n"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "aGVsbG8K", "encoding": "base64", "text": "hello\n" }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.stdout.text_equals.mismatch"
+    },
+    {
+      "description": "invalid: stdout text_equals rejects a workspace path literal as the expected value; TextValue and FileContentsReference do not implicitly convert",
+      "assertionSource": "stdout text_equals <\"expected.txt\">",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.literal.kind_mismatch"
+    },
+    {
+      "description": "invalid: stdout text_equals rejects a fixture reference literal as the expected value; TextValue and FileContentsReference do not implicitly convert",
+      "assertionSource": "stdout text_equals @\"expected.txt\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.literal.kind_mismatch"
+    }
+  ]
+}

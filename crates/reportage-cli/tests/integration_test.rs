@@ -1159,7 +1159,9 @@ case "file text_equals heredoc mismatch" {
         .stderr(predicates::str::contains(
             "assertion.file.text_equals.mismatch",
         ))
-        .stderr(predicates::str::contains("<heredoc literal>"));
+        .stderr(predicates::str::contains(
+            "text_equals <heredoc literal> — bytes differ",
+        ));
 }
 
 // The missing-actual-file assertion failure is covered by e2e/assertions/text-equals.repor
@@ -1216,6 +1218,99 @@ case "not wrapping a passing text_equals" {
         .assert()
         .code(1)
         .stderr(predicates::str::contains("bytes match"));
+}
+
+// --- stdout / stderr `text_equals` assertions ---
+//
+// Representative pass scenarios (quoted-string and heredoc literals), the quoted-string
+// mismatch scenarios, and both kind-mismatch script errors live in
+// e2e/assertions/text-equals.repor.
+
+#[test]
+fn stdout_text_equals_fails_on_heredoc_byte_mismatch() {
+    // Mirrors `file_text_equals_fails_on_heredoc_byte_mismatch` for a captured stream: a failing
+    // heredoc-form stdout text_equals must report its own stream-scoped diagnostic code, and its
+    // human-rendered subject description must use the `text_equals` operator keyword and the
+    // heredoc literal label (see `format_text_equals_source` / `print_byte_comparison_detail`).
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "stdout text_equals heredoc mismatch" {
+  $ printf 'hello\nworld\n'
+  assert {
+    stdout text_equals ```
+    hello
+    WORLD
+    ```
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "assertion.stdout.text_equals.mismatch",
+        ))
+        .stderr(predicates::str::contains(
+            "stdout text_equals <heredoc literal> — bytes differ",
+        ));
+}
+
+#[test]
+fn stderr_text_equals_mismatch_reports_stream_scoped_code_and_quoted_source() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "stderr text_equals quoted mismatch" {
+  $ sh -c 'printf "warn\n" >&2'
+  assert {
+    stderr text_equals "other\n"
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "assertion.stderr.text_equals.mismatch",
+        ))
+        .stderr(predicates::str::contains(
+            "stderr text_equals \"other\\n\" — bytes differ",
+        ));
+}
+
+#[test]
+fn not_block_wrapping_a_passing_stdout_text_equals_prints_bytes_match_detail() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+case "not wrapping a passing stdout text_equals" {
+  $ printf hello
+  assert {
+    not {
+      stdout text_equals "hello"
+    }
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(1)
+        .stderr(predicates::str::contains(
+            "stdout text_equals \"hello\" — bytes match",
+        ));
 }
 
 // --- dir assertions (#66) ---

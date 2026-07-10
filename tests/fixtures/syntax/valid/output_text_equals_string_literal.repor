@@ -1,0 +1,7 @@
+case "stdout and stderr text_equals string literals" {
+  $ printf 'hello\n'
+  assert {
+    stdout text_equals "hello\n"
+    stderr text_equals ""
+  }
+}

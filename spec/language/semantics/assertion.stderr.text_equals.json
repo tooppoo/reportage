@@ -1,0 +1,92 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "assertion.stderr.text_equals",
+  "category": "assertion",
+  "syntax": "stderr text_equals <ExpectedValue<TextValue>>",
+  "normative": {
+    "checkpointField": "stderr",
+    "operator": "textEquals",
+    "expectedValueType": "utf8String",
+    "matchSemantics": {
+      "comparison": "byteExact"
+    },
+    "noImplicitConversionFrom": ["fileContentsReference"]
+  },
+  "conformanceCases": [
+    {
+      "description": "stderr text_equals passes on a byte-for-byte match against a string literal",
+      "assertionSource": "stderr text_equals \"warn\\n\"",
+      "assertion": {
+        "subject": "stderr",
+        "operator": "textEquals",
+        "expected": "warn\n"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "d2Fybgo=", "encoding": "base64", "text": "warn\n" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "stderr text_equals fails on a missing trailing newline; comparison is byte-exact with no normalization",
+      "assertionSource": "stderr text_equals \"warn\"",
+      "assertion": {
+        "subject": "stderr",
+        "operator": "textEquals",
+        "expected": "warn"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "d2Fybgo=", "encoding": "base64", "text": "warn\n" }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.stderr.text_equals.mismatch"
+    },
+    {
+      "description": "stderr text_equals passes when both captured stderr and the expected text are empty; two empty inputs are equal",
+      "assertionSource": "stderr text_equals \"\"",
+      "assertion": {
+        "subject": "stderr",
+        "operator": "textEquals",
+        "expected": ""
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "", "encoding": "base64", "text": "" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "pass"
+    },
+    {
+      "description": "stderr text_equals compares only stderr; identical bytes on stdout do not satisfy it",
+      "assertionSource": "stderr text_equals \"warn\\n\"",
+      "assertion": {
+        "subject": "stderr",
+        "operator": "textEquals",
+        "expected": "warn\n"
+      },
+      "checkpoint": {
+        "exitCode": 0,
+        "stdout": { "data": "d2Fybgo=", "encoding": "base64", "text": "warn\n" },
+        "stderr": { "data": "", "encoding": "base64", "text": "" }
+      },
+      "expectedResult": "fail",
+      "expectedDiagnosticCode": "assertion.stderr.text_equals.mismatch"
+    },
+    {
+      "description": "invalid: stderr text_equals rejects a workspace path literal as the expected value; TextValue and FileContentsReference do not implicitly convert",
+      "assertionSource": "stderr text_equals <\"expected.txt\">",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.literal.kind_mismatch"
+    },
+    {
+      "description": "invalid: stderr text_equals rejects a fixture reference literal as the expected value; TextValue and FileContentsReference do not implicitly convert",
+      "assertionSource": "stderr text_equals @\"expected.txt\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.literal.kind_mismatch"
+    }
+  ]
+}

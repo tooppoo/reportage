@@ -274,7 +274,7 @@ enum LogicalOperator {
     Any,
 }
 
-/// The full 13-kind expectation contract of `spec/artifacts/run-result/schema.json`.
+/// The full expectation contract of `spec/artifacts/run-result/schema.json`.
 /// Every variant the schema defines is modelled, whether or not a fixture currently exercises it.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
@@ -406,6 +406,34 @@ enum Expectation {
         diagnostic_ref: Option<String>,
     },
     #[serde(rename_all = "camelCase")]
+    StdoutTextEquals {
+        status: Status,
+        expected_source: TextExpectedSource,
+        #[serde(default)]
+        actual_ref: Option<String>,
+        outcome: Outcome,
+        actual_size_bytes: u64,
+        expected_size_bytes: u64,
+        #[serde(default)]
+        mismatch: Option<ContentsMismatch>,
+        #[serde(default)]
+        diagnostic_ref: Option<String>,
+    },
+    #[serde(rename_all = "camelCase")]
+    StderrTextEquals {
+        status: Status,
+        expected_source: TextExpectedSource,
+        #[serde(default)]
+        actual_ref: Option<String>,
+        outcome: Outcome,
+        actual_size_bytes: u64,
+        expected_size_bytes: u64,
+        #[serde(default)]
+        mismatch: Option<ContentsMismatch>,
+        #[serde(default)]
+        diagnostic_ref: Option<String>,
+    },
+    #[serde(rename_all = "camelCase")]
     DirExists {
         status: Status,
         path: String,
@@ -449,6 +477,8 @@ impl Expectation {
                 | Expectation::FileTextEquals { diagnostic_ref, .. }
                 | Expectation::StdoutContentsEquals { diagnostic_ref, .. }
                 | Expectation::StderrContentsEquals { diagnostic_ref, .. }
+                | Expectation::StdoutTextEquals { diagnostic_ref, .. }
+                | Expectation::StderrTextEquals { diagnostic_ref, .. }
                 | Expectation::DirExists { diagnostic_ref, .. }
                 | Expectation::DirContains { diagnostic_ref, .. }
                 | Expectation::Logical { diagnostic_ref, .. } => diagnostic_ref,
@@ -495,6 +525,12 @@ impl Expectation {
                 outcome, mismatch, ..
             }
             | Expectation::StderrContentsEquals {
+                outcome, mismatch, ..
+            }
+            | Expectation::StdoutTextEquals {
+                outcome, mismatch, ..
+            }
+            | Expectation::StderrTextEquals {
                 outcome, mismatch, ..
             } => {
                 if *outcome == Outcome::Mismatch {
@@ -622,6 +658,7 @@ fn all_required_representative_scenarios_are_present() {
         "partial_execution_after_runtime_error",
         "expectation_kinds",
         "contents_equals",
+        "text_equals",
         "noop",
     ];
 

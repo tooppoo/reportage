@@ -449,8 +449,7 @@ enum RequiredKind {
     TextValueStringOrHeredoc,
     /// The position requires a TextValue but its grammar only wires up the
     /// string literal form (`stdout contains` / `stderr contains` expected
-    /// text — see #88's scope note in the grammar), so the suggestion must
-    /// not mention a heredoc literal.
+    /// text), so the suggestion must not mention a heredoc literal.
     TextValueStringOnly,
     /// The position requires a plain `"..."` string literal
     /// (`dir contains` entry name).
@@ -804,6 +803,21 @@ fn parse_output_exp(
             };
             OutputMatcher::ContentsEquals(parse_file_contents_reference(literal_pair, position)?)
         }
+        Rule::output_text_equals => {
+            // output_text_equals = { "text_equals" ~ ws+ ~ value_literal }
+            let literal_pair = inner
+                .into_inner()
+                .next()
+                .expect("output_text_equals must have value_literal");
+            let position = if is_stdout {
+                "`stdout text_equals` expected text"
+            } else {
+                "`stderr text_equals` expected text"
+            };
+            let expected = parse_value_literal(literal_pair)
+                .expect_kind(RequiredKind::TextValueStringOrHeredoc, position)?;
+            OutputMatcher::TextEquals(TextLiteral::Quoted(expected))
+        }
         rule => unreachable!("unexpected rule in output_matcher: {rule:?}"),
     };
 
@@ -874,10 +888,11 @@ fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Pars
 }
 
 /// Parses the heredoc-literal form of `file ... contains` / `file ...
-/// text_equals`, reachable only through `multi_assert` (see
-/// `heredoc_assertion_line` in the grammar).
+/// text_equals` / `stdout text_equals` / `stderr text_equals`, reachable only
+/// through `multi_assert` (see `heredoc_assertion_line` in the grammar).
 fn parse_heredoc_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
-    // heredoc_expectation = { file_exp_heredoc | file_text_equals_heredoc }
+    // heredoc_expectation = { file_exp_heredoc | file_text_equals_heredoc
+    //                         | stdout_text_equals_heredoc | stderr_text_equals_heredoc }
     let inner = pair
         .into_inner()
         .next()
@@ -919,6 +934,25 @@ fn parse_heredoc_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expect
                 path,
                 matcher: FileMatcher::TextEquals(TextLiteral::Heredoc(content)),
             }))
+        }
+        Rule::stdout_text_equals_heredoc | Rule::stderr_text_equals_heredoc => {
+            // stdout_text_equals_heredoc = { "stdout" ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_literal }
+            // stderr_text_equals_heredoc = { "stderr" ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_literal }
+            let rule = inner.as_rule();
+            let literal_pair = inner
+                .into_inner()
+                .next()
+                .expect("output text_equals heredoc rule must have a heredoc_literal");
+            let content = parse_heredoc_literal(literal_pair)?;
+
+            let exp = OutputExpectation {
+                matcher: OutputMatcher::TextEquals(TextLiteral::Heredoc(content)),
+            };
+            if rule == Rule::stdout_text_equals_heredoc {
+                Ok(Expectation::Stdout(exp))
+            } else {
+                Ok(Expectation::Stderr(exp))
+            }
         }
         rule => unreachable!("unexpected rule in heredoc_expectation: {rule:?}"),
     }
@@ -2967,6 +3001,89 @@ case "x" {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn stdout_text_equals_accepts_string_literal() {
+        let src =
+            "case \"x\" {\n  $ true\n  assert {\n    stdout text_equals \"hello\\n\"\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected assertion block");
+        };
+        match &block.expectations()[0] {
+            Expectation::Stdout(OutputExpectation {
+                matcher: OutputMatcher::TextEquals(TextLiteral::Quoted(value)),
+            }) => assert_eq!(value, "hello\n"),
+            other => panic!("expected quoted stdout text_equals, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stderr_text_equals_accepts_heredoc_literal() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stderr text_equals ```\n    warn\n    line\n    ```\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected assertion block");
+        };
+        match &block.expectations()[0] {
+            Expectation::Stderr(OutputExpectation {
+                matcher: OutputMatcher::TextEquals(TextLiteral::Heredoc(value)),
+            }) => assert_eq!(value, "warn\nline\n"),
+            other => panic!("expected heredoc stderr text_equals, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn stdout_text_equals_heredoc_parses_alongside_other_expectations() {
+        // The heredoc form is a separate heredoc_assertion_line alternative (see the grammar);
+        // an ordinary expectation line following the heredoc must still parse.
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout text_equals ```\n    hello\n    ```\n    exit 0\n  }\n}\n";
+        let script = parse(src).unwrap();
+        let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
+            panic!("expected assertion block");
+        };
+        assert_eq!(block.expectations().len(), 2);
+        assert!(matches!(
+            &block.expectations()[0],
+            Expectation::Stdout(OutputExpectation {
+                matcher: OutputMatcher::TextEquals(TextLiteral::Heredoc(_)),
+            })
+        ));
+        assert!(matches!(&block.expectations()[1], Expectation::Exit(_)));
+    }
+
+    #[test]
+    fn stdout_text_equals_workspace_path_literal_is_kind_mismatch() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stdout text_equals <\"expected.txt\">\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::TextValue,
+                actual: ValueLiteralKind::WorkspacePath,
+                ..
+            }
+        ));
+        let message = err.to_string();
+        assert!(message.contains("`stdout text_equals` expected text"));
+        assert!(message.contains("string literal or heredoc literal"));
+    }
+
+    #[test]
+    fn stderr_text_equals_fixture_reference_is_kind_mismatch() {
+        let src = "case \"x\" {\n  $ true\n  assert {\n    stderr text_equals @\"expected.txt\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::TextValue,
+                actual: ValueLiteralKind::FixtureReference,
+                ..
+            }
+        ));
+        let message = err.to_string();
+        assert!(message.contains("`stderr text_equals` expected text"));
     }
 
     #[test]

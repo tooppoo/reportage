@@ -216,9 +216,10 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
         } => {
             let source_display = format_expected_source(expected_source);
             match observation {
-                ContentsEqualsObservation::Compared(comparison) => print_contents_equals_detail(
+                ContentsEqualsObservation::Compared(comparison) => print_byte_comparison_detail(
                     step_index,
                     &format!("file {path:?}"),
+                    "contents_equals",
                     &source_display,
                     comparison,
                 ),
@@ -246,9 +247,10 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
         } => {
             let source_display = format_text_equals_source(expected_source);
             match observation {
-                ContentsEqualsObservation::Compared(comparison) => print_contents_equals_detail(
+                ContentsEqualsObservation::Compared(comparison) => print_byte_comparison_detail(
                     step_index,
                     &format!("file {path:?}"),
+                    "text_equals",
                     &source_display,
                     comparison,
                 ),
@@ -272,19 +274,41 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
         ExpectationKind::StdoutContentsEquals {
             expected_source,
             comparison,
-        } => print_contents_equals_detail(
+        } => print_byte_comparison_detail(
             step_index,
             "stdout",
+            "contents_equals",
             &format_expected_source(expected_source),
             comparison,
         ),
         ExpectationKind::StderrContentsEquals {
             expected_source,
             comparison,
-        } => print_contents_equals_detail(
+        } => print_byte_comparison_detail(
             step_index,
             "stderr",
+            "contents_equals",
             &format_expected_source(expected_source),
+            comparison,
+        ),
+        ExpectationKind::StdoutTextEquals {
+            expected_source,
+            comparison,
+        } => print_byte_comparison_detail(
+            step_index,
+            "stdout",
+            "text_equals",
+            &format_text_equals_source(expected_source),
+            comparison,
+        ),
+        ExpectationKind::StderrTextEquals {
+            expected_source,
+            comparison,
+        } => print_byte_comparison_detail(
+            step_index,
+            "stderr",
+            "text_equals",
+            &format_text_equals_source(expected_source),
             comparison,
         ),
         ExpectationKind::DirExists { path, observation } => {
@@ -361,26 +385,30 @@ fn format_text_equals_source(source: &TextEqualsExpectedSource) -> String {
     }
 }
 
-/// Prints a `contents_equals` comparison's outcome. On mismatch, prints only a bounded, escaped
-/// context window around the first differing byte — never the full actual/expected bytes.
-/// See `reportage_core::contents_diagnostic` and docs/semantic-diagnostics.md.
-fn print_contents_equals_detail(
+/// Prints a byte-for-byte comparison's outcome, shared by every expectation that carries a
+/// `ContentsEqualsComparison` (`contents_equals` and `text_equals`, file and stream subjects).
+/// On mismatch, prints only a bounded, escaped context window around the first differing byte —
+/// never the full actual/expected bytes. `operator` is the expectation keyword as written in
+/// source (`contents_equals` or `text_equals`), so the subject description matches what the
+/// author wrote. See `reportage_core::contents_diagnostic` and docs/semantic-diagnostics.md.
+fn print_byte_comparison_detail(
     step_index: usize,
     subject: &str,
+    operator: &str,
     source_display: &str,
     comparison: &ContentsEqualsComparison,
 ) {
     match &comparison.outcome {
         ContentsEqualsOutcome::Match => {
             eprintln!(
-                "  assertion block at step {}: {subject} contents_equals {source_display} — bytes match",
+                "  assertion block at step {}: {subject} {operator} {source_display} — bytes match",
                 step_index + 1,
             );
         }
         ContentsEqualsOutcome::Mismatch(mismatch) => {
             let ctx = mismatch_context(&comparison.actual, &comparison.expected, mismatch);
             eprintln!(
-                "  assertion block at step {}: {subject} contents_equals {source_display} — bytes differ",
+                "  assertion block at step {}: {subject} {operator} {source_display} — bytes differ",
                 step_index + 1,
             );
             eprintln!(
