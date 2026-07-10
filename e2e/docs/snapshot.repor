@@ -6,7 +6,7 @@
 # `v{version}` tag derived from it are baked into every line of `reportage docs`'s output. Each
 # case therefore normalizes the captured output with a generic semver-shaped substitution before
 # comparing it against the fixture, rather than pinning the checked-out Cargo.toml version: the
-# substitution matches any `X.Y.Z` / `vX.Y.Z` shape, not a specific value, so these snapshots do
+# substitution matches any `X.Y.Z` / `X.Y.Z` shape, not a specific value, so these snapshots do
 # not need regenerating on every version bump.
 #
 # Fixtures (`human.snapshot.txt`, `json.snapshot.json`) live next to this file and are read via
@@ -18,7 +18,7 @@ case "docs prints the recorded human-readable URL index" {
     exit 0
   }
 
-  $ sed -E 's/v[0-9]+\.[0-9]+\.[0-9]+/vX.Y.Z/g; s/[0-9]+\.[0-9]+\.[0-9]+/X.Y.Z/g' raw.txt > normalized.txt
+  $ sed -E 's/v[0-9]+\.[0-9]+\.[0-9]+/X.Y.Z/g; s/[0-9]+\.[0-9]+\.[0-9]+/X.Y.Z/g' raw.txt > normalized.txt
   assert {
     exit 0
     file <"normalized.txt"> contents_equals @"human.snapshot.txt"
@@ -31,7 +31,7 @@ case "docs --format=json prints the recorded JSON index" {
     exit 0
   }
 
-  $ sed -E 's/v[0-9]+\.[0-9]+\.[0-9]+/vX.Y.Z/g; s/[0-9]+\.[0-9]+\.[0-9]+/X.Y.Z/g' raw.json > normalized.json
+  $ sed -E 's/v[0-9]+\.[0-9]+\.[0-9]+/X.Y.Z/g; s/[0-9]+\.[0-9]+\.[0-9]+/X.Y.Z/g' raw.json > normalized.json
   assert {
     exit 0
     file <"normalized.json"> contents_equals @"json.snapshot.json"

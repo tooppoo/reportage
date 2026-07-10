@@ -1,62 +1,62 @@
-reportage X.Y.Z (docs tag: vX.Y.Z)
+reportage X.Y.Z (docs tag: X.Y.Z)
 
 Documents (recommended reading order):
 
   AI documentation guide
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/README.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/README.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/ai/README.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/ai/README.md
 
   AI quick reference
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/quick-reference.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/quick-reference.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/ai/quick-reference.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/ai/quick-reference.md
 
   Syntax reference
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/syntax.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/syntax.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/syntax.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/syntax.md
 
   Semantics
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/semantics.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/semantics.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/semantics.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/semantics.md
 
   Semantic rule catalog
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/language/semantic-rules.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/language/semantic-rules.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/language/semantic-rules.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/language/semantic-rules.md
 
   Diagnostics
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/diagnostics.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/diagnostics.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/diagnostics.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/diagnostics.md
 
   Execution model
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/execution-model.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/execution-model.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/execution-model.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/execution-model.md
 
   Exit codes
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/exit-codes.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/exit-codes.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/exit-codes.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/exit-codes.md
 
   Configuration
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/configuration.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/configuration.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/configuration.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/configuration.md
 
   JSON execution report contract
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/spec/output/json-report/README.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/spec/output/json-report/README.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/spec/output/json-report/README.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/spec/output/json-report/README.md
 
   Run result artifact contract
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/spec/artifacts/run-result/README.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/spec/artifacts/run-result/README.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/spec/artifacts/run-result/README.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/spec/artifacts/run-result/README.md
 
   AI generation rules
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/generation-rules.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/generation-rules.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/ai/generation-rules.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/ai/generation-rules.md
 
   AI validation flow
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/validation-flow.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/validation-flow.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/ai/validation-flow.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/ai/validation-flow.md
 
   AI common mistakes
-    human: https://github.com/tooppoo/reportage/blob/vX.Y.Z/docs/ai/common-mistakes.md
-    ai:    https://raw.githubusercontent.com/tooppoo/reportage/vX.Y.Z/docs/ai/common-mistakes.md
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/ai/common-mistakes.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/ai/common-mistakes.md
 
 Validation:
   After editing a .repor file, run: reportage <file.repor> --format=json

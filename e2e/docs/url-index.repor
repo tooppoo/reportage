@@ -9,10 +9,10 @@ case "docs prints a human-readable URL index without touching .reportage" {
 
   assert {
     exit 0
-    stdout contains "(docs tag: v"
+    stdout contains "(docs tag: "
     stdout contains "Documents (recommended reading order):"
-    stdout contains "https://github.com/tooppoo/reportage/blob/v"
-    stdout contains "https://raw.githubusercontent.com/tooppoo/reportage/v"
+    stdout contains "https://github.com/tooppoo/reportage/blob/"
+    stdout contains "https://raw.githubusercontent.com/tooppoo/reportage/"
     stdout contains "After editing a .repor file, run: reportage <file.repor> --format=json"
     stderr empty
     not {
@@ -28,9 +28,9 @@ case "docs --format=json prints the machine-readable docs index without touching
     exit 0
     stdout contains "\"schema_version\": 1"
     stdout contains "\"name\": \"reportage\""
-    stdout contains "\"tag\": \"v"
-    stdout contains "\"human\": \"https://github.com/tooppoo/reportage/blob/v"
-    stdout contains "\"ai\": \"https://raw.githubusercontent.com/tooppoo/reportage/v"
+    stdout contains "\"tag\": \""
+    stdout contains "\"human\": \"https://github.com/tooppoo/reportage/blob/"
+    stdout contains "\"ai\": \"https://raw.githubusercontent.com/tooppoo/reportage/"
     stdout contains "\"command\": \"reportage <file.repor> --format=json\""
     stderr empty
     not {

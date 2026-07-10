@@ -116,7 +116,7 @@ fn docs_index_document_conforms_to_the_contract() {
     assert_eq!(doc.schema_version, 1);
     assert_eq!(doc.tool.name, "reportage");
     assert_eq!(doc.tool.version, env!("CARGO_PKG_VERSION"));
-    assert_eq!(doc.tool.tag, format!("v{}", env!("CARGO_PKG_VERSION")));
+    assert_eq!(doc.tool.tag, format!("{}", env!("CARGO_PKG_VERSION")));
 
     assert!(
         !doc.documents.is_empty(),
