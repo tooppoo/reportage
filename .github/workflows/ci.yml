@@ -413,6 +413,7 @@ jobs:
           # so we need to set package_json_file explicitly for `uses` step
           # https://docs.github.com/ja/actions/how-tos/write-workflows/choose-what-workflows-do/set-default-values-for-jobs
           package_json_file: editors/vscode/package.json
+          cache_dependency_path: editors/vscode/pnpm-lock.yaml
           cache: true
 
       - run: pnpm install
