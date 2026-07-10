@@ -4,7 +4,7 @@ Rules for generating or editing `.repor` files. Read [`docs/syntax.md`](../synta
 
 ## Use only documented syntax
 
-Every construct used in a `.repor` file must appear in [`docs/syntax.md`](../syntax.md), the grammar reference generated from `crates/reportage-core/src/reportage.pest`. If a construct is not there, it is not part of this version of reportage, regardless of how plausible it looks.
+Every construct used in a `.repor` file must appear in [`docs/syntax.md`](../syntax.md), the grammar reference generated from [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest). If a construct is not there, it is not part of this version of reportage, regardless of how plausible it looks.
 
 For the semantic rules that govern how a construct behaves once parsed (assertion evaluation, logical composition, expectations, and so on), use [`docs/semantics.md`](../semantics.md) and the generated [`docs/language/semantic-rules.md`](../language/semantic-rules.md) the same way.
 
@@ -18,7 +18,7 @@ Do not extrapolate a plausible-looking extension of an existing construct (a new
 
 ## Prefer examples over first-principles construction
 
-`examples/*.repor` and the fixtures under `tests/fixtures/syntax/valid/` are known-good scripts. Prefer adapting one of these over constructing a script from the grammar alone — it lowers the chance of combining individually valid constructs into a form the parser rejects. See [`docs/syntax-conformance.md`](../syntax-conformance.md) for how the fixtures under `tests/fixtures/syntax/` are organized.
+[`examples/*.repor`](../../examples/) and the fixtures under [`tests/fixtures/syntax/valid/`](../../tests/fixtures/syntax/valid/) are known-good scripts. Prefer adapting one of these over constructing a script from the grammar alone — it lowers the chance of combining individually valid constructs into a form the parser rejects. See [`docs/syntax-conformance.md`](../syntax-conformance.md) for how the fixtures under `tests/fixtures/syntax/` are organized.
 
 ## Verify after generating
 

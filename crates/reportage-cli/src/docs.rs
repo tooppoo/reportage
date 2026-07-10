@@ -149,7 +149,7 @@ fn runtime_version() -> &'static str {
 }
 
 fn docs_tag(version: &str) -> String {
-    format!("{version}")
+    version.to_string()
 }
 
 fn human_url(tag: &str, path: &str) -> String {
