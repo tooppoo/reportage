@@ -21,8 +21,8 @@ case "--help points to the reference discovery command" {
 }
 
 # The reserved `docs` subcommand (issue #166) is not a finished feature, so normal help must
-# not advertise it: neither the subcommand list nor the documentation pointer may mention
-# `reportage docs`.
+# not advertise it: neither the subcommand list (its `about` line would appear if
+# `hide = true` regressed) nor the documentation pointer may mention `reportage docs`.
 case "--help does not advertise the reserved docs subcommand" {
   $ reportage --help
 
@@ -30,6 +30,9 @@ case "--help does not advertise the reserved docs subcommand" {
     exit 0
     not {
       stdout contains "reportage docs"
+    }
+    not {
+      stdout contains "Reserved for a future documentation generation command"
     }
   }
 }

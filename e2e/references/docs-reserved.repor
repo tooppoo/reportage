@@ -59,3 +59,34 @@ case "docs with the old --format=json flag fails the same way" {
     }
   }
 }
+
+# `--help` is swallowed like every other trailing token (`disable_help_flag` plus the
+# hyphen-tolerant trailing capture in DocsArgs): a help screen with exit 0 would misrepresent
+# the reserved command as usable.
+case "docs --help fails the same way instead of printing help" {
+  $ reportage docs --help
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "'reportage docs' is not implemented yet"
+  }
+}
+
+# clap's built-in `help` subcommand bypasses the not-implemented error, so the only text it
+# may show for `docs` is the deliberately minimal reserved `about` line: no reference index,
+# no internal design narration, and nothing implying the command is usable.
+case "help docs shows only the minimal reserved description" {
+  $ reportage help docs
+
+  assert {
+    exit 0
+    stdout contains "Reserved for a future documentation generation command; not implemented yet"
+    not {
+      stdout contains "Registered as a subcommand"
+    }
+    not {
+      stdout contains "--format"
+    }
+  }
+}

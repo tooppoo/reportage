@@ -75,10 +75,15 @@ enum Commands {
     /// List versioned documentation URLs for this reportage version.
     References(ReferencesArgs),
 
-    /// Reserved for a future documentation generation command (issue #166).
-    /// Registered as a subcommand so `docs` can never be taken as a positional script path,
-    /// but hidden from help until the real command ships: it is not a feature to advertise yet.
-    #[command(hide = true)]
+    // Registered as a subcommand so `docs` can never be taken as a positional script path,
+    // but hidden from normal help until the real command ships: it is not a feature to
+    // advertise yet. The explicit `about` is the only text an explicit `reportage help docs`
+    // may show; `long_about = None` keeps this comment from ever rendering there.
+    #[command(
+        hide = true,
+        about = "Reserved for a future documentation generation command; not implemented yet",
+        long_about = None
+    )]
     Docs(DocsArgs),
 }
 

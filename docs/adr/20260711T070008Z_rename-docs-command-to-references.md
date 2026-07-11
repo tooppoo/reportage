@@ -1,4 +1,3 @@
-
 # Rename `reportage docs` to `reportage references` and Reserve `docs` for Documentation Generation
 
 - Status: Proposed

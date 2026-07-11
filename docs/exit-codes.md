@@ -74,3 +74,12 @@ This means `config_error` is used when discovery/configuration cannot produce a 
 | `4`  | **CLI usage error** — clap itself rejected the invocation (e.g. an unrecognized flag, or `shim` given without a further subcommand). Shared with every other malformed invocation of the `reportage` binary; see `e2e/options/unknown-options.repor` for an example on the default run command. |
 
 Code `2` here intentionally reuses the same number as the run command's "script/config validation error": both mean "the requested operation could not be treated as valid input," even though `shim scaffold` has no script or config file to speak of. Code `3` likewise reuses "runtime/infrastructure error" for the same reason the run command does: an OS-level failure while doing required I/O, not a normal outcome the caller is expected to branch on.
+
+## `references` and reserved `docs` exit codes
+
+`reportage references` is a side-effect-free tooling subcommand that only prints the reference URL index (see `spec/output/references-index/`).
+It exits `0` after printing, or `4` when clap rejects the invocation (e.g. an unsupported `--format` value), the same CLI usage error code as everywhere else.
+
+`docs` is reserved for a future documentation generation command and is not implemented (see [`docs/adr/20260711T070008Z_rename-docs-command-to-references.md`](adr/20260711T070008Z_rename-docs-command-to-references.md)).
+Every `reportage docs` invocation, whatever tokens follow it, prints a not-implemented error to stderr and exits `2`, reusing the "requested operation could not be treated as valid input" meaning above.
+The future real command replaces this behavior with its own exit code table.
