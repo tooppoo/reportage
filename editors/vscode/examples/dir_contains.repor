@@ -1,0 +1,5 @@
+case "Dir contains" {
+  $ mkdir out && touch out/result.json
+
+  assert { dir <"out"> contains "result.json" }
+}

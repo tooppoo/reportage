@@ -1,0 +1,8 @@
+case "Assert (block)" {
+  $ printf 'ok\n'
+
+  assert {
+    exit 0
+    stdout contains "ok"
+  }
+}

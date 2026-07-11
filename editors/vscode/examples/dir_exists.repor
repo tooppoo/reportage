@@ -1,0 +1,5 @@
+case "Dir exists" {
+  $ mkdir out
+
+  assert { dir <"out"> exists }
+}

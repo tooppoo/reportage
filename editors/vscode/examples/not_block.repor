@@ -1,0 +1,9 @@
+case "Not block" {
+  $ printf 'alpha\n'
+
+  assert {
+    not {
+      stdout contains "missing"
+    }
+  }
+}

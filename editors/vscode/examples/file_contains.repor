@@ -1,0 +1,7 @@
+case "File contains" {
+  write <"notes.txt"> "remember the milk\n"
+
+  $ true
+
+  assert { file <"notes.txt"> contains "milk" }
+}

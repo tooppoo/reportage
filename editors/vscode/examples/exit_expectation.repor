@@ -1,0 +1,5 @@
+case "Exit expectation" {
+  $ sh -c 'exit 3'
+
+  assert { exit 3 }
+}

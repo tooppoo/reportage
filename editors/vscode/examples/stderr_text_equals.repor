@@ -1,0 +1,5 @@
+case "Stderr text_equals" {
+  $ printf 'hello\n' 1>&2
+
+  assert { stderr text_equals "hello\n" }
+}

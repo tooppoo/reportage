@@ -423,4 +423,7 @@ jobs:
           cache: true
 
       - run: pnpm install
+      # Fail on a stale committed README before `package` regenerates it,
+      # because regeneration would otherwise mask the drift in CI.
+      - run: pnpm run check:readme
       - run: pnpm run package

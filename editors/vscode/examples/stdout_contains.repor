@@ -1,0 +1,5 @@
+case "Stdout contains" {
+  $ printf 'alpha beta\n'
+
+  assert { stdout contains "beta" }
+}

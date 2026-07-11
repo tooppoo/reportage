@@ -1,0 +1,10 @@
+case "Any block" {
+  $ printf 'alpha\n'
+
+  assert {
+    any {
+      stdout contains "unused"
+      stdout contains "alpha"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+case "Write step (heredoc)" {
+  write <"report.md"> ```
+    # Report
+    Heredoc bodies are dedented relative to the closing fence.
+    ```
+
+  $ cat report.md
+
+  assert {
+    exit 0
+    stdout contains "# Report"
+  }
+}

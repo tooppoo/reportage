@@ -1,0 +1,9 @@
+case "Stderr text_equals (heredoc)" {
+  $ printf 'hello\n' 1>&2
+
+  assert {
+    stderr text_equals ```
+    hello
+    ```
+  }
+}

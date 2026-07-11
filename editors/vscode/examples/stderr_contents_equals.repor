@@ -1,0 +1,6 @@
+case "Stderr contents_equals" {
+  $ printf 'hello\n' > expected.txt
+  $ printf 'hello\n' 1>&2
+
+  assert { stderr contents_equals <"expected.txt"> }
+}

@@ -1,0 +1,9 @@
+case "Stdout text_equals (heredoc)" {
+  $ printf 'hello\n'
+
+  assert {
+    stdout text_equals ```
+    hello
+    ```
+  }
+}

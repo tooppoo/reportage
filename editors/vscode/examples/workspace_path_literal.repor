@@ -1,0 +1,10 @@
+case "Workspace path literal" {
+  write <"data.txt"> "payload\n"
+
+  $ cat data.txt
+
+  assert {
+    exit 0
+    file <"data.txt"> exists
+  }
+}

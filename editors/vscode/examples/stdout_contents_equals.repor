@@ -1,0 +1,6 @@
+case "Stdout contents_equals" {
+  $ printf 'hello\n' > expected.txt
+  $ printf 'hello\n'
+
+  assert { stdout contents_equals <"expected.txt"> }
+}
