@@ -101,28 +101,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           allow-no-subscriptions: true
 
-
-      - name: Resolve Visual Studio Marketplace identity
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          profile_id="$(
-            az rest \
-              --method GET \
-              --url "https://app.vssps.visualstudio.com/_apis/profile/profiles/me" \
-              --resource "499b84ac-1321-427f-aa17-267ca6975798" \
-              --query id \
-              --output tsv
-          )"
-
-          if [ -z "$profile_id" ]; then
-            echo "::error::Failed to resolve Visual Studio Marketplace identity."
-            exit 1
-          fi
-
-          echo "Visual Studio Marketplace identity ID: $profile_id"
-
       - name: Publish VSIX
         run: |
           set -euo pipefail
