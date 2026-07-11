@@ -50,16 +50,25 @@ function matchCategory(prefixes) {
 
 // Turns a snippet body into the text VS Code inserts, minus editing artifacts:
 // placeholders keep their default text, bare tabstops disappear, tabs become two spaces.
+// Only the constructs used by snippets/reportage.json are supported;
+// anything else (choices, variables, nested placeholders) fails loudly
+// so it cannot pass through garbled into the shipped README.
 function expansionLines(body) {
   const lines = Array.isArray(body) ? body : [body];
-  return lines.map((line) =>
-    line
+  return lines.map((line) => {
+    const stripped = line
       .replaceAll(/\$\{\d+:([^}]*)\}/g, "$1")
       .replaceAll(/\$\{\d+\}/g, "")
       .replaceAll(/\$\d+/g, "")
       .replaceAll("\t", "  ")
-      .trimEnd(),
-  );
+      .trimEnd();
+    if (/\$\{|\$[A-Za-z_]/.test(stripped)) {
+      throw new Error(
+        `Unsupported snippet construct in body line ${JSON.stringify(line)}; teach expansionLines in scripts/generate-readme.mjs how to render it`,
+      );
+    }
+    return stripped;
+  });
 }
 
 function escapeTableCell(text) {
@@ -71,11 +80,22 @@ function formatPrefixes(prefix) {
   return prefixes.map((p) => `\`${p}\``).join(" / ");
 }
 
+function longestBacktickRun(text) {
+  return Math.max(0, ...[...text.matchAll(/`+/g)].map((m) => m[0].length));
+}
+
 // Fenced blocks must out-fence their content:
 // reportage heredocs use ``` themselves, so a plain three-backtick fence would end early.
 function fenceFor(text) {
-  const longestRun = Math.max(0, ...[...text.matchAll(/`+/g)].map((m) => m[0].length));
-  return "`".repeat(Math.max(4, longestRun + 1));
+  return "`".repeat(Math.max(4, longestBacktickRun(text) + 1));
+}
+
+// Inline code spans must out-tick their content for the same reason fenceFor exists.
+function inlineCode(text) {
+  const run = longestBacktickRun(text);
+  if (run === 0) return `\`${text}\``;
+  const ticks = "`".repeat(run + 1);
+  return `${ticks} ${text} ${ticks}`;
 }
 
 function renderSnippetsSection(snippets) {
@@ -104,7 +124,7 @@ function renderSnippetsSection(snippets) {
     if (singleLine.length > 0) {
       const rows = singleLine.map((snippet) => {
         const expansion = expansionLines(snippet.body)[0];
-        return `| ${formatPrefixes(snippet.prefix)} | ${escapeTableCell(`\`${expansion}\``)} | ${escapeTableCell(snippet.description)} |`;
+        return `| ${formatPrefixes(snippet.prefix)} | ${escapeTableCell(inlineCode(expansion))} | ${escapeTableCell(snippet.description)} |`;
       });
       parts.push(["| Prefix | Expands to | Description |", "| --- | --- | --- |", ...rows].join("\n"));
     }
@@ -124,17 +144,39 @@ function renderSnippetsSection(snippets) {
   return sections.join("\n\n");
 }
 
+// Finds the end of the case by brace depth, skipping heredoc bodies so that
+// free-form heredoc text (which may contain braces at any column) cannot truncate
+// the extraction. Braces inside quoted strings are still counted; that is acceptable
+// for this curated example file because a miscount fails loudly here rather than
+// publishing a broken example.
 function extractCase(source, name) {
   const lines = source.split("\n");
   const start = lines.findIndex((line) => line.startsWith(`case "${name}" {`));
   if (start === -1) {
     throw new Error(`case "${name}" not found in examples/full-syntax.repor`);
   }
-  const end = lines.indexOf("}", start);
-  if (end === -1) {
-    throw new Error(`case "${name}" has no closing brace at column 0`);
+  let depth = 0;
+  let inHeredoc = false;
+  for (let i = start; i < lines.length; i++) {
+    const line = lines[i];
+    if (inHeredoc) {
+      if (/^\s*`{3,}\s*$/.test(line)) inHeredoc = false;
+      continue;
+    }
+    if (/`{3,}\s*$/.test(line)) {
+      inHeredoc = true;
+      continue;
+    }
+    depth += (line.match(/\{/g) ?? []).length;
+    depth -= (line.match(/\}/g) ?? []).length;
+    if (depth < 0) {
+      throw new Error(`case "${name}": unbalanced braces at line ${i + 1} of examples/full-syntax.repor`);
+    }
+    if (depth === 0) {
+      return lines.slice(start, i + 1).join("\n");
+    }
   }
-  return lines.slice(start, end + 1).join("\n");
+  throw new Error(`case "${name}" is never closed in examples/full-syntax.repor`);
 }
 
 function renderExampleSection(exampleSource) {

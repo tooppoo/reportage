@@ -15,7 +15,7 @@ It lets you write test cases that specify commands to run, files to create, and 
 Full syntax highlighting for `.repor` files with support for all reportage constructs: cases, actions, assertions, and operators.
 
 **Code Snippets**
-30+ snippets to accelerate writing test cases, including templates for common patterns like exit codes, file assertions, and output validation.
+Snippets covering every reportage construct, from case scaffolding to individual assertions; see the full list below.
 
 **Language Support**
 Embedded shell syntax highlighting for action steps and automatic bracket matching and auto-closing pairs.
