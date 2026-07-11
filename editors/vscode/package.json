@@ -2,7 +2,7 @@
   "name": "reportage-vscode",
   "displayName": "Reportage",
   "description": "Syntax highlighting and code snippets for reportage files.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "philomagi",
   "engines": {
     "vscode": "^1.90.0"
