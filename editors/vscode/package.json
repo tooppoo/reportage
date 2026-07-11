@@ -17,7 +17,9 @@
   },
   "icon": "./assets/reportage-ext.png",
   "scripts": {
-    "package": "vsce package --out ./reportage-vscode.vsix"
+    "generate:readme": "node scripts/generate-readme.mjs",
+    "check:readme": "node scripts/generate-readme.mjs --check",
+    "package": "node scripts/generate-readme.mjs && vsce package --out ./reportage-vscode.vsix"
   },
   "packageManager": "pnpm@11.9.0",
   "categories": [
