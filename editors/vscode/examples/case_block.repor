@@ -1,0 +1,5 @@
+case "Case block" {
+  $ true
+
+  assert { exit 0 }
+}

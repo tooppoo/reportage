@@ -1,79 +1,249 @@
-# Reportage syntax reference for the VS Code extension.
-# Open it in the Extension Development Host to preview highlighting for every construct.
-# It is also run by the project's own e2e suite (see reportage.examples.kdl), so it must keep passing when the grammar changes.
+# GENERATED FILE - do not edit; run `pnpm run generate:readme`.
+# Concatenation of every per-snippet example in this directory, kept as a single
+# file so the Extension Development Host can preview highlighting for every construct.
+# Like the per-snippet files, it runs in the project's e2e suite (reportage.examples.kdl).
 
-case "actions and write steps" {
-  $ printf 'one\ntwo\nthree\n' \
-    | grep --color=never 'two' \
-    | tr 'a-z' 'A-Z'
-
-  write <"greeting.txt"> "hello\n"
-
-  write <"quoted.txt"> "she said \"hi\" and used a \\ backslash\n"
-
-  write <"report.md"> ```
-    # Report
-    Indentation here is dedented relative to the closing fence,
-    so the body can be indented without affecting its content.
-    ```
-
-  assert {
-    exit 0 # trailing comment example
-    stdout contains "TWO"
-    file <"quoted.txt"> text_equals "she said \"hi\" and used a \\ backslash\n"
-  }
-}
-
-case "single-line assert" {
+case "Case block" {
   $ true
 
   assert { exit 0 }
 }
 
-case "expectations across all kinds and literal forms" {
-  $ printf 'hello\n' > actual.txt
-  $ printf 'hello\n' > expected.txt
-  $ printf 'hello\n'; printf 'hello\n' 1>&2
+case "Action step" {
+  $ printf 'one\ntwo\n' | grep 'two'
 
   assert {
     exit 0
-    stdout contains "hello"
-    stdout contents_equals <"expected.txt">
+    stdout contains "two"
+  }
+}
+
+case "Write step (string)" {
+  write <"greeting.txt"> "hello\n"
+
+  $ cat greeting.txt
+
+  assert {
+    exit 0
     stdout text_equals "hello\n"
-    stderr contains "hello"
+  }
+}
+
+case "Write step (heredoc)" {
+  write <"report.md"> ```
+    # Report
+    Heredoc bodies are dedented relative to the closing fence.
+    ```
+
+  $ cat report.md
+
+  assert {
+    exit 0
+    stdout contains "# Report"
+  }
+}
+
+case "Assert (single expectation)" {
+  $ true
+
+  assert { exit 0 }
+}
+
+case "Assert (block)" {
+  $ printf 'ok\n'
+
+  assert {
+    exit 0
+    stdout contains "ok"
+  }
+}
+
+case "Exit expectation" {
+  $ sh -c 'exit 3'
+
+  assert { exit 3 }
+}
+
+case "Stdout contains" {
+  $ printf 'alpha beta\n'
+
+  assert { stdout contains "beta" }
+}
+
+case "Stdout empty" {
+  $ true
+
+  assert { stdout empty }
+}
+
+case "Stdout contents_equals" {
+  $ printf 'hello\n' > expected.txt
+  $ printf 'hello\n'
+
+  assert { stdout contents_equals <"expected.txt"> }
+}
+
+case "Stdout text_equals" {
+  $ printf 'hello\n'
+
+  assert { stdout text_equals "hello\n" }
+}
+
+case "Stdout text_equals (heredoc)" {
+  $ printf 'hello\n'
+
+  assert {
+    stdout text_equals ```
+    hello
+    ```
+  }
+}
+
+case "Stderr contains" {
+  $ printf 'warning: low disk\n' 1>&2
+
+  assert { stderr contains "warning" }
+}
+
+case "Stderr empty" {
+  $ printf 'quiet\n'
+
+  assert { stderr empty }
+}
+
+case "Stderr contents_equals" {
+  $ printf 'hello\n' > expected.txt
+  $ printf 'hello\n' 1>&2
+
+  assert { stderr contents_equals <"expected.txt"> }
+}
+
+case "Stderr text_equals" {
+  $ printf 'hello\n' 1>&2
+
+  assert { stderr text_equals "hello\n" }
+}
+
+case "Stderr text_equals (heredoc)" {
+  $ printf 'hello\n' 1>&2
+
+  assert {
     stderr text_equals ```
     hello
     ```
-    file <"actual.txt"> exists
-    file <"actual.txt"> contains "hello"
-    file <"actual.txt"> contents_equals @"fixtures/expected.txt"
+  }
+}
+
+case "File exists" {
+  $ touch marker.txt
+
+  assert { file <"marker.txt"> exists }
+}
+
+case "File contains" {
+  write <"notes.txt"> "remember the milk\n"
+
+  $ true
+
+  assert { file <"notes.txt"> contains "milk" }
+}
+
+case "File contains (heredoc)" {
+  write <"notes.txt"> ```
+    line one
+    line two
+    ```
+
+  $ true
+
+  assert {
+    file <"notes.txt"> contains ```
+    line one
+    ```
+  }
+}
+
+case "File contents_equals" {
+  $ printf 'hello\n' > actual.txt
+
+  assert { file <"actual.txt"> contents_equals @"fixtures/expected.txt" }
+}
+
+case "File text_equals" {
+  write <"greeting.txt"> "hello\n"
+
+  $ true
+
+  assert { file <"greeting.txt"> text_equals "hello\n" }
+}
+
+case "File text_equals (heredoc)" {
+  $ printf 'hello\n' > actual.txt
+
+  assert {
     file <"actual.txt"> text_equals ```
     hello
     ```
   }
 }
 
-case "directory expectations" {
+case "Dir exists" {
+  $ mkdir out
+
+  assert { dir <"out"> exists }
+}
+
+case "Dir contains" {
   $ mkdir out && touch out/result.json
 
+  assert { dir <"out"> contains "result.json" }
+}
+
+case "Not block" {
+  $ printf 'alpha\n'
+
   assert {
-    dir <"out"> exists
-    dir <"out"> contains "result.json"
+    not {
+      stdout contains "missing"
+    }
   }
 }
 
-case "logical composition" {
+case "All block" {
   $ printf 'alpha\n'
 
   assert {
     all {
-      any {
-        not {
-          stdout contains "missing"
-        }
-        stdout contains "unused"
-      }
       exit 0
+      stdout contains "alpha"
     }
   }
+}
+
+case "Any block" {
+  $ printf 'alpha\n'
+
+  assert {
+    any {
+      stdout contains "unused"
+      stdout contains "alpha"
+    }
+  }
+}
+
+case "Workspace path literal" {
+  write <"data.txt"> "payload\n"
+
+  $ cat data.txt
+
+  assert {
+    exit 0
+    file <"data.txt"> exists
+  }
+}
+
+case "Fixture reference literal" {
+  $ printf 'hello\n' > actual.txt
+
+  assert { file <"actual.txt"> contents_equals @"fixtures/expected.txt" }
 }

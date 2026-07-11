@@ -1,0 +1,5 @@
+case "File contents_equals" {
+  $ printf 'hello\n' > actual.txt
+
+  assert { file <"actual.txt"> contents_equals @"fixtures/expected.txt" }
+}

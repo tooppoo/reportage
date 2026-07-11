@@ -1,0 +1,5 @@
+case "Stderr contains" {
+  $ printf 'warning: low disk\n' 1>&2
+
+  assert { stderr contains "warning" }
+}

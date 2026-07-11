@@ -1,0 +1,10 @@
+case "All block" {
+  $ printf 'alpha\n'
+
+  assert {
+    all {
+      exit 0
+      stdout contains "alpha"
+    }
+  }
+}

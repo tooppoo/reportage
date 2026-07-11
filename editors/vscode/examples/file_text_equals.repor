@@ -1,0 +1,7 @@
+case "File text_equals" {
+  write <"greeting.txt"> "hello\n"
+
+  $ true
+
+  assert { file <"greeting.txt"> text_equals "hello\n" }
+}

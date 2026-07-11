@@ -1,0 +1,8 @@
+case "Action step" {
+  $ printf 'one\ntwo\n' | grep 'two'
+
+  assert {
+    exit 0
+    stdout contains "two"
+  }
+}

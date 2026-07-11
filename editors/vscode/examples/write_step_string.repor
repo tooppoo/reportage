@@ -1,0 +1,10 @@
+case "Write step (string)" {
+  write <"greeting.txt"> "hello\n"
+
+  $ cat greeting.txt
+
+  assert {
+    exit 0
+    stdout text_equals "hello\n"
+  }
+}

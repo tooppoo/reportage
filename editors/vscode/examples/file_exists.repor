@@ -1,0 +1,5 @@
+case "File exists" {
+  $ touch marker.txt
+
+  assert { file <"marker.txt"> exists }
+}

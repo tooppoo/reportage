@@ -1,0 +1,14 @@
+case "File contains (heredoc)" {
+  write <"notes.txt"> ```
+    line one
+    line two
+    ```
+
+  $ true
+
+  assert {
+    file <"notes.txt"> contains ```
+    line one
+    ```
+  }
+}
