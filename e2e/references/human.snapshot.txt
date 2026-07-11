@@ -1,4 +1,4 @@
-reportage X.Y.Z (docs tag: X.Y.Z)
+reportage X.Y.Z (references tag: X.Y.Z)
 
 Documents (recommended reading order):
 

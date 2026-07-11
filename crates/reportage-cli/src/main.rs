@@ -3,7 +3,7 @@ mod render;
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
-use reportage_cli::docs;
+use reportage_cli::references;
 use reportage_core::{
     artifact::{ArtifactWriter, RunId},
     config, evaluator,
@@ -35,10 +35,10 @@ enum OutputFormat {
     version,
     override_usage = "reportage [OPTIONS] [SUBCOMMAND]...",
     // Deliberately a pointer, not a URL list: help stays short and the URL set has a single
-    // owner (`reportage docs`). See docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md.
+    // owner (`reportage references`). See docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md.
     after_help = "Documentation:\n  \
-        Run `reportage docs` to list versioned documentation URLs.\n  \
-        Run `reportage docs --format=json` for a machine-readable docs index."
+        Run `reportage references` to list versioned documentation URLs.\n  \
+        Run `reportage references --format=json` for a machine-readable reference index."
 )]
 struct Cli {
     /// Tooling subcommand. When present, no test scripts are run: see each subcommand's own
@@ -73,26 +73,45 @@ enum Commands {
     Shim(ShimArgs),
 
     /// List versioned documentation URLs for this reportage version.
+    References(ReferencesArgs),
+
+    /// Reserved for a future documentation generation command (issue #166).
+    /// Registered as a subcommand so `docs` can never be taken as a positional script path,
+    /// but hidden from help until the real command ships: it is not a feature to advertise yet.
+    #[command(hide = true)]
     Docs(DocsArgs),
 }
 
 #[derive(Parser)]
-struct DocsArgs {
-    /// Output format for the docs index: `human` (default) or `json`.
-    #[arg(long, value_enum, default_value_t = DocsFormat::Human)]
-    format: DocsFormat,
+struct ReferencesArgs {
+    /// Output format for the reference index: `human` (default) or `json`.
+    #[arg(long, value_enum, default_value_t = ReferencesFormat::Human)]
+    format: ReferencesFormat,
 }
 
-/// Output format for the `docs` subcommand.
+/// Output format for the `references` subcommand.
 ///
 /// A separate enum from the run result's [`OutputFormat`] on purpose: both spell `--format=json`,
-/// but the docs index document (`spec/output/docs-index/schema.json`) and the run report document
-/// (`spec/output/json-report/schema.json`) are independent contracts. See issue #137.
+/// but the reference index document (`spec/output/references-index/schema.json`) and the run
+/// report document (`spec/output/json-report/schema.json`) are independent contracts. See issue #137.
 #[derive(Clone, Copy, Default, clap::ValueEnum)]
-enum DocsFormat {
+enum ReferencesFormat {
     #[default]
     Human,
     Json,
+}
+
+/// Arguments to the reserved `docs` subcommand.
+///
+/// The reserved command has no interface yet, so every invocation — whatever flags or values
+/// follow `docs`, including `--help` and the old `--format=json` — must reach the same
+/// not-implemented error instead of a clap parse error or a help screen. Swallowing all trailing
+/// tokens keeps that guarantee until the documentation generation command replaces this stub.
+#[derive(Parser)]
+#[command(disable_help_flag = true)]
+struct DocsArgs {
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
+    _args: Vec<String>,
 }
 
 #[derive(Parser)]
@@ -159,15 +178,30 @@ fn run_shim_scaffold(args: &ScaffoldArgs) -> ! {
     }
 }
 
-/// Runs `reportage docs` and always terminates the process: like `run_shim_scaffold`, this is a
-/// tooling subcommand that must stay outside the script-execution/report/artifact pipeline. It
-/// only prints the documentation URL index and exits 0. See `docs` (module) and issue #137.
-fn run_docs(args: &DocsArgs) -> ! {
+/// Runs `reportage references` and always terminates the process: like `run_shim_scaffold`, this
+/// is a tooling subcommand that must stay outside the script-execution/report/artifact pipeline.
+/// It only prints the documentation URL index and exits 0. See `references` (module) and issue #137.
+fn run_references(args: &ReferencesArgs) -> ! {
     match args.format {
-        DocsFormat::Human => docs::render_human(),
-        DocsFormat::Json => docs::render_json(),
+        ReferencesFormat::Human => references::render_human(),
+        ReferencesFormat::Json => references::render_json(),
     }
     std::process::exit(0);
+}
+
+/// Rejects the reserved `docs` subcommand and always terminates the process.
+///
+/// `docs` neither prints the reference index (that is `reportage references` now) nor generates
+/// documentation (that command does not exist yet), so succeeding silently would misrepresent
+/// both. Exit code 2 follows the shim-scaffold table's "the requested operation could not be
+/// treated as valid input" meaning; see docs/exit-codes.md and issue #166.
+fn run_docs_reserved() -> ! {
+    eprintln!(
+        "error: 'reportage docs' is not implemented yet; it is reserved for a future \
+         documentation generation command. To list official reference documentation URLs, \
+         run 'reportage references'."
+    );
+    std::process::exit(2);
 }
 
 enum InvocationMode {
@@ -192,14 +226,16 @@ fn main() {
         },
     };
 
-    // Tooling subcommands (`reportage shim scaffold ...`, `reportage docs`) exit here and never
-    // reach the script-execution/report/artifact pipeline below: they are not test runs, and the
-    // artifact-writing exit codes (2/3) further down have no meaning for them.
+    // Tooling subcommands (`reportage shim scaffold ...`, `reportage references`, the reserved
+    // `reportage docs`) exit here and never reach the script-execution/report/artifact pipeline
+    // below: they are not test runs, and the artifact-writing exit codes (2/3) further down have
+    // no meaning for them.
     match &cli.command {
         Some(Commands::Shim(shim_args)) => match &shim_args.command {
             ShimCommand::Scaffold(args) => run_shim_scaffold(args),
         },
-        Some(Commands::Docs(docs_args)) => run_docs(docs_args),
+        Some(Commands::References(references_args)) => run_references(references_args),
+        Some(Commands::Docs(_)) => run_docs_reserved(),
         None => {}
     }
 

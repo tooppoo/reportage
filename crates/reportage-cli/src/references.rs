@@ -1,11 +1,11 @@
-//! The `reportage docs` documentation discovery command (issue #137).
+//! The `reportage references` reference discovery command (issue #137, renamed from `docs` in issue #166).
 //!
-//! Prints the versioned documentation URL index for the running binary: the runtime version, the `v{version}` tag derived from it, and a human URL / AI-readable URL pair per document.
+//! Prints the versioned documentation URL index for the running binary: the runtime version, the git tag derived from it (identical to the version, no `v` prefix), and a human URL / AI-readable URL pair per document.
 //! This command is a side-effect-free URL index. It never embeds document bodies, executes scripts, loads config, writes artifacts, touches `.reportage/`, or performs network access.
 //! Tag existence and URL reachability are release-process concerns, deliberately not checked here.
 //! See docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md.
 //!
-//! The `--format=json` document printed here is its own contract (`spec/output/docs-index/schema.json`), independent from the run report contract in `render::json` even though both spell the flag `--format=json`.
+//! The `--format=json` document printed here is its own contract (`spec/output/references-index/schema.json`), independent from the run report contract in `render::json` even though both spell the flag `--format=json`.
 //!
 //! [`DOCUMENTS`] doubles as the source for `docs/ai/reading-order.generated.md`
 //! (`src/bin/gen_ai_reading_order.rs`, issue #142), so `role` and `note` are declared here even
@@ -14,9 +14,9 @@
 
 use serde_json::json;
 
-/// Version of the `reportage docs --format=json` stdout contract (`spec/output/docs-index/schema.json`).
+/// Version of the `reportage references --format=json` stdout contract (`spec/output/references-index/schema.json`).
 /// Independent from the run report and artifact result contract versions.
-const DOCS_INDEX_SCHEMA_VERSION: u32 = 1;
+const REFERENCES_INDEX_SCHEMA_VERSION: u32 = 1;
 
 /// Binary/tool name, not the `reportage-cli` package name: consumers resolve documentation for the command they invoke.
 const TOOL_NAME: &str = "reportage";
@@ -31,16 +31,16 @@ pub struct DocumentEntry {
     /// Stable identifier: must survive title or path renames, and must stay unique within [`DOCUMENTS`].
     pub id: &'static str,
     pub title: &'static str,
-    /// Repository-root-relative path. Must exist in the repository; enforced by `tests/docs_index.rs`, not at runtime.
+    /// Repository-root-relative path. Must exist in the repository; enforced by `tests/references_index.rs`, not at runtime.
     pub path: &'static str,
     /// Short description of this document's job in the reading order.
-    /// Internal-only: rendered into `docs/ai/reading-order.generated.md`, never into `reportage docs --format=json` (see the module-level comment and issue #142).
+    /// Internal-only: rendered into `docs/ai/reading-order.generated.md`, never into `reportage references --format=json` (see the module-level comment and issue #142).
     pub role: &'static str,
     /// A caution worth surfacing next to `role` when an AI reads this document, e.g. that it is generated. Empty when `role` already says everything needed. Same internal-only status as `role`.
     pub note: &'static str,
 }
 
-/// The docs index, in the recommended reading order for AI consumers.
+/// The references index, in the recommended reading order for AI consumers.
 /// The order is part of the output contract: reorder deliberately, never incidentally.
 pub const DOCUMENTS: &[DocumentEntry] = &[
     DocumentEntry {
@@ -164,12 +164,13 @@ pub const DOCUMENTS: &[DocumentEntry] = &[
     },
 ];
 
-/// The reportage version this binary was built as; the docs tag is derived from it mechanically, even for dev/prerelease builds where the tag may not exist (accepted in v0, see issue #137).
+/// The reportage version this binary was built as; the references tag is derived from it mechanically, even for dev/prerelease builds where the tag may not exist (accepted in v0, see issue #137).
 fn runtime_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-fn docs_tag(version: &str) -> String {
+/// The git tag URLs point at: identical to `version`, with no `v` prefix, matching the repository's tag convention (issue #166).
+fn references_tag(version: &str) -> String {
     version.to_string()
 }
 
@@ -183,9 +184,9 @@ fn ai_url(tag: &str, path: &str) -> String {
 
 pub fn render_human() {
     let version = runtime_version();
-    let tag = docs_tag(version);
+    let tag = references_tag(version);
 
-    println!("{TOOL_NAME} {version} (docs tag: {tag})");
+    println!("{TOOL_NAME} {version} (references tag: {tag})");
     println!();
     println!("Documents (recommended reading order):");
     for doc in DOCUMENTS {
@@ -201,7 +202,7 @@ pub fn render_human() {
 
 pub fn render_json() {
     let version = runtime_version();
-    let tag = docs_tag(version);
+    let tag = references_tag(version);
 
     let documents: Vec<_> = DOCUMENTS
         .iter()
@@ -219,7 +220,7 @@ pub fn render_json() {
         .collect();
 
     let document = json!({
-        "schema_version": DOCS_INDEX_SCHEMA_VERSION,
+        "schema_version": REFERENCES_INDEX_SCHEMA_VERSION,
         "tool": {
             "name": TOOL_NAME,
             "version": version,
@@ -234,6 +235,7 @@ pub fn render_json() {
     // The JSON mode contract mirrors the run report's: the single JSON document is the only thing on stdout.
     println!(
         "{}",
-        serde_json::to_string_pretty(&document).expect("docs index serialization should not fail")
+        serde_json::to_string_pretty(&document)
+            .expect("references index serialization should not fail")
     );
 }

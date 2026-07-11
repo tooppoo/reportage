@@ -12,7 +12,7 @@ They deliberately do not redefine syntax, semantics, diagnostics, or JSON output
 
 Read [`docs/ai/reading-order.generated.md`](reading-order.generated.md) next. It lists, in recommended order, every document an AI should read before generating or editing a `.repor` file, including this one's siblings ([generation rules](generation-rules.md), [validation flow](validation-flow.md), [common mistakes](common-mistakes.md), [quick reference](quick-reference.md)) and the normative references above.
 
-That file is generated — do not edit it by hand. It is produced from the same document table `reportage docs --format=json` reads, so the reading order and that command's `documents[]` field never drift apart. Regenerate it with `just ai-docs-gen`; `just ai-docs-check` (part of `just check`) fails the build if it goes stale.
+That file is generated — do not edit it by hand. It is produced from the same document table `reportage references --format=json` reads, so the reading order and that command's `documents[]` field never drift apart. Regenerate it with `just ai-docs-gen`; `just ai-docs-check` (part of `just check`) fails the build if it goes stale.
 
 ## The one rule that matters most
 
@@ -20,4 +20,4 @@ Only use syntax that appears in [`docs/syntax.md`](../syntax.md), the file gener
 
 ## After editing a `.repor` file
 
-Run the validation command described in [`docs/ai/validation-flow.md`](validation-flow.md) — the same invocation `reportage docs --format=json`'s `validation.command` field advertises — before treating a generated or edited script as done.
+Run the validation command described in [`docs/ai/validation-flow.md`](validation-flow.md) — the same invocation `reportage references --format=json`'s `validation.command` field advertises — before treating a generated or edited script as done.

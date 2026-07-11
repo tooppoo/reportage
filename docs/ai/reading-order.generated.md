@@ -3,9 +3,9 @@ GENERATED FILE: do not edit directly. Regenerate with `just ai-docs-gen`.
 
 # AI reading order
 
-This is the recommended reading order for AI agents authoring, editing, or reviewing `.repor` files. It is generated from the same `DOCUMENTS` table `reportage docs --format=json` reads (`crates/reportage-cli/src/docs.rs`), so this list and that command's `documents[]` field never drift apart. See [`docs/ai/README.md`](README.md) for how to use this list.
+This is the recommended reading order for AI agents authoring, editing, or reviewing `.repor` files. It is generated from the same `DOCUMENTS` table `reportage references --format=json` reads (`crates/reportage-cli/src/references.rs`), so this list and that command's `documents[]` field never drift apart. See [`docs/ai/README.md`](README.md) for how to use this list.
 
-`role` and `note` below are internal reading-order metadata. They are not part of the `reportage docs --format=json` output contract (`spec/output/docs-index/schema.json`), which carries only `id`, `title`, `path`, and `urls`.
+`role` and `note` below are internal reading-order metadata. They are not part of the `reportage references --format=json` output contract (`spec/output/references-index/schema.json`), which carries only `id`, `title`, `path`, and `urls`.
 
 ## AI documentation guide
 

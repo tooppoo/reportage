@@ -3,6 +3,9 @@
 - Status: Accepted
 - Created: 2026-07-09T09:00:00Z
 
+> **Update (2026-07-11, issue #166):** the discovery command referred to as `reportage docs` below was renamed to `reportage references`, and version tags carry no `v` prefix; see [Rename `reportage docs` to `reportage references` and Reserve `docs` for Documentation Generation](20260711T070008Z_rename-docs-command-to-references.md).
+> The decisions recorded here are otherwise unaffected.
+
 ## Context
 
 [Tag-Based GitHub URLs and `reportage docs` as the v0 AI Documentation Discovery Path](20260708T180000Z_ai-documentation-discovery-core-path.md) gives an AI a mechanical way to discover *where* reportage's documentation lives, and #137 built `reportage docs` as the command that prints that index. Neither one tells an AI *what order* to read those documents in, *what rules* to follow while generating a `.repor` file, or *how* to validate its own output afterward.

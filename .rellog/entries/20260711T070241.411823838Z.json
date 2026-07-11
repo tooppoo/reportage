@@ -1,0 +1,10 @@
+{
+  "kind": "changed",
+  "targets": [
+    "cli"
+  ],
+  "links": [
+    "https://github.com/tooppoo/reportage/issues/166"
+  ],
+  "body": "Rename the reference discovery command `reportage docs` to `reportage references`, with the machine-readable contract moved to `spec/output/references-index/`. `docs` is reserved for a future documentation generation command and now fails as not implemented. No alias or deprecation period is provided."
+}

@@ -4,6 +4,11 @@
 - Status: Proposed
 - Created: 2026-07-08T18:00:00Z
 
+> **Update (2026-07-11, issue #166):**
+> [Rename `reportage docs` to `reportage references` and Reserve `docs` for Documentation Generation](20260711T070008Z_rename-docs-command-to-references.md) updates two spellings in this ADR:
+> the discovery command is now `reportage references` (with `docs` reserved for a future documentation generation command), and version tags carry no `v` prefix (`version = 0.1.0` → `tag = 0.1.0`, so `tool.tag == tool.version`).
+> Every other decision recorded here — tag-based URLs, the human URL / AI-readable URL distinction, side-effect-free discovery, no `latest`/`main` URLs, `--format=json`, and the short `--help` pointer — remains in force.
+
 ## Context
 
 Reportage is a new tool. General-purpose AI/LLM assistants cannot be expected to already know its exact grammar, semantics, execution model, or how to read its diagnostics.
