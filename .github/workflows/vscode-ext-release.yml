@@ -1,0 +1,131 @@
+name: Publish VS Code extension
+
+run-name: Publish VS Code extension ${{ github.ref_name }}
+
+on:
+  push:
+    tags:
+      - "vscode-[0-9]+\\.[0-9]+\\.[0-9]+"
+
+permissions:
+  contents: read
+
+# Marketplaceへのpublishを直列化する。
+# 実行中のpublishを後続タグによってキャンセルしない。
+concurrency:
+  group: vscode-marketplace-publish
+  cancel-in-progress: false
+
+jobs:
+  publish-vscode-extension:
+    name: Publish VS Code extension to Visual Studio Marketplace
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # GitHub Environment側で承認者やdeployment protectionを設定できる。
+    environment: vscode-marketplace
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      # vsceのAzureCliCredentialが対象tenantを明示できるようにする。
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+    defaults:
+      run:
+        working-directory: editors/vscode
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+
+          # SemVer coreのみを許可する。
+          # 01.2.3 のようなleading zeroも拒否する。
+          if [[ "$tag" =~ ^vscode-((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]]; then
+            version="${BASH_REMATCH[1]}"
+          else
+            echo "::error::Invalid VS Code release tag: ${tag}"
+            exit 1
+          fi
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "vsix=dist/reportage-vscode-${version}.vsix" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v6
+        with:
+          # working-directory affect only `run` step, not `uses` step
+          # so we need to set package_json_file explicitly for `uses` step
+          # https://docs.github.com/ja/actions/how-tos/write-workflows/choose-what-workflows-do/set-default-values-for-jobs
+          package_json_file: editors/vscode/package.json
+          cache_dependency_path: editors/vscode/pnpm-lock.yaml
+          cache: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve and verify release version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+
+          if [[ "$tag" =~ ^vscode-((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]]; then
+            tag_version="${BASH_REMATCH[1]}"
+          else
+            echo "::error::Invalid VS Code release tag: ${tag}"
+            exit 1
+          fi
+
+          manifest_version="$(node -p "require('./package.json').version")"
+
+          if [ "$manifest_version" != "$tag_version" ]; then
+            echo "::error::Version mismatch: tag=${tag_version}, package.json=${manifest_version}"
+            exit 1
+          fi
+
+          echo "version=${tag_version}" >> "$GITHUB_OUTPUT"
+          echo "vsix=dist/reportage-vscode-${tag_version}.vsix" >> "$GITHUB_OUTPUT"
+
+      - name: Package VSIX
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist
+
+          pnpm exec vsce package \
+            --no-dependencies \
+            --out "${{ steps.release.outputs.vsix }}"
+
+      - name: Log in to Azure with OIDC
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Publish VSIX
+        run: |
+          set -euo pipefail
+
+          pnpm exec vsce publish \
+            --azure-credential \
+            --packagePath "${{ steps.release.outputs.vsix }}"
