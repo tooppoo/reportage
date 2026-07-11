@@ -129,6 +129,8 @@ const FULL_SYNTAX_HEADER = [
 function renderFullSyntax(entries, examples) {
   // The concatenated file is one reportage test definition,
   // so case names must stay unique across all per-snippet examples.
+  // The regex assumes the layout used throughout this directory: `case` at column 0
+  // followed by a single space; indented or oddly spaced case lines would evade the check.
   const caseNames = new Map();
   for (const entry of entries) {
     for (const match of examples.get(entry.id).matchAll(/^case "((?:[^"\\]|\\.)*)"/gm)) {
