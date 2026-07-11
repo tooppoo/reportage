@@ -43,26 +43,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve release version
-        id: release
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          tag="${GITHUB_REF_NAME}"
-
-          # SemVer coreのみを許可する。
-          # 01.2.3 のようなleading zeroも拒否する。
-          if [[ "$tag" =~ ^vscode-((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$ ]]; then
-            version="${BASH_REMATCH[1]}"
-          else
-            echo "::error::Invalid VS Code release tag: ${tag}"
-            exit 1
-          fi
-
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "vsix=dist/reportage-vscode-${version}.vsix" >> "$GITHUB_OUTPUT"
-
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
@@ -102,7 +82,6 @@ jobs:
             exit 1
           fi
 
-          echo "version=${tag_version}" >> "$GITHUB_OUTPUT"
           echo "vsix=dist/reportage-vscode-${tag_version}.vsix" >> "$GITHUB_OUTPUT"
 
       - name: Package VSIX
@@ -120,7 +99,29 @@ jobs:
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          allow-no-subscriptions: true
+
+
+      - name: Resolve Visual Studio Marketplace identity
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          profile_id="$(
+            az rest \
+              --method GET \
+              --url "https://app.vssps.visualstudio.com/_apis/profile/profiles/me" \
+              --resource "499b84ac-1321-427f-aa17-267ca6975798" \
+              --query id \
+              --output tsv
+          )"
+
+          if [ -z "$profile_id" ]; then
+            echo "::error::Failed to resolve Visual Studio Marketplace identity."
+            exit 1
+          fi
+
+          echo "Visual Studio Marketplace identity ID: $profile_id"
 
       - name: Publish VSIX
         run: |

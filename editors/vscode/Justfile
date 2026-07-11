@@ -1,0 +1,15 @@
+
+release-tag version:
+  #!/bin/bash
+  set -euo pipefail
+
+  current_version=$(node -p "require('./package.json').version")
+  echo "Current version: ${current_version}"
+  echo "Release version: {{version}}"
+
+  if [[ "${current_version}" != "{{version}}" ]]; then
+    echo "Error: Current version does not match release version"
+    exit 1
+  fi
+
+  git tag -a "vscode-{{version}}" -m "Release vscode-{{version}}"

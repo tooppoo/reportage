@@ -3,6 +3,7 @@ import 'task/release.just'
 import 'task/docs.just'
 
 mod examples-shim 'examples/shims/Justfile'
+mod vscode-ext 'editors/vscode/Justfile'
 
 default:
   @just check
