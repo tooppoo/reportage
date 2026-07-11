@@ -4,6 +4,9 @@
 - Status: Proposed
 - Created: 2026-07-08T18:01:00Z
 
+> **Update (2026-07-11, issue #166):** the discovery command referred to as `reportage docs` below was renamed to `reportage references`, and version tags carry no `v` prefix; see [Rename `reportage docs` to `reportage references` and Reserve `docs` for Documentation Generation](20260711T070008Z_rename-docs-command-to-references.md).
+> The decisions recorded here are otherwise unaffected.
+
 ## Context
 
 Getting an AI to use reportage correctly requires documentation the AI can read quickly. But if AI-facing documentation duplicates detailed specification content, it risks diverging from the generated syntax docs, semantics docs, diagnostics docs, and JSON Schema that already serve as sources of truth.

@@ -1,0 +1,40 @@
+# Full-document snapshot coverage for `reportage references`'s output shape (issue #137,
+# renamed from `reportage docs` in issue #166), on top of the substring/exit-code assertions
+# in url-index.repor.
+#
+# `contents_equals` compares bytes with no normalization (see
+# docs/adr/20260707T012055Z_contents-equals-evaluation.md), but the runtime version and the
+# tag derived from it (identical to the version, no `v` prefix) are baked into every line of
+# `reportage references`'s output. Each case therefore normalizes the captured output with a
+# generic semver-shaped substitution before comparing it against the fixture, rather than
+# pinning the checked-out Cargo.toml version: the substitution matches any `X.Y.Z` shape, not
+# a specific value, so these snapshots do not need regenerating on every version bump.
+#
+# Fixtures (`human.snapshot.txt`, `json.snapshot.json`) live next to this file and are read via
+# fixture references (`@"..."`, see docs/adr/20260706T170000Z_fixture-reference-value-syntax.md).
+
+case "references prints the recorded human-readable URL index" {
+  $ reportage references > raw.txt
+  assert {
+    exit 0
+  }
+
+  $ sed -E 's/[0-9]+\.[0-9]+\.[0-9]+/X.Y.Z/g' raw.txt > normalized.txt
+  assert {
+    exit 0
+    file <"normalized.txt"> contents_equals @"human.snapshot.txt"
+  }
+}
+
+case "references --format=json prints the recorded JSON index" {
+  $ reportage references --format=json > raw.json
+  assert {
+    exit 0
+  }
+
+  $ sed -E 's/[0-9]+\.[0-9]+\.[0-9]+/X.Y.Z/g' raw.json > normalized.json
+  assert {
+    exit 0
+    file <"normalized.json"> contents_equals @"json.snapshot.json"
+  }
+}

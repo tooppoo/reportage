@@ -1,15 +1,15 @@
-//! Generates `docs/ai/reading-order.generated.md` from `reportage_cli::docs::DOCUMENTS`.
+//! Generates `docs/ai/reading-order.generated.md` from `reportage_cli::references::DOCUMENTS`.
 //!
-//! `DOCUMENTS` is also the source `reportage docs --format=json` reads (`src/docs.rs`); this
-//! binary is deliberately the only other reader, so the reading order can never carry a second,
-//! driftable definition. See issue #142 and
+//! `DOCUMENTS` is also the source `reportage references --format=json` reads
+//! (`src/references.rs`); this binary is deliberately the only other reader, so the reading
+//! order can never carry a second, driftable definition. See issue #142 and
 //! docs/adr/20260709T090000Z_ai-documentation-guide-structure.md.
 
 use std::env;
 use std::fs;
 use std::path::Path;
 
-use reportage_cli::docs::{DOCUMENTS, DocumentEntry};
+use reportage_cli::references::{DOCUMENTS, DocumentEntry};
 
 /// Directory `docs/ai/reading-order.generated.md` lives in, as repository-root-relative path
 /// components. Links in the generated file are relative to this directory, not to the
@@ -55,10 +55,10 @@ fn render_docs(documents: &[DocumentEntry]) -> String {
     );
     out.push_str("# AI reading order\n\n");
     out.push_str(
-        "This is the recommended reading order for AI agents authoring, editing, or reviewing `.repor` files. It is generated from the same `DOCUMENTS` table `reportage docs --format=json` reads (`crates/reportage-cli/src/docs.rs`), so this list and that command's `documents[]` field never drift apart. See [`docs/ai/README.md`](README.md) for how to use this list.\n\n",
+        "This is the recommended reading order for AI agents authoring, editing, or reviewing `.repor` files. It is generated from the same `DOCUMENTS` table `reportage references --format=json` reads (`crates/reportage-cli/src/references.rs`), so this list and that command's `documents[]` field never drift apart. See [`docs/ai/README.md`](README.md) for how to use this list.\n\n",
     );
     out.push_str(
-        "`role` and `note` below are internal reading-order metadata. They are not part of the `reportage docs --format=json` output contract (`spec/output/docs-index/schema.json`), which carries only `id`, `title`, `path`, and `urls`.\n\n",
+        "`role` and `note` below are internal reading-order metadata. They are not part of the `reportage references --format=json` output contract (`spec/output/references-index/schema.json`), which carries only `id`, `title`, `path`, and `urls`.\n\n",
     );
 
     for doc in documents {

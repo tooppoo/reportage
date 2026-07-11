@@ -8,14 +8,31 @@ case "with --help" {
   }
 }
 
-# --help points at `reportage docs` instead of enumerating documentation URLs.
+# --help points at `reportage references` instead of enumerating documentation URLs.
 # See docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md.
-case "--help points to the docs discovery command" {
+case "--help points to the reference discovery command" {
   $ reportage --help
 
   assert {
     exit 0
-    stdout contains "Run `reportage docs` to list versioned documentation URLs."
-    stdout contains "Run `reportage docs --format=json` for a machine-readable docs index."
+    stdout contains "Run `reportage references` to list versioned documentation URLs."
+    stdout contains "Run `reportage references --format=json` for a machine-readable reference index."
+  }
+}
+
+# The reserved `docs` subcommand (issue #166) is not a finished feature, so normal help must
+# not advertise it: neither the subcommand list (its `about` line would appear if
+# `hide = true` regressed) nor the documentation pointer may mention `reportage docs`.
+case "--help does not advertise the reserved docs subcommand" {
+  $ reportage --help
+
+  assert {
+    exit 0
+    not {
+      stdout contains "reportage docs"
+    }
+    not {
+      stdout contains "Reserved for a future documentation generation command"
+    }
   }
 }

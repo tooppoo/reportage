@@ -8,7 +8,7 @@ How to validate a `.repor` file after generating or editing it, using commands t
 reportage <file.repor> --format=json
 ```
 
-This is the same invocation `reportage docs --format=json` advertises in its `validation.command` field — treat that field, not this document, as the source of truth if the two ever disagree, since it is generated from the running binary rather than hand-written.
+This is the same invocation `reportage references --format=json` advertises in its `validation.command` field — treat that field, not this document, as the source of truth if the two ever disagree, since it is generated from the running binary rather than hand-written.
 
 `reportage check <file> --format=json` does not exist yet. Do not suggest running it; see [`docs/ai/common-mistakes.md`](common-mistakes.md).
 

@@ -4,6 +4,9 @@
 - Status: Proposed
 - Created: 2026-07-08T18:02:00Z
 
+> **Update (2026-07-11, issue #166):** the discovery command referred to as `reportage docs` below was renamed to `reportage references`, and version tags carry no `v` prefix; see [Rename `reportage docs` to `reportage references` and Reserve `docs` for Documentation Generation](20260711T070008Z_rename-docs-command-to-references.md).
+> The decisions recorded here are otherwise unaffected.
+
 ## Context
 
 [Tag-Based GitHub URLs and `reportage docs` as the v0 AI Documentation Discovery Path](20260708T180000Z_ai-documentation-discovery-core-path.md) establishes `reportage docs` as the v0 core discovery path. But an AI will not always run `reportage docs` on its own initiative. When an AI is fixing a failure, being able to reach the relevant documentation directly from JSON output or diagnostics could make the fix loop more reliable.

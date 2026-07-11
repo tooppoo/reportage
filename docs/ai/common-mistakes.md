@@ -59,4 +59,4 @@ A syntax error means the parser rejected the script (`docs/diagnostics.md`, `scr
 reportage <file.repor> --format=json
 ```
 
-Always use the `validation.command` field from `reportage docs --format=json` rather than assuming `reportage check` has shipped by the time this guide is read.
+Always use the `validation.command` field from `reportage references --format=json` rather than assuming `reportage check` has shipped by the time this guide is read.

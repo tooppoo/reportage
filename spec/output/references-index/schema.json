@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/tooppoo/reportage/spec/output/docs-index/schema.json",
-  "title": "Reportage docs --format=json Documentation Index",
-  "description": "External contract for `reportage docs --format=json`'s CLI stdout document: the versioned documentation URL index for the running reportage binary. This is an independent contract from the run report document (spec/output/json-report/schema.json) even though both are selected with `--format=json`. The order of `documents[]` is the recommended reading order for AI consumers and is part of the contract. This schema validates output structure only; the repository-existence of `documents[].path` is verified by a separate repository consistency check (crates/reportage-cli/tests/docs_index.rs), and tag existence / URL reachability are not verified at all. See docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md and issue #137.",
+  "$id": "https://github.com/tooppoo/reportage/spec/output/references-index/schema.json",
+  "title": "Reportage references --format=json Reference Index",
+  "description": "External contract for `reportage references --format=json`'s CLI stdout document: the versioned documentation URL index for the running reportage binary. This is an independent contract from the run report document (spec/output/json-report/schema.json) even though both are selected with `--format=json`. The order of `documents[]` is the recommended reading order for AI consumers and is part of the contract. This schema validates output structure only; the repository-existence of `documents[].path` is verified by a separate repository consistency check (crates/reportage-cli/tests/references_index.rs), and tag existence / URL reachability are not verified at all. See docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md and issues #137 and #166.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "tool", "documents", "validation"],
@@ -10,7 +10,7 @@
     "schema_version": {
       "type": "integer",
       "const": 1,
-      "description": "Version of this docs index contract."
+      "description": "Version of this reference index contract."
     },
     "tool": {
       "type": "object",
@@ -29,8 +29,8 @@
         },
         "tag": {
           "type": "string",
-          "pattern": "^v.+$",
-          "description": "The `v{version}` git tag the URLs point at. Built mechanically from `version`; its existence is not verified."
+          "pattern": "^[0-9]",
+          "description": "The git tag the URLs point at: identical to `version`, with no `v` prefix. Built mechanically from `version`; its existence is not verified."
         }
       }
     },
@@ -63,13 +63,13 @@
             "properties": {
               "human": {
                 "type": "string",
-                "pattern": "^https://github\\.com/tooppoo/reportage/blob/v.+$",
-                "description": "GitHub rendered-view URL for human readers."
+                "pattern": "^https://github\\.com/tooppoo/reportage/blob/[0-9].+$",
+                "description": "GitHub rendered-view URL for human readers, built from the unprefixed tag."
               },
               "ai": {
                 "type": "string",
-                "pattern": "^https://raw\\.githubusercontent\\.com/tooppoo/reportage/v.+$",
-                "description": "Raw source URL for AI consumers."
+                "pattern": "^https://raw\\.githubusercontent\\.com/tooppoo/reportage/[0-9].+$",
+                "description": "Raw source URL for AI consumers, built from the unprefixed tag."
               }
             }
           }
