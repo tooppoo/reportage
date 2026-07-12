@@ -467,7 +467,7 @@ Embedded jq engines may be considered later. If added, the selected jq engine sh
 
 A document block attaches documentation metadata to a source construct as first-class syntax:
 
-```reportage
+````reportage
 document file {
   title "File assertions"
   group "Filesystem"
@@ -477,7 +477,7 @@ document file {
   Collected examples of assertions against files.
   ```
 }
-```
+````
 
 v0 supports only the `file` scope,
 whose metadata describes the whole source file.

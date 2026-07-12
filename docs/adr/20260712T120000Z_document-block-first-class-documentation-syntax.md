@@ -28,7 +28,7 @@ and why the source-level model holds only explicit values while display fallback
 
 `document <scope> { ... }` is a dedicated top-level construct:
 
-```reportage
+````reportage
 document file {
   title "File assertions"
   group "Filesystem"
@@ -38,7 +38,7 @@ document file {
   Collected examples of assertions against files.
   ```
 }
-```
+````
 
 Comments and documentation serve different consumers and get different guarantees:
 

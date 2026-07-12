@@ -152,6 +152,29 @@ case "a duplicate documentation field is a script error with a dedicated code" {
   }
 }
 
+case "a document file after the first case is a script error with a dedicated code" {
+  write <"inner.repor"> ```
+    case "runs first" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+
+    document file {
+      title "too late"
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 2
+    stdout contains "\"category\": \"parse\""
+    stdout contains "\"code\": \"parse.document_file.after_case\""
+  }
+}
+
 case "an action step inside a document block is a syntax error" {
   write <"inner.repor"> ```
     document file {
