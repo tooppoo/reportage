@@ -10,7 +10,11 @@ echo $(pwd)
 # the socket is unset and the CLI exits non-zero with "code ... is not installed".
 # Skip instead of failing so the rebuild succeeds; running this from the
 # integrated terminal (where the socket is set) still installs the extension.
-if ! command -v code >/dev/null 2>&1 || [ -z "${VSCODE_IPC_HOOK_CLI:-}" ]; then
+if ! command -v code >/dev/null 2>&1; then
+  echo "skip: code command not available in this environment" >&2
+  exit 0
+fi
+if [ -z "${VSCODE_IPC_HOOK_CLI:-}" ]; then
   echo "skip: no attached VS Code window; run this from the integrated terminal to install the extension" >&2
   exit 0
 fi
