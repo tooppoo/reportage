@@ -31,6 +31,14 @@ In CLI-first v0, this begins with command execution and process evidence: exit c
 
 This is the reason reportage keeps actions and assertions close together. A scenario should make concrete inputs, executable steps, and expected observable evidence reviewable in one place.
 
+## Shell scripts are the natural substrate for black-box testing
+
+When developers test a CLI or a black-box system manually, they usually do not start by writing host-language test code. They create files, run commands, inspect stdout and stderr, check exit codes, and compare generated artifacts.
+
+That workflow is already close to a shell script.
+
+reportage starts from this observation. For developer-facing E2E tests, shell-like action syntax is often the most direct way to express a test step. The goal is not to make tests read like prose. The goal is to make executable behavior easy to read, write, review, and run.
+
 ```reportage
 case "check json output" {
   $ mycli check --json
@@ -41,14 +49,6 @@ case "check json output" {
   }
 }
 ```
-
-## Shell scripts are the natural substrate for black-box testing
-
-When developers test a CLI or a black-box system manually, they usually do not start by writing host-language test code. They create files, run commands, inspect stdout and stderr, check exit codes, and compare generated artifacts.
-
-That workflow is already close to a shell script.
-
-reportage starts from this observation. For developer-facing E2E tests, shell-like action syntax is often the most direct way to express a test step. The goal is not to make tests read like prose. The goal is to make executable behavior easy to read, write, review, and run.
 
 ## More than shell scripts
 
