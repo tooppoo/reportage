@@ -1,0 +1,32 @@
+{
+  "file_documentation": {
+    "title": "Documented source",
+    "group": null,
+    "order": null,
+    "description": null
+  },
+  "cases": [
+    {
+      "name": "first case after documentation",
+      "span": {
+        "start": 171,
+        "end": 248
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

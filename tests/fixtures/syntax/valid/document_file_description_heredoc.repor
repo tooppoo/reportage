@@ -1,0 +1,17 @@
+document file {
+  title "File assertions"
+
+  description ```
+    Collected examples of assertions against files.
+
+    The description spans multiple lines via a heredoc literal.
+    ```
+}
+
+case "file exists" {
+  $ touch test.txt
+
+  assert {
+    file <"test.txt"> exists
+  }
+}

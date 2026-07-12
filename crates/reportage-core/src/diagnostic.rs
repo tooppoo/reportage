@@ -155,6 +155,16 @@ pub enum DiagnosticCode {
     StepWriteParentNotADirectory,
     /// A `write` step failed due to an OS-level I/O error.
     StepWriteIoError,
+    /// A document block contains no documentation field.
+    ParseDocumentBlockEmpty,
+    /// A document block declares the same documentation field more than once.
+    ParseDocumentBlockDuplicateField,
+    /// A document block's `order` field value overflows the supported non-negative integer range.
+    ParseDocumentBlockInvalidOrder,
+    /// A source contains more than one `document file` block.
+    ParseDocumentFileDuplicate,
+    /// A `document file` block appears after the source's first case block.
+    ParseDocumentFileAfterCase,
 }
 
 impl DiagnosticCode {
@@ -220,6 +230,11 @@ impl DiagnosticCode {
         Self::StepWriteTargetExists,
         Self::StepWriteParentNotADirectory,
         Self::StepWriteIoError,
+        Self::ParseDocumentBlockEmpty,
+        Self::ParseDocumentBlockDuplicateField,
+        Self::ParseDocumentBlockInvalidOrder,
+        Self::ParseDocumentFileDuplicate,
+        Self::ParseDocumentFileAfterCase,
     ];
 
     /// The stable external string representation of this code.
@@ -316,6 +331,11 @@ impl DiagnosticCode {
             Self::StepWriteTargetExists => "step.write.target_exists",
             Self::StepWriteParentNotADirectory => "step.write.parent_not_a_directory",
             Self::StepWriteIoError => "step.write.io_error",
+            Self::ParseDocumentBlockEmpty => "parse.document_block.empty",
+            Self::ParseDocumentBlockDuplicateField => "parse.document_block.duplicate_field",
+            Self::ParseDocumentBlockInvalidOrder => "parse.document_block.invalid_order",
+            Self::ParseDocumentFileDuplicate => "parse.document_file.duplicate",
+            Self::ParseDocumentFileAfterCase => "parse.document_file.after_case",
         }
     }
 }

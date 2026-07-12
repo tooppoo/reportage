@@ -1,0 +1,13 @@
+document file {
+  title "Documented source"
+}
+
+# A comment line between the document block and the first case
+# belongs to neither: it must stay outside every case span.
+
+case "first case after documentation" {
+  $ true
+  assert {
+    exit 0
+  }
+}

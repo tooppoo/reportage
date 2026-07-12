@@ -1,0 +1,35 @@
+{
+  "file_documentation": {
+    "title": "File assertions",
+    "group": null,
+    "order": null,
+    "description": "Collected examples of assertions against files.\n\nThe description spans multiple lines via a heredoc literal.\n"
+  },
+  "cases": [
+    {
+      "name": "file exists",
+      "span": {
+        "start": 189,
+        "end": 276
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "touch test.txt"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "test.txt",
+              "matcher": {
+                "kind": "exists"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

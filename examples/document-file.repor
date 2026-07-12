@@ -1,0 +1,25 @@
+document file {
+  title "File assertions"
+  group "Filesystem"
+  order 20
+
+  description ```
+    Collected examples of assertions against files in the case workspace.
+    ```
+}
+
+case "file exists" {
+  $ touch test.txt
+
+  assert {
+    file <"test.txt"> exists
+  }
+}
+
+case "file contains text" {
+  $ echo "FizzBuzz" > test.txt
+
+  assert {
+    file <"test.txt"> contains "FizzBuzz"
+  }
+}

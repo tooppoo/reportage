@@ -1,0 +1,10 @@
+document file {
+  title "Minimal documented source"
+}
+
+case "documented source runs" {
+  $ true
+  assert {
+    exit 0
+  }
+}

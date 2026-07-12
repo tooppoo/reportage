@@ -1,0 +1,14 @@
+# Execution constructs are not part of the document block grammar, so an
+# assertion block inside a document block fails at parse time.
+document file {
+  assert {
+    exit 0
+  }
+}
+
+case "case after assertion inside document block" {
+  $ true
+  assert {
+    exit 0
+  }
+}

@@ -1,0 +1,5 @@
+# A source with a document block and zero cases parses like any other
+# zero-case source; discovery treats it as a no-op.
+document file {
+  title "Documented source with no cases yet"
+}

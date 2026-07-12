@@ -27,7 +27,9 @@ For each concrete case, reportage creates an isolated execution environment, run
 
 Parsing a script yields a source-level model (`SourceFile`), not the execution model directly.
 The source-level model associates each parsed case with the original source text and the case block's byte range within it, so source-oriented consumers (such as documentation features) can recover a case's source after parsing.
-The suite loader projects the source-level model into the execution `Script` before execution; executors, evaluators, and artifact writers depend only on the execution model, and no source-level information appears in execution reports or artifacts.
+It also carries the file's `document file` metadata when the source declares one (see [`semantics.md`](semantics.md) — Document block).
+A `document file` block is not part of any case span, and neither are the blank lines or comment lines between the block and the first case; each case span remains exactly the pest `case_block` pair's range.
+The suite loader projects the source-level model into the execution `Script` before execution; executors, evaluators, and artifact writers depend only on the execution model, and no source-level information — documentation metadata included — appears in execution reports or artifacts.
 
 See [ADR: Parser Returns a Source-Level Model Instead of the Execution Script](adr/20260712T090000Z_parser-returns-source-level-model.md) for the rationale and the case span contract.
 

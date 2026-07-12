@@ -1,0 +1,14 @@
+# The grammar accepts any digit run for `order`; a value that overflows the
+# supported non-negative integer range (u64) is rejected during parser
+# construction (parse.document_block.invalid_order).
+document file {
+  title "Documented source"
+  order 99999999999999999999999999999999
+}
+
+case "case after out-of-range order" {
+  $ true
+  assert {
+    exit 0
+  }
+}

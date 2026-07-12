@@ -1,0 +1,7 @@
+# Document blocks do not nest, so a document block inside a document block
+# fails at parse time.
+document file {
+  document file {
+    title "nested"
+  }
+}

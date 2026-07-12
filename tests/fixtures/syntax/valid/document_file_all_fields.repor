@@ -1,0 +1,14 @@
+document file {
+  title "File assertions"
+  group "Filesystem"
+  order 20
+  description "Collected examples of assertions against files."
+}
+
+case "file exists" {
+  $ touch test.txt
+
+  assert {
+    file <"test.txt"> exists
+  }
+}

@@ -1,0 +1,11 @@
+# `document file` is a top-level construct only, so a document block inside a
+# case block fails at parse time.
+case "document block inside a case" {
+  document file {
+    title "misplaced"
+  }
+  $ true
+  assert {
+    exit 0
+  }
+}

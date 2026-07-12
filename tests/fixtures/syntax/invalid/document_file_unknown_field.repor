@@ -1,0 +1,12 @@
+# The document block body is a whitelist of documentation fields; an unknown
+# field name is not part of the grammar and fails at parse time.
+document file {
+  author "someone"
+}
+
+case "case after unknown documentation field" {
+  $ true
+  assert {
+    exit 0
+  }
+}

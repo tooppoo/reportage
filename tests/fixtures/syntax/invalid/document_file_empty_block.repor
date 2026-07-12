@@ -1,0 +1,11 @@
+# An empty document block is rejected: it must contain at least one
+# documentation field (parse.document_block.empty).
+document file {
+}
+
+case "case after empty document block" {
+  $ true
+  assert {
+    exit 0
+  }
+}

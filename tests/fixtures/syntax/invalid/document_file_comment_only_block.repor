@@ -1,0 +1,12 @@
+# Comment lines are not documentation fields, so a comment-only document
+# block is rejected the same way an empty one is (parse.document_block.empty).
+document file {
+  # only a comment, no documentation field
+}
+
+case "case after comment-only document block" {
+  $ true
+  assert {
+    exit 0
+  }
+}

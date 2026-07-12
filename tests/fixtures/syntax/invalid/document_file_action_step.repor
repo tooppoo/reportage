@@ -1,0 +1,12 @@
+# Execution constructs are not part of the document block grammar, so an
+# action step inside a document block fails at parse time.
+document file {
+  $ echo hello
+}
+
+case "case after action inside document block" {
+  $ true
+  assert {
+    exit 0
+  }
+}
