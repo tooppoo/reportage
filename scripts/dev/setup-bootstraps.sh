@@ -9,4 +9,4 @@ cargo binstall cargo-llvm-cov@0.8.7 \
   -y \
   --locked
 
-apt-get install golang-go
+sudo apt update
