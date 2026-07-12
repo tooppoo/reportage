@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "first",
+      "span": {
+        "start": 0,
+        "end": 46
+      },
       "steps": [
         {
           "kind": "action",
@@ -20,6 +24,10 @@
     },
     {
       "name": "second",
+      "span": {
+        "start": 47,
+        "end": 101
+      },
       "steps": [
         {
           "kind": "action",

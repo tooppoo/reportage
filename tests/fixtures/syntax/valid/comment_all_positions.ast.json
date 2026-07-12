@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "comment all positions",
+      "span": {
+        "start": 28,
+        "end": 285
+      },
       "steps": [
         {
           "kind": "action",

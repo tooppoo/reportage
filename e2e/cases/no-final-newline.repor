@@ -1,0 +1,14 @@
+# A script whose closing brace ends the file without a final newline is valid input.
+# The string-literal write form (unlike the heredoc form) can produce a file
+# with no trailing newline, which is exactly the shape under test.
+
+case "closing brace at end of input without a final newline still runs" {
+  write <"inner.repor"> "case \"no trailing newline\" {\n  $ true\n  assert { exit 0 }\n}"
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}

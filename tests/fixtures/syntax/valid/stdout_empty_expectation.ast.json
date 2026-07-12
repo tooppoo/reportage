@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "stdout empty",
+      "span": {
+        "start": 0,
+        "end": 65
+      },
       "steps": [
         {
           "kind": "action",

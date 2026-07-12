@@ -16,5 +16,6 @@ mod shell_quote;
 pub mod shim;
 pub mod shim_event;
 pub mod shim_scaffold;
+pub mod source;
 pub mod suite;
 pub mod workspace;

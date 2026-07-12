@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "logical nested composition",
+      "span": {
+        "start": 0,
+        "end": 163
+      },
       "steps": [
         {
           "kind": "action",

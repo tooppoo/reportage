@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "write step fence length for embedded backticks",
+      "span": {
+        "start": 0,
+        "end": 183
+      },
       "steps": [
         {
           "kind": "write_file",

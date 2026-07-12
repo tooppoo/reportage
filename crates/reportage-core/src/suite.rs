@@ -93,10 +93,13 @@ pub fn load_and_validate(paths: &[PathBuf]) -> (Vec<ValidatedFile>, Vec<FileErro
                         },
                     });
                 }
-                Ok(script) => {
+                Ok(source_file) => {
+                    // Execution only needs the projected Script; the source-level
+                    // model (source text, case spans) is dropped here until a
+                    // documentation-oriented consumer needs it past this point.
                     validated.push(ValidatedFile {
                         source_path: path.clone(),
-                        script,
+                        script: source_file.into_script(),
                     });
                 }
             },

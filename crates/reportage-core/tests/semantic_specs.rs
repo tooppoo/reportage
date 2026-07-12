@@ -825,9 +825,11 @@ fn assert_expectation_matches_assertion(
 
 fn assert_source_matches_assertion(source: &str, declared: &Assertion, description: &str) {
     let script_src = format!("case \"c\" {{\n  assert {{\n    {source}\n  }}\n}}\n");
-    let script = parse(&script_src).unwrap_or_else(|e| {
-        panic!("case '{description}': failed to parse assertionSource '{source}': {e}")
-    });
+    let script = parse(&script_src)
+        .map(reportage_core::source::SourceFile::into_script)
+        .unwrap_or_else(|e| {
+            panic!("case '{description}': failed to parse assertionSource '{source}': {e}")
+        });
     let block = match &script.cases[0].steps[0] {
         Step::AssertionBlock(b) => b,
         other => panic!(

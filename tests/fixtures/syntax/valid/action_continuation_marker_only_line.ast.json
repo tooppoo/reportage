@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "marker-only line continues further",
+      "span": {
+        "start": 0,
+        "end": 87
+      },
       "steps": [
         {
           "kind": "action",
