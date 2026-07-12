@@ -7,36 +7,11 @@
 //! See docs/adr/20260712T090000Z_parser-returns-source-level-model.md.
 
 use std::fs;
-use std::path::{Path, PathBuf};
 
 use reportage_core::parser::parse;
 
-fn corpus_paths() -> Vec<PathBuf> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let patterns = [
-        "examples/**/*.repor",
-        "e2e/**/*.repor",
-        "editors/vscode/examples/*.repor",
-        "tests/fixtures/syntax/valid/*.repor",
-    ];
-
-    let mut paths = Vec::new();
-    for pattern in patterns {
-        let full_pattern = root.join(pattern);
-        let full_pattern = full_pattern
-            .to_str()
-            .expect("fixture pattern path must be valid UTF-8");
-        for entry in glob::glob(full_pattern).expect("invalid glob pattern") {
-            paths.push(entry.expect("glob entry must be readable"));
-        }
-    }
-
-    assert!(
-        !paths.is_empty(),
-        "no .repor fixtures were found; the glob patterns may be stale"
-    );
-    paths
-}
+mod support;
+use support::repor_corpus_paths as corpus_paths;
 
 #[test]
 fn source_file_invariants_hold_for_entire_fixture_corpus() {
