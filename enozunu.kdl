@@ -36,12 +36,12 @@ enozunu config-version=1 {
 
       skill "reportage-behavior-change" {
         local {
-          path "agents/skills/reportage-behavior-change"
+          path "ai/skills/reportage-behavior-change"
         }
       }
       skill "reportage-syntax-change" {
         local {
-          path "agents/skills/reportage-syntax-change"
+          path "ai/skills/reportage-syntax-change"
         }
       }
     }

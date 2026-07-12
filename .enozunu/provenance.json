@@ -58,8 +58,8 @@
       "kind": "skill",
       "source": {
         "type": "local",
-        "path": "agents/skills/reportage-syntax-change",
-        "resolved_path": "/workspaces/reportage/agents/skills/reportage-syntax-change"
+        "path": "ai/skills/reportage-syntax-change",
+        "resolved_path": "/workspaces/reportage/ai/skills/reportage-syntax-change"
       },
       "target_ai": "claude",
       "target_path": ".claude/skills/reportage-syntax-change"
@@ -69,8 +69,8 @@
       "kind": "skill",
       "source": {
         "type": "local",
-        "path": "agents/skills/reportage-behavior-change",
-        "resolved_path": "/workspaces/reportage/agents/skills/reportage-behavior-change"
+        "path": "ai/skills/reportage-behavior-change",
+        "resolved_path": "/workspaces/reportage/ai/skills/reportage-behavior-change"
       },
       "target_ai": "claude",
       "target_path": ".claude/skills/reportage-behavior-change"
@@ -132,8 +132,8 @@
       "kind": "skill",
       "source": {
         "type": "local",
-        "path": "agents/skills/reportage-syntax-change",
-        "resolved_path": "/workspaces/reportage/agents/skills/reportage-syntax-change"
+        "path": "ai/skills/reportage-syntax-change",
+        "resolved_path": "/workspaces/reportage/ai/skills/reportage-syntax-change"
       },
       "target_ai": "codex",
       "target_path": ".agents/skills/reportage-syntax-change"
@@ -143,8 +143,8 @@
       "kind": "skill",
       "source": {
         "type": "local",
-        "path": "agents/skills/reportage-behavior-change",
-        "resolved_path": "/workspaces/reportage/agents/skills/reportage-behavior-change"
+        "path": "ai/skills/reportage-behavior-change",
+        "resolved_path": "/workspaces/reportage/ai/skills/reportage-behavior-change"
       },
       "target_ai": "codex",
       "target_path": ".agents/skills/reportage-behavior-change"
