@@ -2,7 +2,7 @@
 
 This document describes reportage's runtime execution model: how a module's concrete cases are planned and run, how the case workspace and checkpoint evolve during a case, and how the runner hands off to shims and coverage adapters.
 
-For syntax, see the grammar at [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest).
+For syntax, see [the generated syntax reference](syntax.md).
 For language semantic rules — value literals, expectations, assertion evaluation, logical composition, and diagnostics for individual expectations — see [Language semantics](semantics.md).
 For the shim model used for command resolution (shim purpose, shim target, event protocol, and observability), see [Shims](shims.md).
 For the decision rationale behind PATH overlay shims, see [ADR: Use PATH Overlay Shims for Command Resolution](../adr/20260628T061500Z_path-overlay-shims-for-command-resolution.md).
@@ -194,7 +194,7 @@ $ rellog check --json | jq .
 
 The runner does not rewrite arbitrary shell syntax in v0. The shell is responsible for interpreting pipelines, redirections, variable expansion, conditionals, filesystem operations, and other shell constructs.
 
-A `$` action can span multiple physical lines: a line ending in `\` immediately before the line break continues into the next physical line, with the `\` and the line break preserved verbatim in the command handed to the shell. See the grammar at [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest) and [ADR: Action Line Continuation](../adr/20260706T150000Z_action-line-continuation.md) for the exact continuation rule.
+A `$` action can span multiple physical lines: a line ending in `\` immediately before the line break continues into the next physical line, with the `\` and the line break preserved verbatim in the command handed to the shell. See [the generated syntax reference](syntax.md) and [ADR: Action Line Continuation](../adr/20260706T150000Z_action-line-continuation.md) for the exact continuation rule.
 
 ```reportage
 $ echo one \

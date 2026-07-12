@@ -2,7 +2,7 @@
 
 This document is the overview and entry point for reportage's semantics documentation set. It also holds the language semantic rules that have not yet been migrated to the generated semantic rule catalog (see "Semantics document set" below).
 
-For syntax, see the grammar at [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest).
+For syntax, see [the generated syntax reference](syntax.md).
 
 ## Semantics document set
 
@@ -12,7 +12,7 @@ Reportage's semantics are split across several documents by responsibility, rath
 | --- | --- |
 | Execution model / runtime semantics — runner execution order, case workspace, action execution, checkpoint lifecycle, `before_each`, shell execution, coverage adapter lifecycle, cleanup | [Execution model](execution-model.md) |
 | Command resolution shim model — shim purpose, shim target, event protocol, observability | [Shims](shims.md) |
-| Language semantic rules — value literals, expectations, assertion evaluation, logical composition | This document (below), and the semantic rule specs under [`spec/language/semantics/`](../../spec/language/semantics/README.md) (their generated catalog is planned at `reference/semantic-rules.md`; see [`SHOULD_GENERATE.md`](../SHOULD_GENERATE.md)). |
+| Language semantic rules — value literals, expectations, assertion evaluation, logical composition | This document (below), and the generated semantic rule catalog at [`semantic-rules.md`](semantic-rules.md). |
 | Artifact / result JSON semantics | [Artifacts](artifacts.md) and [the JSON execution report contract](../../spec/output/json-report/README.md) |
 | Diagnostics | [Parse diagnostics](diagnostics.md) and [Semantic and assertion diagnostics](semantic-diagnostics.md) |
 | Rationale for individual decisions | [`adr/`](../adr/README.md) |

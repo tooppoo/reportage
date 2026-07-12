@@ -17,13 +17,13 @@ A module is one or more `case "<name>" { ... }` blocks. Inside a case, an action
 
 ## Where the rest of the syntax lives
 
-- Full grammar: [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest) — the normative source of truth for what is valid.
-- Assertion/expectation semantics: [the language semantics reference](../reference/semantics.md) and the semantic rule specs under [`spec/language/semantics/`](../../spec/language/semantics/README.md).
+- Full grammar: [the generated syntax reference](../reference/syntax.md) — the only source of truth for what is valid.
+- Assertion/expectation semantics: [the language semantics reference](../reference/semantics.md) and [the generated semantic rule catalog](../reference/semantic-rules.md).
 - Known-good scripts to adapt from: [`examples/`](../../examples/) and [`tests/fixtures/syntax/valid/`](../../tests/fixtures/syntax/valid/).
 
 ## Prohibitions
 
-- Do not use anything absent from the grammar at [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest).
+- Do not use anything absent from [the generated syntax reference](../reference/syntax.md).
 - Do not treat [deferred topics](../planning/TBD.md) entries as usable syntax.
 - Do not invent constructs that merely look plausible; see [the generation rules](generation-rules.md) and [common mistakes](common-mistakes.md).
 
@@ -37,4 +37,4 @@ See [the validation flow](validation-flow.md) for how to read the output.
 
 ## Full reading order
 
-See [the AI documentation guide](README.md).
+See [the generated reading order](reading-order.generated.md).

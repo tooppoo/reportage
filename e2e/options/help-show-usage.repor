@@ -9,7 +9,7 @@ case "with --help" {
 }
 
 # --help points at `reportage references` instead of enumerating documentation URLs.
-# See docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md.
+# See docs2/adr/20260708T180000Z_ai-documentation-discovery-core-path.md.
 case "--help points to the reference discovery command" {
   $ reportage --help
 

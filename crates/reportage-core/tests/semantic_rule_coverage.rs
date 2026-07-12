@@ -5,7 +5,7 @@
 //! `spec/language/semantics/*.json` (the source of truth for each rule's normative fields and
 //! conformance cases) do not drift apart, and that the registry's cross-references into
 //! `DiagnosticCode` and `reportage.pest` follow the rules declared by their relation kind. See
-//! docs/adr/20260708T065700Z_semantic-rule-coverage-registry.md.
+//! docs2/adr/20260708T065700Z_semantic-rule-coverage-registry.md.
 //!
 //! This module intentionally does not re-validate spec file schema shape; `semantic_specs.rs`
 //! already owns that. It only checks registry/spec correspondence, the required-flag implications
@@ -48,7 +48,7 @@ fn spec_dir() -> PathBuf {
 }
 
 fn generated_docs_path() -> PathBuf {
-    workspace_root().join("docs/language/semantic-rules.md")
+    workspace_root().join("docs2/reference/semantic-rules.md")
 }
 
 fn grammar_path() -> PathBuf {
@@ -358,7 +358,7 @@ fn semantic_validation_diagnostic_codes_stay_in_semantic_namespace() {
             let RelatedDiagnostic::SemanticValidation(code) = related else {
                 continue;
             };
-            // The `semantic.*` namespace (docs/semantic-diagnostics.md) is what justifies the
+            // The `semantic.*` namespace (docs2/reference/semantic-diagnostics.md) is what justifies the
             // exemption from the rule-id prefix convention; a code outside it must be RuleOwned
             // or Shared instead.
             assert!(

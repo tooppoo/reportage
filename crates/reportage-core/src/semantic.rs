@@ -3,7 +3,7 @@
 //! A semantic error means the script parses successfully, but a normalized expectation violates a policy the evaluator must reject *before* evidence comparison begins.
 //! This is distinct from a parse error (the script text itself is malformed) and from an assertion failure (the expectation is valid, but observed evidence does not satisfy it).
 //!
-//! See docs/semantic-diagnostics.md and docs/adr/20260702T133734Z_semantic-and-assertion-diagnostic-model.md.
+//! See docs2/reference/semantic-diagnostics.md and docs2/adr/20260702T133734Z_semantic-and-assertion-diagnostic-model.md.
 
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails};
 use crate::model::{WorkspacePath, WorkspacePathError};
@@ -74,7 +74,7 @@ impl std::error::Error for SemanticError {}
 impl SemanticError {
     /// The stable, machine-readable diagnostic code for this error.
     ///
-    /// See docs/diagnostics.md and docs/semantic-diagnostics.md.
+    /// See docs2/reference/diagnostics.md and docs2/reference/semantic-diagnostics.md.
     pub const fn code(&self) -> DiagnosticCode {
         match self {
             SemanticError::AbsoluteFilePath(_) => DiagnosticCode::SemanticFilePathAbsolute,
@@ -126,7 +126,7 @@ impl SemanticError {
 /// - `.` and `..` path segments are rejected.
 ///
 /// This centralizes path policy validation for the `file <"path">` subject so every predicate (`exists`, `contains`, and future predicates) shares the same rejection rule.
-/// See docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
+/// See docs2/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
 pub fn validate_file_path(path: &str) -> Result<(), SemanticError> {
     if path.starts_with('/') {
         return Err(SemanticError::AbsoluteFilePath(path.to_string()));
@@ -144,7 +144,7 @@ pub fn validate_file_path(path: &str) -> Result<(), SemanticError> {
 ///
 /// Reuses `WorkspacePath::parse` directly rather than reimplementing the rule, so a `dir`
 /// subject path and a `write` step path can never silently drift apart.
-/// See docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
+/// See docs2/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
 pub fn validate_dir_path(path: &str) -> Result<(), SemanticError> {
     WorkspacePath::parse(path)
         .map(|_| ())
@@ -162,7 +162,7 @@ pub fn validate_dir_path(path: &str) -> Result<(), SemanticError> {
 ///
 /// This is a semantic error, not an assertion failure: the evaluator rejects an invalid entry
 /// name before attempting any filesystem evidence comparison.
-/// See docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
+/// See docs2/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
 pub fn validate_dir_entry_name(name: &str) -> Result<(), SemanticError> {
     if name.is_empty() {
         return Err(SemanticError::EmptyDirEntryName(name.to_string()));

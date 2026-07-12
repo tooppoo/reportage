@@ -15,7 +15,7 @@
 //! The registry links these identities, but it does not make diagnostic codes or pest grammar rules subordinate to semantic rules.
 //!
 //! `spec/language/semantics/*.json` remains the source of truth for each rule's normative fields and conformance cases; this registry does not duplicate that detail.
-//! See docs/adr/20260708T065700Z_semantic-rule-coverage-registry.md for the full rationale, including how cross-references are verified in CI.
+//! See docs2/adr/20260708T065700Z_semantic-rule-coverage-registry.md for the full rationale, including how cross-references are verified in CI.
 
 use crate::diagnostic::DiagnosticCode;
 use std::fmt;
@@ -159,7 +159,7 @@ pub enum RelatedDiagnostic {
     Shared(DiagnosticCode),
     /// A diagnostic code emitted by validating or resolving a value that this rule describes.
     ///
-    /// These codes live in the `semantic.*` namespace defined by docs/semantic-diagnostics.md, because the same validation also fires outside the rule's own assertion position (e.g. `semantic.workspace_path.*` from a `write` step's path, `semantic.literal.kind_mismatch` from any argument position).
+    /// These codes live in the `semantic.*` namespace defined by docs2/reference/semantic-diagnostics.md, because the same validation also fires outside the rule's own assertion position (e.g. `semantic.workspace_path.*` from a `write` step's path, `semantic.literal.kind_mismatch` from any argument position).
     /// Renaming them to `<rule-id>.<reason>` would misattribute those emissions to one syntactic position, so they are exempt from the rule-id prefix check; CI instead verifies the `semantic.` namespace.
     SemanticValidation(DiagnosticCode),
 }
@@ -435,7 +435,7 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         // Distinct from `value-reference.workspace-path.resolve`: `file <"path">`'s subject
         // path is validated by `semantic::validate_file_path`, a separate, narrower check (no
         // leading `/`, no `.`/`..` segments) with its own diagnostic codes, not by
-        // `WorkspacePath::parse`. See docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
+        // `WorkspacePath::parse`. See docs2/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
         id: SemanticRuleId::ValueReferenceFilePathValidate,
         category: ValueReference,
         implementation_status: Implemented,

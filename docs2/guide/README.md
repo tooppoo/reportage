@@ -12,7 +12,7 @@ This guide is navigational and conceptual. Exact contracts — grammar, assertio
 
 ### Learn the script syntax
 
-Known-good runnable scripts are the fastest way in: see [`examples/`](../../examples/) in the repository root. The normative grammar is [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest), and the behavior of each construct is defined in [the language semantics reference](../reference/semantics.md).
+Known-good runnable scripts are the fastest way in: see [`examples/`](../../examples/) in the repository root. The normative grammar is the generated [syntax reference](../reference/syntax.md), and the behavior of each construct is defined in [the language semantics reference](../reference/semantics.md).
 
 ### Configure a project
 

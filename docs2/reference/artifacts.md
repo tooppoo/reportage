@@ -41,8 +41,6 @@ This document mixes three kinds of content, with different staleness guarantees:
 - **Handwritten sections.** The purpose of artifacts, the canonical-record positioning, the relationship to `--format=json`, the raw evidence policy, and the compatibility/stability policy are prose. Tests do not detect drift in this prose; it is maintained by review, with rationale recorded in the ADRs listed at the end of this document.
 - **Not generated.** No section of this document is currently machine-generated; "generated or checked" is satisfied by the checks above.
 
-The example-drift check does not read this file yet; repointing it here is recorded in [`SHOULD_GENERATE.md`](../SHOULD_GENERATE.md).
-
 ## Stability
 
 The artifact layout and JSON schema should be considered experimental during early v0 implementation.

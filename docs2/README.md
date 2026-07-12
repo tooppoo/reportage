@@ -15,7 +15,7 @@ Documents are separated by audience and by role, so each substantive fact has ex
 
 ## Generated documents
 
-Reference material that can be derived from an executable specification or the implementation is generated, never hand-written. The generated documents (the grammar reference, the semantic rule catalog, and the AI reading order) are not yet materialized in this tree; their generators must be repointed here first. [`SHOULD_GENERATE.md`](SHOULD_GENERATE.md) records every document in this tree that is, or should become, generated, with the reason and the generation path. Until then, the normative sources remain directly readable: the grammar at [`crates/reportage-core/src/reportage.pest`](../crates/reportage-core/src/reportage.pest) and the semantic rule specs under [`spec/language/semantics/`](../spec/language/semantics/README.md).
+Reference material that can be derived from an executable specification or the implementation is generated, never hand-written. The generated documents in this tree are [the syntax reference](reference/syntax.md), [the semantic rule catalog](reference/semantic-rules.md), and [the AI reading order](ai/reading-order.generated.md); edit their sources and regenerate, never the files themselves. [`SHOULD_GENERATE.md`](SHOULD_GENERATE.md) records each generated document's source and generator, plus the hand-written sections that are candidates for generation.
 
 ## Where to start
 

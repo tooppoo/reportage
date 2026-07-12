@@ -37,7 +37,7 @@ impl std::error::Error for RunIdError {}
 /// A validated run id: a single safe path component for `<artifact-root>/runs/<id>`.
 ///
 /// This is an internal development / self-testing affordance (`--debug-run-id`), not a public stable interface.
-/// See docs/TBD.md — "Self-test run ID control".
+/// See docs2/planning/TBD.md — "Self-test run ID control".
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunId(String);
 
@@ -138,7 +138,7 @@ impl ArtifactWriter {
     /// `<run-dir>/<test_id>/<action_id>/{stdout,stderr}.bin`.
     ///
     /// This is the artifact-file side of the "captured stdout/stderr are never inlined" policy: the `result.json` manifest and the `--format=json` document reference these files by relative path (`artifactRef`) instead of embedding raw bytes.
-    /// See `crate::run_result` and docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md.
+    /// See `crate::run_result` and docs2/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md.
     fn write_captured_output(&self, result: &ExecutionReport) -> std::io::Result<()> {
         for (case_index, case) in result.cases.iter().enumerate() {
             for (action_index, action) in case.actions.iter().enumerate() {

@@ -4,7 +4,7 @@
 //! first differing byte offset); this module turns those facts plus the full actual/expected
 //! byte buffers into a bounded, escaped context string suitable for CLI stdout/stderr and the
 //! `--format=json` renderer. Presentation only: comparison semantics (byte-for-byte equality)
-//! live in `result::ContentsEqualsComparison::compare`, not here. See docs/semantic-diagnostics.md
+//! live in `result::ContentsEqualsComparison::compare`, not here. See docs2/reference/semantic-diagnostics.md
 //! — `contents_equals` mismatch diagnostics.
 //!
 //! Neither renderer may print `actual` / `expected` in full; both must go through
@@ -119,7 +119,7 @@ fn byte_window(buf: &[u8], offset: usize) -> &[u8] {
 /// Renders `bytes` as a display-safe string: valid UTF-8 is kept legible with only control
 /// characters escaped; invalid UTF-8 falls back to a per-byte hex escape for the whole window.
 /// Never emits a raw control byte (including NUL, ESC, bare CR) or an invalid UTF-8 byte
-/// sequence directly. See docs/semantic-diagnostics.md.
+/// sequence directly. See docs2/reference/semantic-diagnostics.md.
 fn escape(bytes: &[u8]) -> String {
     match std::str::from_utf8(bytes) {
         Ok(text) => text.chars().map(escape_char).collect(),

@@ -949,13 +949,13 @@ fn stdout_projection_is_the_artifact_result_minus_the_defined_differences() {
 // ---------------------------------------------------------------------------
 // Docs drift check
 //
-// docs/artifacts.md marks each fixture-derived example with a `<!-- checked-against: `<repo-relative snapshot path>` -->` comment directly above a ```json fence.
-// Those examples are the "checked" sections of the generated / checked / handwritten boundary defined in docs/artifacts.md: this test fails when an example drifts from the snapshot it claims to mirror.
+// docs2/reference/artifacts.md marks each fixture-derived example with a `<!-- checked-against: `<repo-relative snapshot path>` -->` comment directly above a ```json fence.
+// Those examples are the "checked" sections of the generated / checked / handwritten boundary defined in docs2/reference/artifacts.md: this test fails when an example drifts from the snapshot it claims to mirror.
 // ---------------------------------------------------------------------------
 
 #[test]
 fn docs_artifacts_examples_match_their_fixture_snapshots() {
-    let docs_path = repo_root().join("docs/artifacts.md");
+    let docs_path = repo_root().join("docs2/reference/artifacts.md");
     let docs = std::fs::read_to_string(&docs_path)
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", docs_path.display()));
 
@@ -974,7 +974,7 @@ fn docs_artifacts_examples_match_their_fixture_snapshots() {
         assert_eq!(
             lines.next().map(str::trim),
             Some("```json"),
-            "docs/artifacts.md: a checked-against marker must be immediately followed by a ```json fence ({snapshot_rel})"
+            "docs2/reference/artifacts.md: a checked-against marker must be immediately followed by a ```json fence ({snapshot_rel})"
         );
         let mut example = String::new();
         for fence_line in lines.by_ref() {
@@ -988,19 +988,19 @@ fn docs_artifacts_examples_match_their_fixture_snapshots() {
         let snapshot_path = repo_root().join(snapshot_rel);
         let snapshot = std::fs::read_to_string(&snapshot_path).unwrap_or_else(|e| {
             panic!(
-                "docs/artifacts.md references snapshot {} which cannot be read: {e}",
+                "docs2/reference/artifacts.md references snapshot {} which cannot be read: {e}",
                 snapshot_path.display()
             )
         });
         assert_eq!(
             example, snapshot,
-            "docs/artifacts.md: the example marked checked-against {snapshot_rel} has drifted from the snapshot; update the docs example to match"
+            "docs2/reference/artifacts.md: the example marked checked-against {snapshot_rel} has drifted from the snapshot; update the docs example to match"
         );
         checked += 1;
     }
 
     assert!(
         checked > 0,
-        "docs/artifacts.md must contain at least one checked-against example"
+        "docs2/reference/artifacts.md must contain at least one checked-against example"
     );
 }

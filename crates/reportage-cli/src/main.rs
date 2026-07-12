@@ -35,7 +35,7 @@ enum OutputFormat {
     version,
     override_usage = "reportage [OPTIONS] [SUBCOMMAND]...",
     // Deliberately a pointer, not a URL list: help stays short and the URL set has a single
-    // owner (`reportage references`). See docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md.
+    // owner (`reportage references`). See docs2/adr/20260708T180000Z_ai-documentation-discovery-core-path.md.
     after_help = "Documentation:\n  \
         Run `reportage references` to list versioned documentation URLs.\n  \
         Run `reportage references --format=json` for a machine-readable reference index."
@@ -62,14 +62,14 @@ struct Cli {
     /// Fixed artifact run id, for internal self-testing / development only.
     ///
     /// Not a public stable interface: hidden from `--help`, and not documented as a normal CLI feature.
-    /// See docs/TBD.md — "Self-test run ID control".
+    /// See docs2/planning/TBD.md — "Self-test run ID control".
     #[arg(long = "debug-run-id", hide = true)]
     debug_run_id: Option<String>,
 }
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Coverage-integration shim tooling. See docs/shim-scaffold.md.
+    /// Coverage-integration shim tooling. See docs2/reference/shim-scaffold.md.
     Shim(ShimArgs),
 
     /// List versioned documentation URLs for this reportage version.
@@ -127,7 +127,7 @@ struct ShimArgs {
 
 #[derive(Subcommand)]
 enum ShimCommand {
-    /// Render a builtin template into a shim file. See docs/shim-scaffold.md.
+    /// Render a builtin template into a shim file. See docs2/reference/shim-scaffold.md.
     Scaffold(ScaffoldArgs),
 }
 
@@ -138,7 +138,7 @@ struct ScaffoldArgs {
     template: Option<String>,
 
     /// Value embedded into the rendered template as its entry point. Not checked against the
-    /// filesystem; see docs/shim-scaffold.md — Template model.
+    /// filesystem; see docs2/reference/shim-scaffold.md — Template model.
     #[arg(long = "entry-point")]
     entry_point: Option<String>,
 
@@ -147,7 +147,7 @@ struct ScaffoldArgs {
     out: Option<String>,
 
     /// Overwrite an existing regular file at `--out`. Has no effect when `--out` is a
-    /// directory or a symlink: those are always rejected. See docs/shim-scaffold.md — Output
+    /// directory or a symlink: those are always rejected. See docs2/reference/shim-scaffold.md — Output
     /// path policy.
     #[arg(long)]
     force: bool,
@@ -155,7 +155,7 @@ struct ScaffoldArgs {
 
 /// Runs `reportage shim scaffold` and always terminates the process: this subcommand renders a
 /// template to a file and exits, without going through the script-execution/report/artifact
-/// pipeline the rest of the CLI uses. See docs/shim-scaffold.md.
+/// pipeline the rest of the CLI uses. See docs2/reference/shim-scaffold.md.
 ///
 /// `--template`/`--entry-point`/`--out` are `Option<String>` at the clap layer (not
 /// `required = true`) specifically so that an omitted flag and an explicitly empty value
@@ -199,7 +199,7 @@ fn run_references(args: &ReferencesArgs) -> ! {
 /// `docs` neither prints the reference index (that is `reportage references` now) nor generates
 /// documentation (that command does not exist yet), so succeeding silently would misrepresent
 /// both. Exit code 2 follows the shim-scaffold table's "the requested operation could not be
-/// treated as valid input" meaning; see docs/exit-codes.md and issue #166.
+/// treated as valid input" meaning; see docs2/reference/exit-codes.md and issue #166.
 fn run_docs_reserved() -> ! {
     eprintln!(
         "error: 'reportage docs' is not implemented yet; it is reserved for a future \
@@ -249,7 +249,7 @@ fn main() {
     let result = match mode {
         // Explicit script mode never reads a config file, so no commands are ever registered
         // here. Config-based command registration requires `--config` or the default config
-        // mode. See docs/configuration.md — Commands.
+        // mode. See docs2/reference/configuration.md — Commands.
         InvocationMode::ExplicitScripts(scripts) => {
             run_scripts(scripts, &CommandRegistry::default())
         }
@@ -278,7 +278,7 @@ fn main() {
     if let Err(e) = writer.write(&result) {
         // Artifact generation is required by default; write failures are runtime infrastructure errors, not optional conditions the caller can ignore.
         // Continuing here would let CI report success with no artifact evidence.
-        // See docs/artifacts.md and ADR 20260627T100400Z_generate-artifacts-by-default.
+        // See docs2/reference/artifacts.md and ADR 20260627T100400Z_generate-artifacts-by-default.
         eprintln!("error: failed to write artifacts: {e}");
         std::process::exit(3);
     }
@@ -382,7 +382,7 @@ fn run_with_config(config_path: PathBuf) -> ExecutionReport {
 /// `exec` is resolved relative to `base_dir` (the config file's directory) via a lexical
 /// absolutization ([`std::path::absolute`]): it does not touch the filesystem, so it neither
 /// requires the target executable to already exist nor resolves symlinks in the path. See
-/// docs/configuration.md — Commands.
+/// docs2/reference/configuration.md — Commands.
 fn resolve_command_registry(
     config: &config::CommandsConfig,
     base_dir: &Path,

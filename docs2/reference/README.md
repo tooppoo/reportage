@@ -6,9 +6,9 @@ Documents here are either generated from an executable source, mechanically chec
 
 ## Language
 
-- Syntax reference — **generated** from the pest grammar; planned at `reference/syntax.md` in this tree (see [`SHOULD_GENERATE.md`](../SHOULD_GENERATE.md)). The normative syntax source is [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest); anything not expressible there is not part of v0.
+- [Syntax reference](syntax.md) — **generated** from the normative syntax source [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest); anything not expressible there is not part of v0. Regenerate with `just lang-docs-gen`.
 - [Language semantics](semantics.md): overview and entry point for the semantics document set, plus the language semantic rules that have not yet migrated to the generated catalog. Read this before writing assertions.
-- Semantic rule catalog — **generated**; planned at `reference/semantic-rules.md` in this tree (see [`SHOULD_GENERATE.md`](../SHOULD_GENERATE.md)). The source of truth is the JSON specs under [`spec/language/semantics/`](../../spec/language/semantics/README.md).
+- [Semantic rule catalog](semantic-rules.md) — **generated** from the JSON specs under [`spec/language/semantics/`](../../spec/language/semantics/README.md). Regenerate with `just semantic-docs-gen`.
 
 ## Runtime
 

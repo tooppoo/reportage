@@ -62,7 +62,7 @@ pub enum ParseError {
     /// signature requires a different kind (e.g. `file "out.txt" exists`,
     /// whose subject requires a workspace path literal `<"out.txt">`).
     /// Grammar-wise the script parses; this is a semantic invalid case with
-    /// an actionable diagnostic. See docs/semantic-diagnostics.md.
+    /// an actionable diagnostic. See docs2/reference/semantic-diagnostics.md.
     LiteralKindMismatch {
         line: usize,
         /// Human-readable name of the argument position, e.g. "`file` checkpoint subject".
@@ -208,7 +208,7 @@ impl ParseError {
     /// The stable, machine-readable diagnostic code for this error.
     ///
     /// This is independent of the enum variant name: downstream tests and tooling should depend on this code (or its string form) rather than on `Display` output.
-    /// See docs/diagnostics.md.
+    /// See docs2/reference/diagnostics.md.
     pub const fn code(&self) -> DiagnosticCode {
         match self {
             ParseError::Syntax { .. } => DiagnosticCode::ParseSyntax,
@@ -807,7 +807,7 @@ fn parse_value_literal(pair: pest::iterators::Pair<Rule>) -> ValueLiteral {
 /// lexical policy at construction time. Any other literal kind (a plain
 /// `"..."` string literal) is rejected as a `LiteralKindMismatch` via
 /// [`ValueLiteral::expect_kind`]. See #92 and
-/// docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+/// docs2/adr/20260706T170000Z_fixture-reference-value-syntax.md.
 fn parse_file_contents_reference(
     literal_pair: pest::iterators::Pair<Rule>,
     position: &'static str,
@@ -1723,7 +1723,7 @@ case "x" {
     #[test]
     fn escaped_backslash_then_n_stays_literal_backslash_n() {
         // `\\n` is an escaped backslash followed by a literal `n`, not an escaped newline.
-        // See docs/adr/20260701T214658Z_string-literal-escape-sequences.md.
+        // See docs2/adr/20260701T214658Z_string-literal-escape-sequences.md.
         let src = r#"
 case "x" {
   $ true
@@ -1855,7 +1855,7 @@ case "x" {
         assert!(parse_script(src).is_ok());
     }
 
-    // See #77 / docs/adr/20260705T184047Z_use-hash-comment-marker.md.
+    // See #77 / docs2/adr/20260705T184047Z_use-hash-comment-marker.md.
     #[test]
     fn line_comment_before_case_block_is_ignored() {
         let src = "# leading comment\ncase \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
@@ -2095,7 +2095,7 @@ case "x" {
 
     // Diagnostic codes are the stable, external identifier of a ParseError.
     // These tests pin the string form directly, independent of the enum variant name and of Display message text.
-    // See docs/diagnostics.md.
+    // See docs2/reference/diagnostics.md.
     #[test]
     fn syntax_error_has_stable_code() {
         let err = parse_script("$ true\n").unwrap_err();
@@ -2255,7 +2255,7 @@ case "x" {
     }
 
     // `file <expectation> <path> <...args>` (expectation-first) is not the v0 syntax; only the subject-first `file <"path"> <predicate>` form parses.
-    // See docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
+    // See docs2/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
     #[test]
     fn expectation_first_file_form_is_rejected() {
         let src = r#"
@@ -2361,7 +2361,7 @@ case "x" {
     }
 
     // `dir <expectation> <path> <...args>` (expectation-first) is not the v0 syntax; only the subject-first `dir <"path"> <predicate>` form parses.
-    // See docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
+    // See docs2/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
     #[test]
     fn expectation_first_dir_form_is_rejected() {
         let src = r#"
@@ -2800,7 +2800,7 @@ case "x" {
         assert_eq!(second.path.as_str(), "b.txt");
     }
 
-    // Known limitation (documented in docs/semantics.md and the ADR): a
+    // Known limitation (documented in docs2/reference/semantics.md and the ADR): a
     // `write` step missing its own closing fence does not always produce a
     // syntax error. The grammar scans forward for the next line shaped like
     // a valid closing fence, which here belongs to what the author intended
@@ -3500,7 +3500,7 @@ case "x" {
     // range — leading indentation through the closing brace line's trailing
     // whitespace / inline comment and line ending (when present) — and never
     // includes surrounding blank lines or comment lines.
-    // See docs/adr/20260712T090000Z_parser-returns-source-level-model.md.
+    // See docs2/adr/20260712T090000Z_parser-returns-source-level-model.md.
 
     /// The one expected case's span slice, for single-case span tests.
     fn single_case_source(src: &str) -> String {

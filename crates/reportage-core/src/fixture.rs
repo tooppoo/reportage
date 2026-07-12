@@ -2,8 +2,8 @@
 //!
 //! A `FixtureReference` (`@"<path>"`) names a static snapshot / fixture file
 //! kept alongside a `*.repor` source file, used as expected file contents in
-//! an assertion (see docs/semantics.md — Value literals, and
-//! docs/adr/20260706T170000Z_fixture-reference-value-syntax.md).
+//! an assertion (see docs2/reference/semantics.md — Value literals, and
+//! docs2/adr/20260706T170000Z_fixture-reference-value-syntax.md).
 //!
 //! `FixtureReference::parse` (in `model.rs`) performs lexical validation
 //! (non-empty, relative, no `.` / `..` segment) at AST construction time.
@@ -68,7 +68,7 @@ impl std::error::Error for FixtureResolutionError {}
 
 impl FixtureResolutionError {
     /// The stable, machine-readable diagnostic code for this error.
-    /// See docs/diagnostics.md.
+    /// See docs2/reference/diagnostics.md.
     pub const fn code(&self) -> DiagnosticCode {
         match self {
             FixtureResolutionError::Missing => DiagnosticCode::SemanticFixtureReferenceMissing,
@@ -101,7 +101,7 @@ impl FixtureResolutionError {
 ///
 /// `repor_dir` must be the directory itself, not the `*.repor` file's own path.
 ///
-/// Order of checks, per docs/adr/20260706T170000Z_fixture-reference-value-syntax.md:
+/// Order of checks, per docs2/adr/20260706T170000Z_fixture-reference-value-syntax.md:
 /// 1. Join `fixture`'s (already lexically-validated) path onto `repor_dir`.
 /// 2. Canonicalize both `repor_dir` and the candidate path.
 /// 3. Verify the canonicalized candidate lies under the canonicalized `repor_dir`.

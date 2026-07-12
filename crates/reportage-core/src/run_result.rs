@@ -2,7 +2,7 @@
 //!
 //! `build_run_result_document` turns an [`ExecutionReport`] into the canonical manifest written to `.reportage/runs/<run-id>/result.json` by [`crate::artifact::ArtifactWriter`].
 //! The artifact bundle (`result.json` plus the evidence files it references) is the canonical record of a `reportage run`; the `--format=json` CLI stdout document is a stdout-safe projection derived from this document by the CLI renderer.
-//! See `spec/artifacts/run-result/schema.json` for the external contract this builder implements, and docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md for the decisions.
+//! See `spec/artifacts/run-result/schema.json` for the external contract this builder implements, and docs2/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md for the decisions.
 //!
 //! ## Raw byte evidence is referenced, never inlined
 //!
@@ -29,7 +29,7 @@ pub const RUN_RESULT_SCHEMA_VERSION: u32 = 1;
 /// Accumulates `diagnostics[]` entries and assigns each one a document-local id
 /// (`diagnostic-1`, `diagnostic-2`, ...) in the order they are pushed.
 ///
-/// See docs/semantic-diagnostics.md for the `category` / `severity` / `code` model this
+/// See docs2/reference/semantic-diagnostics.md for the `category` / `severity` / `code` model this
 /// mirrors, and issue #75's "Document-local ids" section for the id stability policy:
 /// stable within one document, not a long-term stable identifier.
 struct DiagnosticsBuilder {
@@ -379,7 +379,7 @@ fn assertion_json(
 /// failure on an otherwise-passing assertion (and, conversely, a composition that fails
 /// because a child *held* would report no diagnostic at all). Per-child diagnostic
 /// attribution across `not` / `all` / `any` is explicitly not required in v0 — see
-/// docs/semantic-diagnostics.md, "Logical Composition and Nested Diagnostics" — so instead a
+/// docs2/reference/semantic-diagnostics.md, "Logical Composition and Nested Diagnostics" — so instead a
 /// failing composition gets exactly one composition-level diagnostic (below), and children
 /// contribute descriptive detail only, never their own `diagnostics[]` entry.
 fn expectation_json(
@@ -619,7 +619,7 @@ fn text_equals_expected_source_json(source: &TextEqualsExpectedSource) -> Value 
 
 /// Adds `outcome` / `actualSizeBytes` / `expectedSizeBytes`, and on mismatch a bounded `mismatch`
 /// object, to `value`. Never adds the full actual/expected bytes — see the module-level raw byte
-/// evidence note and docs/semantic-diagnostics.md.
+/// evidence note and docs2/reference/semantic-diagnostics.md.
 fn contents_equals_comparison_json(value: &mut Value, comparison: &ContentsEqualsComparison) {
     value["actualSizeBytes"] = json!(comparison.actual.len());
     value["expectedSizeBytes"] = json!(comparison.expected.len());

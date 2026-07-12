@@ -1,22 +1,20 @@
 # Files that should be generated
 
-This file records every document in this tree that should be produced by a generator or protected by a mechanical drift check, rather than written or copied by hand. Per this repository's documentation policy, generated output is never hand-edited; hand-copying a generator's output here would create a second, driftable copy, so those files are deliberately absent from this tree until their generators emit here.
+This file records every document in this tree that is produced by a generator or protected by a mechanical drift check, plus the hand-written sections that are candidates for the same treatment. Per this repository's documentation policy, generated output is never hand-edited: change the source or the generator, then regenerate.
 
-## Generated documents not yet materialized in this tree
+## Generated documents in this tree
 
-These already have working generators. Materializing them here means changing each generator's output path (and every check and document table that reads it), then generating — never copying existing output by hand.
-
-| Planned path | Generator and source | Reason |
+| Path | Generator and source | Reason |
 | --- | --- | --- |
-| `docs2/reference/syntax.md` | [`scripts/gen-grammar-doc.sh`](../scripts/gen-grammar-doc.sh) (`just lang-docs-gen`), from [`crates/reportage-core/src/reportage.pest`](../crates/reportage-core/src/reportage.pest) | The pest file is the normative syntax source; a hand-written grammar reference would drift from it. |
-| `docs2/reference/semantic-rules.md` | [`crates/reportage-core/src/bin/gen_semantic_docs.rs`](../crates/reportage-core/src/bin/gen_semantic_docs.rs) (`just semantic-docs-gen`), from the JSON specs under [`spec/language/semantics/`](../spec/language/semantics/README.md) | The JSON specs are the source of truth for each rule's normative fields and conformance cases; the catalog is a read-only view of them. |
-| `docs2/ai/reading-order.generated.md` | [`crates/reportage-cli/src/bin/gen_ai_reading_order.rs`](../crates/reportage-cli/src/bin/gen_ai_reading_order.rs) (`just ai-docs-gen`, checked by `just ai-docs-check`), from the `DOCUMENTS` table in [`crates/reportage-cli/src/references.rs`](../crates/reportage-cli/src/references.rs) | Generating the reading order from the same table `reportage references --format=json` reads keeps the two from drifting apart. The table's `path` entries must also be updated to this tree's layout when repointed. |
+| [`docs2/reference/syntax.md`](reference/syntax.md) | [`scripts/gen-grammar-doc.sh`](../scripts/gen-grammar-doc.sh) (`just lang-docs-gen`, drift-checked by `just lang-docs-check`), from [`crates/reportage-core/src/reportage.pest`](../crates/reportage-core/src/reportage.pest) | The pest file is the normative syntax source; a hand-written grammar reference would drift from it. |
+| [`docs2/reference/semantic-rules.md`](reference/semantic-rules.md) | [`crates/reportage-core/src/bin/gen_semantic_docs.rs`](../crates/reportage-core/src/bin/gen_semantic_docs.rs) (`just semantic-docs-gen`, drift-checked by `just semantic-docs-check`), from the JSON specs under [`spec/language/semantics/`](../spec/language/semantics/README.md) | The JSON specs are the source of truth for each rule's normative fields and conformance cases; the catalog is a read-only view of them. |
+| [`docs2/ai/reading-order.generated.md`](ai/reading-order.generated.md) | [`crates/reportage-cli/src/bin/gen_ai_reading_order.rs`](../crates/reportage-cli/src/bin/gen_ai_reading_order.rs) (`just ai-docs-gen`, drift-checked by `just ai-docs-check`), from the `DOCUMENTS` table in [`crates/reportage-cli/src/references.rs`](../crates/reportage-cli/src/references.rs) | Generating the reading order from the same table `reportage references --format=json` reads keeps the two from drifting apart. |
 
-## Checks that must be repointed at migration
+## Mechanically checked documents in this tree
 
-| Path in this tree | Check | Reason |
+| Path | Check | Reason |
 | --- | --- | --- |
-| [`docs2/reference/artifacts.md`](reference/artifacts.md) | `run_result_fixtures.rs::docs_artifacts_examples_match_their_fixture_snapshots` | The `<!-- checked-against: ... -->` JSON examples are verified byte-for-byte against the `tests/fixtures/run_result/` snapshots, but the test does not read this tree yet. Until it is repointed at this file, these examples are protected only by review. |
+| [`docs2/reference/artifacts.md`](reference/artifacts.md) | `run_result_fixtures.rs::docs_artifacts_examples_match_their_fixture_snapshots` | The `<!-- checked-against: ... -->` JSON examples are verified byte-for-byte against the `tests/fixtures/run_result/` snapshots, so they cannot silently drift from real output. |
 
 ## New generation candidates
 

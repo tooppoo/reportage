@@ -4,7 +4,7 @@
 //! Execution outputs and assertion results belong to the `result` module.
 //! The checkpoint evidence context used during evaluation lives in the `evaluator` module.
 //!
-//! See docs/execution-model.md for the conceptual model and the checkpoint-based assertion ADR.
+//! See docs2/reference/execution-model.md for the conceptual model and the checkpoint-based assertion ADR.
 
 /// A parsed reportage script (one test module file).
 #[derive(Debug)]
@@ -27,13 +27,13 @@ pub struct Case {
 ///
 /// Source order is preserved.
 /// Action and assertion steps are never reordered into phases.
-/// See docs/execution-model.md — Action, and docs/semantics.md — Assertion block.
+/// See docs2/reference/execution-model.md — Action, and docs2/reference/semantics.md — Assertion block.
 #[derive(Debug)]
 pub enum Step {
     Action(ActionStep),
     AssertionBlock(AssertionBlock),
     /// A step that changes workspace state rather than executing an action
-    /// or verifying a checkpoint. See docs/semantics.md — Write step.
+    /// or verifying a checkpoint. See docs2/reference/semantics.md — Write step.
     SideEffect(SideEffectingStep),
 }
 
@@ -43,7 +43,7 @@ pub enum Step {
 /// A side-effecting step's failure is a runtime step error, never an
 /// assertion failure: there is no expectation being compared against
 /// evidence, only an operation that either succeeds or does not.
-/// See docs/semantics.md — Write step, and the accompanying ADR.
+/// See docs2/reference/semantics.md — Write step, and the accompanying ADR.
 #[derive(Debug)]
 pub enum SideEffectingStep {
     WriteFile(WriteFileStep),
@@ -54,7 +54,7 @@ pub enum SideEffectingStep {
 /// case workspace.
 ///
 /// Create-only: rejected at runtime if `path` already exists.
-/// See docs/semantics.md — Write step.
+/// See docs2/reference/semantics.md — Write step.
 #[derive(Debug)]
 pub struct WriteFileStep {
     pub path: WorkspacePath,
@@ -67,7 +67,7 @@ pub struct WriteFileStep {
 /// absolute paths, and `.` / `..` path segments. A `WorkspacePath` never
 /// refers to the repository root; it is always relative to the workspace
 /// the current concrete case is running in.
-/// See docs/adr — write step / workspace path domain type.
+/// See docs2/adr — write step / workspace path domain type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspacePath(String);
 
@@ -119,7 +119,7 @@ impl WorkspacePath {
 /// via a symlink, so a `FixtureReference` additionally requires a
 /// filesystem-aware containment check before its target is read; see
 /// `fixture::resolve_fixture_source`.
-/// See docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+/// See docs2/adr/20260706T170000Z_fixture-reference-value-syntax.md.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixtureReference(String);
 
@@ -171,7 +171,7 @@ impl FixtureReference {
 /// conversion between the two. It is the expected-value category for the
 /// `contents_equals` family (#87), never for `text_equals` (#88), which
 /// takes a `TextValue` instead.
-/// See docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+/// See docs2/adr/20260706T170000Z_fixture-reference-value-syntax.md.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FileContentsReference {
     /// A `<"...">` workspace path literal: a file inside the case workspace.
@@ -191,7 +191,7 @@ pub enum FileContentsReference {
 /// so an argument position can check it against its signature and reject a
 /// mismatch as an actionable semantic diagnostic
 /// (`semantic.literal.kind_mismatch`) instead of a bare syntax error.
-/// See docs/adr/20260706T160000Z_workspace-path-literal-syntax.md.
+/// See docs2/adr/20260706T160000Z_workspace-path-literal-syntax.md.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueLiteralKind {
     /// An ordinary `"..."` string literal (text domain).
@@ -258,7 +258,7 @@ impl RequiredLiteralKind {
 /// always go through [`TextLiteral::to_text_value`] and operate on the
 /// resulting [`TextValue`] instead, so that `write` and `file contains`
 /// behave identically regardless of which literal form produced the value.
-/// See docs/semantics.md — Text literal, and the accompanying ADR.
+/// See docs2/reference/semantics.md — Text literal, and the accompanying ADR.
 ///
 /// No parameter expansion or variable expansion is ever performed on either
 /// form's content: `${VAR}`-shaped text is preserved verbatim.
@@ -295,7 +295,7 @@ impl TextLiteral {
 /// `write` it is the content being written, and for `file contains` it is
 /// the expected content being compared against, and a future `file
 /// text_equals` or `stdout contains` could reuse the same type as either
-/// role requires. See docs/semantics.md — Text literal, and the
+/// role requires. See docs2/reference/semantics.md — Text literal, and the
 /// accompanying ADR.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextValue(String);
@@ -310,7 +310,7 @@ impl TextValue {
 ///
 /// Executed by `sh -c`.
 /// On completion, produces an `ActionResult` that updates the current checkpoint.
-/// See docs/execution-model.md — Shell execution.
+/// See docs2/reference/execution-model.md — Shell execution.
 #[derive(Debug)]
 pub struct ActionStep {
     pub command: String,
@@ -321,7 +321,7 @@ pub struct ActionStep {
 /// This block verifies the current checkpoint.
 /// It is intentionally not modeled as an assertion attached to the nearest action, so it can represent both precondition assertions at the initial checkpoint and post-action assertions.
 ///
-/// See docs/semantics.md — Assertion block and the checkpoint-based assertion ADR.
+/// See docs2/reference/semantics.md — Assertion block and the checkpoint-based assertion ADR.
 #[derive(Debug)]
 pub struct AssertionBlock {
     expectations: Vec<Expectation>,
@@ -355,13 +355,13 @@ impl AssertionBlock {
 /// Each expectation is side-effect-free and declares its evidence requirement.
 /// Evaluation result is reported per expectation, independently of other expectations.
 ///
-/// See docs/semantics.md — Expectation and Evidence requirement.
+/// See docs2/reference/semantics.md — Expectation and Evidence requirement.
 #[derive(Debug)]
 pub enum Expectation {
     Exit(ExitExpectation),
     // v0 parser produces Exit, Stdout, Stderr, File, Dir, and Logical.
     // FileCount and Jq (jq expression form) are defined for conceptual completeness; they are not yet parsed or evaluated.
-    // See docs/TBD.md for planned additions.
+    // See docs2/planning/TBD.md for planned additions.
     Stdout(OutputExpectation),
     Stderr(OutputExpectation),
     File(FileExpectation),
@@ -369,7 +369,7 @@ pub enum Expectation {
     FileCount(FileCountExpectation),
     Jq(JqExpectation),
     /// Block-form logical composition (`not` / `all` / `any`) over nested expectation expressions.
-    /// See docs/semantics.md — Logical composition and the accompanying ADR.
+    /// See docs2/reference/semantics.md — Logical composition and the accompanying ADR.
     Logical(LogicalExpectation),
 }
 
@@ -428,7 +428,7 @@ impl LogicalOperator {
 ///
 /// `children` holds the expectation expressions inside the block in source order, and may nest further `Logical` expectations.
 /// A `not` block with multiple children negates their implicit-`all` grouping, not each child individually: `not { A B }` evaluates as `not(all(A, B))`, never as `not(A) and not(B)`.
-/// See docs/semantics.md — Logical composition.
+/// See docs2/reference/semantics.md — Logical composition.
 #[derive(Debug)]
 pub struct LogicalExpectation {
     operator: LogicalOperator,
@@ -440,7 +440,7 @@ pub struct LogicalExpectation {
 pub enum LogicalExpectationError {
     /// A `not` / `all` / `any` block must contain at least one expectation expression.
     /// The grammar accepts an empty body so Reportage can reject it as a semantic error rather than a generic syntax error; callers (the parser) are expected to have already turned this into a `ParseError` before reaching this constructor.
-    /// See docs/semantic-diagnostics.md.
+    /// See docs2/reference/semantic-diagnostics.md.
     Empty,
 }
 
@@ -521,7 +521,7 @@ pub enum OutputMatcher {
     /// encoded as UTF-8, with no normalization, exactly like
     /// [`FileMatcher::TextEquals`]. `text_literal` may be either a string
     /// literal or a heredoc literal. See [`TextLiteral`] and
-    /// docs/adr — output text_equals evaluation.
+    /// docs2/adr — output text_equals evaluation.
     TextEquals(TextLiteral),
 }
 
@@ -549,7 +549,7 @@ pub enum FileMatcher {
     /// of the actual file's bytes against the `TextLiteral`'s `TextValue`
     /// encoded as UTF-8, with no normalization. `text_literal` may be either
     /// a string literal or a heredoc literal. See [`TextLiteral`], #88, and
-    /// docs/adr — text_equals evaluation.
+    /// docs2/adr — text_equals evaluation.
     TextEquals(TextLiteral),
 }
 
