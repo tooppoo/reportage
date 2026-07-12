@@ -1,0 +1,10 @@
+# A case block is not part of the document block grammar, so nesting one
+# inside a document block fails at parse time.
+document file {
+  case "nested" {
+    $ true
+    assert {
+      exit 0
+    }
+  }
+}

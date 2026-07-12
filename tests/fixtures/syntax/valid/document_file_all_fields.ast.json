@@ -1,0 +1,35 @@
+{
+  "file_documentation": {
+    "title": "File assertions",
+    "group": "Filesystem",
+    "order": 20,
+    "description": "Collected examples of assertions against files."
+  },
+  "cases": [
+    {
+      "name": "file exists",
+      "span": {
+        "start": 141,
+        "end": 228
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "touch test.txt"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "test.txt",
+              "matcher": {
+                "kind": "exists"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

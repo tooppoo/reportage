@@ -1,0 +1,13 @@
+# Declaring the same documentation field twice in one document block is
+# rejected (parse.document_block.duplicate_field).
+document file {
+  title "first title"
+  title "second title"
+}
+
+case "case after duplicate documentation field" {
+  $ true
+  assert {
+    exit 0
+  }
+}

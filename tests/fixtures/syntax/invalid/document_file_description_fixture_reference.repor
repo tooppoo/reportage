@@ -1,0 +1,6 @@
+# `description` requires a text literal (string or heredoc); a fixture
+# reference literal parses at the grammar level and is rejected as a literal
+# kind mismatch (semantic.literal.kind_mismatch).
+document file {
+  description @"notes.txt"
+}

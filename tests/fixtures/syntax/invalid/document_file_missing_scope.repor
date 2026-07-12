@@ -1,0 +1,4 @@
+# A document block requires an explicit scope keyword after `document`.
+document {
+  title "no scope"
+}

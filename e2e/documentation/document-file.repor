@@ -1,0 +1,192 @@
+# `document file` is source-level documentation metadata: it must not change
+# how a source executes, what the report contains, or how failures classify.
+# The outer write fences use four backticks where the inner source itself
+# contains a three-backtick heredoc description.
+
+case "a source with a document file block runs exactly like an undocumented one" {
+  write <"inner.repor"> ```
+    document file {
+      title "Documented inner source"
+      group "E2E"
+      order 1
+      description "Documentation metadata must not affect execution."
+    }
+
+    case "documented case passes" {
+      $ echo hello
+      assert {
+        exit 0
+        stdout contains "hello"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+case "documentation metadata does not leak into the execution report" {
+  write <"inner.repor"> ```
+    document file {
+      title "MetadataMustNotLeak"
+      group "GroupMustNotLeak"
+    }
+
+    case "passes" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 0
+    stdout contains "\"status\": \"passed\""
+    not { stdout contains "MetadataMustNotLeak" }
+    not { stdout contains "GroupMustNotLeak" }
+  }
+}
+
+case "blank lines and comments may separate document file from the first case" {
+  write <"inner.repor"> ```
+    document file {
+      title "Documented inner source"
+    }
+
+    # a plain comment between the document block and the first case
+
+    case "passes" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+case "a heredoc description is accepted" {
+  write <"inner.repor"> ````
+    document file {
+      title "Documented inner source"
+      description ```
+        A multi-line description.
+
+        Written as a heredoc literal.
+        ```
+    }
+
+    case "passes" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ````
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+case "an assertion failure in a documented source still exits 1" {
+  write <"inner.repor"> ```
+    document file {
+      title "Documented inner source"
+    }
+
+    case "fails" {
+      $ echo hello
+      assert {
+        stdout contains "world"
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 1
+    stdout contains "\"status\": \"failed\""
+    stdout contains "\"code\": \"assertion.stdout.contains.mismatch\""
+  }
+}
+
+case "a duplicate documentation field is a script error with a dedicated code" {
+  write <"inner.repor"> ```
+    document file {
+      title "first"
+      title "second"
+    }
+
+    case "never runs" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 2
+    stdout contains "\"category\": \"parse\""
+    stdout contains "\"code\": \"parse.document_block.duplicate_field\""
+  }
+}
+
+case "a document file after the first case is a script error with a dedicated code" {
+  write <"inner.repor"> ```
+    case "runs first" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+
+    document file {
+      title "too late"
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 2
+    stdout contains "\"category\": \"parse\""
+    stdout contains "\"code\": \"parse.document_file.after_case\""
+  }
+}
+
+case "an action step inside a document block is a syntax error" {
+  write <"inner.repor"> ```
+    document file {
+      $ echo hello
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 2
+    stdout contains "\"category\": \"parse\""
+    stdout contains "\"code\": \"parse.syntax\""
+  }
+}

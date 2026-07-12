@@ -9,7 +9,9 @@ use crate::model::{
     SideEffectingStep, Step, TextLiteral, ValueLiteralKind, WorkspacePath, WorkspacePathError,
     WriteFileStep,
 };
-use crate::source::{SourceCase, SourceFile, SourceSpan, SourceText};
+use crate::source::{
+    DocumentationText, FileDocumentation, SourceCase, SourceFile, SourceSpan, SourceText,
+};
 
 #[derive(Parser)]
 #[grammar = "reportage.pest"]
@@ -77,6 +79,18 @@ pub enum ParseError {
     /// expectation) has a non-blank body line indented less than the
     /// closing fence's indentation.
     ShallowHeredocIndent { line: usize },
+    /// A document block contains no documentation field.
+    EmptyDocumentBlock { line: usize },
+    /// A document block declares the same documentation field more than once.
+    DuplicateDocumentationField { line: usize, field: &'static str },
+    /// A document block's `order` value is a digit run that overflows the
+    /// model's u64 range; the grammar guarantees it is otherwise a
+    /// non-negative integer.
+    InvalidDocumentationOrder { line: usize, value: String },
+    /// A source contains more than one `document file` block.
+    DuplicateDocumentFile { line: usize },
+    /// A `document file` block appears after the source's first case block.
+    DocumentFileAfterCase { line: usize },
 }
 
 impl std::fmt::Display for ParseError {
@@ -163,6 +177,27 @@ impl std::fmt::Display for ParseError {
                 f,
                 "parse error at line {line}: heredoc literal body line is indented less than its closing fence"
             ),
+            ParseError::EmptyDocumentBlock { line } => write!(
+                f,
+                "parse error at line {line}: document block must contain at least one documentation field"
+            ),
+            ParseError::DuplicateDocumentationField { line, field } => write!(
+                f,
+                "parse error at line {line}: documentation field '{field}' is declared more than once in the same document block"
+            ),
+            ParseError::InvalidDocumentationOrder { line, value } => write!(
+                f,
+                "parse error at line {line}: invalid order '{value}', expected a non-negative integer no greater than {}",
+                u64::MAX
+            ),
+            ParseError::DuplicateDocumentFile { line } => write!(
+                f,
+                "parse error at line {line}: a source may contain at most one `document file` block"
+            ),
+            ParseError::DocumentFileAfterCase { line } => write!(
+                f,
+                "parse error at line {line}: `document file` must appear before the first case"
+            ),
         }
     }
 }
@@ -200,6 +235,15 @@ impl ParseError {
             ParseError::ShallowHeredocIndent { .. } => {
                 DiagnosticCode::ParseHeredocLiteralShallowIndent
             }
+            ParseError::EmptyDocumentBlock { .. } => DiagnosticCode::ParseDocumentBlockEmpty,
+            ParseError::DuplicateDocumentationField { .. } => {
+                DiagnosticCode::ParseDocumentBlockDuplicateField
+            }
+            ParseError::InvalidDocumentationOrder { .. } => {
+                DiagnosticCode::ParseDocumentBlockInvalidOrder
+            }
+            ParseError::DuplicateDocumentFile { .. } => DiagnosticCode::ParseDocumentFileDuplicate,
+            ParseError::DocumentFileAfterCase { .. } => DiagnosticCode::ParseDocumentFileAfterCase,
         }
     }
 
@@ -315,6 +359,35 @@ impl ParseError {
                 }),
                 DiagnosticDetails::default(),
             ),
+            ParseError::EmptyDocumentBlock { line }
+            | ParseError::DuplicateDocumentFile { line }
+            | ParseError::DocumentFileAfterCase { line } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails::default(),
+            ),
+            ParseError::DuplicateDocumentationField { line, field } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails {
+                    raw_value: Some(field.to_string()),
+                    ..Default::default()
+                },
+            ),
+            ParseError::InvalidDocumentationOrder { line, value } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails {
+                    raw_value: Some(value.clone()),
+                    ..Default::default()
+                },
+            ),
         };
 
         Diagnostic {
@@ -348,19 +421,155 @@ pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
     })?;
 
     // `parse()` returns a Pairs that yields the top-level `script` pair.
-    // Call into_inner() to get its contents (case_blocks, SOI, EOI).
+    // Call into_inner() to get its contents (document_blocks, case_blocks, SOI, EOI).
     let script_pair = pairs.into_iter().next().expect("script always matches");
+    let mut file_documentation: Option<FileDocumentation> = None;
     let mut cases: Vec<SourceCase> = Vec::new();
     for pair in script_pair.into_inner() {
-        if pair.as_rule() == Rule::case_block {
-            // SOI, EOI, and silent blank_lines are skipped via the else branch.
-            let pair_span = pair.as_span();
-            let span = SourceSpan::new(pair_span.start(), pair_span.end());
-            cases.push(SourceCase::new(parse_case_block(pair)?, span));
+        match pair.as_rule() {
+            // The grammar accepts document blocks anywhere at top level, any
+            // number of times; the `document file` placement rules — at most
+            // one per source, before the first case — are enforced here so
+            // each violation gets its own actionable diagnostic.
+            Rule::document_block => {
+                let line = pair.line_col().0;
+                if !cases.is_empty() {
+                    return Err(ParseError::DocumentFileAfterCase { line });
+                }
+                if file_documentation.is_some() {
+                    return Err(ParseError::DuplicateDocumentFile { line });
+                }
+                file_documentation = Some(parse_document_block(pair)?);
+            }
+            Rule::case_block => {
+                let pair_span = pair.as_span();
+                let span = SourceSpan::new(pair_span.start(), pair_span.end());
+                cases.push(SourceCase::new(parse_case_block(pair)?, span));
+            }
+            // SOI, EOI, and silent blank/comment lines carry no content.
+            _ => {}
         }
     }
 
-    Ok(SourceFile::new(SourceText::new(source.to_string()), cases))
+    Ok(SourceFile::new(
+        SourceText::new(source.to_string()),
+        file_documentation,
+        cases,
+    ))
+}
+
+/// Parses a `document_block` pair into [`FileDocumentation`], enforcing the
+/// body rules the grammar deliberately leaves open: at least one field, and
+/// no field declared twice. v0's only document scope is `file`, so the block
+/// always produces file documentation.
+fn parse_document_block(
+    pair: pest::iterators::Pair<Rule>,
+) -> Result<FileDocumentation, ParseError> {
+    let line = pair.line_col().0;
+    let mut inner = pair.into_inner();
+
+    let scope = inner
+        .next()
+        .expect("document_block must have a document_scope");
+    debug_assert_eq!(scope.as_rule(), Rule::document_scope);
+
+    let mut title: Option<String> = None;
+    let mut group: Option<String> = None;
+    let mut order: Option<u64> = None;
+    let mut description: Option<DocumentationText> = None;
+
+    /// The duplicate check shared by every field arm, kept out of line so
+    /// each arm reads as "reject the duplicate, then parse the value".
+    fn reject_duplicate<T>(
+        slot: &Option<T>,
+        field: &'static str,
+        line: usize,
+    ) -> Result<(), ParseError> {
+        if slot.is_some() {
+            return Err(ParseError::DuplicateDocumentationField { line, field });
+        }
+        Ok(())
+    }
+
+    for field in inner {
+        let field_line = field.line_col().0;
+        match field.as_rule() {
+            Rule::document_title_field => {
+                reject_duplicate(&title, "title", field_line)?;
+                let literal_pair = field
+                    .into_inner()
+                    .next()
+                    .expect("document_title_field must have value_literal");
+                title = Some(
+                    parse_value_literal(literal_pair)
+                        .expect_kind(RequiredKind::StringLiteral, "`title` documentation field")?,
+                );
+            }
+            Rule::document_group_field => {
+                reject_duplicate(&group, "group", field_line)?;
+                let literal_pair = field
+                    .into_inner()
+                    .next()
+                    .expect("document_group_field must have value_literal");
+                group = Some(
+                    parse_value_literal(literal_pair)
+                        .expect_kind(RequiredKind::StringLiteral, "`group` documentation field")?,
+                );
+            }
+            Rule::document_order_field => {
+                reject_duplicate(&order, "order", field_line)?;
+                let value_pair = field
+                    .into_inner()
+                    .next()
+                    .expect("document_order_field must have document_order_value");
+                let value_str = value_pair.as_str();
+                // The grammar guarantees a digit run, so the only possible
+                // failure is overflow of the model's u64 range.
+                order = Some(value_str.parse::<u64>().map_err(|_| {
+                    ParseError::InvalidDocumentationOrder {
+                        line: field_line,
+                        value: value_str.to_string(),
+                    }
+                })?);
+            }
+            Rule::document_description_string_field => {
+                reject_duplicate(&description, "description", field_line)?;
+                let literal_pair = field
+                    .into_inner()
+                    .next()
+                    .expect("document_description_string_field must have value_literal");
+                let text = parse_value_literal(literal_pair).expect_kind(
+                    RequiredKind::TextValueStringOrHeredoc,
+                    "`description` documentation field",
+                )?;
+                description = Some(DocumentationText::new(text));
+            }
+            Rule::document_description_heredoc_field => {
+                reject_duplicate(&description, "description", field_line)?;
+                let literal_pair = field
+                    .into_inner()
+                    .next()
+                    .expect("document_description_heredoc_field must have heredoc_literal");
+                description = Some(DocumentationText::new(parse_heredoc_literal(literal_pair)?));
+            }
+            // When the closing brace line has no final newline, its `trail`
+            // matches EOI, and pest surfaces that as an explicit EOI pair
+            // inside the document_block (same as case_block).
+            Rule::EOI => {}
+            rule => unreachable!("unexpected rule in document_block: {rule:?}"),
+        }
+    }
+
+    if title.is_none() && group.is_none() && order.is_none() && description.is_none() {
+        return Err(ParseError::EmptyDocumentBlock { line });
+    }
+
+    Ok(FileDocumentation {
+        title,
+        group,
+        order,
+        description,
+    })
 }
 
 fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseError> {
@@ -3385,5 +3594,314 @@ case "x" {
         assert_eq!(script.cases.len(), 2);
         assert_eq!(script.cases[0].name, "a");
         assert_eq!(script.cases[1].name, "b");
+    }
+
+    // ── Document block: `document file` ─────────────────────────────────────
+    //
+    // Field validation, placement rules, and the whitelist body contract.
+    // See #168 and the accompanying ADR; representative valid shapes live in
+    // examples/, e2e/, and tests/fixtures/syntax/valid/.
+
+    const PASSING_CASE: &str = "case \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
+
+    #[test]
+    fn document_file_all_fields_are_parsed() {
+        let src = format!(
+            "document file {{\n  title \"File assertions\"\n  group \"Filesystem\"\n  order 20\n  description \"Collected examples.\"\n}}\n\n{PASSING_CASE}"
+        );
+        let source_file = parse(&src).unwrap();
+        let documentation = source_file.file_documentation().unwrap();
+        assert_eq!(documentation.title.as_deref(), Some("File assertions"));
+        assert_eq!(documentation.group.as_deref(), Some("Filesystem"));
+        assert_eq!(documentation.order, Some(20));
+        assert_eq!(
+            documentation.description.as_ref().unwrap().as_str(),
+            "Collected examples."
+        );
+    }
+
+    #[test]
+    fn document_file_holds_only_explicit_fields() {
+        let src = format!("document file {{\n  title \"Only a title\"\n}}\n\n{PASSING_CASE}");
+        let source_file = parse(&src).unwrap();
+        let documentation = source_file.file_documentation().unwrap();
+        assert_eq!(documentation.title.as_deref(), Some("Only a title"));
+        assert_eq!(documentation.group, None);
+        assert_eq!(documentation.order, None);
+        assert!(documentation.description.is_none());
+    }
+
+    #[test]
+    fn source_without_document_file_has_no_documentation() {
+        let source_file = parse(PASSING_CASE).unwrap();
+        assert!(source_file.file_documentation().is_none());
+    }
+
+    #[test]
+    fn document_file_description_heredoc_is_dedented() {
+        let src = format!(
+            "document file {{\n  description ```\n    line one\n\n    line two\n    ```\n}}\n\n{PASSING_CASE}"
+        );
+        let source_file = parse(&src).unwrap();
+        let documentation = source_file.file_documentation().unwrap();
+        assert_eq!(
+            documentation.description.as_ref().unwrap().as_str(),
+            "line one\n\nline two\n"
+        );
+    }
+
+    #[test]
+    fn document_file_description_heredoc_shallow_indent_is_rejected() {
+        let src = format!(
+            "document file {{\n  description ```\n  shallow\n    ```\n}}\n\n{PASSING_CASE}"
+        );
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::ShallowHeredocIndent { .. }));
+        assert_eq!(err.code().as_str(), "parse.heredoc_literal.shallow_indent");
+    }
+
+    #[test]
+    fn document_file_order_accepts_zero_and_u64_max() {
+        let src = format!("document file {{\n  order 0\n}}\n\n{PASSING_CASE}");
+        let source_file = parse(&src).unwrap();
+        assert_eq!(source_file.file_documentation().unwrap().order, Some(0));
+
+        let src = format!("document file {{\n  order 18446744073709551615\n}}\n\n{PASSING_CASE}");
+        let source_file = parse(&src).unwrap();
+        assert_eq!(
+            source_file.file_documentation().unwrap().order,
+            Some(u64::MAX)
+        );
+    }
+
+    #[test]
+    fn document_file_order_overflow_is_rejected() {
+        let src = format!("document file {{\n  order 18446744073709551616\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::InvalidDocumentationOrder { line: 2, .. }
+        ));
+        assert_eq!(err.code().as_str(), "parse.document_block.invalid_order");
+    }
+
+    #[test]
+    fn duplicate_documentation_field_is_rejected() {
+        let src = format!(
+            "document file {{\n  title \"first\"\n  title \"second\"\n}}\n\n{PASSING_CASE}"
+        );
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::DuplicateDocumentationField {
+                line: 3,
+                field: "title"
+            }
+        ));
+        assert_eq!(err.code().as_str(), "parse.document_block.duplicate_field");
+    }
+
+    #[test]
+    fn duplicate_description_across_string_and_heredoc_forms_is_rejected() {
+        let src = format!(
+            "document file {{\n  description \"first\"\n  description ```\n    second\n    ```\n}}\n\n{PASSING_CASE}"
+        );
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::DuplicateDocumentationField {
+                field: "description",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn empty_document_block_is_rejected() {
+        let src = format!("document file {{\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::EmptyDocumentBlock { line: 1 }));
+        assert_eq!(err.code().as_str(), "parse.document_block.empty");
+    }
+
+    #[test]
+    fn comment_only_document_block_is_rejected_as_empty() {
+        let src = format!("document file {{\n  # not a field\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::EmptyDocumentBlock { .. }));
+    }
+
+    #[test]
+    fn multiple_document_file_blocks_are_rejected() {
+        let src = format!(
+            "document file {{\n  title \"first\"\n}}\n\ndocument file {{\n  title \"second\"\n}}\n\n{PASSING_CASE}"
+        );
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::DuplicateDocumentFile { line: 5 }));
+        assert_eq!(err.code().as_str(), "parse.document_file.duplicate");
+    }
+
+    #[test]
+    fn document_file_after_first_case_is_rejected() {
+        let src = format!("{PASSING_CASE}\ndocument file {{\n  title \"too late\"\n}}\n");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::DocumentFileAfterCase { .. }));
+        assert_eq!(err.code().as_str(), "parse.document_file.after_case");
+    }
+
+    #[test]
+    fn document_file_between_cases_is_rejected() {
+        let src = format!(
+            "{PASSING_CASE}\ndocument file {{\n  title \"between\"\n}}\n\ncase \"y\" {{\n  $ true\n  assert {{ exit 0 }}\n}}\n"
+        );
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::DocumentFileAfterCase { .. }));
+    }
+
+    #[test]
+    fn unknown_documentation_field_is_syntax_error() {
+        let src = format!("document file {{\n  author \"someone\"\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn action_step_in_document_block_is_syntax_error() {
+        let src = format!("document file {{\n  $ echo hello\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn assertion_block_in_document_block_is_syntax_error() {
+        let src = format!("document file {{\n  assert {{\n    exit 0\n  }}\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn write_step_in_document_block_is_syntax_error() {
+        let src =
+            format!("document file {{\n  write <\"out.txt\"> \"value\"\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn case_block_in_document_block_is_syntax_error() {
+        let src =
+            "document file {\n  case \"nested\" {\n    $ true\n    assert { exit 0 }\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn nested_document_block_is_syntax_error() {
+        let src = "document file {\n  document file {\n    title \"nested\"\n  }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn document_block_inside_case_is_syntax_error() {
+        let src = "case \"x\" {\n  document file {\n    title \"misplaced\"\n  }\n  $ true\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn document_case_scope_is_syntax_error() {
+        // `document case` is #169; until it lands, `case` is not a document
+        // scope and the block is a plain syntax error.
+        let src = format!("document case {{\n  title \"not yet\"\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn document_title_workspace_path_literal_is_kind_mismatch() {
+        let src = format!("document file {{\n  title <\"a.txt\">\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::StringLiteral,
+                actual: ValueLiteralKind::WorkspacePath,
+                ..
+            }
+        ));
+        assert_eq!(err.code().as_str(), "semantic.literal.kind_mismatch");
+    }
+
+    #[test]
+    fn document_description_fixture_reference_is_kind_mismatch() {
+        let src = format!("document file {{\n  description @\"notes.txt\"\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::LiteralKindMismatch {
+                expected: RequiredLiteralKind::TextValue,
+                actual: ValueLiteralKind::FixtureReference,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn documentation_only_source_without_final_newline_parses() {
+        // The document block's `trail` matches EOI when the closing brace
+        // ends the file, surfacing an explicit EOI pair inside the block —
+        // the same shape case_block handles.
+        let src = "document file {\n  title \"no final newline\"\n}";
+        let source_file = parse(src).unwrap();
+        assert!(source_file.file_documentation().is_some());
+        assert!(source_file.cases().is_empty());
+    }
+
+    #[test]
+    fn document_file_with_crlf_line_endings_parses() {
+        let src = format!(
+            "document file {{\r\n  title \"crlf\"\r\n}}\r\n\r\n{}",
+            PASSING_CASE.replace('\n', "\r\n")
+        );
+        let source_file = parse(&src).unwrap();
+        assert_eq!(
+            source_file.file_documentation().unwrap().title.as_deref(),
+            Some("crlf")
+        );
+    }
+
+    #[test]
+    fn into_script_drops_file_documentation() {
+        let documented = format!("document file {{\n  title \"Documented\"\n}}\n\n{PASSING_CASE}");
+        let documented_script = parse(&documented).unwrap().into_script();
+        let undocumented_script = parse(PASSING_CASE).unwrap().into_script();
+        assert_eq!(
+            documented_script.cases.len(),
+            undocumented_script.cases.len()
+        );
+        assert_eq!(
+            documented_script.cases[0].name,
+            undocumented_script.cases[0].name
+        );
+        assert_eq!(
+            documented_script.cases[0].steps.len(),
+            undocumented_script.cases[0].steps.len()
+        );
+    }
+
+    #[test]
+    fn first_case_span_excludes_document_block_and_gap_lines() {
+        // Neither the document block nor the blank / comment lines between it
+        // and the first case belong to the case span; the span still equals
+        // the pest case_block pair's range (#167's contract, unchanged).
+        let src = format!(
+            "document file {{\n  title \"Documented\"\n}}\n\n# a comment between\n\n{PASSING_CASE}"
+        );
+        let source_file = parse(&src).unwrap();
+        assert_eq!(source_file.cases().len(), 1);
+        let source_case = &source_file.cases()[0];
+        assert_eq!(source_file.case_source(source_case), PASSING_CASE);
+        assert_eq!(source_case.span().start(), src.find("case \"x\"").unwrap());
     }
 }

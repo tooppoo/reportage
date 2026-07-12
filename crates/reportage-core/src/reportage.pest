@@ -29,7 +29,67 @@ trail        = _{ (ws+ ~ comment)? ~ ws* ~ (nl | EOI) }
 // ─── Script ───────────────────────────────────────────────────────────────────
 
 // ws* before EOI handles a trailing whitespace-only line with no final newline.
-script = { SOI ~ (blank_line | comment_line | case_block)* ~ ws* ~ EOI }
+// document_block is grammar-legal anywhere at top level (and any number of
+// times) so that its placement rules — at most one `document file` per
+// source, before the first case — can be rejected during parser
+// construction with actionable diagnostics (parse.document_file.duplicate /
+// parse.document_file.after_case) instead of a bare pest syntax error.
+script = { SOI ~ (blank_line | comment_line | document_block | case_block)* ~ ws* ~ EOI }
+
+// ─── Document block ───────────────────────────────────────────────────────────
+//
+// `document <scope> { ... }` attaches documentation metadata to a source
+// construct as first-class syntax, distinct from `#` comments (which are
+// discarded at parse time and never reach any model). v0 supports only the
+// `file` scope, whose metadata describes the whole source file; see #168 and
+// the accompanying ADR. `document case` (#169) is future work, so `case` is
+// deliberately not part of document_scope yet and is a plain syntax error.
+//
+// The body is a whitelist of documentation fields: only the field rules
+// below are reachable inside the block. Actions, assertions, write steps,
+// case blocks, nested document blocks, and any future step or statement are
+// not alternatives here, so they are rejected at parse time by construction
+// rather than by enumerating them in a blacklist. An unknown field name
+// likewise fails to match and is a plain syntax error.
+//
+// A body with zero fields parses successfully (the field line is starred) so
+// Reportage can reject an empty document block during parser construction
+// (parse.document_block.empty) instead of conflating it with a generic
+// syntax error — the same approach as empty_composition_body above.
+document_block = {
+    ws* ~ "document" ~ ws+ ~ document_scope ~ ws* ~ "{" ~ trail
+    ~ (blank_line | comment_line | document_field_line)*
+    ~ ws* ~ "}" ~ trail
+}
+
+document_scope = { "file" }
+
+// One documentation field per line. The single-line fields share `trail`
+// (trailing whitespace and an optional inline comment) like ordinary case
+// steps; the heredoc form of `description` consumes its own trailing line
+// ending (see "Heredoc literal" below), mirroring the write_step_string /
+// write_step_heredoc split.
+document_field_line = _{
+    ws* ~ ((document_title_field | document_group_field | document_order_field | document_description_string_field) ~ trail | document_description_heredoc_field)
+}
+
+// `title` / `group` take a string literal; `description` takes a
+// text_literal (string literal or heredoc literal). All literal positions
+// parse the kind-agnostic `value_literal` so a wrong-kind literal (e.g.
+// `title <"a.txt">`) is a semantic invalid case with an actionable
+// diagnostic (semantic.literal.kind_mismatch), never a bare syntax error —
+// see "Value literals" below.
+document_title_field              = { "title" ~ ws+ ~ value_literal }
+document_group_field              = { "group" ~ ws+ ~ value_literal }
+document_description_string_field = { "description" ~ ws+ ~ value_literal }
+document_description_heredoc_field = { "description" ~ ws* ~ heredoc_literal }
+
+// `order` takes a bare non-negative integer, like exit_code. The grammar
+// accepts any digit run; a value that overflows the model's u64 range is
+// rejected during parser construction (parse.document_block.invalid_order),
+// mirroring the exit_code range check.
+document_order_field = { "order" ~ ws+ ~ document_order_value }
+document_order_value = @{ ASCII_DIGIT+ }
 
 // ─── Case block ───────────────────────────────────────────────────────────────
 

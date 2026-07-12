@@ -1,0 +1,5 @@
+# `order` accepts only a non-negative integer; a sign is not part of the
+# grammar and fails at parse time.
+document file {
+  order -5
+}

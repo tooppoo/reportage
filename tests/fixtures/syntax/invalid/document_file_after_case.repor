@@ -1,0 +1,12 @@
+# A `document file` block must appear before the source's first case
+# (parse.document_file.after_case).
+case "case before document file" {
+  $ true
+  assert {
+    exit 0
+  }
+}
+
+document file {
+  title "too late"
+}

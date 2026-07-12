@@ -1,0 +1,12 @@
+# A document block whose closing brace is missing cannot absorb a following
+# case block: `case ...` matches no documentation field, so the parse fails
+# where the block's `}` was expected.
+document file {
+  title "unterminated"
+
+case "case after unterminated document block" {
+  $ true
+  assert {
+    exit 0
+  }
+}

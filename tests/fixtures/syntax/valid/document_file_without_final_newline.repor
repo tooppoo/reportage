@@ -1,0 +1,3 @@
+document file {
+  title "Documented source without a final newline"
+}

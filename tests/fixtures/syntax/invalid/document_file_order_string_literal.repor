@@ -1,0 +1,5 @@
+# `order` accepts only a bare non-negative integer, mirroring `exit`;
+# a string literal fails at parse time.
+document file {
+  order "20"
+}

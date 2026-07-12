@@ -75,6 +75,42 @@ impl SourceSpan {
     }
 }
 
+/// Documentation text, as opposed to the execution-model text (`TextLiteral` / `TextValue`).
+///
+/// The two are kept as distinct types because they answer to different rules:
+/// execution text participates in assertion comparison and file writes,
+/// while documentation text is display-only metadata that never reaches execution.
+/// v0 defines documentation text as plain text; Markdown interpretation is out of scope.
+/// The source-side literal kind (string literal vs. heredoc literal) is not preserved:
+/// both forms resolve to the same plain text here.
+#[derive(Debug)]
+pub struct DocumentationText(String);
+
+impl DocumentationText {
+    pub(crate) fn new(text: String) -> Self {
+        Self(text)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// File-scope documentation metadata from a `document file` block.
+///
+/// Holds only what the source explicitly states: every field is optional and
+/// no fallback value (file stem as title, a default group, path-based order)
+/// is materialized here. Display-time fallbacks are applied when the
+/// Documentation Catalog is built (#170), where both the source path and this
+/// model are available.
+#[derive(Debug)]
+pub struct FileDocumentation {
+    pub title: Option<String>,
+    pub group: Option<String>,
+    pub order: Option<u64>,
+    pub description: Option<DocumentationText>,
+}
+
 /// One case of a parsed file: the execution-model `Case` plus the byte range
 /// of the whole `case` block (matching the pest `case_block` pair) in the original source.
 ///
@@ -102,10 +138,12 @@ impl SourceCase {
 }
 
 /// A parsed reportage file as the parser returns it:
-/// the owned source text and the cases with their source spans, in source order.
+/// the owned source text, the file-scope documentation when the source declares one,
+/// and the cases with their source spans, in source order.
 #[derive(Debug)]
 pub struct SourceFile {
     source: SourceText,
+    file_documentation: Option<FileDocumentation>,
     cases: Vec<SourceCase>,
 }
 
@@ -114,7 +152,11 @@ impl SourceFile {
     /// required to uphold: every span lies within `source` on UTF-8 character
     /// boundaries, and spans appear in source order without overlapping.
     /// A violation is a parser bug, not an input error, so it panics.
-    pub(crate) fn new(source: SourceText, cases: Vec<SourceCase>) -> Self {
+    pub(crate) fn new(
+        source: SourceText,
+        file_documentation: Option<FileDocumentation>,
+        cases: Vec<SourceCase>,
+    ) -> Self {
         let text = source.as_str();
         let mut previous_end = 0usize;
         for source_case in &cases {
@@ -138,11 +180,23 @@ impl SourceFile {
             );
             previous_end = span.end();
         }
-        Self { source, cases }
+        Self {
+            source,
+            file_documentation,
+            cases,
+        }
     }
 
     pub fn source(&self) -> &SourceText {
         &self.source
+    }
+
+    /// The `document file` metadata, or `None` when the source declares none.
+    ///
+    /// `None` means exactly "no `document file` block in the source";
+    /// it is never substituted with fallback values here (see [`FileDocumentation`]).
+    pub fn file_documentation(&self) -> Option<&FileDocumentation> {
+        self.file_documentation.as_ref()
     }
 
     pub fn cases(&self) -> &[SourceCase] {
@@ -159,7 +213,7 @@ impl SourceFile {
     /// Consuming by design: the execution path has no use for source text or
     /// spans, and a non-consuming projection would force `Clone` onto the
     /// whole `Case` / `Step` tree for no current consumer.
-    /// Source text, spans, and (future) documentation metadata are dropped here.
+    /// Source text, spans, and documentation metadata are dropped here.
     pub fn into_script(self) -> Script {
         Script {
             cases: self

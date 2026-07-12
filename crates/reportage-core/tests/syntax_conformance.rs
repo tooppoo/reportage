@@ -84,13 +84,44 @@ fn update_snapshots_enabled() -> bool {
 
 #[derive(Serialize)]
 struct SnapshotScript<'a> {
+    /// Omitted (not `null`) when the source declares no `document file`
+    /// block: absence in the snapshot mirrors absence in the source-level
+    /// model, and keeps the snapshots of the pre-existing, undocumented
+    /// fixtures unchanged.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    file_documentation: Option<SnapshotFileDocumentation<'a>>,
     cases: Vec<SnapshotCase<'a>>,
 }
 
 impl<'a> From<&'a SourceFile> for SnapshotScript<'a> {
     fn from(source_file: &'a SourceFile) -> Self {
         Self {
+            file_documentation: source_file
+                .file_documentation()
+                .map(SnapshotFileDocumentation::from),
             cases: source_file.cases().iter().map(SnapshotCase::from).collect(),
+        }
+    }
+}
+
+/// Mirrors `source::FileDocumentation`. Unset fields serialize as `null`
+/// rather than being omitted, so the snapshot shows that the model holds
+/// only what the source explicitly stated (no fallback materialization).
+#[derive(Serialize)]
+struct SnapshotFileDocumentation<'a> {
+    title: Option<&'a str>,
+    group: Option<&'a str>,
+    order: Option<u64>,
+    description: Option<&'a str>,
+}
+
+impl<'a> From<&'a reportage_core::source::FileDocumentation> for SnapshotFileDocumentation<'a> {
+    fn from(documentation: &'a reportage_core::source::FileDocumentation) -> Self {
+        Self {
+            title: documentation.title.as_deref(),
+            group: documentation.group.as_deref(),
+            order: documentation.order,
+            description: documentation.description.as_ref().map(|text| text.as_str()),
         }
     }
 }
@@ -560,6 +591,31 @@ fn invalid_syntax_fixtures_are_rejected() {
                 assert!(matches!(err, ParseError::ShallowHeredocIndent { .. }));
                 assert_eq!(err.code().as_str(), "parse.heredoc_literal.shallow_indent");
             }
+            // Document block body rules the grammar deliberately leaves open
+            // (see the "Document block" section of reportage.pest) are
+            // rejected during parser construction with fine-grained codes.
+            // Covers both the field-less body and the comment-only body:
+            // comment lines are not documentation fields.
+            "document_file_empty_block" | "document_file_comment_only_block" => {
+                assert!(matches!(err, ParseError::EmptyDocumentBlock { .. }));
+                assert_eq!(err.code().as_str(), "parse.document_block.empty");
+            }
+            "document_file_duplicate_field" => {
+                assert!(matches!(err, ParseError::DuplicateDocumentationField { .. }));
+                assert_eq!(err.code().as_str(), "parse.document_block.duplicate_field");
+            }
+            "document_file_order_out_of_range" => {
+                assert!(matches!(err, ParseError::InvalidDocumentationOrder { .. }));
+                assert_eq!(err.code().as_str(), "parse.document_block.invalid_order");
+            }
+            "document_file_duplicate_block" => {
+                assert!(matches!(err, ParseError::DuplicateDocumentFile { .. }));
+                assert_eq!(err.code().as_str(), "parse.document_file.duplicate");
+            }
+            "document_file_after_case" => {
+                assert!(matches!(err, ParseError::DocumentFileAfterCase { .. }));
+                assert_eq!(err.code().as_str(), "parse.document_file.after_case");
+            }
             // Literal kind mismatches parse at the grammar level and are
             // rejected as semantic invalid cases with an actionable
             // diagnostic. See docs/semantic-diagnostics.md and
@@ -583,7 +639,12 @@ fn invalid_syntax_fixtures_are_rejected() {
             | "file_text_equals_fixture_reference"
             | "stderr_text_equals_fixture_reference"
             | "write_step_path_fixture_reference"
-            | "write_step_content_fixture_reference" => {
+            | "write_step_content_fixture_reference"
+            // Documentation field positions parse the kind-agnostic
+            // value_literal too: `title` / `group` require a string literal,
+            // `description` requires a text literal. See #168.
+            | "document_file_title_workspace_path_literal"
+            | "document_file_description_fixture_reference" => {
                 assert!(matches!(err, ParseError::LiteralKindMismatch { .. }));
                 assert_eq!(err.code().as_str(), "semantic.literal.kind_mismatch");
             }

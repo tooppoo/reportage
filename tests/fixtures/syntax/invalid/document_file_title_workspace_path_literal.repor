@@ -1,0 +1,6 @@
+# `title` requires a string literal; a workspace path literal parses at the
+# grammar level and is rejected as a literal kind mismatch
+# (semantic.literal.kind_mismatch).
+document file {
+  title <"a.txt">
+}

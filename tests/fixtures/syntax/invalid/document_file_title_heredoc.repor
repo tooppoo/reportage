@@ -1,0 +1,7 @@
+# Only `description` accepts a heredoc literal; `title` is a single-line
+# string-literal field and a heredoc after it fails at parse time.
+document file {
+  title ```
+    heredoc title
+    ```
+}

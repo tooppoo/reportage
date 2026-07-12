@@ -463,6 +463,77 @@ error: `stdout jq` requires external jq, but jq was not found in PATH
 
 Embedded jq engines may be considered later. If added, the selected jq engine should be explicit rather than silently falling back between implementations.
 
+## Document block (`document file`)
+
+A document block attaches documentation metadata to a source construct as first-class syntax:
+
+````reportage
+document file {
+  title "File assertions"
+  group "Filesystem"
+  order 20
+
+  description ```
+  Collected examples of assertions against files.
+  ```
+}
+````
+
+v0 supports only the `file` scope,
+whose metadata describes the whole source file.
+`document case` is future work (#169).
+
+Documentation is deliberately not expressed through `#` comments:
+comments are discarded at parse time and never reach any model,
+while documentation metadata must survive parsing so documentation tooling can consume it.
+See [ADR: Document Block as First-Class Documentation Syntax](adr/20260712T120000Z_document-block-first-class-documentation-syntax.md).
+
+### File documentation fields
+
+v0 accepts exactly these fields; an unknown field is a syntax error.
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `title` | string literal | The file's display name in documentation. |
+| `group` | string literal | The group name used when aggregating multiple sources. |
+| `order` | non-negative integer | The file's display order within its group. |
+| `description` | string literal or heredoc literal | A description of the whole file, plain text in v0. |
+
+`title`, `group`, and `description` positions parse the kind-agnostic value literal,
+so a wrong-kind literal (e.g. `title <"a.txt">`) is rejected as `semantic.literal.kind_mismatch`,
+consistent with every other literal position (see "Value literals" above).
+Declaring the same field twice in one block is rejected (`parse.document_block.duplicate_field`).
+An `order` value that overflows the supported non-negative integer range (u64) is rejected
+(`parse.document_block.invalid_order`).
+
+### Placement rules
+
+- `document file` is a top-level construct only; inside a case block it is a syntax error.
+- A source may contain at most one `document file` block (`parse.document_file.duplicate`).
+- The block must appear before the source's first case (`parse.document_file.after_case`).
+- An empty document block — no documentation field, including a comment-only body — is rejected (`parse.document_block.empty`).
+- A source without a `document file` block remains valid; documentation is always optional.
+
+The document block body is defined as a whitelist of documentation fields in the grammar.
+Actions, assertions, `write` steps, case blocks, and nested document blocks are not part of that whitelist,
+so they are syntax errors inside a document block by construction,
+and any future step or statement is rejected there automatically.
+
+### Relationship to execution
+
+File documentation lives on the source-level model (`SourceFile`) only.
+It holds exactly what the source states:
+omitted fields stay unset, and no display fallback (file stem as title, a default group, path-based order)
+is materialized into the model.
+Display fallbacks are applied when the Documentation Catalog is built (#170),
+where both the source path and the source-level model are available.
+
+Projection to the execution `Script` drops documentation metadata,
+so execution behavior, execution reports, and result artifacts are identical
+whether or not a source declares a `document file` block.
+A `document file` block is also not part of any case's source span
+(see [`docs/execution-model.md`](execution-model.md) — Parsing and the source-level model).
+
 ## v0 exclusions
 
 The following are intentionally outside v0:

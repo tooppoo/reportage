@@ -1,0 +1,12 @@
+document file {
+  # A comment line inside a document block is discarded like any other.
+  title "Documented source" # trailing inline comment
+  order 3
+}
+
+case "documented source runs" {
+  $ true
+  assert {
+    exit 0
+  }
+}

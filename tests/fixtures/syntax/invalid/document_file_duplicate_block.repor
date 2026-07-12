@@ -1,0 +1,16 @@
+# A source may contain at most one `document file` block
+# (parse.document_file.duplicate).
+document file {
+  title "first block"
+}
+
+document file {
+  title "second block"
+}
+
+case "case after duplicate document file blocks" {
+  $ true
+  assert {
+    exit 0
+  }
+}
