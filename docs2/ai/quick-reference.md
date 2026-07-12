@@ -17,7 +17,7 @@ A module is one or more `case "<name>" { ... }` blocks. Inside a case, an action
 
 ## Where the rest of the syntax lives
 
-- Full grammar: [the generated syntax reference](../reference/syntax.md) — the only source of truth for what is valid.
+- Full grammar: [the generated syntax reference](../reference/syntax.md) — the grammar reference generated from the normative source [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest).
 - Assertion/expectation semantics: [the language semantics reference](../reference/semantics.md) and [the generated semantic rule catalog](../reference/semantic-rules.md).
 - Known-good scripts to adapt from: [`examples/`](../../examples/) and [`tests/fixtures/syntax/valid/`](../../tests/fixtures/syntax/valid/).
 
