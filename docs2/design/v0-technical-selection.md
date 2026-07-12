@@ -1,0 +1,23 @@
+# v0 Technical Selection
+
+This document is the entry point for the current v0 technical choices.
+
+Detailed specifications are split into:
+
+- [Configuration](../reference/configuration.md)
+- [Path Matching](../reference/path-matching.md)
+- [Artifacts](../reference/artifacts.md)
+- [Deferred Topics](../planning/TBD.md)
+
+Architecture decisions are recorded under [ADR](../../docs/adr/README.md).
+
+Current accepted direction:
+
+- Rust implementation
+- KDL v2 configuration
+- explicit config version under `reportage.config.version`
+- project-local path-like config values with dot segments forbidden
+- POSIX shell execution and PATH shims
+- default artifact generation
+- timeout deferred toward v0.1.x
+- `--jobs` deferred toward v0.2.x
