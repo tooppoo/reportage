@@ -1,9 +1,9 @@
-//! Generates `docs2/ai/reading-order.generated.md` from `reportage_cli::references::DOCUMENTS`.
+//! Generates `docs/ai/reading-order.generated.md` from `reportage_cli::references::DOCUMENTS`.
 //!
 //! `DOCUMENTS` is also the source `reportage references --format=json` reads
 //! (`src/references.rs`); this binary is deliberately the only other reader, so the reading
 //! order can never carry a second, driftable definition. See issue #142 and
-//! docs2/adr/20260709T090000Z_ai-documentation-guide-structure.md.
+//! docs/adr/20260709T090000Z_ai-documentation-guide-structure.md.
 
 use std::env;
 use std::fs;
@@ -11,12 +11,12 @@ use std::path::Path;
 
 use reportage_cli::references::{DOCUMENTS, DocumentEntry};
 
-/// Directory `docs2/ai/reading-order.generated.md` lives in, as repository-root-relative path
+/// Directory `docs/ai/reading-order.generated.md` lives in, as repository-root-relative path
 /// components. Links in the generated file are relative to this directory, not to the
 /// repository root, so the file stays readable when opened directly from a checkout.
-const OUTPUT_DIR: &[&str] = &["docs2", "ai"];
+const OUTPUT_DIR: &[&str] = &["docs", "ai"];
 
-/// Rewrites a repository-root-relative `path` (e.g. `"docs2/reference/syntax.md"`) into a path relative to
+/// Rewrites a repository-root-relative `path` (e.g. `"docs/reference/syntax.md"`) into a path relative to
 /// [`OUTPUT_DIR`] (e.g. `"../syntax.md"`), by walking the shared directory prefix.
 fn relative_link(path: &str) -> String {
     let components: Vec<&str> = path.split('/').collect();
@@ -55,7 +55,7 @@ fn render_docs(documents: &[DocumentEntry]) -> String {
     );
     out.push_str("# AI reading order\n\n");
     out.push_str(
-        "This is the recommended reading order for AI agents authoring, editing, or reviewing `.repor` files. It is generated from the same `DOCUMENTS` table `reportage references --format=json` reads (`crates/reportage-cli/src/references.rs`), so this list and that command's `documents[]` field never drift apart. See [`docs2/ai/README.md`](README.md) for how to use this list.\n\n",
+        "This is the recommended reading order for AI agents authoring, editing, or reviewing `.repor` files. It is generated from the same `DOCUMENTS` table `reportage references --format=json` reads (`crates/reportage-cli/src/references.rs`), so this list and that command's `documents[]` field never drift apart. See [`docs/ai/README.md`](README.md) for how to use this list.\n\n",
     );
     out.push_str(
         "`role` and `note` below are internal reading-order metadata. They are not part of the `reportage references --format=json` output contract (`spec/output/references-index/schema.json`), which carries only `id`, `title`, `path`, and `urls`.\n\n",
@@ -71,7 +71,7 @@ fn render_docs(documents: &[DocumentEntry]) -> String {
 fn main() {
     let output = env::args()
         .nth(1)
-        .unwrap_or_else(|| "docs2/ai/reading-order.generated.md".to_string());
+        .unwrap_or_else(|| "docs/ai/reading-order.generated.md".to_string());
     let docs = render_docs(DOCUMENTS);
     fs::write(Path::new(&output), docs)
         .unwrap_or_else(|e| panic!("cannot write {}: {}", output, e));

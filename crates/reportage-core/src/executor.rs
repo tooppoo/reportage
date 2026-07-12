@@ -22,7 +22,7 @@ impl std::error::Error for ExecutionError {}
 /// Owns PATH construction logic for action execution.
 /// PATH prefixes are prepended before the inherited process PATH.
 ///
-/// See docs2/reference/execution-model.md for the general shim injection model.
+/// See docs/reference/execution-model.md for the general shim injection model.
 #[derive(Debug, Default)]
 pub struct ExecutionEnvironment {
     /// Directories prepended to PATH before each action shell invocation.
@@ -87,7 +87,7 @@ pub fn execute_action(
     // Run in the concrete case's isolated workspace. A `cd` performed inside
     // the action's own shell never escapes this for the *next* action or
     // for file expectations, because each action spawns a fresh child shell.
-    // See docs2/reference/execution-model.md — Workspace lifecycle.
+    // See docs/reference/execution-model.md — Workspace lifecycle.
     cmd.current_dir(workspace_root);
 
     // Prepend runner-owned PATH prefixes so the action shell resolves commands through shims before falling through to the inherited PATH.

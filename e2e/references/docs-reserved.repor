@@ -6,7 +6,7 @@
 #
 # Exit code 2 is the reportage CLI process's own code, following the "requested operation
 # could not be treated as valid input" meaning shared with `shim scaffold` request errors
-# (see docs2/reference/exit-codes.md).
+# (see docs/reference/exit-codes.md).
 
 case "docs fails as not implemented without printing a reference index" {
   $ reportage docs

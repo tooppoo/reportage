@@ -14,7 +14,7 @@ set -eu
 # - npx may depend on npm's package resolution behavior.
 #
 # reportage runs `$` steps with the case workspace as the working directory, not this shim's own
-# directory (see docs2/reference/execution-model.md), so this shim cd's into its own project directory
+# directory (see docs/reference/execution-model.md), so this shim cd's into its own project directory
 # first: without that, npx would not find this project's local node_modules and would fall back
 # to fetching c8/tsx from the registry on every invocation instead of using the pinned versions.
 #

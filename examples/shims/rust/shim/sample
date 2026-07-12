@@ -16,7 +16,7 @@ set -eu
 # LLVM_PROFILE_FILE names one .profraw file per process run (%p is the process ID, %m the binary signature), so coverage from multiple invocations accumulates in cover_dir the same way the go example's GOCOVERDIR does.
 # The path is made absolute so the data still lands under this project even if the program changes its own working directory before exiting.
 #
-# reportage runs `$` steps with the case workspace as the working directory, not this shim's own directory (see docs2/reference/execution-model.md), so this shim cd's into its own project directory first.
+# reportage runs `$` steps with the case workspace as the working directory, not this shim's own directory (see docs/reference/execution-model.md), so this shim cd's into its own project directory first.
 # Without that, cargo would not find this project's Cargo.toml at all.
 
 shim_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

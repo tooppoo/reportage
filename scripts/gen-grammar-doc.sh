@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Generates docs2/reference/syntax.md from crates/reportage-core/src/reportage.pest.
+# Generates docs/reference/syntax.md from crates/reportage-core/src/reportage.pest.
 # Usage: gen-grammar-doc.sh [OUTPUT_PATH]
-#   OUTPUT_PATH defaults to docs2/reference/syntax.md (relative to repo root).
+#   OUTPUT_PATH defaults to docs/reference/syntax.md (relative to repo root).
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 GRAMMAR_SRC="$REPO_ROOT/crates/reportage-core/src/reportage.pest"
-OUTPUT="${1:-$REPO_ROOT/docs2/reference/syntax.md}"
+OUTPUT="${1:-$REPO_ROOT/docs/reference/syntax.md}"
 
 mkdir -p "$(dirname "$OUTPUT")"
 

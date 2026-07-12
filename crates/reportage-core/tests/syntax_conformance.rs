@@ -618,8 +618,8 @@ fn invalid_syntax_fixtures_are_rejected() {
             }
             // Literal kind mismatches parse at the grammar level and are
             // rejected as semantic invalid cases with an actionable
-            // diagnostic. See docs2/reference/semantic-diagnostics.md and
-            // docs2/adr/20260706T160000Z_workspace-path-literal-syntax.md.
+            // diagnostic. See docs/reference/semantic-diagnostics.md and
+            // docs/adr/20260706T160000Z_workspace-path-literal-syntax.md.
             "file_subject_string_literal"
             | "file_subject_fixture_reference"
             | "dir_subject_string_literal"
@@ -634,7 +634,7 @@ fn invalid_syntax_fixtures_are_rejected() {
             // expected position: never as a `file` checkpoint subject, never
             // as `text_equals` expected text, and never outside an assertion
             // block (`write`'s path / content positions). See #92 and
-            // docs2/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+            // docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
             | "file_contents_equals_subject_fixture_reference"
             | "file_text_equals_fixture_reference"
             | "stderr_text_equals_fixture_reference"
@@ -651,7 +651,7 @@ fn invalid_syntax_fixtures_are_rejected() {
             // An `@"<path>"` fixture reference literal's lexical validation
             // (empty / absolute / `.` / `..` segment) mirrors WorkspacePath's
             // policy. See #92 and
-            // docs2/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+            // docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
             "fixture_reference_empty_path" => {
                 assert!(matches!(err, ParseError::InvalidFixtureReference { .. }));
                 assert_eq!(err.code().as_str(), "semantic.fixture_reference.empty");
@@ -673,7 +673,7 @@ fn invalid_syntax_fixtures_are_rejected() {
                 );
             }
             // Remaining fixtures are rejected as plain pest syntax errors; they share the coarse-grained "parse.syntax" code and are not asserted individually here.
-            // See docs2/reference/diagnostics.md.
+            // See docs/reference/diagnostics.md.
             _ => {
                 assert_eq!(err.code().as_str(), "parse.syntax");
             }

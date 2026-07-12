@@ -855,7 +855,7 @@ case "dot segment rejected" {
 #[test]
 fn file_assertion_path_resolves_against_workspace_root_not_action_cd() {
     // A `cd` performed inside a `$` action must not change how the following file assertion's path is resolved.
-    // See docs2/reference/semantics.md.
+    // See docs/reference/semantics.md.
     let dir = TempDir::new().unwrap();
     let script = write_script(
         &dir,
@@ -1423,7 +1423,7 @@ case "dot segment dir path rejected" {
 #[test]
 fn dir_assertion_path_resolves_against_workspace_root_not_action_cd() {
     // A `cd` performed inside a `$` action must not change how the following dir assertion's path is resolved.
-    // See docs2/reference/semantics.md.
+    // See docs/reference/semantics.md.
     let dir = TempDir::new().unwrap();
     let script = write_script(
         &dir,

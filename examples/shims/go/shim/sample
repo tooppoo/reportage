@@ -14,7 +14,7 @@ set -eu
 # or fatal exception, coverage data from that run may be lost.
 #
 # reportage runs `$` steps with the case workspace as the working directory, not this shim's own
-# directory (see docs2/reference/execution-model.md), so this shim cd's into its own project directory
+# directory (see docs/reference/execution-model.md), so this shim cd's into its own project directory
 # first: without that, `go build` would resolve entry_point/work_dir/cover_dir against whatever
 # directory the caller happened to be in, and would not find this project's go.mod at all.
 

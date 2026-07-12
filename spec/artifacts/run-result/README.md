@@ -46,10 +46,10 @@ The first six scenarios mirror `tests/fixtures/json_report/`'s required scenario
 
 ## Compatibility
 
-The pre-#102 artifact `result.json` (snake_case, inline base64 stream envelopes, `result: pass|fail|script_error`) was an early v0 experimental contract. Issue #102 replaced it with this canonical schema as a deliberate breaking change; see [`docs2/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md`](../../../docs2/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md). The schema remains v0-experimental until the stabilization milestones in [`docs2/reference/artifacts.md`](../../../docs2/reference/artifacts.md).
+The pre-#102 artifact `result.json` (snake_case, inline base64 stream envelopes, `result: pass|fail|script_error`) was an early v0 experimental contract. Issue #102 replaced it with this canonical schema as a deliberate breaking change; see [`docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md`](../../../docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md). The schema remains v0-experimental until the stabilization milestones in [`docs/reference/artifacts.md`](../../../docs/reference/artifacts.md).
 
 ## Decision records
 
-- [`docs2/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md`](../../../docs2/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md) — artifact bundle as canonical record; `result.json` as canonical manifest; `--format=json` as stdout-safe projection; evidence reference policy; validation policy.
-- [`docs2/adr/20260707T045900Z_json-output-as-structured-execution-report.md`](../../../docs2/adr/20260707T045900Z_json-output-as-structured-execution-report.md) — the diagnostic/failure model both contracts share.
-- [`docs2/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md`](../../../docs2/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md) — CLI stdout vs. captured stdout/stderr; artifact reference policy.
+- [`docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md`](../../../docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md) — artifact bundle as canonical record; `result.json` as canonical manifest; `--format=json` as stdout-safe projection; evidence reference policy; validation policy.
+- [`docs/adr/20260707T045900Z_json-output-as-structured-execution-report.md`](../../../docs/adr/20260707T045900Z_json-output-as-structured-execution-report.md) — the diagnostic/failure model both contracts share.
+- [`docs/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md`](../../../docs/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md) — CLI stdout vs. captured stdout/stderr; artifact reference policy.

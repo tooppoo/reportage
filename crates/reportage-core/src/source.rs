@@ -13,7 +13,7 @@
 //! only on the execution model in `model`; the one supported hand-off between the two
 //! worlds is [`SourceFile::into_script`].
 //!
-//! See docs2/adr/20260712T090000Z_parser-returns-source-level-model.md.
+//! See docs/adr/20260712T090000Z_parser-returns-source-level-model.md.
 
 use crate::model::{Case, Script};
 

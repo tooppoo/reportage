@@ -14,7 +14,7 @@
 //!
 //! Neither check touches the network: tag existence and URL reachability are release-process
 //! concerns, out of scope by design (see
-//! `docs2/adr/20260708T180000Z_ai-documentation-discovery-core-path.md`).
+//! `docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md`).
 
 // Serde-populated struct fields are read through assertions only. Mirrors json_report_fixtures.rs.
 #![allow(dead_code)]

@@ -3,7 +3,7 @@
 # in url-index.repor.
 #
 # `contents_equals` compares bytes with no normalization (see
-# docs2/adr/20260707T012055Z_contents-equals-evaluation.md), but the runtime version and the
+# docs/adr/20260707T012055Z_contents-equals-evaluation.md), but the runtime version and the
 # tag derived from it (identical to the version, no `v` prefix) are baked into every line of
 # `reportage references`'s output. Each case therefore normalizes the captured output with a
 # generic semver-shaped substitution before comparing it against the fixture, rather than
@@ -11,7 +11,7 @@
 # a specific value, so these snapshots do not need regenerating on every version bump.
 #
 # Fixtures (`human.snapshot.txt`, `json.snapshot.json`) live next to this file and are read via
-# fixture references (`@"..."`, see docs2/adr/20260706T170000Z_fixture-reference-value-syntax.md).
+# fixture references (`@"..."`, see docs/adr/20260706T170000Z_fixture-reference-value-syntax.md).
 
 case "references prints the recorded human-readable URL index" {
   $ reportage references > raw.txt

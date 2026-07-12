@@ -200,7 +200,7 @@ impl CommandShim {
 /// A resolved set of registered command shims, built once from config for a config-driven run
 /// and materialized fresh into every concrete case's isolated `bin` directory.
 ///
-/// See docs2/reference/configuration.md — Commands, and docs2/reference/semantics.md — Command resolution through
+/// See docs/reference/configuration.md — Commands, and docs/reference/semantics.md — Command resolution through
 /// PATH shims.
 #[derive(Debug, Clone, Default)]
 pub struct CommandRegistry {

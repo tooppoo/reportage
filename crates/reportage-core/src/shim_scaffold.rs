@@ -4,8 +4,8 @@
 //! This is a scaffold, not a managed resource: reportage renders a template into a file once
 //! and never touches it again. It does not detect coverage tools, package managers, or
 //! project state, and it does not resolve or verify `--entry-point` against the filesystem.
-//! See `docs2/reference/shim-scaffold.md` and the ADR at
-//! `docs2/adr/20260708T062146Z_shim-scaffold-command.md`.
+//! See `docs/reference/shim-scaffold.md` and the ADR at
+//! `docs/adr/20260708T062146Z_shim-scaffold-command.md`.
 //!
 //! [`TemplateRegistry::builtin`] ships `typescript-c8-tsx`, `golang`, and `rust`.
 //! This module's own tests also exercise template resolution and rendering through a
@@ -20,7 +20,7 @@ use crate::shell_quote::single_quote;
 /// The minimal per-render context available to a template in v0.
 ///
 /// `entry_point` is never checked against the filesystem: existence and meaning are left to the
-/// template's own documentation (see docs2/reference/shim-scaffold.md — Template model). Only its lexical
+/// template's own documentation (see docs/reference/shim-scaffold.md — Template model). Only its lexical
 /// safety is validated here, since it is embedded into generated files verbatim.
 #[derive(Debug, Clone)]
 pub struct TemplateContext {
@@ -88,7 +88,7 @@ impl TemplateContext {
 ///
 /// Builtin templates are plain Rust functions embedded in the binary (see
 /// [`TemplateRegistry::builtin`]). This trait is the seam a future external-template loader
-/// (reading template files from disk — out of scope for v0, see docs2/reference/shim-scaffold.md —
+/// (reading template files from disk — out of scope for v0, see docs/reference/shim-scaffold.md —
 /// Non-goals) would implement against instead: [`TemplateRegistry`] and [`scaffold`] only ever
 /// see `&dyn ShimTemplate`, and never assume the renderer is a builtin Rust function.
 pub trait ShimTemplate: Send + Sync {
@@ -266,7 +266,7 @@ impl std::error::Error for ScaffoldError {}
 /// Renders `request.template` and writes it to `request.out`.
 ///
 /// Validation order is: empty/missing arguments (all at once, see below), entry-point lexical
-/// safety, the output-path policy (see docs2/reference/shim-scaffold.md — Output path policy), then
+/// safety, the output-path policy (see docs/reference/shim-scaffold.md — Output path policy), then
 /// template resolution. The output-path policy is checked before template resolution
 /// deliberately, and is read-only (no directory is created and nothing is written yet) — so an
 /// unknown `--template` never masks an `--out` conflict the caller also needs to fix, and
@@ -316,7 +316,7 @@ pub fn scaffold(
     // could replace `request.out` with a symlink in between. Closing that window (e.g. opening
     // the destination with a no-follow flag) needs a platform-specific dependency this v0
     // foundation deliberately doesn't take on for a single-user local CLI's narrow race window;
-    // see the ADR at docs2/adr/20260708T062146Z_shim-scaffold-command.md for the accepted
+    // see the ADR at docs/adr/20260708T062146Z_shim-scaffold-command.md for the accepted
     // trade-off.
     match std::fs::symlink_metadata(&request.out) {
         Ok(meta) => {
@@ -375,7 +375,7 @@ pub fn scaffold(
 /// point under `tsx`, wrapped in `c8` for Node.js/V8 coverage collection.
 ///
 /// This is an initial scaffold, not a guarantee of a working TypeScript execution setup: see
-/// docs2/reference/shim-scaffold.md — `typescript-c8-tsx` template for the assumptions and limitations a
+/// docs/reference/shim-scaffold.md — `typescript-c8-tsx` template for the assumptions and limitations a
 /// project may need to adjust after generation (package manager, `tsx` vs. `ts-node` or a
 /// custom loader, running built JavaScript instead of source, c8 reporter/output
 /// configuration). `entry_point` is embedded through [`single_quote`], the same POSIX
@@ -424,7 +424,7 @@ fn typescript_c8_tsx_template(ctx: &TemplateContext) -> String {
 
 /// The `golang` builtin template: a POSIX `sh` shim that builds a coverage-instrumented Go binary via `go build -cover`, then execs it with `GOCOVERDIR` set so a normal-exit or `os.Exit` run writes Go coverage data to that directory.
 ///
-/// Go coverage instrumentation is a build-time flag, not a runtime one, so this shim rebuilds the binary on every invocation rather than exec-ing a pre-built one; see docs2/reference/shim-scaffold.md — `golang` template for why, and for what a project that wants a build-once workflow needs to edit after generation.
+/// Go coverage instrumentation is a build-time flag, not a runtime one, so this shim rebuilds the binary on every invocation rather than exec-ing a pre-built one; see docs/reference/shim-scaffold.md — `golang` template for why, and for what a project that wants a build-once workflow needs to edit after generation.
 ///
 /// `entry_point` is embedded through [`single_quote`], the same quoting `typescript_c8_tsx_template` uses, so this template does not reimplement its own quoting.
 ///
@@ -470,7 +470,7 @@ fn golang_template(ctx: &TemplateContext) -> String {
 
 /// The `rust` builtin template: a POSIX `sh` shim that builds a coverage-instrumented Rust binary via `RUSTFLAGS='-C instrument-coverage' cargo build`, then execs it with `LLVM_PROFILE_FILE` set so each run writes one LLVM `.profraw` file into a fixed coverage directory.
 ///
-/// `--entry-point` is a cargo binary target name (the value `cargo build --bin` accepts), not a file path: the shim both selects the build target and derives the built binary's path from it. See docs2/reference/shim-scaffold.md — `rust` template.
+/// `--entry-point` is a cargo binary target name (the value `cargo build --bin` accepts), not a file path: the shim both selects the build target and derives the built binary's path from it. See docs/reference/shim-scaffold.md — `rust` template.
 ///
 /// `-C instrument-coverage` is a build-time flag, not a runtime one, so this shim rebuilds the binary on every invocation rather than exec-ing a pre-built one — the same trade-off `golang_template` documents; cargo's incremental compilation keeps rebuilds after the first one cheap.
 ///

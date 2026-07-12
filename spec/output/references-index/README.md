@@ -11,7 +11,7 @@ Both are selected with a flag spelled `--format=json`, but each `--format` belon
 `reportage references` is a side-effect-free reference discovery command.
 It runs no test scripts, loads no config, writes no artifacts, never creates or updates `.reportage/`, and performs no network access.
 It also does not verify that the tag exists, that the URLs are reachable, or that `documents[].path` exists — see the validation policy below.
-See [`docs2/adr/20260708T180000Z_ai-documentation-discovery-core-path.md`](../../../docs2/adr/20260708T180000Z_ai-documentation-discovery-core-path.md).
+See [`docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md`](../../../docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md).
 
 ## Contract highlights
 
@@ -40,7 +40,7 @@ Tag existence and URL reachability are not verified anywhere in this contract's 
 
 ## Decision records
 
-- [`docs2/adr/20260708T180000Z_ai-documentation-discovery-core-path.md`](../../../docs2/adr/20260708T180000Z_ai-documentation-discovery-core-path.md) — tag-based GitHub URLs and the reference discovery command as the v0 AI documentation discovery path.
-- [`docs2/adr/20260708T180100Z_ai-facing-docs-are-a-guide-not-source-of-truth.md`](../../../docs2/adr/20260708T180100Z_ai-facing-docs-are-a-guide-not-source-of-truth.md) — AI-facing docs are a guide over the authoritative sources.
-- [`docs2/adr/20260708T180200Z_supplementary-ai-documentation-discovery-paths.md`](../../../docs2/adr/20260708T180200Z_supplementary-ai-documentation-discovery-paths.md) — supplementary discovery paths layered on top of this one.
-- [`docs2/adr/20260711T070008Z_rename-docs-command-to-references.md`](../../../docs2/adr/20260711T070008Z_rename-docs-command-to-references.md) — the rename of `reportage docs` to `reportage references` and the unprefixed tag convention.
+- [`docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md`](../../../docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md) — tag-based GitHub URLs and the reference discovery command as the v0 AI documentation discovery path.
+- [`docs/adr/20260708T180100Z_ai-facing-docs-are-a-guide-not-source-of-truth.md`](../../../docs/adr/20260708T180100Z_ai-facing-docs-are-a-guide-not-source-of-truth.md) — AI-facing docs are a guide over the authoritative sources.
+- [`docs/adr/20260708T180200Z_supplementary-ai-documentation-discovery-paths.md`](../../../docs/adr/20260708T180200Z_supplementary-ai-documentation-discovery-paths.md) — supplementary discovery paths layered on top of this one.
+- [`docs/adr/20260711T070008Z_rename-docs-command-to-references.md`](../../../docs/adr/20260711T070008Z_rename-docs-command-to-references.md) — the rename of `reportage docs` to `reportage references` and the unprefixed tag convention.

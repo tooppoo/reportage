@@ -55,7 +55,7 @@ case "rust: --force overwrites a previously generated shim with freshly rendered
 
 case "rust generated shim actually runs when wired up as a reportage command" {
   # A real Rust toolchain is not exercised in this test environment, so a fake `cargo` stands in for it.
-  # This lets the case exercise the generated shim's own build-then-exec chain through reportage's real command-resolution mechanism (docs2/reference/configuration.md — Commands), rather than only inspecting the rendered file's text as the cases above do.
+  # This lets the case exercise the generated shim's own build-then-exec chain through reportage's real command-resolution mechanism (docs/reference/configuration.md — Commands), rather than only inspecting the rendered file's text as the cases above do.
   #
   # The fake `cargo` mimics only what the shim actually invokes: `cargo build --quiet --bin <entry_point> --target-dir <target_dir>`.
   # It writes a stand-in binary to <target_dir>/debug/<entry_point> that reports the bin target it was built for, the RUSTFLAGS it was built with, the LLVM_PROFILE_FILE it ran with, and any arguments passed through to it.
@@ -140,7 +140,7 @@ case "rust generated shim actually runs when wired up as a reportage command" {
 }
 
 case "rust generated shim resolves this project's Cargo.toml relative to its own directory, not the caller's working directory" {
-  # reportage runs a wired-up command with the *inner* suite's own case workspace as its working directory, not the directory the shim file lives in (docs2/reference/execution-model.md).
+  # reportage runs a wired-up command with the *inner* suite's own case workspace as its working directory, not the directory the shim file lives in (docs/reference/execution-model.md).
   # This case therefore places Cargo.toml next to the shim and has the fake `cargo` fail unless it can actually find that file in its working directory: that is only possible if the shim cd'd into its own directory instead of staying in the caller's working directory.
   write <"Cargo.toml"> ""
   write <"fake-bin/cargo"> ```

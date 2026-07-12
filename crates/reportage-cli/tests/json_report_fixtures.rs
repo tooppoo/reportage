@@ -79,7 +79,7 @@ struct Diagnostic {
     /// non-`Option` field makes a *missing* `location` key a deserialization error, distinct
     /// from a *present* `location: null`. An `Option<Location>` would silently accept both,
     /// defeating the point of testing that this field is always present (see
-    /// `docs2/adr/20260707T050100Z_json-output-schema-and-validation-policy.md`). Its shape
+    /// `docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md`). Its shape
     /// (`null` or a `Location`) is checked separately by `assert_location_shape_is_valid`.
     location: Value,
     code: Option<String>,
@@ -303,7 +303,7 @@ fn run_human(fixture: &Path) -> String {
 
 /// Replaces volatile fields (`artifactRoot`, `tool.version`) with fixed placeholders before
 /// snapshotting, per the fixture/snapshot validation policy in
-/// docs2/adr/20260707T050100Z_json-output-schema-and-validation-policy.md.
+/// docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md.
 fn normalize_for_snapshot(mut doc: Value) -> Value {
     doc["artifactRoot"] = Value::String("<ARTIFACT_ROOT>".to_string());
     doc["tool"]["version"] = Value::String("<VERSION>".to_string());
@@ -424,7 +424,7 @@ fn snapshots_for_json_report_fixtures_are_current() {
 // ---------------------------------------------------------------------------
 // Human/JSON semantic parity
 //
-// Per docs2/adr/20260707T050100Z_json-output-schema-and-validation-policy.md, this compares
+// Per docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md, this compares
 // against the semantic information inventory (status, diagnostic code), not display wording.
 // ---------------------------------------------------------------------------
 
@@ -469,7 +469,7 @@ fn parse_error_fixture_reports_the_same_diagnostic_code_and_has_a_location_in_js
     let code = diagnostic["code"].as_str().unwrap();
     assert_eq!(code, "parse.syntax");
     // The one case where `location` is populated: see issue #89 and
-    // docs2/adr/20260707T050100Z_json-output-schema-and-validation-policy.md.
+    // docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md.
     assert!(diagnostic["location"].is_object());
     assert!(diagnostic["location"]["line"].as_u64().unwrap() >= 1);
 

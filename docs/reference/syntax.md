@@ -26,8 +26,8 @@ and assertion evaluation in [`semantics.md`](semantics.md).
 //
 // This file is the normative syntax definition for Reportage scripts.
 // Any syntax not expressible here is not part of v0.
-// See docs2/reference/syntax.md for the human-readable generated reference
-// (produced by `just lang-docs-gen`; see docs2/adr/ for the ADR).
+// See docs/reference/syntax.md for the human-readable generated reference
+// (produced by `just lang-docs-gen`; see docs/adr/ for the ADR).
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
@@ -148,7 +148,7 @@ action_step = { "$" ~ ws* ~ command }
 // where the action body ends; the shell re-reads `\` + newline itself. Rust
 // trims leading/trailing spaces and tabs (never newlines, so a preserved
 // trailing marker-newline pair is never split back apart).
-// See #80 / docs2/adr/20260706T150000Z_action-line-continuation.md.
+// See #80 / docs/adr/20260706T150000Z_action-line-continuation.md.
 command     = @{ ("\\" ~ nl | (!nl ~ ANY))* }
 
 // ─── Heredoc literal ────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ command     = @{ ("\\" ~ nl | (!nl ~ ANY))* }
 // other being an ordinary `quoted_string`. It is reusable wherever a
 // `text_literal` is accepted: `write <"path"> <text_literal>`
 // (write_step_heredoc) and `file <"path"> contains <text_literal>`
-// (file_exp_heredoc). See docs2/reference/semantics.md — Text literal and Write step.
+// (file_exp_heredoc). See docs/reference/semantics.md — Text literal and Write step.
 //
 // The opening fence's backtick run is pushed onto pest's match stack so the
 // closing fence can be recognized dynamically: PEEK requires at least that
@@ -205,7 +205,7 @@ heredoc_literal = {
 // path is a workspace path literal and the content is a text_literal; both
 // positions are parsed as the kind-agnostic `value_literal` so a wrong-kind
 // literal is a semantic diagnostic, not a syntax error (see "Value literals"
-// below). See docs2/reference/semantics.md — Write step. Split into two grammar rules
+// below). See docs/reference/semantics.md — Write step. Split into two grammar rules
 // because the two text_literal forms have different line-ending rules (see
 // case_step above and "Heredoc literal" above): write_step_string is an
 // ordinary single-line construct; write_step_heredoc consumes its own
@@ -265,7 +265,7 @@ output_empty    = { "empty" }
 // byte-for-byte comparison against a `FileContentsReference` (a workspace
 // path literal or a fixture reference literal), parsed as the kind-agnostic
 // `value_literal` (see "Value literals" below). See #92 and
-// docs2/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+// docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
 output_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
 
 // `stdout text_equals "<text>"` / `stderr text_equals "<text>"`:
@@ -273,14 +273,14 @@ output_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
 // expected text (a `TextValue`), mirroring file_text_equals. This rule only
 // wires the string-literal form; the heredoc-literal forms are
 // stdout_text_equals_heredoc / stderr_text_equals_heredoc below.
-// See docs2/adr/20260710T100918Z_output-text-equals-evaluation.md.
+// See docs/adr/20260710T100918Z_output-text-equals-evaluation.md.
 output_text_equals = { "text_equals" ~ ws+ ~ value_literal }
 
 // `file <"path"> exists` / `file <"path"> contains "<text>"`.
 // Subject-first: `file <"path">` is the common subject, `exists` / `contains`
 // are predicates on that subject. The subject is a workspace path literal,
 // parsed as a kind-agnostic `value_literal` (see "Value literals" below). See
-// docs2/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
+// docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md.
 file_exp        = { "file" ~ ws+ ~ value_literal ~ ws+ ~ file_predicate }
 file_predicate  = { file_contains | file_contents_equals | file_text_equals | file_exists }
 file_exists     = { "exists" }
@@ -294,7 +294,7 @@ file_contains   = { "contains" ~ ws+ ~ value_literal }
 // `output_contains` — the heredoc-literal form is file_text_equals_heredoc
 // below. Both positions parse the kind-agnostic `value_literal` (see "Value
 // literals" below). See #88, #92, and
-// docs2/adr/20260706T170000Z_fixture-reference-value-syntax.md.
+// docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
 file_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
 file_text_equals     = { "text_equals" ~ ws+ ~ value_literal }
 
@@ -317,7 +317,7 @@ stderr_text_equals_heredoc = { "stderr" ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_li
 // Subject-first, mirroring file_exp: `dir <"path">` is the common subject,
 // `exists` / `contains` are predicates on that subject. `dir` is scoped to
 // directories only; `file` is scoped to regular files only (see file_exp
-// above). See docs2/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
+// above). See docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
 dir_exp         = { "dir" ~ ws+ ~ value_literal ~ ws+ ~ dir_predicate }
 dir_predicate   = { dir_contains | dir_exists }
 dir_exists      = { "exists" }
@@ -349,7 +349,7 @@ empty_composition_body = { trail? ~ (blank_line | comment_line)* ~ ws* }
 //
 // The three single-line literal kinds, each mapping to exactly one semantic
 // domain regardless of context (see #93 and
-// docs2/adr/20260706T160000Z_workspace-path-literal-syntax.md):
+// docs/adr/20260706T160000Z_workspace-path-literal-syntax.md):
 //
 //   "..."     string literal            — text domain (a TextValue form)
 //   <"...">   workspace path literal    — case-workspace filesystem reference
@@ -357,7 +357,7 @@ empty_composition_body = { trail? ~ (blank_line | comment_line)* ~ ws* }
 //                                         valid only in a `FileContentsReference`
 //                                         expected position (`contents_equals`;
 //                                         see #92 and
-//                                         docs2/adr/20260706T170000Z_fixture-reference-value-syntax.md)
+//                                         docs/adr/20260706T170000Z_fixture-reference-value-syntax.md)
 //
 // Every step / expectation argument position parses the kind-agnostic
 // `value_literal` union; which kind the position's signature actually
@@ -383,7 +383,7 @@ value_literal             = { workspace_path_literal | fixture_reference_literal
 
 // v0 forbids raw newlines (LF, CRLF, and bare CR) inside string literals and
 // allows exactly four escape sequences: \\, \", \n, \t. Any other backslash
-// sequence is rejected. See [docs2/adr/20260701T214658Z_string-literal-escape-sequences.md](../adr/20260701T214658Z_string-literal-escape-sequences.md).
+// sequence is rejected. See [docs/adr/20260701T214658Z_string-literal-escape-sequences.md](../adr/20260701T214658Z_string-literal-escape-sequences.md).
 //
 // A quoted_string is one of the two forms of a `text_literal` (conceptually,
 // text_literal = string literal | heredoc literal — see "Heredoc literal"
@@ -394,7 +394,7 @@ value_literal             = { workspace_path_literal | fixture_reference_literal
 // every position that accepts a text_literal is expressed as two ordered
 // grammar alternatives instead (write_step_string / write_step_heredoc;
 // file_contains / file_exp_heredoc). Both forms resolve to the same
-// TextValue at the semantic level; see [docs2/reference/semantics.md](semantics.md) — Text literal.
+// TextValue at the semantic level; see [docs/reference/semantics.md](semantics.md) — Text literal.
 quoted_string = { "\"" ~ string_inner ~ "\"" }
 string_inner  = @{ string_char* }
 string_char   = _{ escape_seq | (!("\"" | "\\" | "\r" | "\n") ~ ANY) }

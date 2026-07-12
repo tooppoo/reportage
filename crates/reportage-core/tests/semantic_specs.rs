@@ -995,7 +995,7 @@ fn assert_no_banned_keys(value: &serde_json::Value, path: &std::path::Path) {
                 assert!(
                     !BANNED_NORMATIVE_KEYS.contains(&key.as_str()),
                     "{}: normative field '{}' is a banned free-form/rationale key; \
-                     rationale belongs in an ADR, TBD items in docs2/planning/TBD.md",
+                     rationale belongs in an ADR, TBD items in docs/planning/TBD.md",
                     path.display(),
                     key
                 );

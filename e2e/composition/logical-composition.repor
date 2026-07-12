@@ -39,8 +39,8 @@ case "any block passes when at least one child expectation passes" {
 }
 
 # `not { A B }` evaluates as `not(all(A, B))`, never as `not(A) and not(B)`; see
-# docs2/reference/semantics.md ("Logical composition") and the ADR at
-# docs2/adr/20260704T150000Z_block-form-logical-composition.md.
+# docs/reference/semantics.md ("Logical composition") and the ADR at
+# docs/adr/20260704T150000Z_block-form-logical-composition.md.
 #
 # Below, one child (`exit 0`) passes and the other (`stdout contains "..."`) fails, so
 # `all(A, B)` is false and `not(all(A, B))` is true: the `not` block, and therefore the

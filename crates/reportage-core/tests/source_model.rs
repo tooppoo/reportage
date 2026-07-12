@@ -4,7 +4,7 @@
 //! this test guards what the parser returns for that same corpus:
 //! source text ownership, the case span contract, and the projection to the
 //! execution model.
-//! See docs2/adr/20260712T090000Z_parser-returns-source-level-model.md.
+//! See docs/adr/20260712T090000Z_parser-returns-source-level-model.md.
 
 use std::fs;
 
