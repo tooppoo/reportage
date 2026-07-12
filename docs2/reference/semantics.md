@@ -2,20 +2,20 @@
 
 This document is the overview and entry point for reportage's semantics documentation set. It also holds the language semantic rules that have not yet been migrated to the generated semantic rule catalog (see "Semantics document set" below).
 
-For syntax, see [the generated syntax reference](../../docs/syntax.md).
+For syntax, see the grammar at [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest).
 
 ## Semantics document set
 
-Reportage's semantics are split across several documents by responsibility, rather than kept as one hand-written normative source. See [ADR: Semantics Documentation Strategy and Semantic Rule Coverage](../../docs/adr/20260708T061500Z_semantics-documentation-strategy.md) for the rationale.
+Reportage's semantics are split across several documents by responsibility, rather than kept as one hand-written normative source. See [ADR: Semantics Documentation Strategy and Semantic Rule Coverage](../adr/20260708T061500Z_semantics-documentation-strategy.md) for the rationale.
 
 | Concern | Document |
 | --- | --- |
 | Execution model / runtime semantics — runner execution order, case workspace, action execution, checkpoint lifecycle, `before_each`, shell execution, coverage adapter lifecycle, cleanup | [Execution model](execution-model.md) |
 | Command resolution shim model — shim purpose, shim target, event protocol, observability | [Shims](shims.md) |
-| Language semantic rules — value literals, expectations, assertion evaluation, logical composition | This document (below), and the generated semantic rule catalog at [`docs/language/semantic-rules.md`](../../docs/language/semantic-rules.md). |
+| Language semantic rules — value literals, expectations, assertion evaluation, logical composition | This document (below), and the semantic rule specs under [`spec/language/semantics/`](../../spec/language/semantics/README.md) (their generated catalog is planned at `reference/semantic-rules.md`; see [`SHOULD_GENERATE.md`](../SHOULD_GENERATE.md)). |
 | Artifact / result JSON semantics | [Artifacts](artifacts.md) and [the JSON execution report contract](../../spec/output/json-report/README.md) |
 | Diagnostics | [Parse diagnostics](diagnostics.md) and [Semantic and assertion diagnostics](semantic-diagnostics.md) |
-| Rationale for individual decisions | [`docs/adr/`](../../docs/adr/README.md) |
+| Rationale for individual decisions | [`adr/`](../adr/README.md) |
 | Deferred / undecided items | [Deferred topics](../planning/TBD.md) |
 
 The sections below cover language semantic rules that have not yet moved to the generated catalog: parameter bindings, assertion blocks, value literals, text literals, the `write` step, expectations, logical composition, evidence requirements, file/directory assertions, and `jq` assertions.
@@ -167,7 +167,7 @@ stderr contents_equals <FileContentReference>
 
 Both positions share parsing, AST construction, and literal-kind validation (so a wrong-kind literal, e.g. `file <"out.txt"> text_equals @"expected.txt"` or `stdout text_equals <"expected.txt">`, is already a `semantic.literal.kind_mismatch`), and `contents_equals` additionally shares the fixture reference resolution/materialization mechanism described below. `contents_equals` evaluation and `text_equals` evaluation (both the string-literal and heredoc-literal forms) are implemented for `file`, `stdout`, and `stderr`.
 
-See [ADR: Workspace Path Literal Syntax](../../docs/adr/20260706T160000Z_workspace-path-literal-syntax.md) for why the surface syntaxes are separated rather than contextually typed, [ADR: Fixture Reference Value Syntax](../../docs/adr/20260706T170000Z_fixture-reference-value-syntax.md) for the fixture reference literal itself, [ADR: `contents_equals` Comparison Evaluation](../../docs/adr/20260707T012055Z_contents-equals-evaluation.md) for `contents_equals`'s comparison semantics and diagnostics, [ADR: `text_equals` Evaluation](../../docs/adr/20260708T045332Z_text-equals-evaluation.md) for `text_equals`'s comparison semantics and diagnostics, and [ADR: `stdout` / `stderr` `text_equals` Evaluation](../../docs/adr/20260710T100918Z_output-text-equals-evaluation.md) for the captured-stream forms.
+See [ADR: Workspace Path Literal Syntax](../adr/20260706T160000Z_workspace-path-literal-syntax.md) for why the surface syntaxes are separated rather than contextually typed, [ADR: Fixture Reference Value Syntax](../adr/20260706T170000Z_fixture-reference-value-syntax.md) for the fixture reference literal itself, [ADR: `contents_equals` Comparison Evaluation](../adr/20260707T012055Z_contents-equals-evaluation.md) for `contents_equals`'s comparison semantics and diagnostics, [ADR: `text_equals` Evaluation](../adr/20260708T045332Z_text-equals-evaluation.md) for `text_equals`'s comparison semantics and diagnostics, and [ADR: `stdout` / `stderr` `text_equals` Evaluation](../adr/20260710T100918Z_output-text-equals-evaluation.md) for the captured-stream forms.
 
 ### `contents_equals` comparison semantics
 
@@ -178,15 +178,15 @@ The actual side and the expected side are classified differently when either can
 - **Actual side** (`file`'s subject; `stdout` / `stderr`'s captured bytes): a missing, non-regular-file, or unreadable actual `file` is an **assertion failure** — the subject under test did not produce the expected output. `stdout` / `stderr` have no such failure mode; captured output is always available once an action has run.
 - **Expected side** (`contents_equals`'s `FileContentReference` operand): a missing, non-regular-file, or unreadable expected `WorkspacePath` is a **test-definition error** (`CaseStatus::ScriptError`, exit code 2, `semantic.file_contents_reference.*`), not an assertion failure — the expected value itself could not be sourced. An unresolvable `FixtureReference` is classified the same way, using the existing `semantic.fixture_reference.*` codes (see "Fixture reference value" below). A `contents_equals` expected-value error nested inside a `not` / `all` / `any` composition aborts the whole case immediately, exactly like a bare (non-composed) one — it is never swallowed as an ordinary failing child.
 
-A mismatch's diagnostic is bounded: CLI stdout/stderr (`--format=json` and the human renderer) never print the full actual/expected bytes, only the actual/expected byte lengths, the first differing byte offset, the byte-line number it falls on (LF-delimited, CRLF not normalized), and an escaped, size-capped context window around it (falling back from line-context to a fixed byte window for a huge single line or binary-like content). Persisting the full mismatch bytes as run evidence is not required; the `.reportage/runs/<id>/result.json` artifact records only the same bounded mismatch information (actual/expected byte lengths, first-diff offset and line, escaped context windows) and never embeds the full actual/expected bytes — raw byte evidence is stored as separate artifact files and referenced by `artifactRef` / `sizeBytes` / `sha256` (see [ADR: Artifact Run Result as Canonical Manifest](../../docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md)).
+A mismatch's diagnostic is bounded: CLI stdout/stderr (`--format=json` and the human renderer) never print the full actual/expected bytes, only the actual/expected byte lengths, the first differing byte offset, the byte-line number it falls on (LF-delimited, CRLF not normalized), and an escaped, size-capped context window around it (falling back from line-context to a fixed byte window for a huge single line or binary-like content). Persisting the full mismatch bytes as run evidence is not required; the `.reportage/runs/<id>/result.json` artifact records only the same bounded mismatch information (actual/expected byte lengths, first-diff offset and line, escaped context windows) and never embeds the full actual/expected bytes — raw byte evidence is stored as separate artifact files and referenced by `artifactRef` / `sizeBytes` / `sha256` (see [ADR: Artifact Run Result as Canonical Manifest](../adr/20260708T130500Z_artifact-run-result-canonical-manifest.md)).
 
 ### `text_equals` comparison semantics
 
-`text_equals` resolves its `<text_literal>` operand (a string literal or a heredoc literal) to a `TextValue`, encodes that `TextValue` as UTF-8 bytes, and compares those bytes against the actual side's bytes byte-for-byte, reusing exactly the same comparison and diagnostic machinery `contents_equals` uses. The actual side is the actual file's bytes for `file`, and the captured stream's raw bytes for `stdout` / `stderr`. No normalization is ever applied, for the same reasons given above. String literal and heredoc literal are transparent to this comparison: the same text written either way compares identically, because both resolve to the same `TextValue` before comparison ever runs (see [ADR: Heredoc Literal and Text Value](../../docs/adr/20260706T104151Z_heredoc-literal-and-text-value.md)).
+`text_equals` resolves its `<text_literal>` operand (a string literal or a heredoc literal) to a `TextValue`, encodes that `TextValue` as UTF-8 bytes, and compares those bytes against the actual side's bytes byte-for-byte, reusing exactly the same comparison and diagnostic machinery `contents_equals` uses. The actual side is the actual file's bytes for `file`, and the captured stream's raw bytes for `stdout` / `stderr`. No normalization is ever applied, for the same reasons given above. String literal and heredoc literal are transparent to this comparison: the same text written either way compares identically, because both resolve to the same `TextValue` before comparison ever runs (see [ADR: Heredoc Literal and Text Value](../adr/20260706T104151Z_heredoc-literal-and-text-value.md)).
 
 Unlike `contents_equals`, `text_equals` has only one failure classification to make, not two: its expected value is always an inline `TextValue` already present in the parsed script, so there is nothing to resolve and no expected-side test-definition error is possible. The **actual side** of `file` is classified exactly like `contents_equals`'s actual side: a missing, non-regular-file, or unreadable actual `file` is an **assertion failure**, using its own `assertion.file.text_equals.actual_*` codes. A byte mismatch is likewise an assertion failure (`assertion.file.text_equals.mismatch` / `assertion.stdout.text_equals.mismatch` / `assertion.stderr.text_equals.mismatch`), with the same bounded, escaped diagnostic `contents_equals` produces. `stdout` / `stderr` have no actual-side `actual_*` failure modes: captured output is always available once an action has run, exactly as for `stdout` / `stderr contents_equals`.
 
-Diagnostic presentation, not comparison semantics, may differ by which literal form produced the expected `TextValue`: a mismatch's subject description renders a string literal compactly (the literal text itself) and a heredoc literal as a plain label, since the bounded mismatch context already carries a line number and an escaped window for either form. See [ADR: `text_equals` Evaluation](../../docs/adr/20260708T045332Z_text-equals-evaluation.md) and [ADR: `stdout` / `stderr` `text_equals` Evaluation](../../docs/adr/20260710T100918Z_output-text-equals-evaluation.md).
+Diagnostic presentation, not comparison semantics, may differ by which literal form produced the expected `TextValue`: a mismatch's subject description renders a string literal compactly (the literal text itself) and a heredoc literal as a plain label, since the bounded mismatch context already carries a line number and an escaped window for either form. See [ADR: `text_equals` Evaluation](../adr/20260708T045332Z_text-equals-evaluation.md) and [ADR: `stdout` / `stderr` `text_equals` Evaluation](../adr/20260710T100918Z_output-text-equals-evaluation.md).
 
 ### Fixture reference value
 
@@ -204,8 +204,8 @@ A `FixtureReference` (`@"<path>"`) names a static snapshot / fixture file kept a
 
 A `text_literal` is the syntax category `string literal | heredoc literal` — the two interchangeable ways v0 accepts multi-purpose text. Both a `write` step's content and a `file ... contains` expectation's expected text are written as a `text_literal`.
 
-- A **string literal** is an ordinary `"..."` string, subject to v0's escape rules (`\\`, `\"`, `\n`, `\t`; no raw newlines). See [ADR: String Literal Escape Sequences](../../docs/adr/20260701T214658Z_string-literal-escape-sequences.md).
-- A **heredoc literal** is a dedented, fenced ` ``` ... ``` ` block, introduced for the `write` step and now reusable wherever a `text_literal` is accepted. See "Heredoc literal" below for its grammar, and [ADR: Heredoc Literal and TextValue](../../docs/adr/20260706T104151Z_heredoc-literal-and-text-value.md) for why this construct is named "heredoc literal" (superseding the earlier internal names "fenced raw text block" / "fenced text literal") and how it relates to `text_literal`.
+- A **string literal** is an ordinary `"..."` string, subject to v0's escape rules (`\\`, `\"`, `\n`, `\t`; no raw newlines). See [ADR: String Literal Escape Sequences](../adr/20260701T214658Z_string-literal-escape-sequences.md).
+- A **heredoc literal** is a dedented, fenced ` ``` ... ``` ` block, introduced for the `write` step and now reusable wherever a `text_literal` is accepted. See "Heredoc literal" below for its grammar, and [ADR: Heredoc Literal and TextValue](../adr/20260706T104151Z_heredoc-literal-and-text-value.md) for why this construct is named "heredoc literal" (superseding the earlier internal names "fenced raw text block" / "fenced text literal") and how it relates to `text_literal`.
 
 Both forms resolve to the same `TextValue` at the semantic level: a `write` step writes a `TextValue`'s UTF-8 bytes to a file, and a `file ... contains` expectation checks whether a `TextValue`'s UTF-8 bytes occur as a substring of a file's bytes. Neither `write` nor `file ... contains` branches on which literal form produced the `TextValue` — the two forms are chosen for readability (a heredoc literal avoids `\n`-escaping multi-line content), not for any difference in runtime behavior.
 
@@ -277,7 +277,7 @@ Each expectation has an evidence requirement that determines what checkpoint sta
 
 ## Logical composition
 
-`not { ... }`, `all { ... }`, and `any { ... }` compose expectation expressions into a single expectation expression, block-form only. See [ADR: Block-Form Logical Composition](../../docs/adr/20260704T150000Z_block-form-logical-composition.md) for why v0 rejects infix `A and B` / `A or B`, `and { ... }` / `or { ... }` aliases, and predicate-level negation (`file <"path"> not exists`) in favor of this form.
+`not { ... }`, `all { ... }`, and `any { ... }` compose expectation expressions into a single expectation expression, block-form only. See [ADR: Block-Form Logical Composition](../adr/20260704T150000Z_block-form-logical-composition.md) for why v0 rejects infix `A and B` / `A or B`, `and { ... }` / `or { ... }` aliases, and predicate-level negation (`file <"path"> not exists`) in favor of this form.
 
 A logical composition block's body accepts the same single-line or multi-line expectation forms as `assert { ... }`, and may contain nested `not` / `all` / `any` blocks in addition to atomic expectations.
 
@@ -337,7 +337,7 @@ In v0, structured output expectations use external `jq`.
 
 ## File assertions
 
-`file <"path"> exists` and `file <"path"> contains <text_literal>` are v0 workspace expectations. `file <"path">` is the subject; `exists` and `contains <text_literal>` are predicates on that subject. See [ADR: Adopt Subject-First File Assertion Syntax](../../docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md) for why this shape was chosen over an expectation-first form.
+`file <"path"> exists` and `file <"path"> contains <text_literal>` are v0 workspace expectations. `file <"path">` is the subject; `exists` and `contains <text_literal>` are predicates on that subject. See [ADR: Adopt Subject-First File Assertion Syntax](../adr/20260704T112155Z_subject-first-file-assertion-syntax.md) for why this shape was chosen over an expectation-first form.
 
 ```reportage
 assert {
@@ -381,7 +381,7 @@ Path resolution:
 
 ## Directory assertions
 
-`dir <"path"> exists` and `dir <"path"> contains "<name>"` are v0 workspace expectations. `dir <"path">` is the subject; `exists` and `contains "<name>"` are predicates on that subject, mirroring the `file` subject's shape. See [ADR: Adopt Subject-First Directory Assertion Syntax](../../docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md) for why this shape was chosen, and for how it relates to the `file` subject.
+`dir <"path"> exists` and `dir <"path"> contains "<name>"` are v0 workspace expectations. `dir <"path">` is the subject; `exists` and `contains "<name>"` are predicates on that subject, mirroring the `file` subject's shape. See [ADR: Adopt Subject-First Directory Assertion Syntax](../adr/20260706T000000Z_subject-first-directory-assertion-syntax.md) for why this shape was chosen, and for how it relates to the `file` subject.
 
 ```reportage
 assert {
@@ -486,7 +486,7 @@ whose metadata describes the whole source file.
 Documentation is deliberately not expressed through `#` comments:
 comments are discarded at parse time and never reach any model,
 while documentation metadata must survive parsing so documentation tooling can consume it.
-See [ADR: Document Block as First-Class Documentation Syntax](../../docs/adr/20260712T120000Z_document-block-first-class-documentation-syntax.md).
+See [ADR: Document Block as First-Class Documentation Syntax](../adr/20260712T120000Z_document-block-first-class-documentation-syntax.md).
 
 ### File documentation fields
 

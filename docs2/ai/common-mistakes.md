@@ -4,7 +4,7 @@ Short wrong/correct examples of mistakes AI agents commonly make when writing or
 
 ## Fabricating logical composition syntax
 
-Reportage rejects infix `and`/`or` and `and { }` / `or { }` aliases; only block-form `all { }` / `any { }` / `not { }` are accepted. See [semantics.md — Logical composition](../reference/semantics.md#logical-composition) and [ADR: block-form logical composition](../../docs/adr/20260704T150000Z_block-form-logical-composition.md).
+Reportage rejects infix `and`/`or` and `and { }` / `or { }` aliases; only block-form `all { }` / `any { }` / `not { }` are accepted. See [semantics.md — Logical composition](../reference/semantics.md#logical-composition) and [ADR: block-form logical composition](../adr/20260704T150000Z_block-form-logical-composition.md).
 
 Wrong:
 

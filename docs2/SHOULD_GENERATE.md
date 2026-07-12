@@ -1,26 +1,26 @@
 # Files that should be generated
 
-This file records every document in this tree that should be produced by a generator or protected by a mechanical drift check, rather than written or copied by hand. Per this repository's documentation policy, generated output is never hand-edited; hand-copying a generated file here would create a second, driftable copy, so those files are deliberately absent from this tree until their generators are repointed.
+This file records every document in this tree that should be produced by a generator or protected by a mechanical drift check, rather than written or copied by hand. Per this repository's documentation policy, generated output is never hand-edited; hand-copying a generator's output here would create a second, driftable copy, so those files are deliberately absent from this tree until their generators emit here.
 
 ## Generated documents not yet materialized in this tree
 
-These already have working generators that currently emit into [`docs/`](../docs/). Migrating this tree to authoritative status means changing each generator's output path (and every check that reads it), then generating — never copying the current output by hand.
+These already have working generators. Materializing them here means changing each generator's output path (and every check and document table that reads it), then generating — never copying existing output by hand.
 
-| Planned path | Current generated output | Reason |
+| Planned path | Generator and source | Reason |
 | --- | --- | --- |
-| `docs2/reference/syntax.md` | [`docs/syntax.md`](../docs/syntax.md) | The grammar reference is generated from [`crates/reportage-core/src/reportage.pest`](../crates/reportage-core/src/reportage.pest) by [`scripts/gen-grammar-doc.sh`](../scripts/gen-grammar-doc.sh) (`just lang-docs-gen`). The pest file is the normative syntax source; a hand-written copy would drift from the grammar. |
-| `docs2/reference/semantic-rules.md` | [`docs/language/semantic-rules.md`](../docs/language/semantic-rules.md) | The semantic rule catalog is generated from `spec/language/semantics/*.json` by [`crates/reportage-core/src/bin/gen_semantic_docs.rs`](../crates/reportage-core/src/bin/gen_semantic_docs.rs) (`just semantic-docs-gen`). The JSON specs are the source of truth for normative fields and conformance cases. |
-| `docs2/ai/reading-order.generated.md` | [`docs/ai/reading-order.generated.md`](../docs/ai/reading-order.generated.md) | The AI reading order is generated from the `DOCUMENTS` table in [`crates/reportage-cli/src/references.rs`](../crates/reportage-cli/src/references.rs) by [`crates/reportage-cli/src/bin/gen_ai_reading_order.rs`](../crates/reportage-cli/src/bin/gen_ai_reading_order.rs) (`just ai-docs-gen`, checked by `just ai-docs-check`), so the reading order and `reportage references --format=json` never drift apart. The table's `path` entries also need updating to this tree's layout when repointed. |
+| `docs2/reference/syntax.md` | [`scripts/gen-grammar-doc.sh`](../scripts/gen-grammar-doc.sh) (`just lang-docs-gen`), from [`crates/reportage-core/src/reportage.pest`](../crates/reportage-core/src/reportage.pest) | The pest file is the normative syntax source; a hand-written grammar reference would drift from it. |
+| `docs2/reference/semantic-rules.md` | [`crates/reportage-core/src/bin/gen_semantic_docs.rs`](../crates/reportage-core/src/bin/gen_semantic_docs.rs) (`just semantic-docs-gen`), from the JSON specs under [`spec/language/semantics/`](../spec/language/semantics/README.md) | The JSON specs are the source of truth for each rule's normative fields and conformance cases; the catalog is a read-only view of them. |
+| `docs2/ai/reading-order.generated.md` | [`crates/reportage-cli/src/bin/gen_ai_reading_order.rs`](../crates/reportage-cli/src/bin/gen_ai_reading_order.rs) (`just ai-docs-gen`, checked by `just ai-docs-check`), from the `DOCUMENTS` table in [`crates/reportage-cli/src/references.rs`](../crates/reportage-cli/src/references.rs) | Generating the reading order from the same table `reportage references --format=json` reads keeps the two from drifting apart. The table's `path` entries must also be updated to this tree's layout when repointed. |
 
 ## Checks that must be repointed at migration
 
 | Path in this tree | Check | Reason |
 | --- | --- | --- |
-| [`docs2/reference/artifacts.md`](reference/artifacts.md) | `run_result_fixtures.rs::docs_artifacts_examples_match_their_fixture_snapshots` | The `<!-- checked-against: ... -->` JSON examples are verified byte-for-byte against `tests/fixtures/run_result/` snapshots, but the test currently reads [`docs/artifacts.md`](../docs/artifacts.md). Until it is repointed, only the [`docs/`](../docs/) copy is drift-protected. |
+| [`docs2/reference/artifacts.md`](reference/artifacts.md) | `run_result_fixtures.rs::docs_artifacts_examples_match_their_fixture_snapshots` | The `<!-- checked-against: ... -->` JSON examples are verified byte-for-byte against the `tests/fixtures/run_result/` snapshots, but the test does not read this tree yet. Until it is repointed at this file, these examples are protected only by review. |
 
 ## New generation candidates
 
-These are hand-written today (in both trees) but state facts that are derivable from the implementation or a registry. They are candidates for generation or for embedded generated sections; each stays hand-written until a generator exists.
+These are hand-written today but state facts that are derivable from the implementation or a registry. They are candidates for generation or for embedded generated sections; each stays hand-written until a generator exists.
 
 | Path in this tree | Reason |
 | --- | --- |

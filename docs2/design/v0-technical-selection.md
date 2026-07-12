@@ -9,7 +9,7 @@ Detailed specifications are split into:
 - [Artifacts](../reference/artifacts.md)
 - [Deferred Topics](../planning/TBD.md)
 
-Architecture decisions are recorded under [ADR](../../docs/adr/README.md).
+Architecture decisions are recorded under [ADR](../adr/README.md).
 
 Current accepted direction:
 

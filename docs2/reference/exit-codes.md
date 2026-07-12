@@ -80,6 +80,6 @@ Code `2` here intentionally reuses the same number as the run command's "script/
 `reportage references` is a side-effect-free tooling subcommand that only prints the reference URL index (see [`spec/output/references-index/`](../../spec/output/references-index/)).
 It exits `0` after printing, or `4` when clap rejects the invocation (e.g. an unsupported `--format` value), the same CLI usage error code as everywhere else.
 
-`docs` is reserved for a future documentation generation command and is not implemented (see [ADR: Rename `docs` Command to `references`](../../docs/adr/20260711T070008Z_rename-docs-command-to-references.md)).
+`docs` is reserved for a future documentation generation command and is not implemented (see [ADR: Rename `docs` Command to `references`](../adr/20260711T070008Z_rename-docs-command-to-references.md)).
 Every `reportage docs` invocation, whatever tokens follow it, prints a not-implemented error to stderr and exits `2`, reusing the "requested operation could not be treated as valid input" meaning above.
 The future real command replaces this behavior with its own exit code table.

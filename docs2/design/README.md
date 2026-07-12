@@ -2,7 +2,7 @@
 
 This section is for maintainers of reportage. It preserves the knowledge the implementation cannot express: why the project exists, what constraints its architecture must keep, which technical directions were accepted, and how the project tests itself.
 
-For the exact behavior contracts these decisions produced, see [the reference section](../reference/README.md). For the rationale behind individual decisions, see the ADRs under [`docs/adr/`](../../docs/adr/README.md).
+For the exact behavior contracts these decisions produced, see [the reference section](../reference/README.md). For the rationale behind individual decisions, see the ADRs under [`adr/`](../adr/README.md).
 
 ## Documents
 

@@ -2,7 +2,7 @@
 
 This document defines the diagnostic model and stable diagnostic code system for semantic errors and assertion failures produced by the semantic evaluator, and the format for verifying expected diagnostic codes in semantic conformance cases.
 
-See [ADR: Semantic and Assertion Diagnostic Model](../../docs/adr/20260702T133734Z_semantic-and-assertion-diagnostic-model.md) for the decision record.
+See [ADR: Semantic and Assertion Diagnostic Model](../adr/20260702T133734Z_semantic-and-assertion-diagnostic-model.md) for the decision record.
 
 This document is a specification. It does not require immediate, full application to the parser, evaluator, or CLI diagnostic rendering; that application is handled by follow-up issues as needed.
 

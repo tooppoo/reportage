@@ -10,7 +10,7 @@ Two different things are each a source of truth here, for different questions:
 - **Semantic spec JSON** (this directory) is the source of truth for each rule's normative fields and conformance cases.
 - **The generated semantic rule catalog** ([`docs/language/semantic-rules.md`](../../../docs/language/semantic-rules.md)) is read-only documentation generated from the semantic spec JSON; it assumes the registry and the specs already agree.
 
-`just semantic-rule-coverage-check` verifies that the registry and this directory agree: every rule the registry marks `spec_required=true` must have a spec file here, and every spec file here must have a corresponding registry entry. See [`docs/adr/20260708T065700Z_semantic-rule-coverage-registry.md`](../../../docs/adr/20260708T065700Z_semantic-rule-coverage-registry.md) for the full rationale.
+`just semantic-rule-coverage-check` verifies that the registry and this directory agree: every rule the registry marks `spec_required=true` must have a spec file here, and every spec file here must have a corresponding registry entry. See [`docs2/adr/20260708T065700Z_semantic-rule-coverage-registry.md`](../../../docs2/adr/20260708T065700Z_semantic-rule-coverage-registry.md) for the full rationale.
 
 ## Semantic spec ID format
 

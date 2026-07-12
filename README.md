@@ -34,7 +34,7 @@ curl -fsSL https://raw.githubusercontent.com/tooppoo/rellog/refs/heads/main/inst
 - [Configuration](docs/configuration.md): KDL v2 config shape, commands, tests, and validation rules.
 - [Path Matching](docs/path-matching.md): path-like config value rules and test glob semantics.
 - [Artifacts](docs/artifacts.md): default artifact generation and early result layout.
-- [ADR](docs/adr/README.md): durable architecture and design decisions.
+- [ADR](docs2/adr/README.md): durable architecture and design decisions.
 - [TBD](docs/TBD.md): intentionally deferred features and design topics.
 
 ## v0 Direction

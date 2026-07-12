@@ -2,10 +2,10 @@
 
 This document describes reportage's runtime execution model: how a module's concrete cases are planned and run, how the case workspace and checkpoint evolve during a case, and how the runner hands off to shims and coverage adapters.
 
-For syntax, see [the generated syntax reference](../../docs/syntax.md).
+For syntax, see the grammar at [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest).
 For language semantic rules — value literals, expectations, assertion evaluation, logical composition, and diagnostics for individual expectations — see [Language semantics](semantics.md).
 For the shim model used for command resolution (shim purpose, shim target, event protocol, and observability), see [Shims](shims.md).
-For the decision rationale behind PATH overlay shims, see [ADR: Use PATH Overlay Shims for Command Resolution](../../docs/adr/20260628T061500Z_path-overlay-shims-for-command-resolution.md).
+For the decision rationale behind PATH overlay shims, see [ADR: Use PATH Overlay Shims for Command Resolution](../adr/20260628T061500Z_path-overlay-shims-for-command-resolution.md).
 
 ## Core model
 
@@ -31,7 +31,7 @@ It also carries the file's `document file` metadata when the source declares one
 A `document file` block is not part of any case span, and neither are the blank lines or comment lines between the block and the first case; each case span remains exactly the pest `case_block` pair's range.
 The suite loader projects the source-level model into the execution `Script` before execution; executors, evaluators, and artifact writers depend only on the execution model, and no source-level information — documentation metadata included — appears in execution reports or artifacts.
 
-See [ADR: Parser Returns a Source-Level Model Instead of the Execution Script](../../docs/adr/20260712T090000Z_parser-returns-source-level-model.md) for the rationale and the case span contract.
+See [ADR: Parser Returns a Source-Level Model Instead of the Execution Script](../adr/20260712T090000Z_parser-returns-source-level-model.md) for the rationale and the case span contract.
 
 ## Suite pre-execution validation
 
@@ -48,7 +48,7 @@ All file-level errors are reported in a single run. The run exits with code `2`,
 
 If the validation phase passes with no errors, execution proceeds normally across all files.
 
-See [ADR: Validate Before Execute](../../docs/adr/20260628T000000Z_validate-before-execute.md) for the rationale.
+See [ADR: Validate Before Execute](../adr/20260628T000000Z_validate-before-execute.md) for the rationale.
 
 ## Empty and zero-case scripts
 
@@ -64,7 +64,7 @@ When selected input is valid but produces zero concrete cases, the runner treats
 - human-readable CLI output states that no cases were found;
 - the run result manifest records `noop: true` and a zeroed summary.
 
-See [ADR: Empty and Whitespace Scripts Are a No-Op Success](../../docs/adr/20260703T000000Z_empty-and-whitespace-scripts-are-no-op-success.md) for the rationale.
+See [ADR: Empty and Whitespace Scripts Are a No-Op Success](../adr/20260703T000000Z_empty-and-whitespace-scripts-are-no-op-success.md) for the rationale.
 
 ## Concrete case expansion
 
@@ -194,7 +194,7 @@ $ rellog check --json | jq .
 
 The runner does not rewrite arbitrary shell syntax in v0. The shell is responsible for interpreting pipelines, redirections, variable expansion, conditionals, filesystem operations, and other shell constructs.
 
-A `$` action can span multiple physical lines: a line ending in `\` immediately before the line break continues into the next physical line, with the `\` and the line break preserved verbatim in the command handed to the shell. See [the generated syntax reference](../../docs/syntax.md) and [ADR: Action Line Continuation](../../docs/adr/20260706T150000Z_action-line-continuation.md) for the exact continuation rule.
+A `$` action can span multiple physical lines: a line ending in `\` immediately before the line break continues into the next physical line, with the `\` and the line break preserved verbatim in the command handed to the shell. See the grammar at [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest) and [ADR: Action Line Continuation](../adr/20260706T150000Z_action-line-continuation.md) for the exact continuation rule.
 
 ```reportage
 $ echo one \

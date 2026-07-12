@@ -1,12 +1,12 @@
 # AI generation rules
 
-Rules for generating or editing `.repor` files. Read [the generated syntax reference](../../docs/syntax.md) and [the language semantics reference](../reference/semantics.md) first — this document does not repeat their content, only states what to do and not do when using them.
+Rules for generating or editing `.repor` files. Read the grammar at [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest) and [the language semantics reference](../reference/semantics.md) first — this document does not repeat their content, only states what to do and not do when using them.
 
 ## Use only documented syntax
 
-Every construct used in a `.repor` file must appear in [the generated syntax reference](../../docs/syntax.md), the grammar reference generated from [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest). If a construct is not there, it is not part of this version of reportage, regardless of how plausible it looks.
+Every construct used in a `.repor` file must be defined in the grammar at [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest), the normative syntax source. If a construct is not there, it is not part of this version of reportage, regardless of how plausible it looks.
 
-For the semantic rules that govern how a construct behaves once parsed (assertion evaluation, logical composition, expectations, and so on), use [the language semantics reference](../reference/semantics.md) and [the generated semantic rule catalog](../../docs/language/semantic-rules.md) the same way.
+For the semantic rules that govern how a construct behaves once parsed (assertion evaluation, logical composition, expectations, and so on), use [the language semantics reference](../reference/semantics.md) and the semantic rule specs under [`spec/language/semantics/`](../../spec/language/semantics/README.md) the same way.
 
 ## Never treat deferred topics as available syntax
 

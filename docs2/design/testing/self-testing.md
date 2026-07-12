@@ -2,7 +2,7 @@
 
 This document describes how reportage tests representative reportage CLI behavior with reportage scripts.
 
-For the architectural decision behind the command-resolution model, see [ADR: Use PATH Overlay Shims for Command Resolution](../../../docs/adr/20260628T061500Z_path-overlay-shims-for-command-resolution.md).
+For the architectural decision behind the command-resolution model, see [ADR: Use PATH Overlay Shims for Command Resolution](../../adr/20260628T061500Z_path-overlay-shims-for-command-resolution.md).
 For the shim model, see [Shims](../../reference/shims.md).
 For how this layer relates to Rust tests, see [the testing overview](README.md).
 

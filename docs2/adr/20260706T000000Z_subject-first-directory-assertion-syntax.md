@@ -55,7 +55,7 @@ Like `file`, this validation runs in the evaluator (`evaluate_case`), before evi
 
 ### Path policy violations are semantic errors, not parse errors
 
-Both the `dir` subject path and the `contains` entry name are validated in `evaluate_case`, mirroring `file`'s ADR decision, not in the parser the way the `write` step's `WorkspacePath` is. The script and expectation shape are syntactically valid; only the *value* violates a policy the evaluator must reject before evidence comparison — the definition of a semantic error, not a parse error, per [`docs/semantic-diagnostics.md`](../semantic-diagnostics.md).
+Both the `dir` subject path and the `contains` entry name are validated in `evaluate_case`, mirroring `file`'s ADR decision, not in the parser the way the `write` step's `WorkspacePath` is. The script and expectation shape are syntactically valid; only the *value* violates a policy the evaluator must reject before evidence comparison — the definition of a semantic error, not a parse error, per [`docs/semantic-diagnostics.md`](../reference/semantic-diagnostics.md).
 
 This also matters operationally: a parser-level rejection (like `write`'s) fails the whole file during the pre-execution validation phase, before any case in *any* selected file runs. A `dir` assertion with a bad path is scoped to the one case that uses it, reported as that case's `script_error`, exactly like an invalid `file` assertion path.
 

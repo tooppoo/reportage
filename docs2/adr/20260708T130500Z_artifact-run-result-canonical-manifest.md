@@ -9,7 +9,7 @@
 
 Separately, issue #89 defined an external contract for `reportage run --format=json`'s CLI stdout document ([`spec/output/json-report/schema.json`](../../spec/output/json-report/schema.json)): camelCase, a `status: passed|failed|error` vocabulary, document-local ids, a diagnostics model, and captured output referenced by `artifactRef` / `sizeBytes` instead of inlined.
 
-That left two diverging machine-readable descriptions of the same run, with no defined relationship between them: consumers could not tell which one was authoritative, the artifact `result.json` had no schema, no fixtures, and no snapshot coverage, inline base64 made the manifest grow with action output size, and [`docs/artifacts.md`](../artifacts.md) described the artifact shape by hand with nothing detecting drift.
+That left two diverging machine-readable descriptions of the same run, with no defined relationship between them: consumers could not tell which one was authoritative, the artifact `result.json` had no schema, no fixtures, and no snapshot coverage, inline base64 made the manifest grow with action output size, and [`docs/artifacts.md`](../reference/artifacts.md) described the artifact shape by hand with nothing detecting drift.
 
 Issue [#102](https://github.com/tooppoo/reportage/issues/102) requires the artifact bundle to be treated as the canonical record of a run, `result.json` as its canonical manifest with a verifiable contract, and `--format=json` as a projection of it — without redesigning the #89 stdout contract.
 
@@ -57,11 +57,11 @@ Representative fixtures live in `tests/fixtures/run_result/` (passed, assertion_
 
 ### Breaking change to the pre-existing artifact contract
 
-The pre-#102 `result.json` shape is treated as an early v0 experimental contract and is replaced, not migrated: no compatibility fields, no dual output. Early v0 artifact contracts may continue to change this way until stabilization (see [`docs/artifacts.md`](../artifacts.md) — Stability).
+The pre-#102 `result.json` shape is treated as an early v0 experimental contract and is replaced, not migrated: no compatibility fields, no dual output. Early v0 artifact contracts may continue to change this way until stabilization (see [`docs/artifacts.md`](../reference/artifacts.md) — Stability).
 
 ### Docs boundary: generated / checked / handwritten
 
-[`docs/artifacts.md`](../artifacts.md) declares an explicit boundary:
+[`docs/artifacts.md`](../reference/artifacts.md) declares an explicit boundary:
 
 - JSON examples are marked `<!-- checked-against: <snapshot path> -->` and verified byte-for-byte against fixture snapshots by a test, so representative examples cannot silently drift;
 - field lists/enums are enforced by the typed structs, and layout/evidence references by the evidence-integrity test and `e2e/artifacts/run-result-manifest.repor`;

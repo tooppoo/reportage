@@ -24,7 +24,7 @@ The generated file is a one-time scaffold, not something reportage continues to 
 - After generation, the file belongs to the project. Edit it however the coverage tool, the package manager, or the language toolchain actually requires.
 - reportage does not re-run scaffold generation, detect drift, or resync a previously generated file. If the template evolves, regenerate manually (with `--force`) or edit the existing file directly.
 
-See [ADR: Shim Scaffold Command](../../docs/adr/20260708T062146Z_shim-scaffold-command.md) for the reasoning behind treating this as a scaffold rather than a managed integration.
+See [ADR: Shim Scaffold Command](../adr/20260708T062146Z_shim-scaffold-command.md) for the reasoning behind treating this as a scaffold rather than a managed integration.
 
 ## Non-goals
 
@@ -162,4 +162,4 @@ Every `--out` conflict message (existing file, existing directory, existing syml
 - [Shims](shims.md)
 - [Execution model](execution-model.md)
 - [Exit codes](exit-codes.md)
-- [ADR: Shim Scaffold Command](../../docs/adr/20260708T062146Z_shim-scaffold-command.md)
+- [ADR: Shim Scaffold Command](../adr/20260708T062146Z_shim-scaffold-command.md)

@@ -6,9 +6,9 @@ Documents here are either generated from an executable source, mechanically chec
 
 ## Language
 
-- Syntax reference — **generated** from the pest grammar; the only source of truth for what parses. Its current generated output is [`docs/syntax.md`](../../docs/syntax.md); its home in this tree is pending generator repointing (see [`SHOULD_GENERATE.md`](../SHOULD_GENERATE.md)).
+- Syntax reference — **generated** from the pest grammar; planned at `reference/syntax.md` in this tree (see [`SHOULD_GENERATE.md`](../SHOULD_GENERATE.md)). The normative syntax source is [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest); anything not expressible there is not part of v0.
 - [Language semantics](semantics.md): overview and entry point for the semantics document set, plus the language semantic rules that have not yet migrated to the generated catalog. Read this before writing assertions.
-- Semantic rule catalog — **generated** from the JSON specs under [`spec/language/semantics/`](../../spec/language/semantics/README.md). Its current generated output is [`docs/language/semantic-rules.md`](../../docs/language/semantic-rules.md) (see [`SHOULD_GENERATE.md`](../SHOULD_GENERATE.md)).
+- Semantic rule catalog — **generated**; planned at `reference/semantic-rules.md` in this tree (see [`SHOULD_GENERATE.md`](../SHOULD_GENERATE.md)). The source of truth is the JSON specs under [`spec/language/semantics/`](../../spec/language/semantics/README.md).
 
 ## Runtime
 
@@ -32,4 +32,4 @@ Documents here are either generated from an executable source, mechanically chec
 
 ## Decision rationale
 
-The reference documents state what holds; the reason a contract was chosen lives in the ADRs under [`docs/adr/`](../../docs/adr/README.md), linked from each document where relevant.
+The reference documents state what holds; the reason a contract was chosen lives in the ADRs under [`adr/`](../adr/README.md), linked from each document where relevant.

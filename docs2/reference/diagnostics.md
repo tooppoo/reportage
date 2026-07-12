@@ -2,7 +2,7 @@
 
 This document defines Reportage's stable diagnostic code system for parser and validator errors, and the compatibility policy that governs it.
 
-See [ADR: Stable Diagnostic Codes](../../docs/adr/20260701T060000Z_stable-diagnostic-codes.md) for the decision record.
+See [ADR: Stable Diagnostic Codes](../adr/20260701T060000Z_stable-diagnostic-codes.md) for the decision record.
 
 ## Why
 

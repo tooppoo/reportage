@@ -22,7 +22,7 @@ case "with --help" {
 
 The problem is that the command text alone should not decide which executable implementation is used at runtime. For self-testing, the harness must run the Cargo-built, coverage-instrumented reportage executable rather than an installed `reportage` found in the ambient environment. For future coverage-aware adapters, the runner must also be able to route a command name through adapter-provided execution behavior.
 
-For the canonical shim model, see [../shims.md](../shims.md).
+For the canonical shim model, see [../shims.md](../reference/shims.md).
 
 ## Decision
 
@@ -32,7 +32,7 @@ PATH overlay shim injection is the model for how the runner controls command res
 
 The initial shim materialization strategy is POSIX shell wrappers. Native Windows wrapper generation is out of scope. Windows users should use WSL, a devcontainer, or Linux-based CI.
 
-Execution behavior, use cases, executable invocation targets, and observability are defined in [../shims.md](../shims.md). PATH prefix mechanics are defined in [../execution-model.md](../execution-model.md).
+Execution behavior, use cases, executable invocation targets, and observability are defined in [../shims.md](../reference/shims.md). PATH prefix mechanics are defined in [../execution-model.md](../reference/execution-model.md).
 
 ## Alternatives Considered
 

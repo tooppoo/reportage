@@ -22,7 +22,7 @@ Do not write an ADR for ordinary implementation details, small refactorings, typ
 
 ## File Naming
 
-ADR files must be placed directly under `docs/adr/`.
+ADR files must be placed directly under `docs2/adr/`.
 
 Use the following filename format:
 
@@ -173,7 +173,7 @@ Each ADR should:
 * link to related ADRs, issues, or pull requests when they are relevant
 * include examples when they clarify CLI behavior, file layout, schema shape, or safety behavior
 
-An ADR should not be a general design document. It should record a decision. If a document mostly describes how to implement a known decision, put it elsewhere under `docs/`.
+An ADR should not be a general design document. It should record a decision. If a document mostly describes how to implement a known decision, put it elsewhere under `docs2/`.
 
 ## Updating ADRs
 
