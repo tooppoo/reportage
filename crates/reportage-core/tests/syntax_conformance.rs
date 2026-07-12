@@ -7,10 +7,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use reportage_core::model::{
-    Case, CountOp, DirMatcher, Expectation, FileContentsReference, FileMatcher, LogicalOperator,
-    OutputMatcher, OutputSource, Script, SideEffectingStep, Step, TextLiteral,
+    CountOp, DirMatcher, Expectation, FileContentsReference, FileMatcher, LogicalOperator,
+    OutputMatcher, OutputSource, SideEffectingStep, Step, TextLiteral,
 };
 use reportage_core::parser::{ParseError, parse};
+use reportage_core::source::{SourceCase, SourceFile};
 use serde::Serialize;
 
 fn repo_root() -> PathBuf {
@@ -69,8 +70,8 @@ fn snapshot_path_for_fixture(path: &Path) -> PathBuf {
     path.with_extension("ast.json")
 }
 
-fn format_snapshot(script: &Script) -> String {
-    let snapshot = SnapshotScript::from(script);
+fn format_snapshot(source_file: &SourceFile) -> String {
+    let snapshot = SnapshotScript::from(source_file);
     let mut json =
         serde_json::to_string_pretty(&snapshot).expect("AST snapshot serialization must succeed");
     json.push('\n');
@@ -86,10 +87,10 @@ struct SnapshotScript<'a> {
     cases: Vec<SnapshotCase<'a>>,
 }
 
-impl<'a> From<&'a Script> for SnapshotScript<'a> {
-    fn from(script: &'a Script) -> Self {
+impl<'a> From<&'a SourceFile> for SnapshotScript<'a> {
+    fn from(source_file: &'a SourceFile) -> Self {
         Self {
-            cases: script.cases.iter().map(SnapshotCase::from).collect(),
+            cases: source_file.cases().iter().map(SnapshotCase::from).collect(),
         }
     }
 }
@@ -97,16 +98,30 @@ impl<'a> From<&'a Script> for SnapshotScript<'a> {
 #[derive(Serialize)]
 struct SnapshotCase<'a> {
     name: &'a str,
+    /// The case block's byte range in the fixture source, so span drift is
+    /// visible in the snapshot diff without duplicating the source text here.
+    span: SnapshotSpan,
     steps: Vec<SnapshotStep<'a>>,
 }
 
-impl<'a> From<&'a Case> for SnapshotCase<'a> {
-    fn from(case: &'a Case) -> Self {
+impl<'a> From<&'a SourceCase> for SnapshotCase<'a> {
+    fn from(source_case: &'a SourceCase) -> Self {
+        let case = source_case.case();
         Self {
             name: &case.name,
+            span: SnapshotSpan {
+                start: source_case.span().start(),
+                end: source_case.span().end(),
+            },
             steps: case.steps.iter().map(SnapshotStep::from).collect(),
         }
     }
+}
+
+#[derive(Serialize)]
+struct SnapshotSpan {
+    start: usize,
+    end: usize,
 }
 
 #[derive(Serialize)]
@@ -432,7 +447,7 @@ fn ast_snapshots_for_valid_syntax_fixtures_are_current() {
     let update_snapshots = update_snapshots_enabled();
     for path in paths {
         let source = read_fixture(&path);
-        let script = parse(&source).unwrap_or_else(|e| {
+        let source_file = parse(&source).unwrap_or_else(|e| {
             panic!(
                 "valid syntax fixture {} must parse successfully before snapshotting: {e}",
                 path.display()
@@ -440,7 +455,7 @@ fn ast_snapshots_for_valid_syntax_fixtures_are_current() {
         });
 
         let snapshot_path = snapshot_path_for_fixture(&path);
-        let actual = format_snapshot(&script);
+        let actual = format_snapshot(&source_file);
 
         if update_snapshots {
             fs::write(&snapshot_path, actual).unwrap_or_else(|e| {

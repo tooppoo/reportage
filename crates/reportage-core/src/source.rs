@@ -1,0 +1,172 @@
+//! Source-level model: the parser's output, before projection to the execution model.
+//!
+//! This model is a source-aware semantic model:
+//! it associates the semantically interpreted `Case` structure with the original source text
+//! and each case's byte range within that text.
+//! It is not a lossless CST — whitespace, comments, and raw literal spellings are not
+//! structurally preserved, and reconstructing the original source from this model is not
+//! a supported operation.
+//! A future CST / syntax tree can be added in front of the parser and lowered into this
+//! model without changing its role.
+//!
+//! Execution (`executor` / `evaluator`) and reporting (`result` / `artifact`) must depend
+//! only on the execution model in `model`; the one supported hand-off between the two
+//! worlds is [`SourceFile::into_script`].
+//!
+//! See docs/adr/20260712T090000Z_parser-returns-source-level-model.md.
+
+use crate::model::{Case, Script};
+
+/// The UTF-8 source text of one parsed reportage file, owned by its [`SourceFile`].
+///
+/// Owning a copy of the parser input keeps `SourceFile` self-contained:
+/// spans stay usable after parsing without borrowing from the caller's buffer,
+/// and no self-referential structure is needed.
+#[derive(Debug)]
+pub struct SourceText(String);
+
+impl SourceText {
+    pub(crate) fn new(text: String) -> Self {
+        Self(text)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Extracts the text covered by `span`.
+    ///
+    /// This is the only supported way to slice source text by span;
+    /// callers must not index into `as_str()` with raw span offsets.
+    /// A span must only be used against the `SourceText` of the `SourceFile` it came from;
+    /// using one against a different text is a caller bug and panics (or returns garbage
+    /// if the offsets happen to be valid there).
+    pub fn slice(&self, span: SourceSpan) -> &str {
+        &self.0[span.start..span.end]
+    }
+}
+
+/// A byte range into the [`SourceText`] owned by the same [`SourceFile`].
+///
+/// Constructed only by the parser, which guarantees:
+/// `start <= end`, `end` within the text, and both offsets on UTF-8 character boundaries.
+/// External code can read the offsets but never fabricate a span.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceSpan {
+    start: usize,
+    end: usize,
+}
+
+impl SourceSpan {
+    pub(crate) fn new(start: usize, end: usize) -> Self {
+        assert!(
+            start <= end,
+            "SourceSpan requires start <= end (got {start}..{end})"
+        );
+        Self { start, end }
+    }
+
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    pub fn end(&self) -> usize {
+        self.end
+    }
+}
+
+/// One case of a parsed file: the execution-model `Case` plus the byte range
+/// of the whole `case` block (matching the pest `case_block` pair) in the original source.
+///
+/// The span covers the `case` line's leading indentation through the closing brace line,
+/// including that line's trailing whitespace / inline comment and its line ending when present.
+/// It excludes blank lines and comment lines before or after the block.
+#[derive(Debug)]
+pub struct SourceCase {
+    case: Case,
+    span: SourceSpan,
+}
+
+impl SourceCase {
+    pub(crate) fn new(case: Case, span: SourceSpan) -> Self {
+        Self { case, span }
+    }
+
+    pub fn case(&self) -> &Case {
+        &self.case
+    }
+
+    pub fn span(&self) -> SourceSpan {
+        self.span
+    }
+}
+
+/// A parsed reportage file as the parser returns it:
+/// the owned source text and the cases with their source spans, in source order.
+#[derive(Debug)]
+pub struct SourceFile {
+    source: SourceText,
+    cases: Vec<SourceCase>,
+}
+
+impl SourceFile {
+    /// Assembles a `SourceFile`, asserting the span invariants the parser is
+    /// required to uphold: every span lies within `source` on UTF-8 character
+    /// boundaries, and spans appear in source order without overlapping.
+    /// A violation is a parser bug, not an input error, so it panics.
+    pub(crate) fn new(source: SourceText, cases: Vec<SourceCase>) -> Self {
+        let text = source.as_str();
+        let mut previous_end = 0usize;
+        for source_case in &cases {
+            let span = source_case.span();
+            assert!(
+                span.end() <= text.len(),
+                "case span {}..{} exceeds source length {}",
+                span.start(),
+                span.end(),
+                text.len()
+            );
+            assert!(
+                text.is_char_boundary(span.start()) && text.is_char_boundary(span.end()),
+                "case span {}..{} is not on UTF-8 character boundaries",
+                span.start(),
+                span.end()
+            );
+            assert!(
+                previous_end <= span.start(),
+                "case spans must be in source order and non-overlapping"
+            );
+            previous_end = span.end();
+        }
+        Self { source, cases }
+    }
+
+    pub fn source(&self) -> &SourceText {
+        &self.source
+    }
+
+    pub fn cases(&self) -> &[SourceCase] {
+        &self.cases
+    }
+
+    /// The original source text of `source_case`'s whole `case` block.
+    pub fn case_source(&self, source_case: &SourceCase) -> &str {
+        self.source.slice(source_case.span())
+    }
+
+    /// Projects this source-level model into the execution-model [`Script`].
+    ///
+    /// Consuming by design: the execution path has no use for source text or
+    /// spans, and a non-consuming projection would force `Clone` onto the
+    /// whole `Case` / `Step` tree for no current consumer.
+    /// Source text, spans, and (future) documentation metadata are dropped here.
+    pub fn into_script(self) -> Script {
+        Script {
+            cases: self
+                .cases
+                .into_iter()
+                .map(|source_case| source_case.case)
+                .collect(),
+        }
+    }
+}

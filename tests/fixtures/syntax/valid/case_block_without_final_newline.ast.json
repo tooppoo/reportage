@@ -1,20 +1,12 @@
 {
   "cases": [
     {
-      "name": "write step longer closing fence",
+      "name": "closing brace at end of input",
       "span": {
         "start": 0,
-        "end": 119
+        "end": 69
       },
       "steps": [
-        {
-          "kind": "write_file",
-          "path": "a.txt",
-          "content": {
-            "kind": "heredoc",
-            "value": "hello\n"
-          }
-        },
         {
           "kind": "action",
           "command": "true"

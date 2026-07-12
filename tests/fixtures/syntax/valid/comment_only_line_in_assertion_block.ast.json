@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "comment only line in assertion block",
+      "span": {
+        "start": 0,
+        "end": 137
+      },
       "steps": [
         {
           "kind": "action",

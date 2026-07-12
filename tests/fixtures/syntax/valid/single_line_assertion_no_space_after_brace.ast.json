@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "single line no brace space",
+      "span": {
+        "start": 0,
+        "end": 65
+      },
       "steps": [
         {
           "kind": "action",

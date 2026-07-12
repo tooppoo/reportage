@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "comment marker in string literal",
+      "span": {
+        "start": 0,
+        "end": 167
+      },
       "steps": [
         {
           "kind": "action",

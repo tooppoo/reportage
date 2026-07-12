@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "stdout and stderr text_equals string literals",
+      "span": {
+        "start": 0,
+        "end": 152
+      },
       "steps": [
         {
           "kind": "action",

@@ -1,0 +1,25 @@
+# Demonstrates ordinary comments around and inside multiple case blocks.
+# Blank lines and comment lines between cases belong to the file, not to any case.
+
+case "grep finds the expected line" {
+  write <"notes.txt"> ```
+  alpha
+  beta
+  gamma
+  ```
+  $ grep beta notes.txt
+  assert {
+    exit 0
+    stdout contains "beta" # inline comments may follow an expectation
+  }
+}
+
+# A non-zero exit code still passes when the case asserts it explicitly.
+case "grep reports no match" {
+  write <"notes.txt"> "alpha\n"
+  $ grep beta notes.txt
+  assert {
+    exit 1
+    stdout empty
+  }
+} # comments may follow a closing brace

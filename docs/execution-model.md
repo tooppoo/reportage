@@ -23,6 +23,14 @@ A `case` with `params` produces one concrete case per `variant`.
 
 For each concrete case, reportage creates an isolated execution environment, runs setup and case steps, evaluates assertion blocks, collects artifacts, and then removes the workspace unless preservation is explicitly requested for debugging.
 
+## Parsing and the source-level model
+
+Parsing a script yields a source-level model (`SourceFile`), not the execution model directly.
+The source-level model associates each parsed case with the original source text and the case block's byte range within it, so source-oriented consumers (such as documentation features) can recover a case's source after parsing.
+The suite loader projects the source-level model into the execution `Script` before execution; executors, evaluators, and artifact writers depend only on the execution model, and no source-level information appears in execution reports or artifacts.
+
+See [ADR: Parser Returns a Source-Level Model Instead of the Execution Script](adr/20260712T090000Z_parser-returns-source-level-model.md) for the rationale and the case span contract.
+
 ## Suite pre-execution validation
 
 When running a suite of test files (config-driven or multi-script explicit mode), reportage performs a validation phase before executing any `$` actions.

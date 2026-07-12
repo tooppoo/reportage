@@ -1,0 +1,4 @@
+case "closing brace at end of input" {
+  $ true
+  assert { exit 0 }
+}

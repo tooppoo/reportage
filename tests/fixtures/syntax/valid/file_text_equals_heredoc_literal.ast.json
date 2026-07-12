@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "file text_equals heredoc literal",
+      "span": {
+        "start": 0,
+        "end": 199
+      },
       "steps": [
         {
           "kind": "write_file",

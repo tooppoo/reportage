@@ -6,9 +6,10 @@ use crate::model::{
     ActionStep, AssertionBlock, Case, DirExpectation, DirMatcher, ExitExpectation, Expectation,
     FileContentsReference, FileExpectation, FileMatcher, FixtureReference, FixtureReferenceError,
     LogicalExpectation, LogicalOperator, OutputExpectation, OutputMatcher, RequiredLiteralKind,
-    Script, SideEffectingStep, Step, TextLiteral, ValueLiteralKind, WorkspacePath,
-    WorkspacePathError, WriteFileStep,
+    SideEffectingStep, Step, TextLiteral, ValueLiteralKind, WorkspacePath, WorkspacePathError,
+    WriteFileStep,
 };
+use crate::source::{SourceCase, SourceFile, SourceSpan, SourceText};
 
 #[derive(Parser)]
 #[grammar = "reportage.pest"]
@@ -325,7 +326,14 @@ impl ParseError {
     }
 }
 
-pub fn parse(source: &str) -> Result<Script, ParseError> {
+/// Parses `source` into the source-level model.
+///
+/// The returned [`SourceFile`] owns a copy of `source` and associates each case
+/// with its byte range in that text; run [`SourceFile::into_script`] to obtain
+/// the execution-model `Script`.
+/// Each case's span is exactly the pest `case_block` pair's matched range —
+/// the grammar, not this function, defines where a case block starts and ends.
+pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
     let pairs = ReportageParser::parse(Rule::script, source).map_err(|e| {
         let (line, col) = match e.line_col {
             pest::error::LineColLocation::Pos((l, c)) => (l, c),
@@ -342,15 +350,17 @@ pub fn parse(source: &str) -> Result<Script, ParseError> {
     // `parse()` returns a Pairs that yields the top-level `script` pair.
     // Call into_inner() to get its contents (case_blocks, SOI, EOI).
     let script_pair = pairs.into_iter().next().expect("script always matches");
-    let mut cases: Vec<Case> = Vec::new();
+    let mut cases: Vec<SourceCase> = Vec::new();
     for pair in script_pair.into_inner() {
         if pair.as_rule() == Rule::case_block {
             // SOI, EOI, and silent blank_lines are skipped via the else branch.
-            cases.push(parse_case_block(pair)?);
+            let pair_span = pair.as_span();
+            let span = SourceSpan::new(pair_span.start(), pair_span.end());
+            cases.push(SourceCase::new(parse_case_block(pair)?, span));
         }
     }
 
-    Ok(Script { cases })
+    Ok(SourceFile::new(SourceText::new(source.to_string()), cases))
 }
 
 fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseError> {
@@ -372,6 +382,10 @@ fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseErro
             Rule::write_step_string | Rule::write_step_heredoc => {
                 steps.push(parse_write_step(pair)?)
             }
+            // When the closing brace line has no final newline, its `trail`
+            // matches EOI, and pest surfaces that as an explicit EOI pair
+            // inside the case_block.
+            Rule::EOI => {}
             rule => unreachable!("unexpected rule in case_block: {rule:?}"),
         }
     }
@@ -1153,6 +1167,13 @@ fn split_lines_keep_ending(s: &str) -> Vec<(&str, &str)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::Script;
+
+    /// Most tests here assert against the execution model, so they project
+    /// the parse result immediately; span-focused tests call `parse` directly.
+    fn parse_script(src: &str) -> Result<Script, ParseError> {
+        parse(src).map(SourceFile::into_script)
+    }
 
     #[test]
     fn parse_single_passing_case() {
@@ -1164,7 +1185,7 @@ case "first pass" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases.len(), 1);
         assert_eq!(script.cases[0].name, "first pass");
         assert_eq!(script.cases[0].steps.len(), 2);
@@ -1187,7 +1208,7 @@ case "second" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases.len(), 2);
         assert_eq!(script.cases[0].name, "first");
         assert_eq!(script.cases[1].name, "second");
@@ -1201,7 +1222,7 @@ case "inline" {
   assert { exit 0 }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 2);
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
@@ -1220,7 +1241,7 @@ case "multi" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 2);
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
@@ -1231,14 +1252,14 @@ case "multi" {
     #[test]
     fn top_level_action_is_error() {
         let src = "$ true\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn top_level_assert_is_error() {
         let src = "assert { exit 0 }\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1250,7 +1271,7 @@ case "x" {
   assert exit 0
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1264,7 +1285,7 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::InvalidExitCode { .. }));
     }
 
@@ -1278,20 +1299,20 @@ case "x" {
   }
 }
 "#;
-        assert!(parse(src).is_ok());
+        assert!(parse_script(src).is_ok());
     }
 
     #[test]
     fn unclosed_case_is_error() {
         let src = "case \"x\" {\n  $ true\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn unclosed_assert_block_is_error() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    exit 0\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1304,14 +1325,14 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn empty_assert_block_single_line_is_error() {
         let src = "case \"x\" {\n  $ true\n  assert { }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1325,7 +1346,7 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1339,7 +1360,7 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1351,7 +1372,7 @@ case "x" {
   assert { exit 0 }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         if let Step::Action(a) = &script.cases[0].steps[0] {
             assert_eq!(a.command, "echo hello");
         } else {
@@ -1369,7 +1390,7 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1386,7 +1407,7 @@ case "two blocks" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 3);
     }
 
@@ -1400,7 +1421,7 @@ case "out" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -1420,7 +1441,7 @@ case "err" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -1440,7 +1461,7 @@ case "out" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -1460,7 +1481,7 @@ case "err" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -1480,7 +1501,7 @@ case "x" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -1502,7 +1523,7 @@ case "x" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -1515,7 +1536,7 @@ case "x" {
     #[test]
     fn escaped_tab_unescapes_to_actual_tab() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\\tb\"\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -1529,7 +1550,7 @@ case "x" {
     fn escaped_quote_does_not_terminate_string() {
         let src =
             "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"say \\\"hi\\\"\"\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -1542,35 +1563,36 @@ case "x" {
     #[test]
     fn escaped_quote_in_case_name_does_not_terminate_string() {
         let src = "case \"a \\\"b\\\" c\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases[0].name, "a \"b\" c");
 
-        let err =
-            parse("case \"a\\xb\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n").unwrap_err();
+        let err = parse_script("case \"a\\xb\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n")
+            .unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
 
-        let err = parse("case \"a\nb\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n").unwrap_err();
+        let err = parse_script("case \"a\nb\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n")
+            .unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn raw_newline_in_string_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\nb\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn crlf_raw_newline_in_string_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\r\nb\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn bare_cr_in_string_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\rb\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1578,21 +1600,21 @@ case "x" {
     fn unclosed_string_literal_is_rejected() {
         let src =
             "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"never closed\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn undefined_escape_sequence_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\\xb\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn undefined_escape_r_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\\rb\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1600,7 +1622,7 @@ case "x" {
     fn undefined_unicode_escape_is_rejected() {
         let src =
             "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\\u{1245}b\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1612,7 +1634,7 @@ case "x" {
   assert { exit 0 exit 1 }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1621,28 +1643,28 @@ case "x" {
     fn trailing_whitespace_is_accepted() {
         // Trailing spaces on case opener, steps, assertion body, and closers.
         let src = "case \"x\" {   \n  $ true   \n  assert {   \n    exit 0   \n  }   \n}   \n";
-        assert!(parse(src).is_ok());
+        assert!(parse_script(src).is_ok());
     }
 
     // See #77 / docs/adr/20260705T184047Z_use-hash-comment-marker.md.
     #[test]
     fn line_comment_before_case_block_is_ignored() {
         let src = "# leading comment\ncase \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases.len(), 1);
     }
 
     #[test]
     fn comment_only_line_inside_case_block_is_ignored() {
         let src = "case \"x\" {\n  # comment\n  $ true\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 2);
     }
 
     #[test]
     fn comment_only_line_inside_assertion_block_is_ignored() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    # comment\n    exit 0\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -1658,20 +1680,20 @@ case "x" { # case open
   } # assert close
 } # case close
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 1);
     }
 
     #[test]
     fn inline_comment_after_single_line_assertion_block_is_ignored() {
         let src = "case \"x\" {\n  $ true\n  assert { exit 0 } # trailing\n}\n";
-        assert!(parse(src).is_ok());
+        assert!(parse_script(src).is_ok());
     }
 
     #[test]
     fn hash_in_string_literal_is_not_treated_as_comment() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"hello # world\" # trailing comment\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -1684,7 +1706,7 @@ case "x" { # case open
     #[test]
     fn hash_in_action_command_is_preserved_as_command_text() {
         let src = "case \"x\" {\n  $ echo hello # passed to shell\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::Action(action) = &script.cases[0].steps[0] else {
             panic!("expected Action step");
         };
@@ -1696,7 +1718,7 @@ case "x" { # case open
     #[test]
     fn action_continuation_joins_two_physical_lines() {
         let src = "case \"x\" {\n  $ echo one \\\n  two\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 2);
         let Step::Action(action) = &script.cases[0].steps[0] else {
             panic!("expected Action step");
@@ -1709,7 +1731,7 @@ case "x" { # case open
     #[test]
     fn action_continuation_marker_only_line_continues_further() {
         let src = "case \"x\" {\n  $ echo one \\\n\\\ntwo\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 2);
         let Step::Action(action) = &script.cases[0].steps[0] else {
             panic!("expected Action step");
@@ -1720,7 +1742,7 @@ case "x" { # case open
     #[test]
     fn action_continuation_includes_blank_line_then_resumes_normal_syntax() {
         let src = "case \"x\" {\n  $ echo one \\\n\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 2);
         let Step::Action(action) = &script.cases[0].steps[0] else {
             panic!("expected Action step");
@@ -1739,14 +1761,14 @@ case "x" { # case open
     #[test]
     fn action_continuation_swallows_only_the_next_line_before_ending() {
         let src = "case \"x\" {\n  $ true \\\n  assert {\n    exit 0\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn action_continuation_marker_followed_by_space_is_not_continuation() {
         let src = "case \"x\" {\n  $ echo hi \\ \n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 2);
         let Step::Action(action) = &script.cases[0].steps[0] else {
             panic!("expected Action step");
@@ -1760,7 +1782,7 @@ case "x" { # case open
     #[test]
     fn action_continuation_marker_followed_by_hash_is_not_continuation() {
         let src = "case \"x\" {\n  $ echo hi \\# comment\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 2);
         let Step::Action(action) = &script.cases[0].steps[0] else {
             panic!("expected Action step");
@@ -1774,7 +1796,7 @@ case "x" { # case open
         // marker just leaves the enclosing case block unclosed, the same
         // generic `parse.syntax` failure as any other unclosed block.
         let src = "case \"x\" {\n  $ echo hi \\";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
         assert_eq!(err.code().as_str(), "parse.syntax");
     }
@@ -1786,7 +1808,7 @@ case "x" { # case open
         // so two consecutive backslashes still continue (the first is
         // ordinary command text; the second is the marker).
         let src = "case \"x\" {\n  $ echo hi \\\\\ntwo\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::Action(action) = &script.cases[0].steps[0] else {
             panic!("expected Action step");
         };
@@ -1796,14 +1818,14 @@ case "x" { # case open
     #[test]
     fn inline_comment_glued_to_token_is_error() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    exit 0#comment\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn double_slash_is_not_a_comment_marker() {
         let src = "// not a comment\ncase \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1828,29 +1850,29 @@ case "x" {
   }
 }
 "#;
-        let with = parse(with_comments).unwrap();
-        let without = parse(without_comments).unwrap();
+        let with = parse_script(with_comments).unwrap();
+        let without = parse_script(without_comments).unwrap();
         assert_eq!(format!("{with:?}"), format!("{without:?}"));
     }
 
     #[test]
     fn comment_splitting_case_header_before_open_brace_is_error() {
         let src = "case \"x\" # comment\n{\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn comment_swallowing_single_line_assertion_close_brace_is_error() {
         let src = "case \"x\" {\n  $ true\n  assert { exit 0 # comment\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn comment_splitting_expectation_tokens_is_error() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    exit # comment\n    0\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1858,7 +1880,7 @@ case "x" {
     #[test]
     fn comment_only_assertion_block_is_error() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    # comment only\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -1867,7 +1889,7 @@ case "x" {
     // See docs/diagnostics.md.
     #[test]
     fn syntax_error_has_stable_code() {
-        let err = parse("$ true\n").unwrap_err();
+        let err = parse_script("$ true\n").unwrap_err();
         assert_eq!(err.code().as_str(), "parse.syntax");
 
         let diagnostic = err.to_diagnostic();
@@ -1882,7 +1904,7 @@ case "x" {
     #[test]
     fn syntax_error_display_includes_source_line_and_caret() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    exit 0\n  }\n} extra\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         let rendered = err.to_string();
 
         assert!(rendered.contains("} extra"));
@@ -1892,7 +1914,7 @@ case "x" {
     #[test]
     fn empty_case_has_stable_code() {
         let src = "case \"x\" {\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert_eq!(err.code().as_str(), "parse.empty_case");
 
         let diagnostic = err.to_diagnostic();
@@ -1903,7 +1925,7 @@ case "x" {
     #[test]
     fn missing_assertion_block_has_stable_code() {
         let src = "case \"x\" {\n  $ true\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert_eq!(err.code().as_str(), "parse.missing_assertion_block");
 
         let diagnostic = err.to_diagnostic();
@@ -1914,7 +1936,7 @@ case "x" {
     #[test]
     fn empty_action_has_stable_code() {
         let src = "case \"x\" {\n  $\n  assert {\n    exit 0\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert_eq!(err.code().as_str(), "parse.empty_action");
 
         let diagnostic = err.to_diagnostic();
@@ -1932,7 +1954,7 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert_eq!(err.code().as_str(), "parse.invalid_exit_code");
 
         let diagnostic = err.to_diagnostic();
@@ -1950,7 +1972,7 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         let diagnostic = err.to_diagnostic();
 
         assert_eq!(diagnostic.code.as_str(), "parse.invalid_exit_code");
@@ -1972,7 +1994,7 @@ case "x" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -1992,7 +2014,7 @@ case "x" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -2016,7 +2038,7 @@ case "x" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -2035,7 +2057,7 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -2049,7 +2071,7 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -2063,7 +2085,7 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -2079,7 +2101,7 @@ case "x" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -2099,7 +2121,7 @@ case "x" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -2122,7 +2144,7 @@ case "x" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -2141,7 +2163,7 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -2155,7 +2177,7 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -2169,7 +2191,7 @@ case "x" {
   }
 }
 "#;
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -2185,7 +2207,7 @@ case "x" {
     #[test]
     fn parse_not_block_single_line() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    not { exit 1 }\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -2210,7 +2232,7 @@ case "x" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -2234,7 +2256,7 @@ case "x" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -2262,7 +2284,7 @@ case "x" {
   }
 }
 "#;
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected AssertionBlock");
         };
@@ -2281,7 +2303,7 @@ case "x" {
     #[test]
     fn empty_not_block_is_semantic_empty_block_error() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    not { }\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::EmptyLogicalCompositionBlock {
@@ -2295,7 +2317,7 @@ case "x" {
     #[test]
     fn empty_all_block_multi_line_is_semantic_empty_block_error() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    all {\n    }\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::EmptyLogicalCompositionBlock {
@@ -2309,7 +2331,7 @@ case "x" {
     #[test]
     fn empty_any_block_with_comment_only_is_semantic_empty_block_error() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    any {\n      # no expectations here\n    }\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::EmptyLogicalCompositionBlock {
@@ -2322,7 +2344,7 @@ case "x" {
     #[test]
     fn empty_logical_composition_block_diagnostic_details_record_operator() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    all { }\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         let diagnostic = err.to_diagnostic();
         assert_eq!(diagnostic.code.as_str(), "semantic.expectation.empty_block");
         assert_eq!(diagnostic.details.raw_value.as_deref(), Some("all"));
@@ -2331,28 +2353,28 @@ case "x" {
     #[test]
     fn and_block_is_not_accepted_as_logical_composition() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    and { exit 0 }\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn or_block_is_not_accepted_as_logical_composition() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    or { exit 0 }\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn infix_and_between_expectations_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    exit 0 and exit 0\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn infix_or_between_expectations_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    exit 0 or exit 1\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -2360,7 +2382,7 @@ case "x" {
     fn single_line_composition_block_multiple_expectations_is_error() {
         // Mirrors single_line_assert_multiple_expectations_is_error: a composition block's single-line form accepts exactly one expectation, same as assert { ... }'s.
         let src = "case \"x\" {\n  $ true\n  assert {\n    all { exit 0 exit 1 }\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -2376,7 +2398,7 @@ case "x" {
     #[test]
     fn parse_basic_write_step() {
         let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    hello\n    ```\n  $ true\n  assert {\n    exit 0\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.path.as_str(), "a.txt");
         assert_eq!(step.content.to_text_value().as_str(), "hello\n");
@@ -2386,7 +2408,7 @@ case "x" {
     #[test]
     fn write_step_can_follow_an_action_in_source_order() {
         let src = "case \"x\" {\n  $ true\n  write <\"a.txt\"> ```\n    hello\n    ```\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::SideEffect(SideEffectingStep::WriteFile(step)) = &script.cases[0].steps[1] else {
             panic!("expected second step to be a write step");
         };
@@ -2397,7 +2419,7 @@ case "x" {
     #[test]
     fn write_step_empty_block_content_is_empty_string() {
         let src = "case \"x\" {\n  write <\"empty.txt\"> ```\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "");
     }
@@ -2405,7 +2427,7 @@ case "x" {
     #[test]
     fn write_step_blank_line_is_preserved_as_empty_line_after_dedent() {
         let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    first\n\n    third\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "first\n\nthird\n");
     }
@@ -2415,7 +2437,7 @@ case "x" {
         // The blank line has trailing spaces shallower than the closing fence's indent;
         // it must still be exempt from the shallow-indent check and dedent to empty.
         let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    first\n  \n    third\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "first\n\nthird\n");
     }
@@ -2425,7 +2447,7 @@ case "x" {
         // Closing fence indented with a tab; body lines must match that exact
         // tab character as a string prefix, not a width-equivalent number of spaces.
         let src = "case \"x\" {\n  write <\"a.txt\"> ```\n\thello\n\t```\n  $ true\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "hello\n");
     }
@@ -2433,7 +2455,7 @@ case "x" {
     #[test]
     fn write_step_crlf_line_endings_are_preserved() {
         let src = "case \"x\" {\r\n  write <\"a.txt\"> ```\r\n    hello\r\n    ```\r\n  $ true\r\n  assert { exit 0 }\r\n}\r\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "hello\r\n");
     }
@@ -2441,7 +2463,7 @@ case "x" {
     #[test]
     fn write_step_content_preserves_variable_looking_text_literally() {
         let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    ${ENTRY_KIND}\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "${ENTRY_KIND}\n");
     }
@@ -2449,7 +2471,7 @@ case "x" {
     #[test]
     fn write_step_closing_fence_longer_than_opening_is_accepted() {
         let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    hello\n    ````\n  $ true\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.content.to_text_value().as_str(), "hello\n");
     }
@@ -2457,7 +2479,7 @@ case "x" {
     #[test]
     fn write_step_longer_opening_fence_allows_embedded_triple_backticks() {
         let src = "case \"x\" {\n  write <\"a.md\"> ````\n    ```ts\n    console.log(1)\n    ```\n    ````\n  $ true\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(
             step.content.to_text_value().as_str(),
@@ -2469,7 +2491,7 @@ case "x" {
     fn write_step_shallow_indent_is_rejected() {
         // "mid" is indented less than the closing fence's 4 spaces.
         let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    first\n  mid\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::ShallowHeredocIndent { .. }));
         assert_eq!(err.code().as_str(), "parse.heredoc_literal.shallow_indent");
     }
@@ -2478,21 +2500,21 @@ case "x" {
     fn write_step_unterminated_fence_is_a_syntax_error() {
         let src =
             "case \"x\" {\n  write <\"a.txt\"> ```\n    hello\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn write_step_opening_fence_inline_comment_is_rejected() {
         let src = "case \"x\" {\n  write <\"a.txt\"> ``` # comment\n    hello\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
     #[test]
     fn write_step_absolute_path_is_rejected() {
         let src = "case \"x\" {\n  write <\"/etc/passwd\"> ```\n    x\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::InvalidWorkspacePath {
@@ -2506,7 +2528,7 @@ case "x" {
     #[test]
     fn write_step_dot_segment_path_is_rejected() {
         let src = "case \"x\" {\n  write <\"../a.txt\"> ```\n    x\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::InvalidWorkspacePath {
@@ -2523,7 +2545,7 @@ case "x" {
         // expected `<"...">` value. The Display message must name whichever position the raw
         // path actually came from, not hardcode "write step path" regardless of origin.
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"actual.txt\"> contents_equals <\"../expected.txt\">\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::InvalidWorkspacePath {
@@ -2541,7 +2563,7 @@ case "x" {
     fn write_step_empty_path_is_rejected() {
         let src =
             "case \"x\" {\n  write <\"\"> ```\n    x\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::InvalidWorkspacePath {
@@ -2555,7 +2577,7 @@ case "x" {
     #[test]
     fn multiple_write_steps_are_kept_in_source_order() {
         let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    a\n    ```\n  write <\"b.txt\"> ```\n    b\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         assert_eq!(script.cases[0].steps.len(), 4);
         let Step::SideEffect(SideEffectingStep::WriteFile(first)) = &script.cases[0].steps[0]
         else {
@@ -2591,7 +2613,7 @@ case "x" {
             "  assert { exit 0 }\n",
             "}\n",
         );
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
 
         // Only 3 steps: the intended `write <"b.txt">` step never materializes.
         assert_eq!(script.cases[0].steps.len(), 3);
@@ -2615,7 +2637,7 @@ case "x" {
         // rules; the unescaped value is what reaches the AST.
         let src =
             "case \"x\" {\n  write <\"a\\tb.txt\"> \"content\"\n  $ true\n  assert { exit 0 }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let step = write_file_step(&script);
         assert_eq!(step.path.as_str(), "a\tb.txt");
     }
@@ -2623,7 +2645,7 @@ case "x" {
     #[test]
     fn file_subject_string_literal_is_kind_mismatch() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file \"out.txt\" exists\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2646,7 +2668,7 @@ case "x" {
     #[test]
     fn file_subject_fixture_reference_is_kind_mismatch() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file @\"out.txt\" exists\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2665,7 +2687,7 @@ case "x" {
     #[test]
     fn heredoc_file_contains_subject_string_literal_is_kind_mismatch() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file \"out.txt\" contains ```\n    hi\n    ```\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2678,7 +2700,7 @@ case "x" {
     #[test]
     fn dir_subject_string_literal_is_kind_mismatch() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    dir \"out\" exists\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2695,7 +2717,7 @@ case "x" {
     #[test]
     fn write_path_string_literal_is_kind_mismatch() {
         let src = "case \"x\" {\n  write \"a.txt\" \"content\"\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2711,7 +2733,7 @@ case "x" {
     #[test]
     fn write_heredoc_path_string_literal_is_kind_mismatch() {
         let src = "case \"x\" {\n  write \"a.txt\" ```\n    hello\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2725,7 +2747,7 @@ case "x" {
     fn write_content_workspace_path_literal_is_kind_mismatch() {
         let src =
             "case \"x\" {\n  write <\"a.txt\"> <\"b.txt\">\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2742,7 +2764,7 @@ case "x" {
     #[test]
     fn stdout_contains_workspace_path_literal_is_kind_mismatch() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains <\"expected.stdout\">\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2764,7 +2786,7 @@ case "x" {
     #[test]
     fn stderr_contains_fixture_reference_is_kind_mismatch() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stderr contains @\"expected.stderr\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2782,7 +2804,7 @@ case "x" {
     #[test]
     fn file_contains_expected_workspace_path_literal_is_kind_mismatch() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contains <\"expected.txt\">\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2799,7 +2821,7 @@ case "x" {
     fn dir_contains_entry_workspace_path_literal_is_kind_mismatch() {
         let src =
             "case \"x\" {\n  $ true\n  assert {\n    dir <\"out\"> contains <\"entry\">\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2818,7 +2840,7 @@ case "x" {
     #[test]
     fn literal_kind_mismatch_diagnostic_carries_expected_actual_and_suggestion() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file \"out.txt\" exists\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         let diagnostic = err.to_diagnostic();
 
         assert_eq!(diagnostic.code.as_str(), "semantic.literal.kind_mismatch");
@@ -2844,11 +2866,11 @@ case "x" {
     #[test]
     fn whitespace_between_path_marker_and_quote_is_syntax_error() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file < \"out.txt\"> exists\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
 
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\" > exists\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(err, ParseError::Syntax { .. }));
     }
 
@@ -2857,7 +2879,7 @@ case "x" {
     #[test]
     fn file_contents_equals_accepts_workspace_path_literal() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals <\"expected.txt\">\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected assertion block");
         };
@@ -2873,7 +2895,7 @@ case "x" {
     #[test]
     fn file_contents_equals_accepts_fixture_reference_literal() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"expected.txt\"\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected assertion block");
         };
@@ -2891,7 +2913,7 @@ case "x" {
     #[test]
     fn file_contents_equals_rejects_string_literal() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals \"expected.txt\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2910,7 +2932,7 @@ case "x" {
         // The `file` checkpoint subject requires a WorkspacePath, never a
         // FixtureReference, regardless of which predicate follows it.
         let src = "case \"x\" {\n  $ true\n  assert {\n    file @\"actual.txt\" contents_equals @\"expected.txt\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2924,7 +2946,7 @@ case "x" {
     #[test]
     fn file_text_equals_accepts_string_literal() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> text_equals \"expected\"\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected assertion block");
         };
@@ -2942,7 +2964,7 @@ case "x" {
     #[test]
     fn file_text_equals_rejects_fixture_reference() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> text_equals @\"expected.txt\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2958,7 +2980,7 @@ case "x" {
     #[test]
     fn file_text_equals_rejects_workspace_path_literal() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> text_equals <\"expected.txt\">\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -2975,7 +2997,7 @@ case "x" {
     #[test]
     fn file_text_equals_accepts_heredoc_literal() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> text_equals ```\n    hello\n    world\n    ```\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected assertion block");
         };
@@ -2993,7 +3015,7 @@ case "x" {
     #[test]
     fn heredoc_file_text_equals_subject_string_literal_is_kind_mismatch() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file \"out.txt\" text_equals ```\n    hi\n    ```\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -3007,7 +3029,7 @@ case "x" {
     fn stdout_text_equals_accepts_string_literal() {
         let src =
             "case \"x\" {\n  $ true\n  assert {\n    stdout text_equals \"hello\\n\"\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected assertion block");
         };
@@ -3022,7 +3044,7 @@ case "x" {
     #[test]
     fn stderr_text_equals_accepts_heredoc_literal() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stderr text_equals ```\n    warn\n    line\n    ```\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected assertion block");
         };
@@ -3039,7 +3061,7 @@ case "x" {
         // The heredoc form is a separate heredoc_assertion_line alternative (see the grammar);
         // an ordinary expectation line following the heredoc must still parse.
         let src = "case \"x\" {\n  $ true\n  assert {\n    stdout text_equals ```\n    hello\n    ```\n    exit 0\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected assertion block");
         };
@@ -3056,7 +3078,7 @@ case "x" {
     #[test]
     fn stdout_text_equals_workspace_path_literal_is_kind_mismatch() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stdout text_equals <\"expected.txt\">\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -3073,7 +3095,7 @@ case "x" {
     #[test]
     fn stderr_text_equals_fixture_reference_is_kind_mismatch() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stderr text_equals @\"expected.txt\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -3089,7 +3111,7 @@ case "x" {
     #[test]
     fn stdout_contents_equals_accepts_fixture_reference_literal() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contents_equals @\"stdout.snapshot\"\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected assertion block");
         };
@@ -3104,7 +3126,7 @@ case "x" {
     #[test]
     fn stderr_contents_equals_accepts_workspace_path_literal() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    stderr contents_equals <\"expected.txt\">\n  }\n}\n";
-        let script = parse(src).unwrap();
+        let script = parse_script(src).unwrap();
         let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
             panic!("expected assertion block");
         };
@@ -3119,7 +3141,7 @@ case "x" {
     #[test]
     fn fixture_reference_empty_path_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::InvalidFixtureReference {
@@ -3133,7 +3155,7 @@ case "x" {
     #[test]
     fn fixture_reference_absolute_path_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"/etc/passwd\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::InvalidFixtureReference {
@@ -3147,7 +3169,7 @@ case "x" {
     #[test]
     fn fixture_reference_dot_segment_leading_parent_path_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"../escape.txt\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::InvalidFixtureReference {
@@ -3164,7 +3186,7 @@ case "x" {
     #[test]
     fn fixture_reference_dot_segment_leading_current_path_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"./escape.txt\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::InvalidFixtureReference {
@@ -3181,7 +3203,7 @@ case "x" {
     #[test]
     fn fixture_reference_dot_segment_middle_current_path_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"snapshots/./stdout.json\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::InvalidFixtureReference {
@@ -3198,7 +3220,7 @@ case "x" {
     #[test]
     fn fixture_reference_dot_segment_middle_parent_path_is_rejected() {
         let src = "case \"x\" {\n  $ true\n  assert {\n    file <\"out.txt\"> contents_equals @\"snapshots/../stdout.json\"\n  }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::InvalidFixtureReference {
@@ -3219,7 +3241,7 @@ case "x" {
         // TextValue content requirement: fixture references are only valid
         // in a FileContentsReference expected position (#92).
         let src = "case \"x\" {\n  write <\"out.txt\"> @\"expected.txt\"\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -3234,7 +3256,7 @@ case "x" {
     fn write_step_path_fixture_reference_is_kind_mismatch() {
         let src =
             "case \"x\" {\n  write @\"out.txt\" \"content\"\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::LiteralKindMismatch {
@@ -3253,7 +3275,7 @@ case "x" {
         // semantic.workspace_path.* diagnostics.
         let src =
             "case \"x\" {\n  write <\"/etc/passwd\"> \"x\"\n  $ true\n  assert { exit 0 }\n}\n";
-        let err = parse(src).unwrap_err();
+        let err = parse_script(src).unwrap_err();
         assert!(matches!(
             err,
             ParseError::InvalidWorkspacePath {
@@ -3261,5 +3283,107 @@ case "x" {
                 ..
             }
         ));
+    }
+
+    // ── Source-level model: case spans ──────────────────────────────────────
+    //
+    // The case span contract: a span equals the pest `case_block` pair's byte
+    // range — leading indentation through the closing brace line's trailing
+    // whitespace / inline comment and line ending (when present) — and never
+    // includes surrounding blank lines or comment lines.
+    // See docs/adr/20260712T090000Z_parser-returns-source-level-model.md.
+
+    /// The one expected case's span slice, for single-case span tests.
+    fn single_case_source(src: &str) -> String {
+        let source_file = parse(src).unwrap();
+        assert_eq!(source_file.cases().len(), 1);
+        source_file.case_source(&source_file.cases()[0]).to_string()
+    }
+
+    #[test]
+    fn source_file_owns_input_text() {
+        let src = "case \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
+        let source_file = parse(src).unwrap();
+        assert_eq!(source_file.source().as_str(), src);
+    }
+
+    #[test]
+    fn case_span_covers_whole_block_and_final_newline() {
+        let src = "case \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
+        assert_eq!(single_case_source(src), src);
+    }
+
+    #[test]
+    fn case_span_excludes_surrounding_blank_and_comment_lines() {
+        let block = "case \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
+        let src = format!("\n# leading comment\n\n{block}\n# trailing comment\n\n");
+        let source_file = parse(&src).unwrap();
+        assert_eq!(source_file.cases().len(), 1);
+        let span = source_file.cases()[0].span();
+        assert_eq!(source_file.case_source(&source_file.cases()[0]), block);
+        assert_eq!(span.start(), src.find("case").unwrap());
+    }
+
+    #[test]
+    fn case_span_includes_leading_indentation() {
+        let block = "  case \"x\" {\n    $ true\n    assert { exit 0 }\n  }\n";
+        let src = format!("\n{block}");
+        assert_eq!(single_case_source(&src), block);
+    }
+
+    #[test]
+    fn case_span_includes_closing_brace_trailing_inline_comment() {
+        let src = "case \"x\" {\n  $ true\n  assert { exit 0 }\n} # done\n";
+        assert_eq!(single_case_source(src), src);
+    }
+
+    #[test]
+    fn case_span_without_final_newline_ends_at_eoi() {
+        let src = "case \"x\" {\n  $ true\n  assert { exit 0 }\n}";
+        assert_eq!(single_case_source(src), src);
+    }
+
+    #[test]
+    fn case_span_with_crlf_line_endings_includes_final_crlf() {
+        let src = "case \"x\" {\r\n  $ true\r\n  assert { exit 0 }\r\n}\r\n";
+        assert_eq!(single_case_source(src), src);
+    }
+
+    #[test]
+    fn case_span_with_heredoc_body_covers_whole_block() {
+        let src = "case \"x\" {\n  write <\"o.txt\"> ```\n  line\n  ```\n  $ true\n  assert { exit 0 }\n}\n";
+        assert_eq!(single_case_source(src), src);
+    }
+
+    #[test]
+    fn case_span_with_multibyte_text_stays_on_char_boundaries() {
+        let block = "case \"日本語のケース\" {\n  $ echo \"あいうえお\"\n  assert { exit 0 }\n}\n";
+        let src = format!("# 説明コメント\n{block}");
+        let source_file = parse(&src).unwrap();
+        let span = source_file.cases()[0].span();
+        assert!(src.is_char_boundary(span.start()) && src.is_char_boundary(span.end()));
+        assert_eq!(source_file.case_source(&source_file.cases()[0]), block);
+    }
+
+    #[test]
+    fn multiple_case_spans_are_ordered_and_exclude_gaps() {
+        let first = "case \"first\" {\n  $ true\n  assert { exit 0 }\n}\n";
+        let second = "case \"second\" {\n  $ false\n  assert { exit 1 }\n}\n";
+        let src = format!("{first}\n# between\n\n{second}");
+        let source_file = parse(&src).unwrap();
+        assert_eq!(source_file.cases().len(), 2);
+        let (a, b) = (&source_file.cases()[0], &source_file.cases()[1]);
+        assert_eq!(source_file.case_source(a), first);
+        assert_eq!(source_file.case_source(b), second);
+        assert!(a.span().end() <= b.span().start());
+    }
+
+    #[test]
+    fn into_script_preserves_case_order_and_drops_source() {
+        let src = "case \"a\" {\n  $ true\n  assert { exit 0 }\n}\ncase \"b\" {\n  $ true\n  assert { exit 0 }\n}\n";
+        let script = parse(src).unwrap().into_script();
+        assert_eq!(script.cases.len(), 2);
+        assert_eq!(script.cases[0].name, "a");
+        assert_eq!(script.cases[1].name, "b");
     }
 }

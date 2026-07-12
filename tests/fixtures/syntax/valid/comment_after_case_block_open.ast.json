@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "comment after case block open",
+      "span": {
+        "start": 0,
+        "end": 117
+      },
       "steps": [
         {
           "kind": "action",

@@ -2,6 +2,10 @@
   "cases": [
     {
       "name": "comment after assertion block open",
+      "span": {
+        "start": 0,
+        "end": 124
+      },
       "steps": [
         {
           "kind": "action",
