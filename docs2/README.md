@@ -1,9 +1,5 @@
 # reportage documentation
 
-This directory is the re-architected documentation tree for reportage, rebuilt from the contents of [`docs/`](../docs/).
-
-Status: while both trees exist, [`docs/`](../docs/) remains the authoritative documentation tree. This tree becomes authoritative when the migration completes and generators, checks, and source references are repointed here. Do not fix a factual error only in this tree; fix it in the authoritative home.
-
 ## How this tree is organized
 
 Documents are separated by audience and by role, so each substantive fact has exactly one home:
