@@ -210,4 +210,4 @@ Semantic spec files must not include:
 - `status: tbd`
 - Free-form prose in normative fields
 
-Deferred or unresolved semantic questions belong in [`docs/TBD.md`](../../../docs/TBD.md), not in spec files.
+Deferred or unresolved semantic questions belong in [`docs2/planning/TBD.md`](../../../docs2/planning/TBD.md), not in spec files.
