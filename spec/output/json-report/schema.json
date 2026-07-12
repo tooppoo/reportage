@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/tooppoo/reportage/spec/output/json-report/schema.json",
   "title": "Reportage --format=json Execution Report",
-  "description": "External contract for `reportage run --format=json`'s CLI stdout document. This is a structured execution report, not a serialization of internal Rust types. It is a stdout-safe projection of the canonical artifact run result document (`result.json`, spec/artifacts/run-result/schema.json): it adds `artifactRoot` and omits the artifact-only `noop` field and the evidence `sha256` digests (see docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md). See docs/adr/20260707T045900Z_json-output-as-structured-execution-report.md, docs/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md, and docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md for the decisions this schema encodes.",
+  "description": "External contract for `reportage run --format=json`'s CLI stdout document. This is a structured execution report, not a serialization of internal Rust types. It is a stdout-safe projection of the canonical artifact run result document (`result.json`, spec/artifacts/run-result/schema.json): it adds `artifactRoot` and omits the artifact-only `noop` field and the evidence `sha256` digests (see docs2/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md). See docs2/adr/20260707T045900Z_json-output-as-structured-execution-report.md, docs2/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md, and docs2/adr/20260707T050100Z_json-output-schema-and-validation-policy.md for the decisions this schema encodes.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -71,7 +71,7 @@
     "DiagnosticCode": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$",
-      "description": "A stable diagnostic code (e.g. 'parse.syntax', 'assertion.stdout.contains.mismatch', 'step.write.target_exists'). This is an open, growing set documented in docs/diagnostics.md and docs/semantic-diagnostics.md, not a fixed enum: new codes may be added without a schemaVersion bump, but existing codes are stable identifiers and must not be repurposed."
+      "description": "A stable diagnostic code (e.g. 'parse.syntax', 'assertion.stdout.contains.mismatch', 'step.write.target_exists'). This is an open, growing set documented in docs2/reference/diagnostics.md and docs2/reference/semantic-diagnostics.md, not a fixed enum: new codes may be added without a schemaVersion bump, but existing codes are stable identifiers and must not be repurposed."
     },
     "DiagnosticRefField": {
       "type": "string",
@@ -101,7 +101,7 @@
       ]
     },
     "Location": {
-      "description": "Source line/column of a diagnostic. Only populated for parse-domain diagnostics (category 'parse') in v0; every other category currently reports `location: null` and relies on `origin` instead, because source ranges are not yet tracked on the evaluator side (see the non-goals in issue #89 and docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md).",
+      "description": "Source line/column of a diagnostic. Only populated for parse-domain diagnostics (category 'parse') in v0; every other category currently reports `location: null` and relies on `origin` instead, because source ranges are not yet tracked on the evaluator side (see the non-goals in issue #89 and docs2/adr/20260707T050100Z_json-output-schema-and-validation-policy.md).",
       "type": "object",
       "additionalProperties": false,
       "required": ["line"],
@@ -126,7 +126,7 @@
         "category": {
           "type": "string",
           "enum": ["parse", "semantic", "runtime", "assertion", "internal"],
-          "description": "'internal' covers failures that predate parsing (e.g. a file read error) and do not fit the four namespaces defined in docs/semantic-diagnostics.md."
+          "description": "'internal' covers failures that predate parsing (e.g. a file read error) and do not fit the four namespaces defined in docs2/reference/semantic-diagnostics.md."
         },
         "severity": {
           "type": "string",
@@ -167,7 +167,7 @@
       "properties": {
         "artifactRef": {
           "type": "string",
-          "description": "Path relative to the document's `artifactRoot`. Captured stdout/stderr bytes are never inlined in v0; see docs/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md."
+          "description": "Path relative to the document's `artifactRoot`. Captured stdout/stderr bytes are never inlined in v0; see docs2/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md."
         },
         "sizeBytes": { "type": "integer", "minimum": 0 }
       }
