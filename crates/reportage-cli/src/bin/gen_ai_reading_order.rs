@@ -16,7 +16,7 @@ use reportage_cli::references::{DOCUMENTS, DocumentEntry};
 /// repository root, so the file stays readable when opened directly from a checkout.
 const OUTPUT_DIR: &[&str] = &["docs", "ai"];
 
-/// Rewrites a repository-root-relative `path` (e.g. `"docs/syntax.md"`) into a path relative to
+/// Rewrites a repository-root-relative `path` (e.g. `"docs/reference/syntax.md"`) into a path relative to
 /// [`OUTPUT_DIR`] (e.g. `"../syntax.md"`), by walking the shared directory prefix.
 fn relative_link(path: &str) -> String {
     let components: Vec<&str> = path.split('/').collect();

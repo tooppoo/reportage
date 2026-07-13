@@ -3,7 +3,7 @@
 //! A semantic error means the script parses successfully, but a normalized expectation violates a policy the evaluator must reject *before* evidence comparison begins.
 //! This is distinct from a parse error (the script text itself is malformed) and from an assertion failure (the expectation is valid, but observed evidence does not satisfy it).
 //!
-//! See docs/semantic-diagnostics.md and docs/adr/20260702T133734Z_semantic-and-assertion-diagnostic-model.md.
+//! See docs/reference/semantic-diagnostics.md and docs/adr/20260702T133734Z_semantic-and-assertion-diagnostic-model.md.
 
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails};
 use crate::model::{WorkspacePath, WorkspacePathError};
@@ -74,7 +74,7 @@ impl std::error::Error for SemanticError {}
 impl SemanticError {
     /// The stable, machine-readable diagnostic code for this error.
     ///
-    /// See docs/diagnostics.md and docs/semantic-diagnostics.md.
+    /// See docs/reference/diagnostics.md and docs/reference/semantic-diagnostics.md.
     pub const fn code(&self) -> DiagnosticCode {
         match self {
             SemanticError::AbsoluteFilePath(_) => DiagnosticCode::SemanticFilePathAbsolute,

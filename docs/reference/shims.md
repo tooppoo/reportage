@@ -2,7 +2,7 @@
 
 This document describes the role of shims in reportage.
 
-For the detailed shim invocation event protocol, see [shims/event-protocol.md](shims/event-protocol.md).
+For the detailed shim invocation event protocol, see [Shim event protocol](shim-event-protocol.md).
 
 ## Overview
 
@@ -37,7 +37,7 @@ Use cases include:
 
 The runner prepends one or more runner-owned directories to `PATH`. Normal shell command resolution applies after that. A shim named `reportage` in the prefix directory shadows an ambient `reportage` found later on `PATH`.
 
-This is command resolution control, not shell selection. For the low-level `ExecutionEnvironment` PATH behavior, see [execution-model.md](execution-model.md).
+This is command resolution control, not shell selection. For the low-level `ExecutionEnvironment` PATH behavior, see [Execution model](execution-model.md).
 
 ## Shim interception limits
 
@@ -74,7 +74,7 @@ Self-testing uses same-name command interception:
 4. The harness prepends the shim directory to `PATH`.
 5. The shell resolves `reportage` through the shim.
 
-For self-testing policy and representative cases, see [testing/self-testing.md](testing/self-testing.md).
+For self-testing policy and representative cases, see [Self-testing](../design/testing/self-testing.md).
 
 ### Application E2E testing
 
@@ -98,7 +98,7 @@ PATH overlay shims and coverage collection are related but distinct. Shims decid
 
 A target may be runnable even when coverage is unavailable.
 
-`reportage shim scaffold` (see [shim-scaffold.md](shim-scaffold.md)) generates a starting-point adapter script from a static template, but the generated file is then a project-owned artifact: reportage takes no further role in it once it is written.
+`reportage shim scaffold` (see [Shim scaffold](shim-scaffold.md)) generates a starting-point adapter script from a static template, but the generated file is then a project-owned artifact: reportage takes no further role in it once it is written.
 
 ## Executable invocation targets
 
@@ -151,7 +151,7 @@ Shims can make failures harder to diagnose unless invocation metadata is recorde
 
 Protocol-compliant shims report invocation events through a runner-provided side channel. The runner attaches observed shim invocation metadata to action results, diagnostics, and artifacts.
 
-For the protocol, see [shims/event-protocol.md](shims/event-protocol.md).
+For the protocol, see [Shim event protocol](shim-event-protocol.md).
 
 ## Observed metadata, not complete resolution tracing
 
@@ -175,7 +175,7 @@ These diagnostics remain observable stderr. reportage does not automatically fil
 
 ## Related documents
 
-- [execution-model.md](execution-model.md)
-- [testing/self-testing.md](testing/self-testing.md)
-- [shims/event-protocol.md](shims/event-protocol.md)
-- [shim-scaffold.md](shim-scaffold.md) — generating a coverage-integration shim file from a static template, a distinct concern from the PATH-overlay shims described in this document
+- [Execution model](execution-model.md)
+- [Self-testing](../design/testing/self-testing.md)
+- [Shim event protocol](shim-event-protocol.md)
+- [Shim scaffold](shim-scaffold.md) — generating a coverage-integration shim file from a static template, a distinct concern from the PATH-overlay shims described in this document

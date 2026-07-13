@@ -46,7 +46,7 @@ The first six scenarios mirror `tests/fixtures/json_report/`'s required scenario
 
 ## Compatibility
 
-The pre-#102 artifact `result.json` (snake_case, inline base64 stream envelopes, `result: pass|fail|script_error`) was an early v0 experimental contract. Issue #102 replaced it with this canonical schema as a deliberate breaking change; see [`docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md`](../../../docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md). The schema remains v0-experimental until the stabilization milestones in [`docs/artifacts.md`](../../../docs/artifacts.md).
+The pre-#102 artifact `result.json` (snake_case, inline base64 stream envelopes, `result: pass|fail|script_error`) was an early v0 experimental contract. Issue #102 replaced it with this canonical schema as a deliberate breaking change; see [`docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md`](../../../docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md). The schema remains v0-experimental until the stabilization milestones in [`docs/reference/artifacts.md`](../../../docs/reference/artifacts.md).
 
 ## Decision records
 

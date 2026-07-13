@@ -68,4 +68,4 @@ Sharing one `contents_diagnostic` module between both renderers avoids re-implem
 ### Neutral Consequences
 
 - `file text_equals` (#88) still `todo!()`s; it does not share `contents_equals`'s comparison logic (byte equality vs. text equality) but will likely share `ExpectedContentsError`-shaped test-definition-error classification once implemented.
-- The `.reportage/runs/<id>/result.json` evidence schema gained `fileContentsEquals` / `stdoutContentsEquals` / `stderrContentsEquals` expectation kinds and an `expectedSource` field; this is additive and not currently pinned by an artifact schema stability contract (see [TBD.md](../TBD.md) — Artifact schema stabilization).
+- The `.reportage/runs/<id>/result.json` evidence schema gained `fileContentsEquals` / `stdoutContentsEquals` / `stderrContentsEquals` expectation kinds and an `expectedSource` field; this is additive and not currently pinned by an artifact schema stability contract (see [TBD.md](../planning/TBD.md) — Artifact schema stabilization).

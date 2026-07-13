@@ -23,66 +23,66 @@ This is the recommended reading order for AI agents authoring, editing, or revie
 
 ## Syntax reference
 
-- Link: [Syntax reference](../syntax.md)
-- Path: `docs/syntax.md`
+- Link: [Syntax reference](../reference/syntax.md)
+- Path: `docs/reference/syntax.md`
 - Role: Normative syntax reference
 - Note: Generated from the grammar; a construct absent here is not available, regardless of what seems plausible.
 
 ## Syntax conformance fixtures
 
-- Link: [Syntax conformance fixtures](../syntax-conformance.md)
-- Path: `docs/syntax-conformance.md`
+- Link: [Syntax conformance fixtures](../design/testing/syntax-conformance.md)
+- Path: `docs/design/testing/syntax-conformance.md`
 - Role: Where the syntax conformance fixtures live: known-valid and known-invalid .repor examples with AST snapshots
 - Note: Describes repository test fixtures; the fixtures under tests/fixtures/syntax/ are the example set itself.
 
 ## Semantics
 
-- Link: [Semantics](../semantics.md)
-- Path: `docs/semantics.md`
+- Link: [Semantics](../reference/semantics.md)
+- Path: `docs/reference/semantics.md`
 - Role: Overview and entrypoint for the semantics documentation set
 
 ## Semantic rule catalog
 
-- Link: [Semantic rule catalog](../language/semantic-rules.md)
-- Path: `docs/language/semantic-rules.md`
+- Link: [Semantic rule catalog](../reference/semantic-rules.md)
+- Path: `docs/reference/semantic-rules.md`
 - Role: Generated catalog of language semantic rules
 - Note: Generated from spec/language/semantics/*.json; do not hand-edit.
 
 ## Diagnostics
 
-- Link: [Diagnostics](../diagnostics.md)
-- Path: `docs/diagnostics.md`
+- Link: [Diagnostics](../reference/diagnostics.md)
+- Path: `docs/reference/diagnostics.md`
 - Role: Parser and validator diagnostic code reference
 
 ## Semantic and assertion diagnostics
 
-- Link: [Semantic and assertion diagnostics](../semantic-diagnostics.md)
-- Path: `docs/semantic-diagnostics.md`
+- Link: [Semantic and assertion diagnostics](../reference/semantic-diagnostics.md)
+- Path: `docs/reference/semantic-diagnostics.md`
 - Role: Semantic, assertion, and step diagnostic code reference, extending the parse.* model above
 - Note: A specification: parts may not yet be applied to the parser, evaluator, or CLI diagnostic rendering.
 
 ## Execution model
 
-- Link: [Execution model](../execution-model.md)
-- Path: `docs/execution-model.md`
+- Link: [Execution model](../reference/execution-model.md)
+- Path: `docs/reference/execution-model.md`
 - Role: Runner execution order and case workspace/checkpoint lifecycle
 
 ## Exit codes
 
-- Link: [Exit codes](../exit-codes.md)
-- Path: `docs/exit-codes.md`
+- Link: [Exit codes](../reference/exit-codes.md)
+- Path: `docs/reference/exit-codes.md`
 - Role: Reportage process exit code reference
 
 ## Configuration
 
-- Link: [Configuration](../configuration.md)
-- Path: `docs/configuration.md`
+- Link: [Configuration](../reference/configuration.md)
+- Path: `docs/reference/configuration.md`
 - Role: reportage.kdl config file reference
 
 ## Artifacts
 
-- Link: [Artifacts](../artifacts.md)
-- Path: `docs/artifacts.md`
+- Link: [Artifacts](../reference/artifacts.md)
+- Path: `docs/reference/artifacts.md`
 - Role: Artifact bundle overview: the .reportage/runs layout and result.json as the canonical run record
 - Note: reportage <file.repor> --format=json prints a projection derived from result.json, not the artifact document itself.
 

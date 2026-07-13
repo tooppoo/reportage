@@ -618,7 +618,7 @@ fn invalid_syntax_fixtures_are_rejected() {
             }
             // Literal kind mismatches parse at the grammar level and are
             // rejected as semantic invalid cases with an actionable
-            // diagnostic. See docs/semantic-diagnostics.md and
+            // diagnostic. See docs/reference/semantic-diagnostics.md and
             // docs/adr/20260706T160000Z_workspace-path-literal-syntax.md.
             "file_subject_string_literal"
             | "file_subject_fixture_reference"
@@ -673,7 +673,7 @@ fn invalid_syntax_fixtures_are_rejected() {
                 );
             }
             // Remaining fixtures are rejected as plain pest syntax errors; they share the coarse-grained "parse.syntax" code and are not asserted individually here.
-            // See docs/diagnostics.md.
+            // See docs/reference/diagnostics.md.
             _ => {
                 assert_eq!(err.code().as_str(), "parse.syntax");
             }

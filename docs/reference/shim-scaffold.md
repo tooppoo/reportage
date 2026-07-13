@@ -2,7 +2,7 @@
 
 This document describes `reportage shim scaffold`: a command that generates a coverage-integration shim file from a static builtin template.
 
-For PATH-overlay command shims (the mechanism `.repor` actions resolve through at runtime), see [shims.md](shims.md).
+For PATH-overlay command shims (the mechanism `.repor` actions resolve through at runtime), see [Shims](shims.md).
 
 ## Command
 
@@ -24,7 +24,7 @@ The generated file is a one-time scaffold, not something reportage continues to 
 - After generation, the file belongs to the project. Edit it however the coverage tool, the package manager, or the language toolchain actually requires.
 - reportage does not re-run scaffold generation, detect drift, or resync a previously generated file. If the template evolves, regenerate manually (with `--force`) or edit the existing file directly.
 
-See [ADR 20260708T062146Z](adr/20260708T062146Z_shim-scaffold-command.md) for the reasoning behind treating this as a scaffold rather than a managed integration.
+See [ADR: Shim Scaffold Command](../adr/20260708T062146Z_shim-scaffold-command.md) for the reasoning behind treating this as a scaffold rather than a managed integration.
 
 ## Non-goals
 
@@ -59,7 +59,7 @@ reportage shim scaffold --template typescript-c8-tsx --entry-point my-app/index.
 
 This template targets a common Node.js/TypeScript pairing: [`c8`](https://github.com/bcoe/c8) for Node.js/V8 coverage collection, and [`tsx`](https://github.com/privatenumber/tsx) to run a TypeScript entry point directly without a separate build step. The generated shim is a POSIX `sh` script that single-quotes `--entry-point` (reusing the same quoting `reportage_core::shim_scaffold::single_quote` applies to every template, not a template-specific reimplementation) and execs `npx c8 ... npx tsx "$entry_point" "$@"`, so the shim's own exit status is whatever `c8`/`tsx` produced and every extra argument passed to the shim reaches the entry point unchanged.
 
-The generated shim `cd`s into its own directory (derived from `$0`) before doing anything else, so `--entry-point` and `--reports-dir` are resolved relative to where the shim file itself lives, not relative to whatever directory the shim happens to be invoked from. This matters because a command wired up through reportage runs with the case workspace as its working directory, not the shim's own directory (see [execution-model.md](execution-model.md)); if `--entry-point` or this project's `node_modules` live somewhere other than the shim's own directory, edit the `cd` target and these paths after generation to match.
+The generated shim `cd`s into its own directory (derived from `$0`) before doing anything else, so `--entry-point` and `--reports-dir` are resolved relative to where the shim file itself lives, not relative to whatever directory the shim happens to be invoked from. This matters because a command wired up through reportage runs with the case workspace as its working directory, not the shim's own directory (see [Execution model](execution-model.md)); if `--entry-point` or this project's `node_modules` live somewhere other than the shim's own directory, edit the `cd` target and these paths after generation to match.
 
 The generated shim passes `--clean=false` to `c8`. A suite typically invokes the same shim once per test case, each as a separate `npx c8` process; `c8`'s own default (`--clean=true`) erases coverage from the temp directory before every run, so without `--clean=false` only the last invocation's coverage would survive in the final report. This accumulation has no notion of a suite run boundary — `c8` does not know when one suite run ends and the next begins — so a project that re-runs its suite without clearing `--reports-dir` in between risks a stale file from an earlier run masking a real coverage regression. Clearing `--reports-dir` before each fresh suite run is this project's responsibility, not something the shim or `scaffold` does.
 
@@ -75,7 +75,7 @@ This template provides only an initial `c8 + tsx` scaffold, not a complete or gu
 - replacing `tsx` with `ts-node` or a project-specific loader;
 - running already-built JavaScript instead of a TypeScript source file directly;
 - changing the `c8` reporter flags or `--reports-dir` output location;
-- adjusting the `cd` target if `--entry-point` or `node_modules` live somewhere other than the shim's own directory — for example if `--out` places the shim in a nested `shim/` subdirectory of the project, as in this repo's own `examples/shims/javascript`.
+- adjusting the `cd` target if `--entry-point` or `node_modules` live somewhere other than the shim's own directory — for example if `--out` places the shim in a nested `shim/` subdirectory of the project, as in this repo's own [`examples/shims/javascript`](../../examples/shims/javascript/).
 
 ## `golang` template
 
@@ -97,7 +97,7 @@ Go coverage data is written when the program returns normally from `main` or exi
 
 `work_dir`, `bin_path`, and `cover_dir` in the generated shim are fixed initial values, not derived from `--out`: v0's template context carries only `entry_point`, so scaffold has no project-specific destination to embed here even if it wanted to. Edit these paths to fit the project after generation.
 
-The generated shim `cd`s into its own directory (derived from `$0`) before doing anything else, so `entry_point`, `work_dir`, and `cover_dir` are resolved relative to where the shim file itself lives, not relative to whatever directory the shim happens to be invoked from. This matters because a command wired up through reportage runs with the case workspace as its working directory, not the shim's own directory (see [execution-model.md](execution-model.md)); if `entry_point` or this project's `go.mod` live somewhere other than the shim's own directory, edit the `cd` target and these paths after generation to match.
+The generated shim `cd`s into its own directory (derived from `$0`) before doing anything else, so `entry_point`, `work_dir`, and `cover_dir` are resolved relative to where the shim file itself lives, not relative to whatever directory the shim happens to be invoked from. This matters because a command wired up through reportage runs with the case workspace as its working directory, not the shim's own directory (see [Execution model](execution-model.md)); if `entry_point` or this project's `go.mod` live somewhere other than the shim's own directory, edit the `cd` target and these paths after generation to match.
 
 ### Assumptions and limits
 
@@ -107,7 +107,7 @@ This template assumes Go 1.20 or later (`go build -cover` and `GOCOVERDIR` were 
 - running an already-built binary instead of building on every invocation;
 - changing `work_dir`, `bin_path`, or `cover_dir` to project-specific locations;
 - reconciling `GOCOVERDIR` with an existing coverage-collection setup;
-- adjusting the `cd` target if `entry_point` or `go.mod` live somewhere other than the shim's own directory — for example if `--out` places the shim in a nested `shim/` subdirectory of the project, as in this repo's own `examples/shims/go`.
+- adjusting the `cd` target if `entry_point` or `go.mod` live somewhere other than the shim's own directory — for example if `--out` places the shim in a nested `shim/` subdirectory of the project, as in this repo's own [`examples/shims/go`](../../examples/shims/go/).
 
 ## `rust` template
 
@@ -129,7 +129,7 @@ Rust/LLVM coverage data is written when the program exits normally, including vi
 
 `work_dir`, `target_dir`, `bin_path`, and `cover_dir` in the generated shim are fixed initial values, not derived from `--out`: v0's template context carries only `entry_point`, so scaffold has no project-specific destination to embed here even if it wanted to. Edit these paths to fit the project after generation.
 
-The generated shim `cd`s into its own directory (derived from `$0`) before doing anything else, so cargo resolves the project's `Cargo.toml` from where the shim file itself lives, and `work_dir`/`cover_dir` are created there rather than in whatever directory the shim happens to be invoked from. This matters because a command wired up through reportage runs with the case workspace as its working directory, not the shim's own directory (see [execution-model.md](execution-model.md)); if the project's `Cargo.toml` lives somewhere other than the shim's own directory, edit the `cd` target after generation to match. `LLVM_PROFILE_FILE` is made absolute (prefixed with the shim's `$PWD` after that `cd`) so the coverage data still lands under the project even if the program changes its own working directory before exiting.
+The generated shim `cd`s into its own directory (derived from `$0`) before doing anything else, so cargo resolves the project's `Cargo.toml` from where the shim file itself lives, and `work_dir`/`cover_dir` are created there rather than in whatever directory the shim happens to be invoked from. This matters because a command wired up through reportage runs with the case workspace as its working directory, not the shim's own directory (see [Execution model](execution-model.md)); if the project's `Cargo.toml` lives somewhere other than the shim's own directory, edit the `cd` target after generation to match. `LLVM_PROFILE_FILE` is made absolute (prefixed with the shim's `$PWD` after that `cd`) so the coverage data still lands under the project even if the program changes its own working directory before exiting.
 
 ### Assumptions and limits
 
@@ -139,7 +139,7 @@ This template assumes `-C instrument-coverage` support (stable since Rust 1.60),
 - running an already-built binary instead of building on every invocation;
 - changing `work_dir`, `target_dir`, `bin_path`, or `cover_dir` to project-specific locations;
 - reconciling `RUSTFLAGS`/`LLVM_PROFILE_FILE` with an existing coverage-collection setup (for example `cargo-llvm-cov`, which manages both itself);
-- adjusting the `cd` target if the project's `Cargo.toml` lives somewhere other than the shim's own directory — for example if `--out` places the shim in a nested `shim/` subdirectory of the project, as in this repo's own `examples/shims/rust`.
+- adjusting the `cd` target if the project's `Cargo.toml` lives somewhere other than the shim's own directory — for example if `--out` places the shim in a nested `shim/` subdirectory of the project, as in this repo's own [`examples/shims/rust`](../../examples/shims/rust/).
 
 ## Output path policy
 
@@ -159,7 +159,7 @@ Every `--out` conflict message (existing file, existing directory, existing syml
 
 ## Related documents
 
-- [shims.md](shims.md)
-- [execution-model.md](execution-model.md)
-- [exit-codes.md](exit-codes.md)
-- [ADR 20260708T062146Z](adr/20260708T062146Z_shim-scaffold-command.md)
+- [Shims](shims.md)
+- [Execution model](execution-model.md)
+- [Exit codes](exit-codes.md)
+- [ADR: Shim Scaffold Command](../adr/20260708T062146Z_shim-scaffold-command.md)

@@ -69,7 +69,7 @@ Rejected because it conflates two different evidence shapes (regular-file conten
 
 Considered rejecting absolute paths and `.` / `..` segments directly in the parser (as `parse.*` diagnostics), matching how `config.rs` validates `tests.path` entries at config-parse time.
 
-Rejected for file assertions specifically: the script and expectation shape are syntactically valid; only the *path value* violates a policy the evaluator must reject before evidence comparison, which is the definition of a semantic error, not a parse error, per [`docs/semantic-diagnostics.md`](../semantic-diagnostics.md) and [20260702T133734Z_semantic-and-assertion-diagnostic-model.md](20260702T133734Z_semantic-and-assertion-diagnostic-model.md). Path policy validation therefore lives in `reportage_core::semantic`, runs per assertion block before any expectation in that block is evaluated, and produces `semantic.file_path.absolute` / `semantic.file_path.dot_segment` diagnostics distinct from `parse.syntax`.
+Rejected for file assertions specifically: the script and expectation shape are syntactically valid; only the *path value* violates a policy the evaluator must reject before evidence comparison, which is the definition of a semantic error, not a parse error, per [`docs/semantic-diagnostics.md`](../reference/semantic-diagnostics.md) and [20260702T133734Z_semantic-and-assertion-diagnostic-model.md](20260702T133734Z_semantic-and-assertion-diagnostic-model.md). Path policy validation therefore lives in `reportage_core::semantic`, runs per assertion block before any expectation in that block is evaluated, and produces `semantic.file_path.absolute` / `semantic.file_path.dot_segment` diagnostics distinct from `parse.syntax`.
 
 ## Consequences
 

@@ -1,6 +1,6 @@
 # Syntax Conformance Fixtures
 
-Syntax conformance fixtures live under [`tests/fixtures/syntax/`](../tests/fixtures/syntax/).
+Syntax conformance fixtures live under [`tests/fixtures/syntax/`](../../../tests/fixtures/syntax/).
 
 - `valid/*.repor` fixtures must parse successfully and must produce an AST snapshot that matches the adjacent `valid/*.ast.json` file.
 - `invalid/*.repor` fixtures must be rejected by the production `parse()` entrypoint.
@@ -27,4 +27,4 @@ Review the JSON diff before committing. Field order is defined by the snapshot i
 
 ## Diagnostic codes
 
-`invalid_syntax_fixtures_are_rejected` also asserts the stable diagnostic code (`ParseError::code()`) for fixtures where Reportage produces a fine-grained code beyond the generic `parse.syntax` wrapper. Not every invalid fixture needs an individual code assertion — see [`diagnostics.md`](diagnostics.md) for the naming convention and compatibility policy.
+`invalid_syntax_fixtures_are_rejected` also asserts the stable diagnostic code (`ParseError::code()`) for fixtures where Reportage produces a fine-grained code beyond the generic `parse.syntax` wrapper. Not every invalid fixture needs an individual code assertion — see [Parse diagnostics](../../reference/diagnostics.md) for the naming convention and compatibility policy.

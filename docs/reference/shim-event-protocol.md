@@ -2,7 +2,7 @@
 
 This document defines the protocol used by protocol-compliant shims to report invocation metadata to reportage.
 
-For the conceptual shim model, see [../shims.md](../shims.md).
+For the conceptual shim model, see [Shims](shims.md).
 
 ## Purpose
 

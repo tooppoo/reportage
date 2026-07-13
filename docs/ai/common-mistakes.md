@@ -1,10 +1,10 @@
 # AI common mistakes
 
-Short wrong/correct examples of mistakes AI agents commonly make when writing or reviewing `.repor` files. For the full picture behind any example here, follow its link — this document intentionally stays short rather than becoming a second example collection; see `examples/*.repor` and `tests/fixtures/syntax/valid/` / `tests/fixtures/syntax/invalid/` for a fuller set.
+Short wrong/correct examples of mistakes AI agents commonly make when writing or reviewing `.repor` files. For the full picture behind any example here, follow its link — this document intentionally stays short rather than becoming a second example collection; see [`examples/`](../../examples/) and [`tests/fixtures/syntax/valid/`](../../tests/fixtures/syntax/valid/) / [`tests/fixtures/syntax/invalid/`](../../tests/fixtures/syntax/invalid/) for a fuller set.
 
 ## Fabricating logical composition syntax
 
-Reportage rejects infix `and`/`or` and `and { }` / `or { }` aliases; only block-form `all { }` / `any { }` / `not { }` are accepted. See [`docs/semantics.md`](../semantics.md) (Logical composition) and [ADR: block-form logical composition](../adr/20260704T150000Z_block-form-logical-composition.md).
+Reportage rejects infix `and`/`or` and `and { }` / `or { }` aliases; only block-form `all { }` / `any { }` / `not { }` are accepted. See [semantics.md — Logical composition](../reference/semantics.md#logical-composition) and [ADR: block-form logical composition](../adr/20260704T150000Z_block-form-logical-composition.md).
 
 Wrong:
 
@@ -27,7 +27,7 @@ assert {
 
 ## Fabricating predicate-level negation
 
-`not` is a block that wraps expectations; it is not a modifier on a single predicate. See [`docs/semantics.md`](../semantics.md) (Logical composition).
+`not` is a block that wraps expectations; it is not a modifier on a single predicate. See [semantics.md — Logical composition](../reference/semantics.md#logical-composition).
 
 Wrong:
 
@@ -49,7 +49,7 @@ assert {
 
 ## Confusing a syntax error with a semantic error
 
-A syntax error means the parser rejected the script (`docs/diagnostics.md`, `script_error`, exit code `2`). A semantic error means the script parsed but a semantic rule rejected it during evaluation (`docs/semantic-diagnostics.md`, `semantic.*` / `assertion.*` / `step.*` codes). An assertion failure is neither: the script was valid and ran, but a check inside `assert { }` did not pass (`test_failed`, exit code `1`). Do not report one as another when explaining a failure — the `category` and `code` fields in `--format=json` diagnostics distinguish them; see [`docs/ai/validation-flow.md`](validation-flow.md).
+A syntax error means the parser rejected the script ([the parse diagnostics reference](../reference/diagnostics.md), `script_error`, exit code `2`). A semantic error means the script parsed but a semantic rule rejected it during evaluation ([the semantic and assertion diagnostics reference](../reference/semantic-diagnostics.md), `semantic.*` / `assertion.*` / `step.*` codes). An assertion failure is neither: the script was valid and ran, but a check inside `assert { }` did not pass (`test_failed`, exit code `1`). Do not report one as another when explaining a failure — the `category` and `code` fields in `--format=json` diagnostics distinguish them; see [the validation flow](validation-flow.md).
 
 ## Suggesting `reportage check` for validation
 

@@ -11,7 +11,7 @@ Reportage must distinguish parse / validation errors, semantic errors, and asser
 
 Reportage is a testing DSL, so for source-derived diagnostics, a location / range that lets a user quickly find the failing test matters. At the same time, some input paths — semantic conformance cases — have no `.rpt` source text at all.
 
-The full specification lives in [`docs/semantic-diagnostics.md`](../semantic-diagnostics.md). This ADR records the decisions behind it.
+The full specification lives in [`docs/semantic-diagnostics.md`](../reference/semantic-diagnostics.md). This ADR records the decisions behind it.
 
 ## Decision
 

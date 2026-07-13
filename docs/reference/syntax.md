@@ -1,23 +1,23 @@
-Generated from [crates/reportage-core/src/reportage.pest](../crates/reportage-core/src/reportage.pest)
-by [scripts/gen-grammar-doc.sh](../scripts/gen-grammar-doc.sh).
+Generated from [crates/reportage-core/src/reportage.pest](../../crates/reportage-core/src/reportage.pest)
+by [scripts/gen-grammar-doc.sh](../../scripts/gen-grammar-doc.sh).
 DO NOT EDIT MANUALLY — run `just lang-docs-gen` to regenerate.
 
 # Reportage Grammar
 
 > **This file is auto-generated.** Do not edit it manually.
 > To update the grammar, modify
-> [`crates/reportage-core/src/reportage.pest`](../crates/reportage-core/src/reportage.pest)
+> [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest)
 > and run `just lang-docs-gen`.
 
-[crates/reportage-core/src/reportage.pest](../crates/reportage-core/src/reportage.pest) is the normative syntax source for
+[crates/reportage-core/src/reportage.pest](../../crates/reportage-core/src/reportage.pest) is the normative syntax source for
 Reportage v0. Any syntax not expressible in that file is not part of v0.
 
 ## Syntax conformance vs. semantic conformance
 
 This document covers *syntax* only — whether a script is accepted by the
 parser. Semantic behaviour is defined separately: execution order and
-workspace lifecycle in [`docs/execution-model.md`](execution-model.md),
-and assertion evaluation in [`docs/semantics.md`](semantics.md).
+workspace lifecycle in [`execution-model.md`](execution-model.md),
+and assertion evaluation in [`semantics.md`](semantics.md).
 
 ## Grammar
 
@@ -26,7 +26,7 @@ and assertion evaluation in [`docs/semantics.md`](semantics.md).
 //
 // This file is the normative syntax definition for Reportage scripts.
 // Any syntax not expressible here is not part of v0.
-// See docs/syntax.md for the human-readable generated reference
+// See docs/reference/syntax.md for the human-readable generated reference
 // (produced by `just lang-docs-gen`; see docs/adr/ for the ADR).
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ command     = @{ ("\\" ~ nl | (!nl ~ ANY))* }
 // other being an ordinary `quoted_string`. It is reusable wherever a
 // `text_literal` is accepted: `write <"path"> <text_literal>`
 // (write_step_heredoc) and `file <"path"> contains <text_literal>`
-// (file_exp_heredoc). See docs/semantics.md — Text literal and Write step.
+// (file_exp_heredoc). See docs/reference/semantics.md — Text literal and Write step.
 //
 // The opening fence's backtick run is pushed onto pest's match stack so the
 // closing fence can be recognized dynamically: PEEK requires at least that
@@ -205,7 +205,7 @@ heredoc_literal = {
 // path is a workspace path literal and the content is a text_literal; both
 // positions are parsed as the kind-agnostic `value_literal` so a wrong-kind
 // literal is a semantic diagnostic, not a syntax error (see "Value literals"
-// below). See docs/semantics.md — Write step. Split into two grammar rules
+// below). See docs/reference/semantics.md — Write step. Split into two grammar rules
 // because the two text_literal forms have different line-ending rules (see
 // case_step above and "Heredoc literal" above): write_step_string is an
 // ordinary single-line construct; write_step_heredoc consumes its own
@@ -383,7 +383,7 @@ value_literal             = { workspace_path_literal | fixture_reference_literal
 
 // v0 forbids raw newlines (LF, CRLF, and bare CR) inside string literals and
 // allows exactly four escape sequences: \\, \", \n, \t. Any other backslash
-// sequence is rejected. See [docs/adr/20260701T214658Z_string-literal-escape-sequences.md](adr/20260701T214658Z_string-literal-escape-sequences.md).
+// sequence is rejected. See [docs/adr/20260701T214658Z_string-literal-escape-sequences.md](../adr/20260701T214658Z_string-literal-escape-sequences.md).
 //
 // A quoted_string is one of the two forms of a `text_literal` (conceptually,
 // text_literal = string literal | heredoc literal — see "Heredoc literal"
@@ -394,7 +394,7 @@ value_literal             = { workspace_path_literal | fixture_reference_literal
 // every position that accepts a text_literal is expressed as two ordered
 // grammar alternatives instead (write_step_string / write_step_heredoc;
 // file_contains / file_exp_heredoc). Both forms resolve to the same
-// TextValue at the semantic level; see [docs/semantics.md](semantics.md) — Text literal.
+// TextValue at the semantic level; see [docs/reference/semantics.md](semantics.md) — Text literal.
 quoted_string = { "\"" ~ string_inner ~ "\"" }
 string_inner  = @{ string_char* }
 string_char   = _{ escape_seq | (!("\"" | "\\" | "\r" | "\n") ~ ANY) }

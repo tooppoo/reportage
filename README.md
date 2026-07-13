@@ -23,23 +23,23 @@ curl -fsSL https://raw.githubusercontent.com/tooppoo/rellog/refs/heads/main/inst
 
 ## Documentation
 
-- [Philosophy](docs/philosophy.md): design principles and scope boundaries.
-- [Syntax](docs/syntax.md): normative v0 syntax grammar, generated from `crates/reportage-core/src/reportage.pest`.
-- [Semantics](docs/semantics.md): entry point for the semantics document set, plus language semantic rules such as value literals, expectations, and assertion evaluation.
-- [Execution Model](docs/execution-model.md): runner execution order, case workspace lifecycle, checkpoints, shell execution, and coverage adapter responsibilities.
-- [Testing](docs/testing/README.md): how reportage tests itself, self-testing, Rust integration tests, and Rust unit tests, and how to choose between them.
-- [Why reportage? / Why not reportage?](docs/why-or-why-not.md): When does `reportage` work well, and when does it not?
-- [Design Principles](docs/design-principle.md): thin core, transparent shims, opt-in adapters, and evidence-first boundaries.
-- [v0 Technical Selection](docs/v0-technical-selection.md): implementation foundation and links to detailed technical specs.
-- [Configuration](docs/configuration.md): KDL v2 config shape, commands, tests, and validation rules.
-- [Path Matching](docs/path-matching.md): path-like config value rules and test glob semantics.
-- [Artifacts](docs/artifacts.md): default artifact generation and early result layout.
+- [Philosophy](docs/design/philosophy.md): design principles and scope boundaries.
+- [Syntax](docs/reference/syntax.md): normative v0 syntax grammar, generated from `crates/reportage-core/src/reportage.pest`.
+- [Semantics](docs/reference/semantics.md): entry point for the semantics document set, plus language semantic rules such as value literals, expectations, and assertion evaluation.
+- [Execution Model](docs/reference/execution-model.md): runner execution order, case workspace lifecycle, checkpoints, shell execution, and coverage adapter responsibilities.
+- [Testing](docs/design/testing/README.md): how reportage tests itself, self-testing, Rust integration tests, and Rust unit tests, and how to choose between them.
+- [Why reportage? / Why not reportage?](docs/guide/why-reportage.md): When does `reportage` work well, and when does it not?
+- [Design Principles](docs/design/design-principles.md): thin core, transparent shims, opt-in adapters, and evidence-first boundaries.
+- [v0 Technical Selection](docs/design/v0-technical-selection.md): implementation foundation and links to detailed technical specs.
+- [Configuration](docs/reference/configuration.md): KDL v2 config shape, commands, tests, and validation rules.
+- [Path Matching](docs/reference/path-matching.md): path-like config value rules and test glob semantics.
+- [Artifacts](docs/reference/artifacts.md): default artifact generation and early result layout.
 - [ADR](docs/adr/README.md): durable architecture and design decisions.
-- [TBD](docs/TBD.md): intentionally deferred features and design topics.
+- [TBD](docs/planning/TBD.md): intentionally deferred features and design topics.
 
 ## v0 Direction
 
-The v0 design is intentionally narrow. Items currently in the grammar ([`docs/syntax.md`](docs/syntax.md)):
+The v0 design is intentionally narrow. Items currently in the grammar ([`docs/reference/syntax.md`](docs/reference/syntax.md)):
 
 - POSIX shell execution for `$` steps.
 - Native Windows shell execution is out of scope; use WSL, a devcontainer, or Linux CI on Windows.

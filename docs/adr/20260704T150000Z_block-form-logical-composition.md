@@ -64,7 +64,7 @@ Operator syntax introduces a block; the expectations it composes are the block's
 
 ### 6. An empty composition block is a semantic error
 
-`not { }` / `all { }` / `any { }` contain no expectation expression to evaluate, so there is no evidence comparison to perform. This is treated the same way an empty `assert { ... }` is: a defect in the script / semantic model, not an assertion failure. The grammar accepts an empty block (`empty_composition_body`) precisely so Reportage can distinguish this case — `semantic.expectation.empty_block` — from a generic `parse.syntax` rejection, following the `semantic.*` namespace defined by [semantic-diagnostics.md](../semantic-diagnostics.md) (#41).
+`not { }` / `all { }` / `any { }` contain no expectation expression to evaluate, so there is no evidence comparison to perform. This is treated the same way an empty `assert { ... }` is: a defect in the script / semantic model, not an assertion failure. The grammar accepts an empty block (`empty_composition_body`) precisely so Reportage can distinguish this case — `semantic.expectation.empty_block` — from a generic `parse.syntax` rejection, following the `semantic.*` namespace defined by [semantic-diagnostics.md](../reference/semantic-diagnostics.md) (#41).
 
 ### 7. Evaluation preserves child results
 
@@ -103,5 +103,5 @@ Rejected. `not(A) and not(B)` for `not { A B }` would make `not`'s meaning depen
 
 ### Neutral Consequences
 
-- This ADR does not implement a full nested diagnostic / child diagnostic model; [semantic-diagnostics.md](../semantic-diagnostics.md) already treats that as optional follow-up work.
+- This ADR does not implement a full nested diagnostic / child diagnostic model; [semantic-diagnostics.md](../reference/semantic-diagnostics.md) already treats that as optional follow-up work.
 - File assertion predicates (#24) are unaffected: this ADR does not add or change any predicate grammar, only the expectation-expression layer above it.

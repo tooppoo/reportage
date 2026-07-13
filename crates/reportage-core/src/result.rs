@@ -14,7 +14,7 @@ pub struct ActionResult {
     // i32 rather than u8: the OS returns None when a process is killed by a signal, which the executor maps to -1.
     // See executor::execute_action.
     pub exit_code: i32,
-    // Raw process output bytes, not decoded text. See docs/semantics.md and the accompanying ADR
+    // Raw process output bytes, not decoded text. See docs/reference/semantics.md and the accompanying ADR
     // on raw byte semantics for stdout/stderr: non-UTF-8 output must survive unmodified through
     // capture and evaluation; lossy decoding is confined to display layers (CLI, artifact JSON's
     // optional `text` helper view).
@@ -94,7 +94,7 @@ pub enum ExpectationKind {
         observation: DirContainsObservation,
     },
     /// A `not` / `all` / `any` logical composition.
-    /// `children` holds each nested expectation's own result (independently evaluated, never flipped by a `not`), so which child passed or failed is never lost — see docs/semantics.md — Logical composition.
+    /// `children` holds each nested expectation's own result (independently evaluated, never flipped by a `not`), so which child passed or failed is never lost — see docs/reference/semantics.md — Logical composition.
     Logical {
         operator: LogicalOperator,
         children: Vec<ExpectationResult>,
@@ -111,7 +111,7 @@ impl ExpectationKind {
     /// `ExpectationResult.passed` computed during evaluation. See
     /// `ExpectationResult::failure_diagnostic_code`.
     ///
-    /// See docs/semantic-diagnostics.md.
+    /// See docs/reference/semantic-diagnostics.md.
     pub fn failure_diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             ExpectationKind::FileExists { observation, .. } => match observation {
@@ -279,7 +279,7 @@ pub enum TextEqualsExpectedSource {
 /// keeps full captured output), plus the resulting [`ContentsEqualsOutcome`].
 ///
 /// CLI diagnostic rendering must never print `actual` / `expected` in full — only a
-/// bounded, escaped window derived from [`ContentsMismatch`]. See docs/semantic-diagnostics.md.
+/// bounded, escaped window derived from [`ContentsMismatch`]. See docs/reference/semantic-diagnostics.md.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContentsEqualsComparison {
     pub actual: Vec<u8>,
@@ -306,7 +306,7 @@ impl ContentsEqualsComparison {
     }
 }
 
-/// The outcome of a byte-for-byte `contents_equals` comparison. See docs/semantic-diagnostics.md.
+/// The outcome of a byte-for-byte `contents_equals` comparison. See docs/reference/semantic-diagnostics.md.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContentsEqualsOutcome {
     Match,
@@ -315,7 +315,7 @@ pub enum ContentsEqualsOutcome {
 
 /// Bounded facts about a `contents_equals` byte mismatch, sufficient to render a bounded,
 /// escaped diagnostic without printing the full actual/expected byte buffers.
-/// See docs/semantic-diagnostics.md — `contents_equals` mismatch diagnostics.
+/// See docs/reference/semantic-diagnostics.md — `contents_equals` mismatch diagnostics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContentsMismatch {
     pub actual_len: usize,
@@ -347,7 +347,7 @@ fn first_byte_diff(a: &[u8], b: &[u8]) -> Option<usize> {
 ///
 /// Unlike the expected side (a test-definition error when unavailable), a missing /
 /// non-regular / unreadable actual `file` is the subject under test failing to produce
-/// the expected output, so it is always an assertion failure. See docs/semantic-diagnostics.md.
+/// the expected output, so it is always an assertion failure. See docs/reference/semantic-diagnostics.md.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContentsEqualsObservation {
     Compared(ContentsEqualsComparison),
@@ -388,7 +388,7 @@ pub enum DirContainsObservation {
 /// The result of evaluating one expectation within an assertion block.
 ///
 /// Failures are reported per expectation, independently of other expectations in the same block.
-/// See docs/semantics.md — Expectation.
+/// See docs/reference/semantics.md — Expectation.
 #[derive(Debug)]
 pub struct ExpectationResult {
     pub kind: ExpectationKind,
@@ -425,7 +425,7 @@ impl ExpectationResult {
 /// The result of evaluating one assertion block.
 ///
 /// All expectations within the block are evaluated; `has_failures` reflects whether any of them failed.
-/// See docs/semantics.md — Assertion block.
+/// See docs/reference/semantics.md — Assertion block.
 #[derive(Debug)]
 pub struct AssertionBlockResult {
     /// Index of this assertion block's step within the case body.
@@ -529,7 +529,7 @@ pub enum FileErrorKind {
 ///
 /// Collected during the pre-execution validation phase.
 /// If any file errors exist, no `$` actions execute from any file.
-/// See docs/execution-model.md — Suite pre-execution validation.
+/// See docs/reference/execution-model.md — Suite pre-execution validation.
 #[derive(Debug)]
 pub struct FileError {
     pub source_path: PathBuf,
@@ -602,7 +602,7 @@ impl ExecutionReport {
     ///
     /// File-level errors produce exit code 2.
     /// Severity order within cases: 3 (runtime) > 2 (script error) > 1 (assertion failure) > 0 (pass).
-    /// See docs/exit-codes.md for the full table and precedence rule.
+    /// See docs/reference/exit-codes.md for the full table and precedence rule.
     pub fn exit_code(&self) -> i32 {
         if !self.file_errors.is_empty() {
             return 2;

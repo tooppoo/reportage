@@ -29,15 +29,15 @@ There is currently no `--no-artifacts` mode in the v0 direction. Artifact genera
 
 ## Contract and validation
 
-The contract for `result.json` is defined in [`spec/artifacts/run-result/schema.json`](../spec/artifacts/run-result/schema.json), the human- and tool-facing source of truth. See [`spec/artifacts/run-result/README.md`](../spec/artifacts/run-result/README.md) for the full validation policy.
+The contract for `result.json` is defined in [`spec/artifacts/run-result/schema.json`](../../spec/artifacts/run-result/schema.json), the human- and tool-facing source of truth. See [`spec/artifacts/run-result/README.md`](../../spec/artifacts/run-result/README.md) for the full validation policy.
 
-CI validation is typed Rust deserialization (`crates/reportage-cli/tests/run_result_fixtures.rs`): each representative fixture run's `result.json` is deserialised into Rust structs marked `#[serde(deny_unknown_fields)]`, covering the full stable contract the schema defines — every expectation kind, observation enum, and diagnostic shape — not only the shapes the fixtures happen to exercise. An external JSON Schema validator is not required.
+CI validation is typed Rust deserialization ([`crates/reportage-cli/tests/run_result_fixtures.rs`](../../crates/reportage-cli/tests/run_result_fixtures.rs)): each representative fixture run's `result.json` is deserialised into Rust structs marked `#[serde(deny_unknown_fields)]`, covering the full stable contract the schema defines — every expectation kind, observation enum, and diagnostic shape — not only the shapes the fixtures happen to exercise. An external JSON Schema validator is not required.
 
 ### Generated / checked / handwritten boundary
 
 This document mixes three kinds of content, with different staleness guarantees:
 
-- **Checked sections.** The JSON examples below marked with a `<!-- checked-against: ... -->` comment are verified byte-for-byte against fixture snapshots by `run_result_fixtures.rs::docs_artifacts_examples_match_their_fixture_snapshots`; they cannot silently drift from real output. Field lists, required/optional fields, and enums are checked by the typed validation structs against the schema-defined contract, and evidence references (layout, sizes, digests) are checked by `run_result_fixtures.rs::evidence_files_match_their_manifest_references` and `e2e/artifacts/run-result-manifest.repor`.
+- **Checked sections.** The JSON examples below marked with a `<!-- checked-against: ... -->` comment are verified byte-for-byte against fixture snapshots by `run_result_fixtures.rs::docs_artifacts_examples_match_their_fixture_snapshots`; they cannot silently drift from real output. Field lists, required/optional fields, and enums are checked by the typed validation structs against the schema-defined contract, and evidence references (layout, sizes, digests) are checked by `run_result_fixtures.rs::evidence_files_match_their_manifest_references` and [`e2e/artifacts/run-result-manifest.repor`](../../e2e/artifacts/run-result-manifest.repor).
 - **Handwritten sections.** The purpose of artifacts, the canonical-record positioning, the relationship to `--format=json`, the raw evidence policy, and the compatibility/stability policy are prose. Tests do not detect drift in this prose; it is maintained by review, with rationale recorded in the ADRs listed at the end of this document.
 - **Not generated.** No section of this document is currently machine-generated; "generated or checked" is satisfied by the checks above.
 
@@ -157,7 +157,7 @@ A passing single-case run produces (`tool.version` normalised to a placeholder):
 }
 ```
 
-Failure classification is carried by `diagnostics[]` (`category`: `parse` / `semantic` / `runtime` / `assertion` / `internal`, plus stable `code` values from [`semantic-diagnostics.md`](semantic-diagnostics.md) and [`diagnostics.md`](diagnostics.md)), referenced from failing assertions via `diagnosticRef`. The representative failing, parse-error, semantic-error, runtime-error, and partial-execution shapes are pinned by the snapshots in `tests/fixtures/run_result/`.
+Failure classification is carried by `diagnostics[]` (`category`: `parse` / `semantic` / `runtime` / `assertion` / `internal`, plus stable `code` values from [Semantic and assertion diagnostics](semantic-diagnostics.md) and [Parse diagnostics](diagnostics.md)), referenced from failing assertions via `diagnosticRef`. The representative failing, parse-error, semantic-error, runtime-error, and partial-execution shapes are pinned by the snapshots in [`tests/fixtures/run_result/`](../../tests/fixtures/run_result/).
 
 For an empty, whitespace-only, or otherwise valid zero-case suite, the run manifest records a no-op success:
 
@@ -209,13 +209,13 @@ Each action's captured stream is written as a separate raw byte file inside the 
 
 `sha256` is required: it makes it verifiable that the evidence file inside the bundle is the one the manifest describes.
 
-This keeps the manifest small and streaming-safe regardless of action output size, while the bundle as a whole remains a complete record. Raw byte semantics for stdout/stderr are defined in [`semantics.md`](semantics.md#stdoutstderr-evidence-representation).
+This keeps the manifest small and streaming-safe regardless of action output size, while the bundle as a whole remains a complete record. Raw byte semantics for stdout/stderr are defined in [semantics.md — stdout/stderr evidence representation](semantics.md#stdoutstderr-evidence-representation).
 
 ## Relationship to `--format=json`
 
-`reportage run --format=json` prints a stdout-safe projection of the canonical run result document, defined by its own contract [`spec/output/json-report/schema.json`](../spec/output/json-report/schema.json) (#89), which this issue's change did not redesign.
+`reportage run --format=json` prints a stdout-safe projection of the canonical run result document, defined by its own contract [`spec/output/json-report/schema.json`](../../spec/output/json-report/schema.json) (#89), which this issue's change did not redesign.
 
-The projection differences are enumerated in [`spec/artifacts/run-result/README.md`](../spec/artifacts/run-result/README.md): the stdout document adds `artifactRoot`, and drops `noop` and the evidence `sha256` digests. Everything else is shared, and projection parity is verified per fixture by `run_result_fixtures.rs`.
+The projection differences are enumerated in [`spec/artifacts/run-result/README.md`](../../spec/artifacts/run-result/README.md): the stdout document adds `artifactRoot`, and drops `noop` and the evidence `sha256` digests. Everything else is shared, and projection parity is verified per fixture by `run_result_fixtures.rs`.
 
 ## Case result
 
@@ -239,6 +239,6 @@ Since artifacts are generated by default, inability to create the artifact direc
 
 ## Decision records
 
-- [`adr/20260708T130500Z_artifact-run-result-canonical-manifest.md`](adr/20260708T130500Z_artifact-run-result-canonical-manifest.md)
-- [`adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md`](adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md)
-- [`adr/20260706T001018Z_separate-execution-report-from-output-rendering.md`](adr/20260706T001018Z_separate-execution-report-from-output-rendering.md)
+- [ADR: Artifact Run Result as Canonical Manifest](../adr/20260708T130500Z_artifact-run-result-canonical-manifest.md)
+- [ADR: JSON stdout and Captured Output Artifact Contract](../adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md)
+- [ADR: Separate Execution Report from Output Rendering](../adr/20260706T001018Z_separate-execution-report-from-output-rendering.md)

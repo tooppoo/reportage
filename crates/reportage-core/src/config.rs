@@ -9,7 +9,7 @@ pub struct ReportageConfig {
 }
 
 /// Parsed `reportage.commands` block: registered command ids and their (still config-relative,
-/// not yet resolved) `exec` targets. See docs/configuration.md — Commands.
+/// not yet resolved) `exec` targets. See docs/reference/configuration.md — Commands.
 #[derive(Debug, Default)]
 pub struct CommandsConfig {
     pub commands: Vec<CommandConfig>,
@@ -20,7 +20,7 @@ pub struct CommandConfig {
     pub id: String,
     /// Config-file-relative path, not yet resolved to an absolute executable target.
     /// Resolution against the config file's directory happens at run setup time, not here.
-    /// See docs/configuration.md — Commands.
+    /// See docs/reference/configuration.md — Commands.
     pub exec: String,
 }
 
@@ -120,7 +120,7 @@ fn validate_version(children: &KdlDocument) -> Result<(), ConfigError> {
 /// Unknown nodes inside `commands` or inside an individual `command` block are config errors
 /// rather than silently ignored: a typo'd node (e.g. `exex` instead of `exec`) would otherwise
 /// leave a command unregistered, silently falling through to the ambient `PATH` instead of the
-/// intended shim. See docs/configuration.md — Commands.
+/// intended shim. See docs/reference/configuration.md — Commands.
 /// Extracts `node`'s sole argument as a string, rejecting anything else: zero entries, more
 /// than one entry (whether an extra positional value or a named property), or a named-only
 /// entry. Without this, a stray extra token (e.g. `command "myapp" "extra"` or

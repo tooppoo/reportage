@@ -48,7 +48,7 @@ fn spec_dir() -> PathBuf {
 }
 
 fn generated_docs_path() -> PathBuf {
-    workspace_root().join("docs/language/semantic-rules.md")
+    workspace_root().join("docs/reference/semantic-rules.md")
 }
 
 fn grammar_path() -> PathBuf {
@@ -358,7 +358,7 @@ fn semantic_validation_diagnostic_codes_stay_in_semantic_namespace() {
             let RelatedDiagnostic::SemanticValidation(code) = related else {
                 continue;
             };
-            // The `semantic.*` namespace (docs/semantic-diagnostics.md) is what justifies the
+            // The `semantic.*` namespace (docs/reference/semantic-diagnostics.md) is what justifies the
             // exemption from the rule-id prefix convention; a code outside it must be RuleOwned
             // or Shared instead.
             assert!(

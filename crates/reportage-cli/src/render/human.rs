@@ -390,7 +390,7 @@ fn format_text_equals_source(source: &TextEqualsExpectedSource) -> String {
 /// On mismatch, prints only a bounded, escaped context window around the first differing byte —
 /// never the full actual/expected bytes. `operator` is the expectation keyword as written in
 /// source (`contents_equals` or `text_equals`), so the subject description matches what the
-/// author wrote. See `reportage_core::contents_diagnostic` and docs/semantic-diagnostics.md.
+/// author wrote. See `reportage_core::contents_diagnostic` and docs/reference/semantic-diagnostics.md.
 fn print_byte_comparison_detail(
     step_index: usize,
     subject: &str,

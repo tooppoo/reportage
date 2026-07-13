@@ -2,13 +2,13 @@
 
 This document defines the diagnostic model and stable diagnostic code system for semantic errors and assertion failures produced by the semantic evaluator, and the format for verifying expected diagnostic codes in semantic conformance cases.
 
-See [`20260702T133734Z_semantic-and-assertion-diagnostic-model.md`](adr/20260702T133734Z_semantic-and-assertion-diagnostic-model.md) for the decision record.
+See [ADR: Semantic and Assertion Diagnostic Model](../adr/20260702T133734Z_semantic-and-assertion-diagnostic-model.md) for the decision record.
 
 This document is a specification. It does not require immediate, full application to the parser, evaluator, or CLI diagnostic rendering; that application is handled by follow-up issues as needed.
 
 ## Relationship to Parse Diagnostics
 
-[`diagnostics.md`](diagnostics.md) defines the `parse.*` namespace and the minimal diagnostic model for parser and validator errors. That document reserved a `semantic.*` namespace without defining it. This document defines the `semantic.*` and `assertion.*` namespaces and extends the diagnostic model with `severity`, `origin`, and a range-capable `location`.
+[Parse diagnostics](diagnostics.md) defines the `parse.*` namespace and the minimal diagnostic model for parser and validator errors. That document reserved a `semantic.*` namespace without defining it. This document defines the `semantic.*` and `assertion.*` namespaces and extends the diagnostic model with `severity`, `origin`, and a range-capable `location`.
 
 This document does not redesign the `parse.*` codes or the parse-side diagnostic model. Applying the extended model (severity, origin, source ranges) to existing parse diagnostics is follow-up work.
 
@@ -16,10 +16,10 @@ This document does not redesign the `parse.*` codes or the parse-side diagnostic
 
 Diagnostic codes are dot-separated strings, consistent with the `parse.*` convention. The top-level namespaces are:
 
-- `parse.*` — syntax parse or parse-domain validation failures (defined in [`diagnostics.md`](diagnostics.md)).
+- `parse.*` — syntax parse or parse-domain validation failures (defined in [Parse diagnostics](diagnostics.md)).
 - `semantic.*` — the script, normalized semantic model, or expectation definition is invalid, and the evaluator must reject it before evidence comparison can begin.
 - `assertion.*` — the script and expectation are valid, but the observed evidence does not satisfy the expectation.
-- `step.*` — a side-effecting step (e.g. `write`) is valid, but failed while actually running: a runtime step error. Unlike `assertion.*`, there is no expectation being compared against evidence; unlike `semantic.*`, the step was not rejected before it ran. See [`docs/semantics.md`](semantics.md) — Write step.
+- `step.*` — a side-effecting step (e.g. `write`) is valid, but failed while actually running: a runtime step error. Unlike `assertion.*`, there is no expectation being compared against evidence; unlike `semantic.*`, the step was not rejected before it ran. See [Language semantics](semantics.md) — Write step.
 
 Uppercase prefix forms such as `RPT-ASSERT-EXIT-MISMATCH` are **not** adopted.
 
@@ -31,7 +31,7 @@ Semantic codes use the form:
 semantic.<subject>.<reason>
 ```
 
-Assertion codes are owned by exactly one semantic rule, so they embed the owning rule's id (see `crates/reportage-core/src/semantic_rule_registry.rs`):
+Assertion codes are owned by exactly one semantic rule, so they embed the owning rule's id (see [`crates/reportage-core/src/semantic_rule_registry.rs`](../../crates/reportage-core/src/semantic_rule_registry.rs)):
 
 ```text
 <semantic-rule-id>.<reason>
@@ -116,10 +116,10 @@ Classification examples:
 - A valid path whose target does not exist for `file <"path"> contains "text"` — assertion failure.
 - A valid path whose target is a directory or has non-UTF-8 content for `file <"path"> contains "text"` — assertion failure in principle, because the expectation itself is valid and the observed evidence fails the predicate's requirement.
 - An invalid entry name such as `dir <"artifacts"> contains "a/b"` — semantic error, for the same reason as a path policy violation: the value violates a policy the evaluator must reject before evidence comparison.
-- A literal of the wrong kind, such as `file "out.txt" exists` (a `StringLiteral` where the `file` subject requires a `WorkspacePath`) — semantic error (`semantic.literal.kind_mismatch`), detected during AST construction. The script parses at the grammar level; the diagnostic names the expected kind, the actual kind, and the suggested replacement (`use <"out.txt"> instead`). See [`docs/semantics.md`](semantics.md) — Value literals.
+- A literal of the wrong kind, such as `file "out.txt" exists` (a `StringLiteral` where the `file` subject requires a `WorkspacePath`) — semantic error (`semantic.literal.kind_mismatch`), detected during AST construction. The script parses at the grammar level; the diagnostic names the expected kind, the actual kind, and the suggested replacement (`use <"out.txt"> instead`). See [Language semantics](semantics.md) — Value literals.
 - A fixture reference literal (`@"<path>"`) in a position that does not accept a `FileContentsReference`, such as a `file` checkpoint subject (`file @"actual.txt" contents_equals ...`) or `text_equals` expected text (`file <"out.txt"> text_equals @"expected.txt"`, `stdout text_equals @"expected.txt"`) — semantic error (`semantic.literal.kind_mismatch`), for the same reason as any other literal kind mismatch.
 - A fixture reference literal whose raw path is empty, absolute, or contains a `.` / `..` segment — semantic error (`semantic.fixture_reference.empty` / `.absolute` / `.dot_segment`), detected during AST construction, mirroring `semantic.workspace_path.*`.
-- A fixture reference whose resolved source is missing, is not a regular file, or escapes the referencing `*.repor` file's directory once canonicalized (e.g. via a symlink) — semantic error (`semantic.fixture_reference.missing` / `.not_a_regular_file` / `.escapes_repor_directory`). See [`docs/semantics.md`](semantics.md) — Fixture reference value.
+- A fixture reference whose resolved source is missing, is not a regular file, or escapes the referencing `*.repor` file's directory once canonicalized (e.g. via a symlink) — semantic error (`semantic.fixture_reference.missing` / `.not_a_regular_file` / `.escapes_repor_directory`). See [Language semantics](semantics.md) — Fixture reference value.
 - A valid `dir <"path"> exists` whose target does not exist, or is a regular file rather than a directory — assertion failure.
 - `file <"actual"> contents_equals <"expected">` whose *actual* side is missing, not a regular file, or unreadable — assertion failure (`assertion.file.contents_equals.actual_missing` / `.actual_not_regular_file` / `.actual_unreadable`): the subject under test did not produce the expected output.
 - `contents_equals`'s expected `WorkspacePath` side missing, not a regular file, or unreadable — semantic error (`semantic.file_contents_reference.missing` / `.not_regular_file` / `.read_error`), surfaced as `CaseStatus::ScriptError` (exit code 2): the expected value itself, not the subject under test, could not be sourced. An unresolvable expected `FixtureReference` is classified the same way, reusing `semantic.fixture_reference.*`.
@@ -300,7 +300,7 @@ Full actual stdout / stderr / file content is excluded because it can be large, 
 
 ## Expected Diagnostic Codes in Semantic Conformance Cases
 
-A semantic conformance case may specify an expected diagnostic code via the optional `expectedDiagnosticCode` field (see [`spec/language/semantics/README.md`](../spec/language/semantics/README.md)):
+A semantic conformance case may specify an expected diagnostic code via the optional `expectedDiagnosticCode` field (see [the semantic specs README](../../spec/language/semantics/README.md)):
 
 ```json
 {
@@ -355,7 +355,7 @@ Nothing in this document's model prevents adding a `children` field later.
 
 ## Compatibility Policy
 
-Semantic and assertion diagnostic codes follow the same compatibility policy as `parse.*` codes (see [`diagnostics.md`](diagnostics.md#compatibility-policy)):
+Semantic and assertion diagnostic codes follow the same compatibility policy as `parse.*` codes (see [diagnostics.md — Compatibility Policy](diagnostics.md#compatibility-policy)):
 
 - Renaming or removing an existing code is a breaking change.
 - Adding a new code is a non-breaking change.

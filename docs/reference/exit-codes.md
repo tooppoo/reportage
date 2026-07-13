@@ -23,7 +23,7 @@ Everything below "v0 Exit Code Table" through "Precedence" describes the default
 
 ## Run outcome categories in the artifact manifest
 
-The run outcome categories below are conceptual severity classes. The artifact manifest (`result.json`, see [`artifacts.md`](artifacts.md)) records them as the combination of top-level `status` (`passed` / `failed` / `error`, not a boolean pass/fail field), `processExitCode`, and `diagnostics[]` category / code.
+The run outcome categories below are conceptual severity classes. The artifact manifest (`result.json`, see [Artifacts](artifacts.md)) records them as the combination of top-level `status` (`passed` / `failed` / `error`, not a boolean pass/fail field), `processExitCode`, and `diagnostics[]` category / code.
 
 v0 outcome categories:
 
@@ -59,27 +59,27 @@ This means `config_error` is used when discovery/configuration cannot produce a 
 
 - A non-zero exit code from an action (`$ false` exits with `1`) is not itself an error. It is captured as the action's result and evaluated by explicit `assert exit` assertions.
 - Exit code `3` is reserved for infrastructure failures such as the POSIX shell not being found on `PATH`, or required artifact generation failing. It does not mean "the action exited non-zero".
-- A `write` step's runtime step error (create-only target already exists, a regular file blocking its parent path, or an OS-level I/O failure) is exit code `3`, not `1`. There is no expectation being compared against evidence, so it is never an assertion failure. See [`docs/semantics.md`](semantics.md) — Write step.
+- A `write` step's runtime step error (create-only target already exists, a regular file blocking its parent path, or an OS-level I/O failure) is exit code `3`, not `1`. There is no expectation being compared against evidence, so it is never an assertion failure. See [Language semantics](semantics.md) — Write step.
 - Empty and whitespace-only scripts are syntax-valid inputs. At execution time they produce a no-op success with exit code `0`, no command execution, and no assertion evaluation.
 
 ## `shim scaffold` exit codes
 
-`reportage shim scaffold` (see [`docs/shim-scaffold.md`](shim-scaffold.md)) never runs a `.repor` script, so the "Test/assertion failure" and run outcome categories above do not apply to it. It uses a smaller, independent table:
+`reportage shim scaffold` (see [Shim scaffold](shim-scaffold.md)) never runs a `.repor` script, so the "Test/assertion failure" and run outcome categories above do not apply to it. It uses a smaller, independent table:
 
 | Code | Meaning |
 |------|---------|
 | `0`  | **Success** — the template was rendered and written to `--out`. |
 | `2`  | **Request validation error** — `--template`, `--entry-point`, or `--out` was missing, empty, or otherwise invalid (including an unknown template name), or `--out` conflicts with an existing directory or symlink, or an existing file without `--force`. Nothing is written to disk when this code is returned. |
 | `3`  | **Runtime/infrastructure error** — creating `--out`'s parent directory, writing the rendered file, or setting its permissions failed at the OS level. |
-| `4`  | **CLI usage error** — clap itself rejected the invocation (e.g. an unrecognized flag, or `shim` given without a further subcommand). Shared with every other malformed invocation of the `reportage` binary; see `e2e/options/unknown-options.repor` for an example on the default run command. |
+| `4`  | **CLI usage error** — clap itself rejected the invocation (e.g. an unrecognized flag, or `shim` given without a further subcommand). Shared with every other malformed invocation of the `reportage` binary; see [`e2e/options/unknown-options.repor`](../../e2e/options/unknown-options.repor) for an example on the default run command. |
 
 Code `2` here intentionally reuses the same number as the run command's "script/config validation error": both mean "the requested operation could not be treated as valid input," even though `shim scaffold` has no script or config file to speak of. Code `3` likewise reuses "runtime/infrastructure error" for the same reason the run command does: an OS-level failure while doing required I/O, not a normal outcome the caller is expected to branch on.
 
 ## `references` and reserved `docs` exit codes
 
-`reportage references` is a side-effect-free tooling subcommand that only prints the reference URL index (see `spec/output/references-index/`).
+`reportage references` is a side-effect-free tooling subcommand that only prints the reference URL index (see [`spec/output/references-index/`](../../spec/output/references-index/)).
 It exits `0` after printing, or `4` when clap rejects the invocation (e.g. an unsupported `--format` value), the same CLI usage error code as everywhere else.
 
-`docs` is reserved for a future documentation generation command and is not implemented (see [`docs/adr/20260711T070008Z_rename-docs-command-to-references.md`](adr/20260711T070008Z_rename-docs-command-to-references.md)).
+`docs` is reserved for a future documentation generation command and is not implemented (see [ADR: Rename `docs` Command to `references`](../adr/20260711T070008Z_rename-docs-command-to-references.md)).
 Every `reportage docs` invocation, whatever tokens follow it, prints a not-implemented error to stderr and exits `2`, reusing the "requested operation could not be treated as valid input" meaning above.
 The future real command replaces this behavior with its own exit code table.

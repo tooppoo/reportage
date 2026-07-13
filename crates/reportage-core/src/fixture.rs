@@ -2,7 +2,7 @@
 //!
 //! A `FixtureReference` (`@"<path>"`) names a static snapshot / fixture file
 //! kept alongside a `*.repor` source file, used as expected file contents in
-//! an assertion (see docs/semantics.md — Value literals, and
+//! an assertion (see docs/reference/semantics.md — Value literals, and
 //! docs/adr/20260706T170000Z_fixture-reference-value-syntax.md).
 //!
 //! `FixtureReference::parse` (in `model.rs`) performs lexical validation
@@ -68,7 +68,7 @@ impl std::error::Error for FixtureResolutionError {}
 
 impl FixtureResolutionError {
     /// The stable, machine-readable diagnostic code for this error.
-    /// See docs/diagnostics.md.
+    /// See docs/reference/diagnostics.md.
     pub const fn code(&self) -> DiagnosticCode {
         match self {
             FixtureResolutionError::Missing => DiagnosticCode::SemanticFixtureReferenceMissing,

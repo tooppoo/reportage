@@ -37,7 +37,7 @@ impl std::error::Error for RunIdError {}
 /// A validated run id: a single safe path component for `<artifact-root>/runs/<id>`.
 ///
 /// This is an internal development / self-testing affordance (`--debug-run-id`), not a public stable interface.
-/// See docs/TBD.md — "Self-test run ID control".
+/// See docs/planning/TBD.md — "Self-test run ID control".
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunId(String);
 

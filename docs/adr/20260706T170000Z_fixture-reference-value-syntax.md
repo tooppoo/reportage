@@ -5,7 +5,7 @@
 
 ## Context
 
-`*.repor` e2e cases run inside a per-concrete-case isolated workspace (see [execution-model.md](../execution-model.md) — Workspace lifecycle). A `WorkspacePath` (`<"...">`, #93) refers to a file inside that workspace: it is where the code under test writes output, and it is the only kind of path a `file` / `dir` checkpoint subject accepts.
+`*.repor` e2e cases run inside a per-concrete-case isolated workspace (see [execution-model.md](../reference/execution-model.md) — Workspace lifecycle). A `WorkspacePath` (`<"...">`, #93) refers to a file inside that workspace: it is where the code under test writes output, and it is the only kind of path a `file` / `dir` checkpoint subject accepts.
 
 Snapshot / fixture files — expected CLI stdout JSON, expected file contents, and similar large expected values that are impractical to inline as a string literal or heredoc literal — belong conceptually to the test definition, not the workspace under test. They are naturally kept as static files next to the `*.repor` file that uses them, not inside a workspace that is created fresh, isolated, and destroyed per concrete case.
 
@@ -55,7 +55,7 @@ A `file` / `dir` checkpoint subject is always an `ActualValue<WorkspacePath>`: i
 - the fixture resolution and materialization mechanism (`fixture::resolve_fixture_source`, `fixture::materialize_fixture`): resolving a fixture path against the referencing `*.repor` file's directory, rejecting symlink escapes via canonical containment, and copying validated fixture bytes into a runner-reserved area;
 - minimal `contents_equals` (`file` / `stdout` / `stderr`) and `text_equals` (`file`) grammar, parsing, and literal-kind validation — enough that `RequiredKind::FileContentsReference` / `TextValue` positions exist for the rules above to be observable and conformance-tested.
 
-#92 deliberately does **not** implement the comparison behavior itself: `evaluator::evaluate_file_expectation`'s `FileMatcher::ContentsEquals` / `FileMatcher::TextEquals` arms, and the `stdout` / `stderr` `OutputMatcher::ContentsEquals` arm, are `todo!()`. Reading actual and expected bytes, comparing them, classifying mismatches, and producing bounded diagnostics is #87's scope for `contents_equals` and #88's scope for `text_equals` — including threading the referencing `*.repor` file's source path into live evaluation so `resolve_fixture_source` can actually run against it. See [TBD.md](../TBD.md) — `contents_equals` / `text_equals` comparison evaluation.
+#92 deliberately does **not** implement the comparison behavior itself: `evaluator::evaluate_file_expectation`'s `FileMatcher::ContentsEquals` / `FileMatcher::TextEquals` arms, and the `stdout` / `stderr` `OutputMatcher::ContentsEquals` arm, are `todo!()`. Reading actual and expected bytes, comparing them, classifying mismatches, and producing bounded diagnostics is #87's scope for `contents_equals` and #88's scope for `text_equals` — including threading the referencing `*.repor` file's source path into live evaluation so `resolve_fixture_source` can actually run against it. See [TBD.md](../planning/TBD.md) — `contents_equals` / `text_equals` comparison evaluation.
 
 This split means a script that uses `contents_equals` / `text_equals` today parses and passes semantic validation, but panics if actually evaluated. That is an accepted, temporary state: no example, e2e, or conformance script in this repository exercises evaluation of these expectations, only parsing (`tests/fixtures/syntax/**`, `crates/reportage-core/tests/syntax_conformance.rs`), so the gap is not user-visible until #87 / #88 land and replace the stub.
 
@@ -65,7 +65,7 @@ This split means a script that uses `contents_equals` / `text_equals` today pars
 
 ### Fixture path policy mirrors `WorkspacePath`
 
-A fixture path must be non-empty, relative, and free of `.` / `..` path segments — the same lexical policy as `WorkspacePath`, checked at AST construction time via `FixtureReference::parse` (`semantic.fixture_reference.empty` / `.absolute` / `.dot_segment`). Dot segments are banned in v0 for the same reason `WorkspacePath` bans them: a `..`-laden path reads as an attempt to reach outside the fixture's natural root, and there is no v0 use case that requires escaping the `*.repor` directory. This is deliberately conservative; if a real need for a shared fixture root emerges, it should be a new, explicit construct rather than a loosened dot-segment rule (see [TBD.md](../TBD.md) candidates this ADR does not create).
+A fixture path must be non-empty, relative, and free of `.` / `..` path segments — the same lexical policy as `WorkspacePath`, checked at AST construction time via `FixtureReference::parse` (`semantic.fixture_reference.empty` / `.absolute` / `.dot_segment`). Dot segments are banned in v0 for the same reason `WorkspacePath` bans them: a `..`-laden path reads as an attempt to reach outside the fixture's natural root, and there is no v0 use case that requires escaping the `*.repor` directory. This is deliberately conservative; if a real need for a shared fixture root emerges, it should be a new, explicit construct rather than a loosened dot-segment rule (see [TBD.md](../planning/TBD.md) candidates this ADR does not create).
 
 ### Canonical containment check, not just lexical validation
 

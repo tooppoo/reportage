@@ -4,7 +4,7 @@ reportage is an explicit, runtime-agnostic, coverage-aware E2E scenario runner w
 
 It is inspired by Go's [`testscript`](https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript): small text files, shell-like steps, and tests that exercise software from the outside. reportage takes that general direction and adapts it for a broader goal: runtime-independent E2E scripts whose command execution can be connected to language-specific coverage tooling through adapters.
 
-This document defines the design principles for the v0 direction. It intentionally does not cover broader positioning such as "why reportage" or detailed comparisons against other tools.
+This document defines the design principles for the v0 direction. It intentionally does not cover broader positioning such as "why reportage" or detailed comparisons against other tools; see [Why reportage? / Why not reportage?](../guide/why-reportage.md) for those.
 
 ## E2E first, but lightweight
 
@@ -70,7 +70,7 @@ reportage keeps the directness of shell scripts, but adds the missing test struc
 - PATH-shim based command mediation;
 - adapter-based coverage integration.
 
-Not all of the above are yet declared in `reportage.pest`. See [`docs/syntax.md`](syntax.md) for the current v0 grammar.
+Not all of the above are yet declared in `reportage.pest`. See [the generated syntax reference](../reference/syntax.md) for the current v0 grammar.
 
 Ordinary filesystem operations should remain ordinary shell operations in v0. If a test needs to create a directory, copy fixture files, move files, or remove temporary files, it can use `$ mkdir`, `$ cp`, `$ mv`, or `$ rm`. reportage should add syntax where the shell is weak as a test format, not duplicate shell commands unnecessarily.
 

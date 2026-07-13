@@ -8,7 +8,7 @@ semantic-specs-check:
 # generate the semantic rule catalog
 [group('docs')]
 semantic-docs-gen:
-  cargo run --locked -p reportage-core --bin gen_semantic_docs -- docs/language/semantic-rules.md
+  cargo run --locked -p reportage-core --bin gen_semantic_docs -- docs/reference/semantic-rules.md
 
 # check if the semantic rule catalog is up to date
 [group('docs')]
@@ -19,12 +19,12 @@ semantic-docs-check:
   tmp=$(mktemp)
   trap "rm -f '$tmp'" EXIT
   cargo run --locked -p reportage-core --bin gen_semantic_docs -- "$tmp" > /dev/null
-  if ! diff -q docs/language/semantic-rules.md "$tmp" > /dev/null 2>&1; then
-    echo "docs/language/semantic-rules.md is stale. Run 'just semantic-docs-gen' to regenerate."
-    diff docs/language/semantic-rules.md "$tmp" || true
+  if ! diff -q docs/reference/semantic-rules.md "$tmp" > /dev/null 2>&1; then
+    echo "docs/reference/semantic-rules.md is stale. Run 'just semantic-docs-gen' to regenerate."
+    diff docs/reference/semantic-rules.md "$tmp" || true
     exit 1
   fi
-  echo "docs/language/semantic-rules.md is up to date."
+  echo "docs/reference/semantic-rules.md is up to date."
 
 # run the semantic rule coverage check (registry vs. semantic specs vs. generated docs)
 [group('docs')]
@@ -48,12 +48,12 @@ lang-docs-check:
   tmp=$(mktemp)
   trap "rm -f '$tmp'" EXIT
   bash scripts/gen-grammar-doc.sh "$tmp" > /dev/null
-  if ! diff -q docs/syntax.md "$tmp" > /dev/null 2>&1; then
-    echo "docs/syntax.md is stale. Run 'just lang-docs-gen' to regenerate."
-    diff docs/syntax.md "$tmp" || true
+  if ! diff -q docs/reference/syntax.md "$tmp" > /dev/null 2>&1; then
+    echo "docs/reference/syntax.md is stale. Run 'just lang-docs-gen' to regenerate."
+    diff docs/reference/syntax.md "$tmp" || true
     exit 1
   fi
-  echo "docs/syntax.md is up to date."
+  echo "docs/reference/syntax.md is up to date."
 
 # generate the AI documentation reading order
 [group('docs')]

@@ -4,12 +4,12 @@ This document is the entry point for the current v0 technical choices.
 
 Detailed specifications are split into:
 
-- [Configuration](configuration.md)
-- [Path Matching](path-matching.md)
-- [Artifacts](artifacts.md)
-- [Deferred Topics](TBD.md)
+- [Configuration](../reference/configuration.md)
+- [Path Matching](../reference/path-matching.md)
+- [Artifacts](../reference/artifacts.md)
+- [Deferred Topics](../planning/TBD.md)
 
-Architecture decisions are recorded under [ADR](adr/README.md).
+Architecture decisions are recorded under [ADR](../adr/README.md).
 
 Current accepted direction:
 

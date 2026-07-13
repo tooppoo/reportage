@@ -159,7 +159,7 @@ pub enum RelatedDiagnostic {
     Shared(DiagnosticCode),
     /// A diagnostic code emitted by validating or resolving a value that this rule describes.
     ///
-    /// These codes live in the `semantic.*` namespace defined by docs/semantic-diagnostics.md, because the same validation also fires outside the rule's own assertion position (e.g. `semantic.workspace_path.*` from a `write` step's path, `semantic.literal.kind_mismatch` from any argument position).
+    /// These codes live in the `semantic.*` namespace defined by docs/reference/semantic-diagnostics.md, because the same validation also fires outside the rule's own assertion position (e.g. `semantic.workspace_path.*` from a `write` step's path, `semantic.literal.kind_mismatch` from any argument position).
     /// Renaming them to `<rule-id>.<reason>` would misattribute those emissions to one syntactic position, so they are exempt from the rule-id prefix check; CI instead verifies the `semantic.` namespace.
     SemanticValidation(DiagnosticCode),
 }

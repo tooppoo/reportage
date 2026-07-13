@@ -62,7 +62,7 @@ pub enum ParseError {
     /// signature requires a different kind (e.g. `file "out.txt" exists`,
     /// whose subject requires a workspace path literal `<"out.txt">`).
     /// Grammar-wise the script parses; this is a semantic invalid case with
-    /// an actionable diagnostic. See docs/semantic-diagnostics.md.
+    /// an actionable diagnostic. See docs/reference/semantic-diagnostics.md.
     LiteralKindMismatch {
         line: usize,
         /// Human-readable name of the argument position, e.g. "`file` checkpoint subject".
@@ -208,7 +208,7 @@ impl ParseError {
     /// The stable, machine-readable diagnostic code for this error.
     ///
     /// This is independent of the enum variant name: downstream tests and tooling should depend on this code (or its string form) rather than on `Display` output.
-    /// See docs/diagnostics.md.
+    /// See docs/reference/diagnostics.md.
     pub const fn code(&self) -> DiagnosticCode {
         match self {
             ParseError::Syntax { .. } => DiagnosticCode::ParseSyntax,
@@ -2095,7 +2095,7 @@ case "x" {
 
     // Diagnostic codes are the stable, external identifier of a ParseError.
     // These tests pin the string form directly, independent of the enum variant name and of Display message text.
-    // See docs/diagnostics.md.
+    // See docs/reference/diagnostics.md.
     #[test]
     fn syntax_error_has_stable_code() {
         let err = parse_script("$ true\n").unwrap_err();
@@ -2800,7 +2800,7 @@ case "x" {
         assert_eq!(second.path.as_str(), "b.txt");
     }
 
-    // Known limitation (documented in docs/semantics.md and the ADR): a
+    // Known limitation (documented in docs/reference/semantics.md and the ADR): a
     // `write` step missing its own closing fence does not always produce a
     // syntax error. The grammar scans forward for the next line shaped like
     // a valid closing fence, which here belongs to what the author intended

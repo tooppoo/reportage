@@ -25,7 +25,7 @@ use crate::workspace::Workspace;
 /// A checkpoint is an evidence context, not a full filesystem snapshot.
 /// The initial checkpoint has workspace state but no last action result.
 ///
-/// See docs/semantics.md — Checkpoint.
+/// See docs/reference/semantics.md — Checkpoint.
 pub struct Checkpoint {
     pub workspace: WorkspaceState,
     pub last_action: Option<ActionResult>,
@@ -148,7 +148,7 @@ fn resolve_expected_contents(
 /// Observable workspace state: the concrete case's isolated workspace root.
 ///
 /// File and directory expectations, and `write` steps, resolve paths
-/// relative to `root`. See docs/semantics.md — Workspace lifecycle.
+/// relative to `root`. See docs/reference/semantics.md — Workspace lifecycle.
 pub struct WorkspaceState {
     pub root: PathBuf,
 }
@@ -204,7 +204,7 @@ fn evaluate_case(
     }
 
     // Each concrete case gets its own isolated workspace, destroyed when
-    // this function returns. See docs/semantics.md — Workspace lifecycle.
+    // this function returns. See docs/reference/semantics.md — Workspace lifecycle.
     let workspace = match Workspace::new() {
         Ok(w) => w,
         Err(e) => {
@@ -229,7 +229,7 @@ fn evaluate_case(
     // When commands are registered, materialize a fresh set of shims into this case's own `bin`
     // directory and prepend it to `env`'s PATH prefixes, so `$` steps resolve registered command
     // names through the shim before falling through to `env`'s own prefixes and the inherited
-    // PATH. See docs/semantics.md — Command resolution through PATH shims.
+    // PATH. See docs/reference/semantics.md — Command resolution through PATH shims.
     let case_env = match build_case_execution_environment(env, commands, workspace.root()) {
         Ok(case_env) => case_env,
         Err(e) => {
@@ -270,7 +270,7 @@ fn evaluate_case(
     };
     // Steps are processed in source order.
     // Assertion block failure stops execution before the next action.
-    // See docs/semantics.md — Assertion block and the checkpoint-based assertion ADR.
+    // See docs/reference/semantics.md — Assertion block and the checkpoint-based assertion ADR.
     let mut checkpoint = Checkpoint::initial(workspace.root().to_path_buf(), repor_dir.clone());
     let mut case_failed = false;
 
@@ -374,7 +374,7 @@ fn evaluate_case(
                     // `file`/`dir` assertion nested inside a logical composition is validated the
                     // same as a bare one — a composition combines assertion outcomes, it must
                     // never let an unvalidated path reach the filesystem.
-                    // See docs/semantic-diagnostics.md,
+                    // See docs/reference/semantic-diagnostics.md,
                     // docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md, and
                     // docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
                     if let Err(semantic_err) = validate_expectation_paths(expectation) {
@@ -471,7 +471,7 @@ fn evaluate_case(
 /// registered command shadows both `env`'s prefixes and the inherited `PATH`.
 ///
 /// Shims are materialized per case, not once at config-parse time, because each concrete case has
-/// its own isolated workspace and `bin` directory. See docs/semantics.md — Execution order and
+/// its own isolated workspace and `bin` directory. See docs/reference/semantics.md — Execution order and
 /// Command resolution through PATH shims.
 fn build_case_execution_environment(
     env: &ExecutionEnvironment,
@@ -674,7 +674,7 @@ pub fn evaluate_expectation_at_checkpoint(
             // fails to resolve short-circuits the whole composition as a script error, the same
             // as a bare (non-composed) expectation — a composition combines assertion outcomes,
             // it must not mask a test-definition problem in one of its children.
-            // See docs/semantics.md — Logical composition.
+            // See docs/reference/semantics.md — Logical composition.
             let children: Vec<ExpectationResult> = l
                 .children()
                 .iter()
@@ -701,7 +701,7 @@ pub fn evaluate_expectation_at_checkpoint(
     }
 }
 
-/// Byte-level substring search, per docs/semantics.md's raw byte semantics for `stdout contains` /
+/// Byte-level substring search, per docs/reference/semantics.md's raw byte semantics for `stdout contains` /
 /// `stderr contains`: `expected` is UTF-8 bytes of a Reportage string literal, matched against
 /// `haystack` (raw process output bytes) without any decoding on either side.
 ///
@@ -739,7 +739,7 @@ fn compare_output_text_equals(
 ///
 /// `exp.path` is resolved relative to `workspace_root`, the current concrete case's isolated workspace.
 /// Actions never change that directory for the process (each `$` step runs in a fresh child shell), so file assertion paths are always resolved relative to the case workspace root, never affected by a `cd` performed inside an action.
-/// See docs/semantics.md.
+/// See docs/reference/semantics.md.
 ///
 /// `repor_dir` is only consulted for `ContentsEquals`, to resolve an expected
 /// `FixtureReference` relative to the referencing `*.repor` file's directory.
@@ -865,7 +865,7 @@ fn observe_file_contents_equals(
 
 /// Observes whether `path`, resolved against `workspace_root`, is a readable UTF-8 regular file containing `expected` as a plain substring.
 ///
-/// Per docs/semantic-diagnostics.md, missing / non-regular-file / unreadable / non-UTF-8 content are all "the `contains` precondition is unmet" — a single failure category distinct from "the file exists and is readable, but does not contain the expected substring".
+/// Per docs/reference/semantic-diagnostics.md, missing / non-regular-file / unreadable / non-UTF-8 content are all "the `contains` precondition is unmet" — a single failure category distinct from "the file exists and is readable, but does not contain the expected substring".
 fn observe_file_contains(
     workspace_root: &Path,
     path: &str,
@@ -900,7 +900,7 @@ fn observe_file_contains(
 /// entry name policy, are checked earlier, in `evaluate_case`, before this function runs.
 ///
 /// `exp.path` is resolved relative to `workspace_root`, the current concrete case's isolated
-/// workspace, exactly like `file` assertion paths. See docs/semantics.md.
+/// workspace, exactly like `file` assertion paths. See docs/reference/semantics.md.
 fn evaluate_dir_expectation(exp: &DirExpectation, workspace_root: &Path) -> ExpectationResult {
     match &exp.matcher {
         DirMatcher::Exists => {
@@ -950,7 +950,7 @@ fn observe_dir_exists(workspace_root: &Path, path: &str) -> DirExistsObservation
 ///
 /// Never recurses, never glob-matches, and never inspects file content: `entry_name` is compared
 /// against each direct child's raw entry name for an exact match, regardless of that entry's file
-/// type. See docs/semantics.md.
+/// type. See docs/reference/semantics.md.
 fn observe_dir_contains(
     workspace_root: &Path,
     path: &str,

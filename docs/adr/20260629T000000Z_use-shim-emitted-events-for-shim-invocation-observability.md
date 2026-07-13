@@ -46,7 +46,7 @@ Negative:
 
 ## References
 
-- [docs/shims.md](../shims.md)
-- [docs/shims/event-protocol.md](../shims/event-protocol.md)
-- [docs/execution-model.md](../execution-model.md)
-- [docs/testing/self-testing.md](../testing/self-testing.md)
+- [docs/shims.md](../reference/shims.md)
+- [docs/shims/event-protocol.md](../reference/shim-event-protocol.md)
+- [docs/execution-model.md](../reference/execution-model.md)
+- [docs/testing/self-testing.md](../design/testing/self-testing.md)

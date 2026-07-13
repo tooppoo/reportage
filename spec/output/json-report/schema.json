@@ -71,7 +71,7 @@
     "DiagnosticCode": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$",
-      "description": "A stable diagnostic code (e.g. 'parse.syntax', 'assertion.stdout.contains.mismatch', 'step.write.target_exists'). This is an open, growing set documented in docs/diagnostics.md and docs/semantic-diagnostics.md, not a fixed enum: new codes may be added without a schemaVersion bump, but existing codes are stable identifiers and must not be repurposed."
+      "description": "A stable diagnostic code (e.g. 'parse.syntax', 'assertion.stdout.contains.mismatch', 'step.write.target_exists'). This is an open, growing set documented in docs/reference/diagnostics.md and docs/reference/semantic-diagnostics.md, not a fixed enum: new codes may be added without a schemaVersion bump, but existing codes are stable identifiers and must not be repurposed."
     },
     "DiagnosticRefField": {
       "type": "string",
@@ -126,7 +126,7 @@
         "category": {
           "type": "string",
           "enum": ["parse", "semantic", "runtime", "assertion", "internal"],
-          "description": "'internal' covers failures that predate parsing (e.g. a file read error) and do not fit the four namespaces defined in docs/semantic-diagnostics.md."
+          "description": "'internal' covers failures that predate parsing (e.g. a file read error) and do not fit the four namespaces defined in docs/reference/semantic-diagnostics.md."
         },
         "severity": {
           "type": "string",

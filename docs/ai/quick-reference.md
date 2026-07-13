@@ -17,15 +17,15 @@ A module is one or more `case "<name>" { ... }` blocks. Inside a case, an action
 
 ## Where the rest of the syntax lives
 
-- Full grammar: [`docs/syntax.md`](../syntax.md) — the only source of truth for what is valid.
-- Assertion/expectation semantics: [`docs/semantics.md`](../semantics.md) and the generated [`docs/language/semantic-rules.md`](../language/semantic-rules.md).
-- Known-good scripts to adapt from: `examples/*.repor` and `tests/fixtures/syntax/valid/`.
+- Full grammar: [the generated syntax reference](../reference/syntax.md) — the grammar reference generated from the normative source [`crates/reportage-core/src/reportage.pest`](../../crates/reportage-core/src/reportage.pest).
+- Assertion/expectation semantics: [the language semantics reference](../reference/semantics.md) and [the generated semantic rule catalog](../reference/semantic-rules.md).
+- Known-good scripts to adapt from: [`examples/`](../../examples/) and [`tests/fixtures/syntax/valid/`](../../tests/fixtures/syntax/valid/).
 
 ## Prohibitions
 
-- Do not use anything absent from [`docs/syntax.md`](../syntax.md).
-- Do not treat [`docs/TBD.md`](../TBD.md) entries as usable syntax.
-- Do not invent constructs that merely look plausible; see [`docs/ai/generation-rules.md`](generation-rules.md) and [`docs/ai/common-mistakes.md`](common-mistakes.md).
+- Do not use anything absent from [the generated syntax reference](../reference/syntax.md).
+- Do not treat [deferred topics](../planning/TBD.md) entries as usable syntax.
+- Do not invent constructs that merely look plausible; see [the generation rules](generation-rules.md) and [common mistakes](common-mistakes.md).
 
 ## Validate after editing
 
@@ -33,8 +33,8 @@ A module is one or more `case "<name>" { ... }` blocks. Inside a case, an action
 reportage <file.repor> --format=json
 ```
 
-See [`docs/ai/validation-flow.md`](validation-flow.md) for how to read the output.
+See [the validation flow](validation-flow.md) for how to read the output.
 
 ## Full reading order
 
-See [`docs/ai/reading-order.generated.md`](reading-order.generated.md).
+See [the generated reading order](reading-order.generated.md).

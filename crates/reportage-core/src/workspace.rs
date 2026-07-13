@@ -2,8 +2,8 @@
 //!
 //! Each concrete case runs in its own workspace directory: `$` actions run
 //! with it as their working directory, `write` steps write into it, and file
-//! expectations resolve paths against it. See docs/execution-model.md —
-//! Workspace lifecycle, and docs/semantics.md — Write step.
+//! expectations resolve paths against it. See docs/reference/execution-model.md —
+//! Workspace lifecycle, and docs/reference/semantics.md — Write step.
 
 use std::path::Path;
 
@@ -13,7 +13,7 @@ use crate::model::WorkspacePath;
 /// An isolated case workspace, backed by a temporary directory that is
 /// removed when the workspace is dropped.
 ///
-/// See docs/execution-model.md — Cleanup and preservation: v0 does not offer
+/// See docs/reference/execution-model.md — Cleanup and preservation: v0 does not offer
 /// workspace preservation, so unconditional cleanup on drop is correct.
 pub struct Workspace {
     dir: tempfile::TempDir,
@@ -22,7 +22,7 @@ pub struct Workspace {
 /// Error writing a file into a workspace via a `write` step.
 ///
 /// This is the runtime step error classification for side-effecting steps.
-/// See docs/semantics.md — Write step, and the accompanying ADR.
+/// See docs/reference/semantics.md — Write step, and the accompanying ADR.
 #[derive(Debug)]
 pub enum WriteFileError {
     /// The target path already exists (file, directory, or symlink).
@@ -61,7 +61,7 @@ impl std::error::Error for WriteFileError {}
 
 impl WriteFileError {
     /// The stable, machine-readable diagnostic code for this error.
-    /// See docs/diagnostics.md.
+    /// See docs/reference/diagnostics.md.
     pub const fn code(&self) -> DiagnosticCode {
         match self {
             WriteFileError::TargetAlreadyExists => DiagnosticCode::StepWriteTargetExists,

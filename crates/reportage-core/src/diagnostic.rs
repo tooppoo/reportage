@@ -1,6 +1,6 @@
 //! Stable, machine-readable diagnostic identity for parser and validator errors.
 //!
-//! See docs/diagnostics.md for the naming convention, compatibility policy, and the split between `code` (stable), `message` (improvable), `location`, and `details` (auxiliary, weaker stability).
+//! See docs/reference/diagnostics.md for the naming convention, compatibility policy, and the split between `code` (stable), `message` (improvable), `location`, and `details` (auxiliary, weaker stability).
 
 use std::fmt;
 
@@ -94,7 +94,7 @@ pub enum DiagnosticCode {
     /// `dir <"path"> contains "<name>"` observed a directory whose entries could not be read (e.g. a permission error).
     AssertionDirContainsSubjectUnreadable,
     /// A `not` / `all` / `any` logical composition block contains zero expectation expressions.
-    /// See docs/semantic-diagnostics.md.
+    /// See docs/reference/semantic-diagnostics.md.
     SemanticExpectationEmptyBlock,
     /// An assertion block evaluates a process expectation (`exit`, `stdout`, `stderr`) before
     /// any `$` action has run, so there is no last action result to compare against.
@@ -119,7 +119,7 @@ pub enum DiagnosticCode {
     /// fixture reference literal) appeared in an argument position whose
     /// signature requires a different kind, e.g. `file "out.txt" exists`
     /// where the `file` subject requires a workspace path literal.
-    /// See docs/semantic-diagnostics.md.
+    /// See docs/reference/semantic-diagnostics.md.
     SemanticLiteralKindMismatch,
     /// A heredoc literal (in a `write` step or a `file ... contains`
     /// expectation) contains a non-blank body line that is indented less
