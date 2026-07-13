@@ -1,0 +1,13 @@
+# Declaring the same field twice in one document case block is rejected
+# (parse.document_block.duplicate_field).
+document case {
+  title "first"
+  title "second"
+}
+
+case "never parsed" {
+  $ true
+  assert {
+    exit 0
+  }
+}

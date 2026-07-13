@@ -1,0 +1,11 @@
+# A document case block with zero fields is rejected during parser
+# construction (parse.document_block.empty), not as a bare syntax error.
+document case {
+}
+
+case "never parsed" {
+  $ true
+  assert {
+    exit 0
+  }
+}

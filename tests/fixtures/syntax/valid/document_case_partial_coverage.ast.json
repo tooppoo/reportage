@@ -1,0 +1,52 @@
+{
+  "cases": [
+    {
+      "name": "documented",
+      "documentation": {
+        "title": "The documented one",
+        "description": "Only this case has a document case block."
+      },
+      "span": {
+        "start": 177,
+        "end": 234
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "undocumented",
+      "span": {
+        "start": 235,
+        "end": 294
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

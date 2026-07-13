@@ -1,0 +1,12 @@
+# An unknown field name is not part of the document case whitelist and fails
+# as a syntax error; unknown fields are rejected, never ignored.
+document case {
+  author "someone"
+}
+
+case "never parsed" {
+  $ true
+  assert {
+    exit 0
+  }
+}

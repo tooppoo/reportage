@@ -1,0 +1,27 @@
+# The canonical top-level form: document file? (document case? case)*
+
+document file {
+  title "File assertions"
+  group "Filesystem"
+  order 20
+  description "Collected examples of assertions against files."
+}
+
+document case {
+  title "File creation"
+  description "Verifies the file is created."
+}
+
+case "file exists" {
+  $ touch test.txt
+  assert {
+    file <"test.txt"> exists
+  }
+}
+
+case "undocumented case" {
+  $ true
+  assert {
+    exit 0
+  }
+}

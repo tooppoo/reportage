@@ -1,0 +1,7 @@
+# Document blocks do not nest; a document block inside a document case body
+# is not part of the field whitelist and fails as a syntax error.
+document case {
+  document case {
+    title "nested"
+  }
+}

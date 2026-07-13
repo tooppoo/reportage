@@ -1,0 +1,61 @@
+{
+  "file_documentation": {
+    "title": "File assertions",
+    "group": "Filesystem",
+    "order": 20,
+    "description": "Collected examples of assertions against files."
+  },
+  "cases": [
+    {
+      "name": "file exists",
+      "documentation": {
+        "title": "File creation",
+        "description": "Verifies the file is created."
+      },
+      "span": {
+        "start": 301,
+        "end": 387
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "touch test.txt"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "test.txt",
+              "matcher": {
+                "kind": "exists"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "undocumented case",
+      "span": {
+        "start": 388,
+        "end": 452
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

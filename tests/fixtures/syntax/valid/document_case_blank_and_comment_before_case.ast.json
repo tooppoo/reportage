@@ -1,0 +1,30 @@
+{
+  "cases": [
+    {
+      "name": "still associated",
+      "documentation": {
+        "title": "Separated from its case",
+        "description": null
+      },
+      "span": {
+        "start": 130,
+        "end": 193
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

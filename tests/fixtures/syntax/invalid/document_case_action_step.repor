@@ -1,0 +1,12 @@
+# Execution constructs are not part of the document case body whitelist; an
+# action step inside the block is a syntax error.
+document case {
+  $ echo hello
+}
+
+case "never parsed" {
+  $ true
+  assert {
+    exit 0
+  }
+}

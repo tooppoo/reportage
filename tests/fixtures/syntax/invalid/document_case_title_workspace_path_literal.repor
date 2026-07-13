@@ -1,0 +1,12 @@
+# title requires a string literal; a workspace path literal parses but is
+# rejected as semantic.literal.kind_mismatch.
+document case {
+  title <"a.txt">
+}
+
+case "never constructed" {
+  $ true
+  assert {
+    exit 0
+  }
+}

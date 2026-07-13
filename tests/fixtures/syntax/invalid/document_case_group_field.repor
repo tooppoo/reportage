@@ -1,0 +1,12 @@
+# group belongs to the file scope's field whitelist only; inside a document
+# case block it is unreachable in the grammar and fails as a syntax error.
+document case {
+  group "Filesystem"
+}
+
+case "never parsed" {
+  $ true
+  assert {
+    exit 0
+  }
+}

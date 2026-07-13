@@ -1,0 +1,16 @@
+document case {
+  title "File creation"
+
+  description ```
+    Verifies that the command creates the file.
+
+    Written as a heredoc literal.
+    ```
+}
+
+case "file exists" {
+  $ touch test.txt
+  assert {
+    file <"test.txt"> exists
+  }
+}

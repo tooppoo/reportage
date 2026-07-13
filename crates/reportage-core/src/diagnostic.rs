@@ -163,8 +163,13 @@ pub enum DiagnosticCode {
     ParseDocumentBlockInvalidOrder,
     /// A source contains more than one `document file` block.
     ParseDocumentFileDuplicate,
-    /// A `document file` block appears after the source's first case block.
+    /// A `document file` block appears after the source's first case block
+    /// or after a `document case` block.
     ParseDocumentFileAfterCase,
+    /// A second `document case` block appears before the previous one's target case.
+    ParseDocumentCaseDuplicate,
+    /// A `document case` block is not followed by a case to associate with.
+    ParseDocumentCaseOrphan,
 }
 
 impl DiagnosticCode {
@@ -235,6 +240,8 @@ impl DiagnosticCode {
         Self::ParseDocumentBlockInvalidOrder,
         Self::ParseDocumentFileDuplicate,
         Self::ParseDocumentFileAfterCase,
+        Self::ParseDocumentCaseDuplicate,
+        Self::ParseDocumentCaseOrphan,
     ];
 
     /// The stable external string representation of this code.
@@ -336,6 +343,8 @@ impl DiagnosticCode {
             Self::ParseDocumentBlockInvalidOrder => "parse.document_block.invalid_order",
             Self::ParseDocumentFileDuplicate => "parse.document_file.duplicate",
             Self::ParseDocumentFileAfterCase => "parse.document_file.after_case",
+            Self::ParseDocumentCaseDuplicate => "parse.document_case.duplicate",
+            Self::ParseDocumentCaseOrphan => "parse.document_case.orphan",
         }
     }
 }

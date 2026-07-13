@@ -1,0 +1,17 @@
+# document file must precede every document case and case; placing it after
+# a pending document case violates the canonical top-level form
+# document file? (document case? case)* (parse.document_file.after_case).
+document case {
+  title "pending"
+}
+
+document file {
+  title "too late"
+}
+
+case "example" {
+  $ true
+  assert {
+    exit 0
+  }
+}

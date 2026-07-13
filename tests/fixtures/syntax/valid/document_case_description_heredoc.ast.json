@@ -1,0 +1,33 @@
+{
+  "cases": [
+    {
+      "name": "file exists",
+      "documentation": {
+        "title": "File creation",
+        "description": "Verifies that the command creates the file.\n\nWritten as a heredoc literal.\n"
+      },
+      "span": {
+        "start": 153,
+        "end": 239
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "touch test.txt"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "test.txt",
+              "matcher": {
+                "kind": "exists"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
