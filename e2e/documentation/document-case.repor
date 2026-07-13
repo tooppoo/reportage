@@ -134,6 +134,37 @@ case "documenting only some cases changes nothing about execution order" {
   }
 }
 
+case "a document case after an earlier case documents the next case" {
+  write <"inner.repor"> ```
+    case "first" {
+      $ echo first
+      assert {
+        exit 0
+      }
+    }
+
+    document case {
+      title "The second case"
+    }
+
+    case "second" {
+      $ echo second
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 0
+    stdout contains "\"name\": \"first\""
+    stdout contains "\"name\": \"second\""
+    stdout contains "\"status\": \"passed\""
+  }
+}
+
 case "document file and document case coexist in the canonical order" {
   write <"inner.repor"> ```
     document file {

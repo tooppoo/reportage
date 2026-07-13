@@ -4076,6 +4076,47 @@ case "x" {
     }
 
     #[test]
+    fn document_case_after_an_earlier_case_attaches_to_the_next_case() {
+        // The canonical form repeats: a document case may follow an earlier
+        // case (documented or not) and attaches to the case after it.
+        let src = "case \"first\" {\n  $ true\n  assert { exit 0 }\n}\ndocument case {\n  title \"The second case\"\n}\ncase \"second\" {\n  $ true\n  assert { exit 0 }\n}\n";
+        let source_file = parse(src).unwrap();
+        assert!(source_file.cases()[0].documentation().is_none());
+        assert_eq!(
+            source_file.cases()[1]
+                .documentation()
+                .unwrap()
+                .title
+                .as_deref(),
+            Some("The second case")
+        );
+    }
+
+    #[test]
+    fn each_case_may_carry_its_own_document_case() {
+        // Association resets at every case: consecutive (document case, case)
+        // pairs each bind their own block, never a predecessor's.
+        let src = "document case {\n  title \"first doc\"\n}\ncase \"first\" {\n  $ true\n  assert { exit 0 }\n}\ndocument case {\n  title \"second doc\"\n}\ncase \"second\" {\n  $ true\n  assert { exit 0 }\n}\n";
+        let source_file = parse(src).unwrap();
+        assert_eq!(
+            source_file.cases()[0]
+                .documentation()
+                .unwrap()
+                .title
+                .as_deref(),
+            Some("first doc")
+        );
+        assert_eq!(
+            source_file.cases()[1]
+                .documentation()
+                .unwrap()
+                .title
+                .as_deref(),
+            Some("second doc")
+        );
+    }
+
+    #[test]
     fn document_file_and_document_case_coexist_in_canonical_order() {
         let src = format!(
             "document file {{\n  title \"The file\"\n}}\n\ndocument case {{\n  title \"The case\"\n}}\n{PASSING_CASE}"
