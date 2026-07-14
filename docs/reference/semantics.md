@@ -463,7 +463,7 @@ error: `stdout jq` requires external jq, but jq was not found in PATH
 
 Embedded jq engines may be considered later. If added, the selected jq engine should be explicit rather than silently falling back between implementations.
 
-## Document block (`document file`)
+## Document block (`document file` / `document case`)
 
 A document block attaches documentation metadata to a source construct as first-class syntax:
 
@@ -477,20 +477,41 @@ document file {
   Collected examples of assertions against files.
   ```
 }
+
+document case {
+  title "File creation"
+
+  description ```
+  Verifies that the command creates the file.
+  ```
+}
+
+case "file exists" {
+  $ touch test.txt
+
+  assert {
+    file <"test.txt"> exists
+  }
+}
 ````
 
-v0 supports only the `file` scope,
-whose metadata describes the whole source file.
-`document case` is future work (#169).
+v0 supports two scopes:
+`file`, whose metadata describes the whole source file,
+and `case`, whose metadata attaches to the immediately following case.
+Any other scope keyword is a syntax error.
 
 Documentation is deliberately not expressed through `#` comments:
 comments are discarded at parse time and never reach any model,
 while documentation metadata must survive parsing so documentation tooling can consume it.
-See [ADR: Document Block as First-Class Documentation Syntax](../adr/20260712T120000Z_document-block-first-class-documentation-syntax.md).
+See [ADR: Document Block as First-Class Documentation Syntax](../adr/20260712T120000Z_document-block-first-class-documentation-syntax.md)
+and [ADR: Case Documentation via an Adjacent `document case` Block](../adr/20260713T120000Z_document-case-adjacent-association.md).
 
-### File documentation fields
+### Documentation fields
 
-v0 accepts exactly these fields; an unknown field is a syntax error.
+Each scope accepts exactly its own field whitelist;
+an unknown field, or a field of another scope, is a syntax error.
+
+`document file`:
 
 | Field | Value | Meaning |
 | --- | --- | --- |
@@ -499,6 +520,17 @@ v0 accepts exactly these fields; an unknown field is a syntax error.
 | `order` | non-negative integer | The file's display order within its group. |
 | `description` | string literal or heredoc literal | A description of the whole file, plain text in v0. |
 
+`document case`:
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `title` | string literal | The case's display name in generated documentation. |
+| `description` | string literal or heredoc literal | A description of the case, plain text in v0. |
+
+`group` and `order` are file-scope fields only:
+a case has no grouping or ordering of its own (cases render in source order),
+so `group` / `order` inside a `document case` block are syntax errors, exactly like an unknown field.
+
 `title`, `group`, and `description` positions parse the kind-agnostic value literal,
 so a wrong-kind literal (e.g. `title <"a.txt">`) is rejected as `semantic.literal.kind_mismatch`,
 consistent with every other literal position (see "Value literals" above).
@@ -506,32 +538,52 @@ Declaring the same field twice in one block is rejected (`parse.document_block.d
 An `order` value that overflows the supported non-negative integer range (u64) is rejected
 (`parse.document_block.invalid_order`).
 
-### Placement rules
+### Placement and association rules
 
-- `document file` is a top-level construct only; inside a case block it is a syntax error.
+Ignoring blank lines and comment lines, a source's top-level items follow the canonical form:
+
+```text
+document file? (document case? case)*
+```
+
+- Document blocks are top-level constructs only; inside a case block they are syntax errors.
 - A source may contain at most one `document file` block (`parse.document_file.duplicate`).
-- The block must appear before the source's first case (`parse.document_file.after_case`).
+- `document file` must appear before every `document case` block and every case (`parse.document_file.after_case`).
+- `document case` attaches to the next top-level case.
+  Blank lines and comment lines may separate the two;
+  a `document file` block or another `document case` block may not.
+- At most one `document case` block may precede a case.
+  A second block before the target case is rejected at the second block's start line
+  (`parse.document_case.duplicate`).
+- A `document case` block with no following case is rejected at the block's start line
+  (`parse.document_case.orphan`).
+- When one structure violates both rules — two `document case` blocks and no target case —
+  the duplicate is reported, not the orphan.
 - An empty document block — no documentation field, including a comment-only body — is rejected (`parse.document_block.empty`).
-- A source without a `document file` block remains valid; documentation is always optional.
+- A source without document blocks remains valid; documentation is always optional, per file and per case.
 
-The document block body is defined as a whitelist of documentation fields in the grammar.
-Actions, assertions, `write` steps, case blocks, and nested document blocks are not part of that whitelist,
+Each document block body is defined as a scope-specific whitelist of documentation fields in the grammar.
+Actions, assertions, `write` steps, case blocks, and nested document blocks are not part of those whitelists,
 so they are syntax errors inside a document block by construction,
 and any future step or statement is rejected there automatically.
 
 ### Relationship to execution
 
-File documentation lives on the source-level model (`SourceFile`) only.
-It holds exactly what the source states:
-omitted fields stay unset, and no display fallback (file stem as title, a default group, path-based order)
-is materialized into the model.
+Documentation lives on the source-level model only:
+file documentation on `SourceFile`, case documentation on the parsed case (`SourceCase`).
+The model holds exactly what the source states:
+omitted fields stay unset, and no display fallback (file stem or case name as title, a default group, path-based order)
+is materialized into it.
 Display fallbacks are applied when the Documentation Catalog is built (#170),
-where both the source path and the source-level model are available.
+where the source path, the source-level model, and the execution case name are all available.
 
 Projection to the execution `Script` drops documentation metadata,
-so execution behavior, execution reports, and result artifacts are identical
-whether or not a source declares a `document file` block.
-A `document file` block is also not part of any case's source span
+so execution behavior, case and step execution order, execution reports, and result artifacts are identical
+whether or not a source declares document blocks.
+A `document case` block is not a step of its case.
+Document blocks are also not part of any case's source span —
+a case's span starts at its `case` line,
+excluding an associated `document case` block and the blank / comment lines separating it from the case
 (see [Execution model](execution-model.md) — Parsing and the source-level model).
 
 ## v0 exclusions

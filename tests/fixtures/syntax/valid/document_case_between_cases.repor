@@ -1,0 +1,32 @@
+# A document case may follow an earlier case; it attaches to the next case,
+# and each case may carry its own block.
+
+case "first, undocumented" {
+  $ true
+  assert {
+    exit 0
+  }
+}
+
+document case {
+  title "The second case"
+}
+
+case "second, documented" {
+  $ true
+  assert {
+    exit 0
+  }
+}
+
+document case {
+  title "The third case"
+  description "Each case carries its own block."
+}
+
+case "third, documented" {
+  $ true
+  assert {
+    exit 0
+  }
+}

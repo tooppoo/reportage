@@ -1,0 +1,11 @@
+# document case is a top-level construct only; inside a case block it is a
+# syntax error.
+case "x" {
+  document case {
+    title "misplaced"
+  }
+  $ true
+  assert {
+    exit 0
+  }
+}

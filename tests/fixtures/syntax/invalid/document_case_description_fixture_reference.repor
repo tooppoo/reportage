@@ -1,0 +1,12 @@
+# description requires a text literal (string or heredoc); a fixture
+# reference literal parses but is rejected as semantic.literal.kind_mismatch.
+document case {
+  description @"notes.txt"
+}
+
+case "never constructed" {
+  $ true
+  assert {
+    exit 0
+  }
+}

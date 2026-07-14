@@ -1,0 +1,36 @@
+document file {
+  title "Case documentation"
+  group "Documentation"
+  order 30
+
+  description ```
+    Examples of `document case`: case-scope documentation metadata attached
+    to the immediately following case.
+    ```
+}
+
+document case {
+  title "File creation"
+
+  description ```
+    Verifies that the command creates the file in the case workspace.
+    ```
+}
+
+case "file exists" {
+  $ touch test.txt
+
+  assert {
+    file <"test.txt"> exists
+  }
+}
+
+# A case without a document case block stays valid; documentation is
+# always optional and per-case.
+case "file contains text" {
+  $ echo "FizzBuzz" > test.txt
+
+  assert {
+    file <"test.txt"> contains "FizzBuzz"
+  }
+}

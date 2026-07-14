@@ -1,0 +1,12 @@
+document case {
+  title "Separated from its case"
+}
+
+# blank lines and plain comments may separate a document case from its case
+
+case "still associated" {
+  $ true
+  assert {
+    exit 0
+  }
+}

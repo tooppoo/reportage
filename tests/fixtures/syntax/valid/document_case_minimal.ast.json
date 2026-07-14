@@ -1,0 +1,30 @@
+{
+  "cases": [
+    {
+      "name": "documented case runs",
+      "documentation": {
+        "title": "File creation",
+        "description": null
+      },
+      "span": {
+        "start": 43,
+        "end": 110
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

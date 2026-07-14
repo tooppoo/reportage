@@ -1,0 +1,10 @@
+document case {
+  title "File creation"
+}
+
+case "documented case runs" {
+  $ true
+  assert {
+    exit 0
+  }
+}

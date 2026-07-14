@@ -1,0 +1,20 @@
+# Only some cases carry documentation; undocumented cases stay valid.
+
+document case {
+  title "The documented one"
+  description "Only this case has a document case block."
+}
+
+case "documented" {
+  $ true
+  assert {
+    exit 0
+  }
+}
+
+case "undocumented" {
+  $ true
+  assert {
+    exit 0
+  }
+}

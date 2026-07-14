@@ -1,0 +1,12 @@
+# Comment lines are not documentation fields, so a comment-only body is
+# rejected as an empty document block (parse.document_block.empty).
+document case {
+  # not a field
+}
+
+case "never parsed" {
+  $ true
+  assert {
+    exit 0
+  }
+}

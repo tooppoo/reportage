@@ -53,48 +53,64 @@ trail        = _{ (ws+ ~ comment)? ~ ws* ~ (nl | EOI) }
 // ─── Script ───────────────────────────────────────────────────────────────────
 
 // ws* before EOI handles a trailing whitespace-only line with no final newline.
-// document_block is grammar-legal anywhere at top level (and any number of
-// times) so that its placement rules — at most one `document file` per
-// source, before the first case — can be rejected during parser
+// Document blocks are grammar-legal anywhere at top level (and any number of
+// times) so that their placement rules — the canonical top-level form
+// `document file? (document case? case)*` — can be rejected during parser
 // construction with actionable diagnostics (parse.document_file.duplicate /
-// parse.document_file.after_case) instead of a bare pest syntax error.
-script = { SOI ~ (blank_line | comment_line | document_block | case_block)* ~ ws* ~ EOI }
+// parse.document_file.after_case / parse.document_case.duplicate /
+// parse.document_case.orphan) instead of a bare pest syntax error.
+script = { SOI ~ (blank_line | comment_line | document_file_block | document_case_block | case_block)* ~ ws* ~ EOI }
 
-// ─── Document block ───────────────────────────────────────────────────────────
+// ─── Document blocks ──────────────────────────────────────────────────────────
 //
 // `document <scope> { ... }` attaches documentation metadata to a source
 // construct as first-class syntax, distinct from `#` comments (which are
-// discarded at parse time and never reach any model). v0 supports only the
-// `file` scope, whose metadata describes the whole source file; see #168 and
-// the accompanying ADR. `document case` (#169) is future work, so `case` is
-// deliberately not part of document_scope yet and is a plain syntax error.
+// discarded at parse time and never reach any model). v0 supports two
+// scopes: `file`, whose metadata describes the whole source file (#168), and
+// `case`, whose metadata attaches to the immediately following case (#169).
+// See the accompanying ADRs. Any other scope keyword is a plain syntax
+// error.
 //
-// The body is a whitelist of documentation fields: only the field rules
-// below are reachable inside the block. Actions, assertions, write steps,
-// case blocks, nested document blocks, and any future step or statement are
-// not alternatives here, so they are rejected at parse time by construction
-// rather than by enumerating them in a blacklist. An unknown field name
-// likewise fails to match and is a plain syntax error.
+// Each scope is its own block rule with its own field whitelist: only that
+// scope's field rules are reachable inside its block. Actions, assertions,
+// write steps, case blocks, nested document blocks, fields of another scope
+// (`group` / `order` inside `document case`), and any future step or
+// statement are not alternatives there, so they are rejected at parse time
+// by construction rather than by enumerating them in a blacklist. An unknown
+// field name likewise fails to match and is a plain syntax error.
 //
 // A body with zero fields parses successfully (the field line is starred) so
 // Reportage can reject an empty document block during parser construction
 // (parse.document_block.empty) instead of conflating it with a generic
 // syntax error — the same approach as empty_composition_body above.
-document_block = {
-    ws* ~ "document" ~ ws+ ~ document_scope ~ ws* ~ "{" ~ trail
-    ~ (blank_line | comment_line | document_field_line)*
+document_file_block = {
+    ws* ~ "document" ~ ws+ ~ "file" ~ ws* ~ "{" ~ trail
+    ~ (blank_line | comment_line | document_file_field_line)*
     ~ ws* ~ "}" ~ trail
 }
 
-document_scope = { "file" }
+document_case_block = {
+    ws* ~ "document" ~ ws+ ~ "case" ~ ws* ~ "{" ~ trail
+    ~ (blank_line | comment_line | document_case_field_line)*
+    ~ ws* ~ "}" ~ trail
+}
 
 // One documentation field per line. The single-line fields share `trail`
 // (trailing whitespace and an optional inline comment) like ordinary case
 // steps; the heredoc form of `description` consumes its own trailing line
 // ending (see "Heredoc literal" below), mirroring the write_step_string /
 // write_step_heredoc split.
-document_field_line = _{
+//
+// The file scope accepts `title` / `group` / `order` / `description`; the
+// case scope accepts only `title` / `description` — a case has no grouping
+// or ordering of its own (cases render in source order), so `group` / `order`
+// inside `document case` are unreachable and fail as syntax errors.
+document_file_field_line = _{
     ws* ~ ((document_title_field | document_group_field | document_order_field | document_description_string_field) ~ trail | document_description_heredoc_field)
+}
+
+document_case_field_line = _{
+    ws* ~ ((document_title_field | document_description_string_field) ~ trail | document_description_heredoc_field)
 }
 
 // `title` / `group` take a string literal; `description` takes a

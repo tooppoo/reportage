@@ -111,21 +111,54 @@ pub struct FileDocumentation {
     pub description: Option<DocumentationText>,
 }
 
-/// One case of a parsed file: the execution-model `Case` plus the byte range
-/// of the whole `case` block (matching the pest `case_block` pair) in the original source.
+/// Case-scope documentation metadata from a `document case` block.
+///
+/// Holds only what the source explicitly states: every field is optional and
+/// no fallback value (the case name as title) is materialized here. Display
+/// fallbacks are applied when the Documentation Catalog is built (#170),
+/// where both this model and the execution `Case::name` are available.
+#[derive(Debug)]
+pub struct CaseDocumentation {
+    pub title: Option<String>,
+    pub description: Option<DocumentationText>,
+}
+
+/// One case of a parsed file: the execution-model `Case`, the byte range
+/// of the whole `case` block (matching the pest `case_block` pair) in the original source,
+/// and the documentation from the `document case` block immediately preceding it, when present.
 ///
 /// The span covers the `case` line's leading indentation through the closing brace line,
 /// including that line's trailing whitespace / inline comment and its line ending when present.
-/// It excludes blank lines and comment lines before or after the block.
+/// It excludes blank lines and comment lines before or after the block — in particular,
+/// an associated `document case` block and the lines separating it from the case
+/// are never part of the span.
 #[derive(Debug)]
 pub struct SourceCase {
+    documentation: Option<CaseDocumentation>,
     case: Case,
     span: SourceSpan,
 }
 
 impl SourceCase {
-    pub(crate) fn new(case: Case, span: SourceSpan) -> Self {
-        Self { case, span }
+    pub(crate) fn new(
+        documentation: Option<CaseDocumentation>,
+        case: Case,
+        span: SourceSpan,
+    ) -> Self {
+        Self {
+            documentation,
+            case,
+            span,
+        }
+    }
+
+    /// The `document case` metadata, or `None` when the source declares none
+    /// for this case.
+    ///
+    /// `None` means exactly "no `document case` block precedes this case";
+    /// it is never substituted with fallback values here (see [`CaseDocumentation`]).
+    pub fn documentation(&self) -> Option<&CaseDocumentation> {
+        self.documentation.as_ref()
     }
 
     pub fn case(&self) -> &Case {

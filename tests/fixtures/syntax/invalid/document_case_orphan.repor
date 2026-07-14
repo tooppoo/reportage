@@ -1,0 +1,12 @@
+# A document case block must be followed by the case it documents; a source
+# that ends without one is rejected (parse.document_case.orphan).
+case "runs first" {
+  $ true
+  assert {
+    exit 0
+  }
+}
+
+document case {
+  title "no case follows"
+}

@@ -129,6 +129,12 @@ impl<'a> From<&'a reportage_core::source::FileDocumentation> for SnapshotFileDoc
 #[derive(Serialize)]
 struct SnapshotCase<'a> {
     name: &'a str,
+    /// Omitted (not `null`) when no `document case` block precedes the case,
+    /// mirroring `file_documentation` above: absence in the snapshot mirrors
+    /// absence in the source-level model, and keeps the snapshots of the
+    /// pre-existing, undocumented fixtures unchanged.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    documentation: Option<SnapshotCaseDocumentation<'a>>,
     /// The case block's byte range in the fixture source, so span drift is
     /// visible in the snapshot diff without duplicating the source text here.
     span: SnapshotSpan,
@@ -140,11 +146,33 @@ impl<'a> From<&'a SourceCase> for SnapshotCase<'a> {
         let case = source_case.case();
         Self {
             name: &case.name,
+            documentation: source_case
+                .documentation()
+                .map(SnapshotCaseDocumentation::from),
             span: SnapshotSpan {
                 start: source_case.span().start(),
                 end: source_case.span().end(),
             },
             steps: case.steps.iter().map(SnapshotStep::from).collect(),
+        }
+    }
+}
+
+/// Mirrors `source::CaseDocumentation`. Unset fields serialize as `null`
+/// rather than being omitted, so the snapshot shows that the model holds
+/// only what the source explicitly stated (no case-name fallback
+/// materialization).
+#[derive(Serialize)]
+struct SnapshotCaseDocumentation<'a> {
+    title: Option<&'a str>,
+    description: Option<&'a str>,
+}
+
+impl<'a> From<&'a reportage_core::source::CaseDocumentation> for SnapshotCaseDocumentation<'a> {
+    fn from(documentation: &'a reportage_core::source::CaseDocumentation) -> Self {
+        Self {
+            title: documentation.title.as_deref(),
+            description: documentation.description.as_ref().map(|text| text.as_str()),
         }
     }
 }
@@ -596,11 +624,14 @@ fn invalid_syntax_fixtures_are_rejected() {
             // rejected during parser construction with fine-grained codes.
             // Covers both the field-less body and the comment-only body:
             // comment lines are not documentation fields.
-            "document_file_empty_block" | "document_file_comment_only_block" => {
+            "document_file_empty_block"
+            | "document_file_comment_only_block"
+            | "document_case_empty_block"
+            | "document_case_comment_only_block" => {
                 assert!(matches!(err, ParseError::EmptyDocumentBlock { .. }));
                 assert_eq!(err.code().as_str(), "parse.document_block.empty");
             }
-            "document_file_duplicate_field" => {
+            "document_file_duplicate_field" | "document_case_duplicate_field" => {
                 assert!(matches!(err, ParseError::DuplicateDocumentationField { .. }));
                 assert_eq!(err.code().as_str(), "parse.document_block.duplicate_field");
             }
@@ -612,9 +643,23 @@ fn invalid_syntax_fixtures_are_rejected() {
                 assert!(matches!(err, ParseError::DuplicateDocumentFile { .. }));
                 assert_eq!(err.code().as_str(), "parse.document_file.duplicate");
             }
-            "document_file_after_case" => {
+            // `document file` placement covers the whole canonical top-level
+            // form `document file? (document case? case)*`: the block is
+            // rejected after the first case and after a pending
+            // `document case`. See #168 / #169.
+            "document_file_after_case" | "document_case_then_document_file" => {
                 assert!(matches!(err, ParseError::DocumentFileAfterCase { .. }));
                 assert_eq!(err.code().as_str(), "parse.document_file.after_case");
+            }
+            // `document case` association rules: a second block before the
+            // target case, and a block with no case to attach to. See #169.
+            "document_case_duplicate_block" => {
+                assert!(matches!(err, ParseError::DuplicateDocumentCase { .. }));
+                assert_eq!(err.code().as_str(), "parse.document_case.duplicate");
+            }
+            "document_case_orphan" => {
+                assert!(matches!(err, ParseError::OrphanDocumentCase { .. }));
+                assert_eq!(err.code().as_str(), "parse.document_case.orphan");
             }
             // Literal kind mismatches parse at the grammar level and are
             // rejected as semantic invalid cases with an actionable
@@ -642,9 +687,11 @@ fn invalid_syntax_fixtures_are_rejected() {
             | "write_step_content_fixture_reference"
             // Documentation field positions parse the kind-agnostic
             // value_literal too: `title` / `group` require a string literal,
-            // `description` requires a text literal. See #168.
+            // `description` requires a text literal. See #168 / #169.
             | "document_file_title_workspace_path_literal"
-            | "document_file_description_fixture_reference" => {
+            | "document_file_description_fixture_reference"
+            | "document_case_title_workspace_path_literal"
+            | "document_case_description_fixture_reference" => {
                 assert!(matches!(err, ParseError::LiteralKindMismatch { .. }));
                 assert_eq!(err.code().as_str(), "semantic.literal.kind_mismatch");
             }

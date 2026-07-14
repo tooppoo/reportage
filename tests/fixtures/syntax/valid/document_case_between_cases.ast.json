@@ -1,0 +1,78 @@
+{
+  "cases": [
+    {
+      "name": "first, undocumented",
+      "span": {
+        "start": 118,
+        "end": 184
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "second, documented",
+      "documentation": {
+        "title": "The second case",
+        "description": null
+      },
+      "span": {
+        "start": 230,
+        "end": 295
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "third, documented",
+      "documentation": {
+        "title": "The third case",
+        "description": "Each case carries its own block."
+      },
+      "span": {
+        "start": 389,
+        "end": 453
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

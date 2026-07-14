@@ -1,0 +1,288 @@
+# `document case` is source-level documentation metadata attached to the
+# immediately following case: it must not change how a source executes, what
+# the report contains, or how failures classify.
+# The outer write fences use four backticks where the inner source itself
+# contains a three-backtick heredoc description.
+
+case "a source with a document case block runs exactly like an undocumented one" {
+  write <"inner.repor"> ```
+    document case {
+      title "Documented case"
+      description "Documentation metadata must not affect execution."
+    }
+
+    case "documented case passes" {
+      $ echo hello
+      assert {
+        exit 0
+        stdout contains "hello"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+case "case documentation metadata does not leak into the execution report" {
+  write <"inner.repor"> ```
+    document case {
+      title "TitleMustNotLeak"
+      description "DescriptionMustNotLeak"
+    }
+
+    case "passes" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 0
+    stdout contains "\"status\": \"passed\""
+    not { stdout contains "TitleMustNotLeak" }
+    not { stdout contains "DescriptionMustNotLeak" }
+  }
+}
+
+case "blank lines and comments may separate document case from its case" {
+  write <"inner.repor"> ```
+    document case {
+      title "Documented case"
+    }
+
+    # a plain comment between the document block and its case
+
+    case "passes" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+case "a heredoc description is accepted" {
+  write <"inner.repor"> ````
+    document case {
+      title "Documented case"
+      description ```
+        A multi-line description.
+
+        Written as a heredoc literal.
+        ```
+    }
+
+    case "passes" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ````
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+case "documenting only some cases changes nothing about execution order" {
+  write <"inner.repor"> ```
+    document case {
+      title "Only the first case is documented"
+    }
+
+    case "first" {
+      $ echo first
+      assert {
+        exit 0
+      }
+    }
+
+    case "second" {
+      $ echo second
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 0
+    stdout contains "\"name\": \"first\""
+    stdout contains "\"name\": \"second\""
+  }
+}
+
+case "a document case after an earlier case documents the next case" {
+  write <"inner.repor"> ```
+    case "first" {
+      $ echo first
+      assert {
+        exit 0
+      }
+    }
+
+    document case {
+      title "The second case"
+    }
+
+    case "second" {
+      $ echo second
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 0
+    stdout contains "\"name\": \"first\""
+    stdout contains "\"name\": \"second\""
+    stdout contains "\"status\": \"passed\""
+  }
+}
+
+case "document file and document case coexist in the canonical order" {
+  write <"inner.repor"> ```
+    document file {
+      title "The file"
+    }
+
+    document case {
+      title "The case"
+    }
+
+    case "passes" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+case "an assertion failure in a documented case still exits 1" {
+  write <"inner.repor"> ```
+    document case {
+      title "Documented case"
+    }
+
+    case "fails" {
+      $ echo hello
+      assert {
+        stdout contains "world"
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 1
+    stdout contains "\"status\": \"failed\""
+    stdout contains "\"code\": \"assertion.stdout.contains.mismatch\""
+  }
+}
+
+case "a document case with no case to document is a script error with a dedicated code" {
+  write <"inner.repor"> ```
+    case "runs first" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+
+    document case {
+      title "no case follows"
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 2
+    stdout contains "\"category\": \"parse\""
+    stdout contains "\"code\": \"parse.document_case.orphan\""
+  }
+}
+
+case "a second document case before the target case is a script error with a dedicated code" {
+  write <"inner.repor"> ```
+    document case {
+      title "first"
+    }
+
+    document case {
+      title "second"
+    }
+
+    case "example" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 2
+    stdout contains "\"category\": \"parse\""
+    stdout contains "\"code\": \"parse.document_case.duplicate\""
+  }
+}
+
+case "a group field inside a document case is a syntax error" {
+  write <"inner.repor"> ```
+    document case {
+      group "Filesystem"
+    }
+
+    case "never parsed" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 2
+    stdout contains "\"category\": \"parse\""
+    stdout contains "\"code\": \"parse.syntax\""
+  }
+}

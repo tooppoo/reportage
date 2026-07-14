@@ -1,0 +1,16 @@
+# At most one document case block may precede a case; the second block is
+# rejected at its own start line (parse.document_case.duplicate).
+document case {
+  title "first"
+}
+
+document case {
+  title "second"
+}
+
+case "example" {
+  $ true
+  assert {
+    exit 0
+  }
+}
