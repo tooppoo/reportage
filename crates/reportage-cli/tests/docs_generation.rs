@@ -1,13 +1,14 @@
-//! Generated-document conformance for `reportage docs` (issue #170).
+//! Generated-document conformance for `reportage docs` (issues #170, #171).
 //!
 //! Each scenario under `tests/fixtures/docs/<scenario>/sources/` is copied
 //! into a temp working directory and generated through the real binary; the
-//! produced `index.txt` must match the committed
-//! `tests/fixtures/docs/<scenario>/index.snapshot.txt` byte for byte. The
-//! snapshots double as the inspectable generated example documents required
-//! by the issue. Refresh with `UPDATE_DOCS_SNAPSHOTS=1`, mirroring
-//! `json_report_fixtures.rs`'s convention. The output contains no volatile
-//! fields (no versions, no absolute paths), so no normalization is applied.
+//! produced `index.txt` / `index.md` must match the committed
+//! `tests/fixtures/docs/<scenario>/index.snapshot.txt` /
+//! `index.snapshot.md` byte for byte. The snapshots double as the
+//! inspectable generated example documents required by the issues. Refresh
+//! with `UPDATE_DOCS_SNAPSHOTS=1`, mirroring `json_report_fixtures.rs`'s
+//! convention. The output contains no volatile fields (no versions, no
+//! absolute paths), so no normalization is applied.
 //!
 //! Scenarios that need filesystem shapes a committed fixture cannot carry
 //! (CRLF line endings, which `.gitattributes` would normalize) are built
@@ -60,8 +61,8 @@ fn copy_tree(from: &Path, to: &Path) {
     }
 }
 
-fn assert_matches_snapshot(scenario: &str, generated: &str) {
-    let snapshot_path = fixture_dir().join(scenario).join("index.snapshot.txt");
+fn assert_matches_snapshot(scenario: &str, snapshot_name: &str, generated: &str) {
+    let snapshot_path = fixture_dir().join(scenario).join(snapshot_name);
     if update_snapshots() {
         std::fs::write(&snapshot_path, generated).unwrap();
         return;
@@ -88,6 +89,22 @@ fn generate(dir: &TempDir) -> String {
     std::fs::read_to_string(dir.child("generated/index.txt").path()).unwrap()
 }
 
+fn generate_markdown(dir: &TempDir) -> String {
+    reportage(dir)
+        .args([
+            "docs",
+            "sources/**/*.repor",
+            "--out-dir",
+            "generated",
+            "--format",
+            "markdown",
+        ])
+        .assert()
+        .success()
+        .stdout("generated: generated/index.md\n");
+    std::fs::read_to_string(dir.child("generated/index.md").path()).unwrap()
+}
+
 // --- committed fixture scenarios -----------------------------------------
 
 /// The representative example from issue #170: one documented file with one
@@ -97,7 +114,18 @@ fn representative_scenario_matches_snapshot() {
     let dir = TempDir::new().unwrap();
     seed_scenario(&dir, "representative");
     let generated = generate(&dir);
-    assert_matches_snapshot("representative", &generated);
+    assert_matches_snapshot("representative", "index.snapshot.txt", &generated);
+}
+
+/// The same representative scenario through `--format markdown`: fixes the
+/// full heading hierarchy, table of contents, explicit anchors, `Source:`
+/// line, and fenced case source of the Markdown contract (issue #171).
+#[test]
+fn representative_markdown_scenario_matches_snapshot() {
+    let dir = TempDir::new().unwrap();
+    seed_scenario(&dir, "representative");
+    let generated = generate_markdown(&dir);
+    assert_matches_snapshot("representative", "index.snapshot.md", &generated);
 }
 
 /// Multiple groups and files: declared order before undeclared, order
@@ -109,7 +137,30 @@ fn mixed_scenario_matches_snapshot() {
     let dir = TempDir::new().unwrap();
     seed_scenario(&dir, "mixed");
     let generated = generate(&dir);
-    assert_matches_snapshot("mixed", &generated);
+    assert_matches_snapshot("mixed", "index.snapshot.txt", &generated);
+}
+
+/// The mixed scenario through `--format markdown`: ordering, fallbacks, a
+/// zero-case file with its TOC entry but no case section, and a source
+/// without a final newline, all under the Markdown contract.
+#[test]
+fn mixed_markdown_scenario_matches_snapshot() {
+    let dir = TempDir::new().unwrap();
+    seed_scenario(&dir, "mixed");
+    let generated = generate_markdown(&dir);
+    assert_matches_snapshot("mixed", "index.snapshot.md", &generated);
+}
+
+/// Markdown-specific metadata shapes (issue #171): duplicate file titles,
+/// titles normalizing to the same slug, titles without an ASCII slug, raw
+/// Markdown / HTML metadata mapped without escaping, and a case source whose
+/// backtick run forces a longer fence.
+#[test]
+fn markdown_metadata_scenario_matches_snapshot() {
+    let dir = TempDir::new().unwrap();
+    seed_scenario(&dir, "markdown-metadata");
+    let generated = generate_markdown(&dir);
+    assert_matches_snapshot("markdown-metadata", "index.snapshot.md", &generated);
 }
 
 // --- in-test scenarios ----------------------------------------------------
@@ -133,6 +184,65 @@ fn crlf_sources_are_normalized_to_lf_in_the_generated_document() {
     assert!(generated.contains(
         "Reportage source\n    case \"crlf case\" {\n      $ true\n\n      assert {\n        exit 0\n      }\n    }\n"
     ));
+}
+
+/// CRLF sources generate an LF-only Markdown document; inside the fence the
+/// source keeps its content with only the line endings normalized.
+#[test]
+fn crlf_sources_are_normalized_to_lf_in_the_generated_markdown_document() {
+    let dir = TempDir::new().unwrap();
+    dir.child("sources/crlf.repor")
+        .write_str(CRLF_SOURCE)
+        .unwrap();
+
+    let generated = generate_markdown(&dir);
+    assert!(
+        !generated.contains('\r'),
+        "generated document must not contain CR bytes"
+    );
+    assert!(generated.contains(
+        "```reportage\ncase \"crlf case\" {\n  $ true\n\n  assert {\n    exit 0\n  }\n}\n```"
+    ));
+}
+
+/// `--title` reaches both formats: the value replaces the first line of the
+/// plain document and the level 1 heading of the Markdown document, while
+/// anchors and ordering stay identical to a default-title run.
+#[test]
+fn the_title_option_applies_to_both_formats() {
+    let dir = TempDir::new().unwrap();
+    seed_scenario(&dir, "representative");
+
+    reportage(&dir)
+        .args([
+            "docs",
+            "sources/**/*.repor",
+            "--out-dir",
+            "generated",
+            "--title",
+            "Project documentation",
+        ])
+        .assert()
+        .success();
+    let plain = std::fs::read_to_string(dir.child("generated/index.txt").path()).unwrap();
+    assert!(plain.starts_with("Project documentation\n\n"));
+
+    reportage(&dir)
+        .args([
+            "docs",
+            "sources/**/*.repor",
+            "--out-dir",
+            "generated",
+            "--format",
+            "markdown",
+            "--title",
+            "Project documentation",
+        ])
+        .assert()
+        .success();
+    let markdown = std::fs::read_to_string(dir.child("generated/index.md").path()).unwrap();
+    assert!(markdown.starts_with("# Project documentation\n\n## Contents\n"));
+    assert!(markdown.contains("<a id=\"group-1-filesystem\"></a>"));
 }
 
 /// The same sources selected by different patterns and lexical routes are

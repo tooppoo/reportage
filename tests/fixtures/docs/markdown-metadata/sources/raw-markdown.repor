@@ -1,0 +1,23 @@
+document file {
+  title "**Bold** <em>html</em> [link](https://example.com)"
+  group "# Raw *Group*"
+  description ```
+    First paragraph with **markdown** and <b>raw html</b>.
+
+    Second paragraph after a blank line.
+    ```
+}
+
+document case {
+  title "## fence stress"
+  description "A backtick run inside the source forces a longer fence."
+}
+
+case "echoes backticks" {
+  $ echo '`````'
+
+  assert {
+    exit 0
+    stdout contains "`````"
+  }
+}

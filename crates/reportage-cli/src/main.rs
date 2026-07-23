@@ -119,6 +119,12 @@ struct DocsArgs {
     /// Generated document layout.
     #[arg(long, value_enum, default_value_t = DocsLayout::SingleFile)]
     layout: DocsLayout,
+
+    /// Document title, applied to every format. Used verbatim: never
+    /// rejected, trimmed, or escaped, even when empty or containing Markdown
+    /// syntax; see docs/reference/docs-generation.md — Input text policy.
+    #[arg(long, value_name = "STRING", default_value = docs::render::DEFAULT_DOCUMENT_TITLE)]
+    title: String,
 }
 
 /// Document format for the `docs` subcommand.
@@ -130,6 +136,7 @@ struct DocsArgs {
 enum DocsFormat {
     #[default]
     Plain,
+    Markdown,
 }
 
 /// Document layout for the `docs` subcommand: how many files are generated
@@ -228,10 +235,12 @@ fn run_docs(args: &DocsArgs) -> ! {
         out_dir: args.out_dir.clone(),
         format: match args.format {
             DocsFormat::Plain => docs::DocumentFormat::Plain,
+            DocsFormat::Markdown => docs::DocumentFormat::Markdown,
         },
         layout: match args.layout {
             DocsLayout::SingleFile => docs::DocumentLayout::SingleFile,
         },
+        title: args.title.clone(),
     };
 
     match docs::generate(Path::new("."), &request) {

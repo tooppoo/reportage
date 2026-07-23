@@ -12,6 +12,7 @@ pub mod catalog;
 pub mod discovery;
 pub mod layout;
 pub mod loader;
+pub mod markdown;
 pub mod output;
 pub mod plain;
 pub mod render;
@@ -22,7 +23,7 @@ use discovery::DiscoveryError;
 use layout::{DocumentLayoutPlan, PlannedDocument};
 use loader::SourceLoadError;
 use output::OutputError;
-use render::DocumentRenderer;
+use render::{DocumentRenderer, RenderOptions};
 
 /// The generated document format, as selected on the CLI. The closed set of
 /// v0 values: an unknown `--format` is a clap usage error, never a fallback.
@@ -34,6 +35,7 @@ use render::DocumentRenderer;
 pub enum DocumentFormat {
     #[default]
     Plain,
+    Markdown,
 }
 
 /// The generated document layout, as selected on the CLI. The closed set of
@@ -55,6 +57,7 @@ pub enum DocumentLayout {
 pub fn renderer_for(format: DocumentFormat) -> &'static dyn DocumentRenderer {
     match format {
         DocumentFormat::Plain => &plain::PlainRenderer,
+        DocumentFormat::Markdown => &markdown::MarkdownRenderer,
     }
 }
 
@@ -74,6 +77,11 @@ pub struct GenerateRequest {
     pub out_dir: PathBuf,
     pub format: DocumentFormat,
     pub layout: DocumentLayout,
+    /// The document title, applied to every format through
+    /// [`render::RenderOptions`]. The CLI resolves the default
+    /// ([`render::DEFAULT_DOCUMENT_TITLE`]); the value is used verbatim and
+    /// never joins the Catalog's source-derived properties.
+    pub title: String,
 }
 
 /// The successful outcome: every written document path, for mutation
@@ -151,8 +159,11 @@ pub fn generate(
         .map_err(GenerateError::Discovery)?;
     let loaded = loader::load_sources(discovered).map_err(GenerateError::SourceLoad)?;
     let catalog = catalog::build_catalog(&loaded);
+    let options = RenderOptions {
+        document_title: request.title.clone(),
+    };
     let planned: Vec<PlannedDocument> =
-        layout_for(request.layout).plan(&catalog, renderer_for(request.format));
+        layout_for(request.layout).plan(&catalog, renderer_for(request.format), &options);
 
     let output_directory =
         output::OutputDirectory::prepare(&request.out_dir).map_err(GenerateError::Output)?;
@@ -186,6 +197,7 @@ mod tests {
             out_dir: dir.join("generated"),
             format: DocumentFormat::Plain,
             layout: DocumentLayout::SingleFile,
+            title: render::DEFAULT_DOCUMENT_TITLE.to_string(),
         }
     }
 
@@ -304,6 +316,28 @@ mod tests {
                 ErrorClass::Infrastructure
             );
         }
+    }
+
+    /// The markdown format writes `index.md` next to an existing `index.txt`
+    /// without touching it: the two formats coexist in one output directory.
+    #[test]
+    fn markdown_and_plain_documents_coexist_in_one_output_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        write(&dir.path().join("src/a.repor"), VALID_CASE);
+
+        generate(dir.path(), &request(dir.path(), &["src/*.repor"])).unwrap();
+        let plain_before = std::fs::read_to_string(dir.path().join("generated/index.txt")).unwrap();
+
+        let mut req = request(dir.path(), &["src/*.repor"]);
+        req.format = DocumentFormat::Markdown;
+        req.title = "Custom title".to_string();
+        let report = generate(dir.path(), &req).unwrap();
+        assert_eq!(report.written, vec![dir.path().join("generated/index.md")]);
+
+        let markdown = std::fs::read_to_string(&report.written[0]).unwrap();
+        assert!(markdown.starts_with("# Custom title\n"));
+        let plain_after = std::fs::read_to_string(dir.path().join("generated/index.txt")).unwrap();
+        assert_eq!(plain_before, plain_after, "index.txt must stay untouched");
     }
 
     #[test]

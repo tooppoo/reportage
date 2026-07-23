@@ -1,0 +1,285 @@
+# `reportage docs --format markdown` (issue #171): the single-file Markdown
+# generation flow. The exact serialization contract is fixed by
+# tests/fixtures/docs/*/index.snapshot.md; these cases verify the
+# CLI-observable flow: exit codes, the stdout mutation report, the generated
+# index.md, the format-shared --title option, coexistence with index.txt, and
+# the output replacement rules for index.md.
+
+case "markdown format generates index.md with TOC, anchors, and fenced source" {
+  write <"src/a.repor"> ```
+    document file {
+      title "File assertions"
+      group "Filesystem"
+      description "File-level description."
+    }
+
+    document case {
+      title "File creation"
+    }
+
+    case "file exists" {
+      $ touch test.txt
+      assert {
+        file <"test.txt"> exists
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown
+
+  assert {
+    exit 0
+    stdout contains "generated: out/index.md"
+    file <"out/index.md"> exists
+    file <"out/index.md"> contains "# Reportage Documentation"
+    file <"out/index.md"> contains "## Contents"
+    file <"out/index.md"> contains "- [Filesystem](#group-1-filesystem)"
+    file <"out/index.md"> contains "<a id=\"case-1-1-1-file-creation\"></a>"
+    file <"out/index.md"> contains "#### File creation"
+    file <"out/index.md"> contains "Source: src/a.repor"
+    file <"out/index.md"> contains "```reportage"
+  }
+}
+
+# --title is a format-shared option: the same value becomes the plain text
+# document title and the Markdown level 1 heading.
+case "--title applies to both plain and markdown formats" {
+  write <"src/a.repor"> ```
+    case "one" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --title 'Project documentation'
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown --title 'Project documentation'
+
+  assert {
+    exit 0
+    file <"out/index.txt"> contains "Project documentation"
+    file <"out/index.md"> contains "# Project documentation"
+    not {
+      file <"out/index.md"> contains "Reportage Documentation"
+    }
+  }
+}
+
+# Adding the markdown format leaves the default untouched: omitting --format
+# still selects plain and writes only index.txt.
+case "omitting --format still generates plain text" {
+  write <"src/a.repor"> ```
+    case "one" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    stdout contains "generated: out/index.txt"
+    file <"out/index.txt"> exists
+    not {
+      file <"out/index.md"> exists
+    }
+  }
+}
+
+# The two formats coexist in one output directory: generating markdown next
+# to an existing index.txt leaves the plain document byte-untouched.
+case "index.txt and index.md coexist in the same out-dir" {
+  write <"src/a.repor"> ```
+    case "coexistence marker" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+  $ cp out/index.txt plain-before.txt
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown
+
+  assert {
+    exit 0
+    file <"out/index.txt"> exists
+    file <"out/index.md"> exists
+    file <"out/index.txt"> contents_equals <"plain-before.txt">
+  }
+}
+
+case "an existing regular index.md is replaced" {
+  write <"src/a.repor"> ```
+    case "replacement content marker" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"out/index.md"> ```
+    stale content
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown
+
+  assert {
+    exit 0
+    file <"out/index.md"> contains "replacement content marker"
+    not {
+      file <"out/index.md"> contains "stale content"
+    }
+  }
+}
+
+# index.md existing as a directory is never silently replaced: request
+# validation error, and the directory (with its contents) stays.
+case "index.md as a directory is rejected and preserved" {
+  write <"src/a.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"out/index.md/inner.txt"> ```
+    inner file
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "not a regular file"
+    file <"out/index.md/inner.txt"> contains "inner file"
+  }
+}
+
+case "index.md as a symlink is rejected and its target preserved" {
+  write <"src/a.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"real.md"> ```
+    symlink target
+    ```
+
+  $ mkdir -p out
+  $ ln -s ../real.md out/index.md
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown
+
+  assert {
+    exit 2
+    stderr contains "not a regular file"
+    file <"real.md"> contains "symlink target"
+  }
+}
+
+# An empty --title is accepted verbatim: generation succeeds and the default
+# title is not substituted.
+case "an empty --title is accepted and replaces the default title" {
+  write <"src/a.repor"> ```
+    case "one" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown --title ''
+
+  assert {
+    exit 0
+    file <"out/index.md"> exists
+    not {
+      file <"out/index.md"> contains "Reportage Documentation"
+    }
+  }
+}
+
+# A valid source with zero cases still gets its file heading, source path,
+# and TOC entry; no case heading or code fence is generated.
+case "a zero-case source appears in markdown without case sections" {
+  write <"src/empty.repor"> ```
+    document file {
+      title "Case-less"
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown
+
+  assert {
+    exit 0
+    file <"out/index.md"> contains "- [Case-less](#file-1-1-case-less)"
+    file <"out/index.md"> contains "### Case-less"
+    file <"out/index.md"> contains "Source: src/empty.repor"
+    not {
+      file <"out/index.md"> contains "####"
+    }
+    not {
+      file <"out/index.md"> contains "```reportage"
+    }
+  }
+}
+
+# Metadata is mapped verbatim: Markdown syntax in titles and descriptions is
+# not escaped or sanitized.
+case "markdown syntax in metadata is not escaped" {
+  write <"src/raw.repor"> ```
+    document file {
+      title "**Bold** <em>html</em>"
+      description "A description with [a link](https://example.com)."
+    }
+
+    case "one" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown
+
+  assert {
+    exit 0
+    file <"out/index.md"> contains "### **Bold** <em>html</em>"
+    file <"out/index.md"> contains "A description with [a link](https://example.com)."
+  }
+}
+
+# A source that fails to parse fails the whole markdown generation exactly as
+# it does for plain text: request validation exit code, error on stderr, and
+# no output directory is created.
+case "a parse error fails markdown generation before any output" {
+  write <"src/broken.repor"> ```
+    case "broken" {
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "src/broken.repor"
+    not {
+      dir <"out"> exists
+    }
+  }
+}
