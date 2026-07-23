@@ -1,5 +1,15 @@
-# Demonstrates ordinary comments around and inside multiple case blocks.
-# Blank lines and comment lines between cases belong to the file, not to any case.
+document file {
+  title "Comments"
+  group "Basics"
+  order 30
+
+  description ```
+    `#` comments may appear at the top level, between cases, inside a case, after an expectation on the same line, and after a closing brace.
+    They are discarded at parse time and never affect execution.
+    Blank lines and comment lines between cases belong to the file, not to any case.
+    (This file-level description comes from a `document` block, which is separate from `#` comments and is preserved as documentation metadata.)
+    ```
+}
 
 case "grep finds the expected line" {
   write <"notes.txt"> ```

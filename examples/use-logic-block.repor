@@ -1,3 +1,14 @@
+document file {
+  title "Logic blocks"
+  group "Assertions"
+  order 40
+
+  description ```
+    Expectations inside an `assert` block are combined with implicit AND.
+    The `all` / `any` / `not` logic blocks override that: `all` requires every nested expectation, `any` requires at least one, and `not` requires none.
+    Logic blocks nest freely to express composite conditions.
+    ```
+}
 
 case "assert that all expectations match" {
   $ echo "assert with and"
@@ -29,6 +40,15 @@ case "assert that no expectation matches" {
       exit 1
     }
   }
+}
+
+document case {
+  title "Nested composite blocks"
+
+  description ```
+    `all`, `any`, and `not` can contain each other to any depth.
+    The top-level expectations still AND together, so this asserts the nested `any { ... }` and a bare `stderr empty` at once.
+    ```
 }
 
 case "composite logic blocks" {

@@ -1,3 +1,14 @@
+document file {
+  title "contents_equals"
+  group "Assertions"
+  order 30
+
+  description ```
+    `contents_equals` compares one subject's bytes against another file's bytes.
+    The subject is a workspace `file <"...">` or `stdout` / `stderr`; the expected value is either a workspace path `<"...">` (a file the case produced) or a fixture reference `@"..."` (a file checked in under the test-definition tree).
+    Both path kinds forbid `.` and `..` path segments, so this file also shows the diagnostics raised when a path tries to escape its root.
+    ```
+}
 
 case "file contents_equals against a workspace file" {
   $ printf 'hello\n' > expected.txt
@@ -6,6 +17,15 @@ case "file contents_equals against a workspace file" {
   assert {
     file <"actual.txt"> contents_equals <"expected.txt">
   }
+}
+
+document case {
+  title "Fixture references"
+
+  description ```
+    A fixture reference `@"..."` names a file that lives with the test definition (here `fixtures/expected.txt`), not a file the case produced in its workspace.
+    Use it to compare output against checked-in expected data that every run shares.
+    ```
 }
 
 case "file contents_equals against a fixture file" {
@@ -44,6 +64,15 @@ case "file contents_equals accepts dot-segment-like names, not just dot segments
     file <"..looks-like-parent.txt"> contents_equals <".hidden-expected.txt">
     file <"..looks-like-parent.txt"> contents_equals @"fixtures/..looks-like-parent.txt"
   }
+}
+
+document case {
+  title "Asserting a diagnostic"
+
+  description ```
+    reportage can test reportage: this case writes an inner `.repor` with `write`, runs it with `reportage inner.repor` as the action, and asserts the failing exit code and the diagnostic id on stderr.
+    The following cases reuse this pattern to pin down each path-segment diagnostic.
+    ```
 }
 
 case "file contents_equals rejects a fixture reference as the actual subject" {

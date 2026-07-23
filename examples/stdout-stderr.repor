@@ -1,3 +1,13 @@
+document file {
+  title "stdout and stderr expectations"
+  group "Assertions"
+  order 10
+
+  description ```
+    Expectations that inspect the action's captured output streams.
+    `stdout empty` / `stderr empty` require the stream to have no output; `stdout contains` / `stderr contains` require the stream to include the given substring.
+    ```
+}
 
 case "stdout is empty" {
   $ true

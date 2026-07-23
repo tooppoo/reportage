@@ -1,6 +1,13 @@
-# `before_each` seeds every concrete case's isolated workspace with the same
-# files, so each case starts from an identical, explicit state. Only `write`
-# steps are allowed here; setup commands belong in each case body.
+document file {
+  title "before_each"
+  group "Setup"
+  order 10
+
+  description ```
+    A `before_each` block seeds every case's isolated workspace with the same files, so each case starts from an identical, explicit state.
+    It holds only `write` steps — setup commands belong in each case body — and, like a `document file` block, it appears at most once, before the first case.
+    ```
+}
 
 before_each {
   write <"config.yml"> ```
@@ -16,6 +23,15 @@ case "the seeded files are present before any action" {
     file <"config.yml"> exists
     file <"input/message.txt"> contains "hello"
   }
+}
+
+document case {
+  title "Workspace isolation"
+
+  description ```
+    Each case gets its own copy of the seeded state, so a case may modify or delete a seeded file without affecting any other case.
+    The next case below still sees the pristine seeded files.
+    ```
 }
 
 case "a case mutates only its own copy of the seeded state" {

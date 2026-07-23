@@ -1,3 +1,15 @@
+document file {
+  title "Minimal script"
+  group "Basics"
+  order 10
+
+  description ```
+    The smallest useful reportage script: a single `case`, one `$` action line that runs a shell command, and an `assert` block.
+    `exit 0` checks the action's exit status.
+    Every reportage script is built from these three pieces.
+    ```
+}
+
 case "always pass" {
   $ true
   assert {

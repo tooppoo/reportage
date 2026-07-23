@@ -1,3 +1,13 @@
+document file {
+  title "Any shell command as an action"
+  group "Actions"
+  order 20
+
+  description ```
+    A `$` action is an ordinary shell command line, so the action can be any program on PATH — here `curl` makes a real HTTP request.
+    Whatever the command writes to stdout and stderr is captured and can be checked with `stdout` / `stderr` expectations.
+    ```
+}
 
 case "action is shell, so it is possible HTTP request!" {
   $ curl https://example.com
