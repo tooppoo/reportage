@@ -58,6 +58,13 @@ pub const DOCUMENTS: &[DocumentEntry] = &[
         note: "Not a full syntax or semantics reference; follow its links for anything beyond the minimal shape.",
     },
     DocumentEntry {
+        id: "examples",
+        title: "Examples",
+        path: "examples/README.md",
+        role: "A curated set of .repor files demonstrating the language and its semantics",
+        note: "The examples are the canonical source of truth for what is valid and invalid; the syntax and semantics references below are derived from them.",
+    },
+    DocumentEntry {
         id: "syntax",
         title: "Syntax reference",
         path: "docs/reference/syntax.md",

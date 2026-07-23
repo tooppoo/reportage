@@ -168,6 +168,7 @@ fn references_index_document_conforms_to_the_contract() {
         [
             "ai-readme",
             "ai-quick-reference",
+            "examples",
             "syntax",
             "syntax-conformance",
             "semantics",

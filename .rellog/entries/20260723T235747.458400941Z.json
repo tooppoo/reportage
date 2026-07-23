@@ -1,0 +1,8 @@
+{
+  "kind": "changed",
+  "targets": [
+    "cli"
+  ],
+  "links": [],
+  "body": "Add reference to examples on `reportage references`"
+}
