@@ -1,3 +1,16 @@
+document file {
+  title "Line continuation in an action"
+  group "Actions"
+  order 10
+
+  description ```
+    A `$` action normally occupies one line. A trailing backslash continues
+    it onto the next line, so a long shell pipeline can be split for
+    readability while remaining a single action. The joined command is
+    passed to the shell unchanged.
+    ```
+}
+
 case "long pipeline split across lines with backslash continuation" {
   $ printf 'one\ntwo\nthree\n' \
     | grep 'two' \

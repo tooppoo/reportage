@@ -1,3 +1,15 @@
+document file {
+  title "File assertions"
+  group "Filesystem"
+  order 10
+
+  description ```
+    Expectations about a file in the case workspace, addressed by a workspace
+    path `<"...">`. `file <"..."> exists` checks that the file is present;
+    `file <"..."> contains "..."` checks that its contents include the given
+    substring.
+    ```
+}
 
 case "file exists" {
   $ echo "file exists" > test.txt

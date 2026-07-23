@@ -1,3 +1,16 @@
+document file {
+  title "Multiple cases in one file"
+  group "Basics"
+  order 20
+
+  description ```
+    A single script may hold any number of `case` blocks. Each case runs in
+    its own isolated workspace, so the cases are independent and their order
+    does not couple them. A case passes when every expectation in its
+    `assert` block holds — including `exit 1`, which asserts a non-zero exit
+    status rather than a failure.
+    ```
+}
 
 case "always true" {
   $ true

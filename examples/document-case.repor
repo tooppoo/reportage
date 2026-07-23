@@ -1,19 +1,22 @@
 document file {
-  title "Case documentation"
+  title "Case-scope documentation"
   group "Documentation"
-  order 30
+  order 20
 
   description ```
-    Examples of `document case`: case-scope documentation metadata attached
-    to the immediately following case.
+    A `document case` block attaches documentation to the case that
+    immediately follows it. Its fields are `title` and `description` only —
+    ordering and grouping are file-scope concerns, so cases render in source
+    order. Case documentation is optional and per case.
     ```
 }
 
 document case {
-  title "File creation"
+  title "Documented case"
 
   description ```
-    Verifies that the command creates the file in the case workspace.
+    This block documents the next case. `reportage docs` uses its `title` as
+    the case heading and renders this `description` above the case source.
     ```
 }
 
