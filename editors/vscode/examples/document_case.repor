@@ -1,0 +1,10 @@
+document case {
+  title "Documented case"
+  description "Attaches display metadata to the case that follows."
+}
+
+case "Document (case)" {
+  $ true
+
+  assert { exit 0 }
+}

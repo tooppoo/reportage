@@ -1,0 +1,9 @@
+before_each {
+  write <"before-each-seed.txt"> "seed\n"
+}
+
+case "Before each" {
+  assert {
+    file <"before-each-seed.txt"> exists
+  }
+}

@@ -3,6 +3,37 @@
 # file so the Extension Development Host can preview highlighting for every construct.
 # Like the per-snippet files, it runs in the project's e2e suite (reportage.examples.kdl).
 
+document file {
+  title "Reportage syntax examples"
+  group "Editor preview"
+  order 10
+  description ```
+    Per-snippet examples for the VS Code extension.
+    Concatenated into full-syntax.repor for the highlighting preview.
+    ```
+}
+
+before_each {
+  write <"before-each-seed.txt"> "seed\n"
+}
+
+case "Before each" {
+  assert {
+    file <"before-each-seed.txt"> exists
+  }
+}
+
+document case {
+  title "Documented case"
+  description "Attaches display metadata to the case that follows."
+}
+
+case "Document (case)" {
+  $ true
+
+  assert { exit 0 }
+}
+
 case "Case block" {
   $ true
 
