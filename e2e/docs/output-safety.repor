@@ -1,0 +1,191 @@
+# `reportage docs` output safety (issue #170): --out-dir validation, the
+# existing-output-preserving replacement of index.txt, and the exit code split
+# between request validation (2) and filesystem infrastructure failures (3).
+
+case "an existing regular index.txt is replaced" {
+  write <"src/a.repor"> ```
+    case "replacement content marker" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"out/index.txt"> ```
+    stale content
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    file <"out/index.txt"> contains "replacement content marker"
+    not {
+      file <"out/index.txt"> contains "stale content"
+    }
+  }
+}
+
+case "unrelated files in the output directory are preserved" {
+  write <"src/a.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"out/unrelated.txt"> ```
+    keep me
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    file <"out/unrelated.txt"> contains "keep me"
+    file <"out/index.txt"> exists
+  }
+}
+
+# index.txt existing as a directory is never silently replaced: request
+# validation error, and the directory (with its contents) stays.
+case "index.txt as a directory is rejected and preserved" {
+  write <"src/a.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"out/index.txt/inner.txt"> ```
+    inner file
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "not a regular file"
+    file <"out/index.txt/inner.txt"> contains "inner file"
+  }
+}
+
+case "index.txt as a symlink is rejected and its target preserved" {
+  write <"src/a.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"real.txt"> ```
+    symlink target
+    ```
+
+  $ mkdir -p out
+  $ ln -s ../real.txt out/index.txt
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 2
+    stderr contains "not a regular file"
+    file <"real.txt"> contains "symlink target"
+  }
+}
+
+case "an --out-dir that is a regular file is rejected" {
+  write <"src/a.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"blocker"> ```
+    a file where the output directory should be
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir blocker
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "not a directory"
+    file <"blocker"> contains "a file where the output directory should be"
+  }
+}
+
+case "an --out-dir that is a symlink is rejected" {
+  write <"src/a.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ mkdir -p realdir
+  $ ln -s realdir linkdir
+  $ reportage docs 'src/*.repor' --out-dir linkdir
+
+  assert {
+    exit 2
+    stderr contains "is a symlink"
+  }
+}
+
+# A missing output directory is created recursively, but only after sources
+# resolved, loaded, and rendered successfully.
+case "a missing output directory is created recursively" {
+  write <"src/a.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir generated/docs/deep
+
+  assert {
+    exit 0
+    file <"generated/docs/deep/index.txt"> exists
+  }
+}
+
+# Creating the output directory under a path blocked by a regular file is an
+# OS-level failure, not a request validation error: exit code 3.
+case "output directory creation failure is an infrastructure error" {
+  write <"src/a.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"blocker"> ```
+    blocks directory creation below it
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir blocker/out
+
+  assert {
+    exit 3
+    stdout empty
+    stderr contains "cannot create output directory"
+  }
+}

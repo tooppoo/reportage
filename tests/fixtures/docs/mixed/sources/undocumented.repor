@@ -1,0 +1,18 @@
+# A source without any document block: the file falls back to its stem as
+# title and to the default group, and each case falls back to its case name.
+
+case "fallback case one" {
+  $ echo one
+
+  assert {
+    exit 0
+  }
+}
+
+case "fallback case two" {
+  $ echo two
+
+  assert {
+    exit 0
+  }
+} # trailing comment, and the file ends without a final newline

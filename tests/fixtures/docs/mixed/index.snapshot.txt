@@ -1,0 +1,143 @@
+Reportage Documentation
+
+Group
+  Guides
+
+File
+  Getting started
+
+Source path
+  sources/z-first.repor
+
+Description
+  The first guide.
+
+  Declared order 1, so it comes first in its group
+  even though its path sorts last.
+
+Case
+  Hello world
+
+Description
+  Runs the smallest possible command.
+
+Reportage source
+    case "prints hello" {
+      $ echo hello
+
+      assert {
+        exit 0
+        stdout contains "hello"
+      }
+    }
+
+Case
+  undocumented sibling case
+
+Reportage source
+    case "undocumented sibling case" {
+      $ true
+
+      assert {
+        exit 0
+      }
+    }
+
+File
+  Second guide
+
+Source path
+  sources/a-second.repor
+
+Case
+  second guide case
+
+Reportage source
+    case "second guide case" {
+      $ true
+
+      assert {
+        exit 0
+      }
+    }
+
+File
+  Unordered guide
+
+Source path
+  sources/m-unordered.repor
+
+Case
+  unordered guide case
+
+Reportage source
+    case "unordered guide case" {
+      $ true
+
+      assert {
+        exit 0
+      }
+    }
+
+Group
+  Index
+
+File
+  Case-less file
+
+Source path
+  sources/no-cases.repor
+
+Description
+  A valid source with zero cases still appears in the document.
+
+File
+  undocumented
+
+Source path
+  sources/undocumented.repor
+
+Case
+  fallback case one
+
+Reportage source
+    case "fallback case one" {
+      $ echo one
+
+      assert {
+        exit 0
+      }
+    }
+
+Case
+  fallback case two
+
+Reportage source
+    case "fallback case two" {
+      $ echo two
+
+      assert {
+        exit 0
+      }
+    } # trailing comment, and the file ends without a final newline
+
+Group
+  advanced
+
+File
+  Lowercase group
+
+Source path
+  sources/advanced.repor
+
+Case
+  lowercase group case
+
+Reportage source
+    case "lowercase group case" {
+      $ true
+
+      assert {
+        exit 0
+      }
+    }

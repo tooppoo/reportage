@@ -1,0 +1,12 @@
+document file {
+  title "Unordered guide"
+  group "Guides"
+}
+
+case "unordered guide case" {
+  $ true
+
+  assert {
+    exit 0
+  }
+}

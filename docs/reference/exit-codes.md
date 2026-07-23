@@ -75,11 +75,23 @@ This means `config_error` is used when discovery/configuration cannot produce a 
 
 Code `2` here intentionally reuses the same number as the run command's "script/config validation error": both mean "the requested operation could not be treated as valid input," even though `shim scaffold` has no script or config file to speak of. Code `3` likewise reuses "runtime/infrastructure error" for the same reason the run command does: an OS-level failure while doing required I/O, not a normal outcome the caller is expected to branch on.
 
-## `references` and reserved `docs` exit codes
+## `references` exit codes
 
 `reportage references` is a side-effect-free tooling subcommand that only prints the reference URL index (see [`spec/output/references-index/`](../../spec/output/references-index/)).
 It exits `0` after printing, or `4` when clap rejects the invocation (e.g. an unsupported `--format` value), the same CLI usage error code as everywhere else.
 
-`docs` is reserved for a future documentation generation command and is not implemented (see [ADR: Rename `docs` Command to `references`](../adr/20260711T070008Z_rename-docs-command-to-references.md)).
-Every `reportage docs` invocation, whatever tokens follow it, prints a not-implemented error to stderr and exits `2`, reusing the "requested operation could not be treated as valid input" meaning above.
-The future real command replaces this behavior with its own exit code table.
+## `docs` exit codes
+
+`reportage docs` (see [Documentation generation](docs-generation.md)) parses sources but never runs them, so the run command's "Test/assertion failure" code does not apply.
+It uses its own table, reusing the shared meanings of `2`, `3`, and `4`:
+
+| Code | Meaning |
+|------|---------|
+| `0`  | **Success** — the documentation was generated and written under `--out-dir`. |
+| `2`  | **Request / source validation error** — an invalid glob pattern, an absolute pattern or one escaping the working directory, a pattern with zero eligible matches, a non-UTF-8 source path, a source read or parse error, or an existing `--out-dir` / `index.txt` of the wrong filesystem type (regular file, directory, or symlink where the opposite is required). Nothing is written and no directory is created when this code is returned. |
+| `3`  | **Filesystem / runtime infrastructure error** — an OS-level I/O error during glob traversal, output directory creation failure, or a temporary file create / write / close / replace failure. An existing `index.txt` is left unchanged. |
+| `4`  | **CLI usage error** — clap rejected the invocation: an unknown option, an unknown `--format` / `--layout` value, or a missing required pattern / `--out-dir`. |
+
+A source read error is classified as `2`, matching the run command's treatment of a selected source that cannot be used as valid input.
+`reportage docs` produces no execution report or artifact; error details are printed to stderr in a deterministic order, one `error:` line each.
+The rationale for this classification is recorded in [ADR: Documentation Generation Command](../adr/20260723T070556Z_documentation-generation-command.md).

@@ -2,6 +2,7 @@ pub mod artifact;
 pub mod config;
 pub mod contents_diagnostic;
 pub mod diagnostic;
+pub mod docs;
 pub mod evaluator;
 pub mod executor;
 pub mod fixture;

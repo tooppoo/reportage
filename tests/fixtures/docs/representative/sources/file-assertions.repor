@@ -1,0 +1,18 @@
+document file {
+  title "File assertions"
+  group "Filesystem"
+  description "ファイルに対する assertion の使用例をまとめる。"
+}
+
+document case {
+  title "File creation"
+  description "コマンドによってファイルが生成されたことを検証する。"
+}
+
+case "file exists" {
+  $ touch test.txt
+
+  assert {
+    file <"test.txt"> exists
+  }
+}

@@ -1,0 +1,13 @@
+document file {
+  title "Second guide"
+  group "Guides"
+  order 2
+}
+
+case "second guide case" {
+  $ true
+
+  assert {
+    exit 0
+  }
+}

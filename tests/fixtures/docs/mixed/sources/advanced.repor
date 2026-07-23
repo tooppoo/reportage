@@ -1,0 +1,12 @@
+document file {
+  title "Lowercase group"
+  group "advanced"
+}
+
+case "lowercase group case" {
+  $ true
+
+  assert {
+    exit 0
+  }
+}

@@ -1,0 +1,4 @@
+document file {
+  title "Case-less file"
+  description "A valid source with zero cases still appears in the document."
+}
