@@ -94,5 +94,6 @@ examples-gen:
   #!/usr/bin/env sh
   reportage docs examples/*.repor \
     --out-dir examples \
+    --index-file-name README.md \
     --format markdown \
     --title "Reportage Examples"
