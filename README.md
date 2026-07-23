@@ -18,7 +18,7 @@ reportage is in early design. The documents in this repository describe the inte
 ## Quick Start
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/tooppoo/rellog/refs/heads/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/tooppoo/reportage/refs/heads/main/install.sh | sh
 ```
 
 ## Documentation
