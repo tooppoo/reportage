@@ -22,3 +22,7 @@ When a change affects reportage syntax or runtime behavior, use the appropriate 
 - Use `reportage-behavior-change` for CLI-visible behavior, execution behavior, output, exit code, diagnostics, JSON, artifacts, or evidence changes.
 
 If a change affects both syntax and behavior, use both skills.
+
+## Create Pull Request
+
+- Use `.github/pull_request_template.md` as template.
