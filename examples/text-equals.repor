@@ -4,11 +4,9 @@ document file {
   order 20
 
   description ```
-    `text_equals` requires the whole text to match a literal exactly, unlike
-    `contains`, which only requires a substring. The expected value may be a
-    string literal (with `\n` escapes) or a triple-backtick heredoc literal
-    (one line per line, dedented to the closing fence). It applies to a
-    workspace file with `file <"...">`, and to `stdout` / `stderr`.
+    `text_equals` requires the whole text to match a literal exactly, unlike `contains`, which only requires a substring.
+    The expected value may be a string literal (with `\n` escapes) or a triple-backtick heredoc literal (one line per line, dedented to the closing fence).
+    It applies to a workspace file with `file <"...">`, and to `stdout` / `stderr`.
     ```
 }
 
@@ -24,10 +22,8 @@ document case {
   title "Heredoc literal form"
 
   description ```
-    A heredoc literal spells the expected text out line by line instead of
-    packing it into one string with `\n` escapes. Each content line becomes
-    one line of text, dedented relative to the closing fence, and a trailing
-    newline is implied.
+    A heredoc literal spells the expected text out line by line instead of packing it into one string with `\n` escapes.
+    Each content line becomes one line of text, dedented relative to the closing fence, and a trailing newline is implied.
     ```
 }
 

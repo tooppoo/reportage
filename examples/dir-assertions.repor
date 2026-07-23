@@ -4,10 +4,8 @@ document file {
   order 20
 
   description ```
-    Expectations about a directory in the case workspace, addressed by a
-    workspace path `<"...">`. `dir <"..."> exists` checks that the directory
-    is present; `dir <"..."> contains "..."` checks that it holds an entry
-    with the given name.
+    Expectations about a directory in the case workspace, addressed by a workspace path `<"...">`.
+    `dir <"..."> exists` checks that the directory is present; `dir <"..."> contains "..."` checks that it holds an entry with the given name.
     ```
 }
 

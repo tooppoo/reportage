@@ -4,9 +4,8 @@ document file {
   order 40
 
   description ```
-    Expectations inside an `assert` block are combined with implicit AND. The
-    `all` / `any` / `not` logic blocks override that: `all` requires every
-    nested expectation, `any` requires at least one, and `not` requires none.
+    Expectations inside an `assert` block are combined with implicit AND.
+    The `all` / `any` / `not` logic blocks override that: `all` requires every nested expectation, `any` requires at least one, and `not` requires none.
     Logic blocks nest freely to express composite conditions.
     ```
 }
@@ -47,9 +46,8 @@ document case {
   title "Nested composite blocks"
 
   description ```
-    `all`, `any`, and `not` can contain each other to any depth. The
-    top-level expectations still AND together, so this asserts the nested
-    `any { ... }` and a bare `stderr empty` at once.
+    `all`, `any`, and `not` can contain each other to any depth.
+    The top-level expectations still AND together, so this asserts the nested `any { ... }` and a bare `stderr empty` at once.
     ```
 }
 

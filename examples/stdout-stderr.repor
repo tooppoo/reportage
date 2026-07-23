@@ -4,10 +4,8 @@ document file {
   order 10
 
   description ```
-    Expectations that inspect the action's captured output streams. `stdout
-    empty` / `stderr empty` require the stream to have no output; `stdout
-    contains` / `stderr contains` require the stream to include the given
-    substring.
+    Expectations that inspect the action's captured output streams.
+    `stdout empty` / `stderr empty` require the stream to have no output; `stdout contains` / `stderr contains` require the stream to include the given substring.
     ```
 }
 

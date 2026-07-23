@@ -4,10 +4,9 @@ document file {
   order 20
 
   description ```
-    A `document case` block attaches documentation to the case that
-    immediately follows it. Its fields are `title` and `description` only —
-    ordering and grouping are file-scope concerns, so cases render in source
-    order. Case documentation is optional and per case.
+    A `document case` block attaches documentation to the case that immediately follows it.
+    Its fields are `title` and `description` only — ordering and grouping are file-scope concerns, so cases render in source order.
+    Case documentation is optional and per case.
     ```
 }
 
@@ -15,8 +14,8 @@ document case {
   title "Documented case"
 
   description ```
-    This block documents the next case. `reportage docs` uses its `title` as
-    the case heading and renders this `description` above the case source.
+    This block documents the next case.
+    `reportage docs` uses its `title` as the case heading and renders this `description` above the case source.
     ```
 }
 

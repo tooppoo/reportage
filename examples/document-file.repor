@@ -4,12 +4,10 @@ document file {
   order 10
 
   description ```
-    A `document file` block attaches documentation metadata to the whole
-    script. It goes at the top, before any `before_each` or `case`, and may
-    appear at most once. Its fields are `title`, `group`, and `order` (which
-    control how `reportage docs` labels and orders this file), plus a
-    free-form `description` like this one. The block is separate from `#`
-    comments and never affects execution.
+    A `document file` block attaches documentation metadata to the whole script.
+    It goes at the top, before any `before_each` or `case`, and may appear at most once.
+    Its fields are `title`, `group`, and `order` (which control how `reportage docs` labels and orders this file), plus a free-form `description` like this one.
+    The block is separate from `#` comments and never affects execution.
     ```
 }
 

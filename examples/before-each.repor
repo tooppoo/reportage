@@ -4,10 +4,8 @@ document file {
   order 10
 
   description ```
-    A `before_each` block seeds every case's isolated workspace with the same
-    files, so each case starts from an identical, explicit state. It holds
-    only `write` steps — setup commands belong in each case body — and, like
-    a `document file` block, it appears at most once, before the first case.
+    A `before_each` block seeds every case's isolated workspace with the same files, so each case starts from an identical, explicit state.
+    It holds only `write` steps — setup commands belong in each case body — and, like a `document file` block, it appears at most once, before the first case.
     ```
 }
 
@@ -31,9 +29,8 @@ document case {
   title "Workspace isolation"
 
   description ```
-    Each case gets its own copy of the seeded state, so a case may modify or
-    delete a seeded file without affecting any other case. The next case
-    below still sees the pristine seeded files.
+    Each case gets its own copy of the seeded state, so a case may modify or delete a seeded file without affecting any other case.
+    The next case below still sees the pristine seeded files.
     ```
 }
 

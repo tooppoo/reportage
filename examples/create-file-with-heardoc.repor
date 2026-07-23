@@ -4,11 +4,8 @@ document file {
   order 20
 
   description ```
-    A `write <"path"> ...` step creates a file in the case workspace before
-    the action runs. With a triple-backtick heredoc the content is written
-    line by line and dedented relative to the closing fence, so the block can
-    be indented to match the surrounding code without changing what is
-    written.
+    A `write <"path"> ...` step creates a file in the case workspace before the action runs.
+    With a triple-backtick heredoc the content is written line by line and dedented relative to the closing fence, so the block can be indented to match the surrounding code without changing what is written.
     ```
 }
 

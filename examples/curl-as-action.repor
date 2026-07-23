@@ -4,10 +4,8 @@ document file {
   order 20
 
   description ```
-    A `$` action is an ordinary shell command line, so the action can be any
-    program on PATH — here `curl` makes a real HTTP request. Whatever the
-    command writes to stdout and stderr is captured and can be checked with
-    `stdout` / `stderr` expectations.
+    A `$` action is an ordinary shell command line, so the action can be any program on PATH — here `curl` makes a real HTTP request.
+    Whatever the command writes to stdout and stderr is captured and can be checked with `stdout` / `stderr` expectations.
     ```
 }
 
