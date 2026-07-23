@@ -93,6 +93,6 @@ find-hardcode-path *args:
 examples-gen:
   #!/usr/bin/env sh
   reportage docs examples/*.repor \
-    --out-dir docs/examples \
+    --out-dir examples \
     --format markdown \
     --title "Reportage Examples"

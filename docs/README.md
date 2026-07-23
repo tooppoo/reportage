@@ -7,7 +7,6 @@ Documents are separated by audience and by role, so each substantive fact has ex
 | Section | Audience | Contains |
 | --- | --- | --- |
 | [`guide/`](guide/README.md) | Users deciding on or using reportage | Positioning, decision guidance, and task-oriented navigation into the exact references. |
-| [`examples/`](examples/index.md) | Examples of e2e tests by `reportage` |
 | [`reference/`](reference/README.md) | Anyone needing the exact contract | Normative behavior: syntax, semantics, execution model, configuration, diagnostics, exit codes, artifacts, shims. Several documents are generated; see below. |
 | [`design/`](design/README.md) | Maintainers | Philosophy, design principles, technical selection, and testing strategy — the why behind the contracts. |
 | [`planning/`](planning/TBD.md) | Maintainers | Intentionally deferred features and undecided topics. Nothing here is implemented behavior. |
@@ -18,7 +17,7 @@ Documents are separated by audience and by role, so each substantive fact has ex
 
 Reference material that can be derived from an executable specification or the implementation is generated, never hand-written.
 
-The generated documents in this tree are [the syntax reference](reference/syntax.md), [the semantic rule catalog](reference/semantic-rules.md), [examples](examples/index.md), and [the AI reading order](ai/reading-order.generated.md);
+The generated documents in this tree are [the syntax reference](reference/syntax.md), [the semantic rule catalog](reference/semantic-rules.md), and [the AI reading order](ai/reading-order.generated.md);
 
 edit their sources and regenerate, never the files themselves.
 
