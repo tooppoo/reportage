@@ -1780,6 +1780,48 @@ case "never runs" {
 }
 
 #[test]
+fn json_format_before_each_write_failure_reports_a_runtime_diagnostic() {
+    // The machine-readable channel must attribute the failure the same way
+    // stderr does: a runtime diagnostic with the write step's code, whose
+    // message names the position inside the module-level block — there is no
+    // case body step index to point at.
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+before_each {
+  write <"a.txt"> "first\n"
+  write <"a.txt"> "second\n"
+}
+
+case "never runs its body" {
+  $ true
+  assert {
+    exit 0
+  }
+}
+"#,
+    );
+
+    let (json, actual_exit_code) = run_json(&dir, &script);
+
+    assert_eq!(json["status"], "error");
+    assert_eq!(actual_exit_code, 3);
+    assert_eq!(json["processExitCode"], actual_exit_code);
+    assert_eq!(json["diagnostics"][0]["category"], "runtime");
+    assert_eq!(json["diagnostics"][0]["code"], "step.write.target_exists");
+    assert!(
+        json["diagnostics"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("before_each write step 2"),
+        "diagnostic message must name the failing before_each step: {}",
+        json["diagnostics"][0]["message"]
+    );
+}
+
+#[test]
 fn concrete_cases_have_isolated_workspaces_and_do_not_collide_on_the_same_write_path() {
     // Two cases in the same script both `write` the same relative path.
     // If workspaces were shared across cases (rather than isolated per

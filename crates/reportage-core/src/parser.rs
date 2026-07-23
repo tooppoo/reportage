@@ -90,9 +90,10 @@ pub enum ParseError {
     InvalidDocumentationOrder { line: usize, value: String },
     /// A source contains more than one `document file` block.
     DuplicateDocumentFile { line: usize },
-    /// A `document file` block appears after the source's first case block or
-    /// after a `document case` block, violating the canonical top-level form
-    /// `document file? (document case? case)*`.
+    /// A `document file` block appears after the source's first case block,
+    /// after a `document case` block, or after a `before_each` block,
+    /// violating the canonical top-level form
+    /// `document file? before_each? (document case? case)*`.
     DocumentFileAfterCase { line: usize },
     /// A second `document case` block appears before the previous one's
     /// target case, which would associate two blocks with one case.
@@ -220,7 +221,7 @@ impl std::fmt::Display for ParseError {
             ),
             ParseError::DocumentFileAfterCase { line } => write!(
                 f,
-                "parse error at line {line}: `document file` must appear before all `document case` blocks and cases"
+                "parse error at line {line}: `document file` must appear before `before_each`, all `document case` blocks, and cases"
             ),
             ParseError::DuplicateDocumentCase { line } => write!(
                 f,
@@ -506,7 +507,15 @@ pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
             // diagnostic.
             Rule::document_file_block => {
                 let line = pair.line_col().0;
-                if !cases.is_empty() || pending_case_documentation.is_some() {
+                // `before_each.is_some()` is part of the placement check:
+                // `document file` describes the whole file, so it must lead
+                // the file, before `before_each` too, keeping the canonical
+                // form strict now rather than tightening it later against
+                // already-accepted sources.
+                if !cases.is_empty()
+                    || pending_case_documentation.is_some()
+                    || before_each.is_some()
+                {
                     return Err(ParseError::DocumentFileAfterCase { line });
                 }
                 if file_documentation.is_some() {
@@ -4421,8 +4430,8 @@ case "x" {
     fn document_file_after_pending_document_case_is_rejected() {
         // A `document file` between a pending `document case` and its target
         // case violates the canonical top-level form
-        // `document file? (document case? case)*`, and is classified as the
-        // existing `document file` placement violation.
+        // `document file? before_each? (document case? case)*`, and is
+        // classified as the existing `document file` placement violation.
         let src = format!(
             "document case {{\n  title \"pending\"\n}}\n\ndocument file {{\n  title \"too late\"\n}}\n\n{PASSING_CASE}"
         );
@@ -4517,6 +4526,16 @@ case "x" {
         let src = format!("document file {{\n  title \"t\"\n}}\n\n{BEFORE_EACH}\n{PASSING_CASE}");
         let script = parse_script(&src).unwrap();
         assert!(script.before_each.is_some());
+    }
+
+    #[test]
+    fn document_file_after_before_each_is_rejected() {
+        // The canonical top-level form is strict: `document file` leads the
+        // file, before `before_each`.
+        let src = format!("{BEFORE_EACH}\ndocument file {{\n  title \"t\"\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::DocumentFileAfterCase { .. }));
+        assert_eq!(err.code().as_str(), "parse.document_file.after_case");
     }
 
     #[test]

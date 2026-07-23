@@ -632,7 +632,9 @@ fn invalid_syntax_fixtures_are_rejected() {
                 ));
                 assert_eq!(err.code().as_str(), "semantic.expectation.empty_block");
             }
-            "write_step_absolute_path" => {
+            // Covers the case body and the `before_each` body: both write
+            // step positions share the same `WorkspacePath::parse` policy.
+            "write_step_absolute_path" | "before_each_write_step_absolute_path" => {
                 assert!(matches!(err, ParseError::InvalidWorkspacePath { .. }));
                 assert_eq!(err.code().as_str(), "semantic.workspace_path.absolute");
             }
@@ -673,10 +675,13 @@ fn invalid_syntax_fixtures_are_rejected() {
                 assert_eq!(err.code().as_str(), "parse.document_file.duplicate");
             }
             // `document file` placement covers the whole canonical top-level
-            // form `document file? (document case? case)*`: the block is
-            // rejected after the first case and after a pending
-            // `document case`. See #168 / #169.
-            "document_file_after_case" | "document_case_then_document_file" => {
+            // form `document file? before_each? (document case? case)*`: the
+            // block is rejected after the first case, after a pending
+            // `document case`, and after a `before_each` block.
+            // See #168 / #169 / #70.
+            "document_file_after_case"
+            | "document_case_then_document_file"
+            | "before_each_then_document_file" => {
                 assert!(matches!(err, ParseError::DocumentFileAfterCase { .. }));
                 assert_eq!(err.code().as_str(), "parse.document_file.after_case");
             }

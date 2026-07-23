@@ -163,8 +163,8 @@ pub enum DiagnosticCode {
     ParseDocumentBlockInvalidOrder,
     /// A source contains more than one `document file` block.
     ParseDocumentFileDuplicate,
-    /// A `document file` block appears after the source's first case block
-    /// or after a `document case` block.
+    /// A `document file` block appears after the source's first case block,
+    /// after a `document case` block, or after a `before_each` block.
     ParseDocumentFileAfterCase,
     /// A second `document case` block appears before the previous one's target case.
     ParseDocumentCaseDuplicate,
