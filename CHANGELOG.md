@@ -1,5 +1,49 @@
 # CHANGELOG
 
+## 0.0.5
+
+### changed
+
+#### cli
+
+<!-- rellog:entry:start -->
+<!-- rellog:body:start -->
+Rename the reference discovery command `reportage docs` to `reportage references`, with the machine-readable contract moved to `spec/output/references-index/`. `docs` is reserved for a future documentation generation command and now fails as not implemented. No alias or deprecation period is provided.
+<!-- rellog:body:end -->
+
+Refs:
+- https://github.com/tooppoo/reportage/issues/166
+<!-- rellog:entry:end -->
+
+### added
+
+#### cli
+
+<!-- rellog:entry:start -->
+<!-- rellog:body:start -->
+Add the `reportage docs` documentation generation command: glob-selected `.repor` sources are parsed (never executed) and aggregated into a single plain text document at `<out-dir>/index.txt`, with `document file` / `document case` metadata, display fallbacks, deterministic ordering, and existing-output-preserving replacement. Replaces the reserved not-implemented `docs` stub.
+<!-- rellog:body:end -->
+
+Refs:
+- https://github.com/tooppoo/reportage/issues/170
+<!-- rellog:entry:end -->
+
+#### core
+
+<!-- rellog:entry:start -->
+<!-- rellog:body:start -->
+support `before_each` block
+<!-- rellog:body:end -->
+<!-- rellog:entry:end -->
+
+#### core / cli
+
+<!-- rellog:entry:start -->
+<!-- rellog:body:start -->
+support `document` block and `docs` command to generate documents following to the block.
+<!-- rellog:body:end -->
+<!-- rellog:entry:end -->
+
 ## 0.0.4
 
 ### changed

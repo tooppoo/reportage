@@ -1,9 +1,0 @@
-{
-  "kind": "added",
-  "targets": [
-    "cli",
-    "core"
-  ],
-  "links": [],
-  "body": "support `document` block and `docs` command to generate documents following to the block."
-}
