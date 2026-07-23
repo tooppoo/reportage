@@ -20,7 +20,7 @@ pub mod render;
 use std::path::{Path, PathBuf};
 
 use discovery::DiscoveryError;
-use layout::{DocumentLayoutPlan, PlannedDocument};
+use layout::{DocumentLayoutPlan, IndexFileNameError, LayoutOptions, PlannedDocument};
 use loader::SourceLoadError;
 use output::OutputError;
 use render::{DocumentRenderer, RenderOptions};
@@ -82,6 +82,12 @@ pub struct GenerateRequest {
     /// ([`render::DEFAULT_DOCUMENT_TITLE`]); the value is used verbatim and
     /// never joins the Catalog's source-derived properties.
     pub title: String,
+    /// The index document's name, applied through [`layout::LayoutOptions`].
+    /// `None` keeps the default base name
+    /// ([`layout::DEFAULT_INDEX_BASE_NAME`]) with the format's extension;
+    /// `Some` is used verbatim, extension included, and is validated by
+    /// [`layout::validate_index_file_name`] before any output is written.
+    pub index_file_name: Option<String>,
 }
 
 /// The successful outcome: every written document path, for mutation
@@ -102,6 +108,9 @@ pub enum ErrorClass {
 
 #[derive(Debug)]
 pub enum GenerateError {
+    /// The `--index-file-name` value is not a single in-root file name. A pure
+    /// request error, checked before any source or filesystem work.
+    IndexFileName(IndexFileNameError),
     Discovery(DiscoveryError),
     SourceLoad(Vec<SourceLoadError>),
     Output(OutputError),
@@ -111,6 +120,7 @@ impl GenerateError {
     /// Classifies this error for the exit code contract.
     pub fn class(&self) -> ErrorClass {
         match self {
+            GenerateError::IndexFileName(_) => ErrorClass::RequestValidation,
             GenerateError::Discovery(DiscoveryError::Traversal { .. }) => {
                 ErrorClass::Infrastructure
             }
@@ -129,6 +139,7 @@ impl GenerateError {
     /// reported: source load errors are already ordered by display path.
     pub fn messages(&self) -> Vec<String> {
         match self {
+            GenerateError::IndexFileName(e) => vec![e.to_string()],
             GenerateError::Discovery(e) => vec![e.to_string()],
             GenerateError::SourceLoad(errors) => errors.iter().map(|e| e.to_string()).collect(),
             GenerateError::Output(e) => vec![e.to_string()],
@@ -155,15 +166,28 @@ pub fn generate(
     base_dir: &Path,
     request: &GenerateRequest,
 ) -> Result<GenerateReport, GenerateError> {
+    // A malformed `--index-file-name` is rejected up front, before any source
+    // resolution or filesystem work, so a bad invocation writes nothing.
+    if let Some(name) = &request.index_file_name {
+        layout::validate_index_file_name(name).map_err(GenerateError::IndexFileName)?;
+    }
+
     let discovered = discovery::resolve_patterns(base_dir, &request.patterns)
         .map_err(GenerateError::Discovery)?;
     let loaded = loader::load_sources(discovered).map_err(GenerateError::SourceLoad)?;
     let catalog = catalog::build_catalog(&loaded);
-    let options = RenderOptions {
+    let render_options = RenderOptions {
         document_title: request.title.clone(),
     };
-    let planned: Vec<PlannedDocument> =
-        layout_for(request.layout).plan(&catalog, renderer_for(request.format), &options);
+    let layout_options = LayoutOptions {
+        index_file_name: request.index_file_name.clone(),
+    };
+    let planned: Vec<PlannedDocument> = layout_for(request.layout).plan(
+        &catalog,
+        renderer_for(request.format),
+        &render_options,
+        &layout_options,
+    );
 
     let output_directory =
         output::OutputDirectory::prepare(&request.out_dir).map_err(GenerateError::Output)?;
@@ -198,6 +222,7 @@ mod tests {
             format: DocumentFormat::Plain,
             layout: DocumentLayout::SingleFile,
             title: render::DEFAULT_DOCUMENT_TITLE.to_string(),
+            index_file_name: None,
         }
     }
 
@@ -338,6 +363,37 @@ mod tests {
         assert!(markdown.starts_with("# Custom title\n"));
         let plain_after = std::fs::read_to_string(dir.path().join("generated/index.txt")).unwrap();
         assert_eq!(plain_before, plain_after, "index.txt must stay untouched");
+    }
+
+    /// A given name replaces the default `index.<ext>` verbatim: the exact
+    /// value becomes the only written document, and no default-named file is
+    /// produced alongside it.
+    #[test]
+    fn a_given_index_file_name_replaces_the_default_document() {
+        let dir = tempfile::tempdir().unwrap();
+        write(&dir.path().join("src/a.repor"), VALID_CASE);
+
+        let mut req = request(dir.path(), &["src/*.repor"]);
+        req.index_file_name = Some("readme.md".to_string());
+        let report = generate(dir.path(), &req).unwrap();
+
+        assert_eq!(report.written, vec![dir.path().join("generated/readme.md")]);
+        assert!(!dir.path().join("generated/index.txt").exists());
+    }
+
+    /// A malformed name is a request validation error caught before the output
+    /// directory is created: the invocation writes nothing.
+    #[test]
+    fn an_index_file_name_with_a_path_separator_is_request_validation() {
+        let dir = tempfile::tempdir().unwrap();
+        write(&dir.path().join("src/a.repor"), VALID_CASE);
+
+        let mut req = request(dir.path(), &["src/*.repor"]);
+        req.index_file_name = Some("nested/readme.md".to_string());
+        let err = generate(dir.path(), &req).unwrap_err();
+
+        assert_eq!(err.class(), ErrorClass::RequestValidation);
+        assert!(!dir.path().join("generated").exists());
     }
 
     #[test]

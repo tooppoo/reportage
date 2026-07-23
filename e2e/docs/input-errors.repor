@@ -142,3 +142,55 @@ case "a symlinked directory component is not eligible" {
     stderr contains "matched no eligible source"
   }
 }
+
+# `--index-file-name` must name a single file directly under --out-dir. A value
+# carrying a path separator (or one that could escape the output root) is a
+# request validation error, reported before any source or output work, so
+# nothing is written.
+case "an --index-file-name with a path separator is rejected" {
+  write <"src/a.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --index-file-name 'nested/readme.md'
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "index file name"
+    stderr contains "must be a single file name"
+    not {
+      dir <"out"> exists
+    }
+  }
+}
+
+# A value with no path separator is rejected just the same when it cannot name
+# a file directly under --out-dir: `.` resolves to the directory itself. The
+# same request validation error and empty output directory result.
+case "an --index-file-name that is not a file name is rejected" {
+  write <"src/a.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --index-file-name '.'
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "must be a single file name"
+    not {
+      dir <"out"> exists
+    }
+  }
+}
