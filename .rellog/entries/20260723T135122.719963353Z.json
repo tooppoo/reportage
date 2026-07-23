@@ -1,0 +1,8 @@
+{
+  "kind": "added",
+  "targets": [
+    "core"
+  ],
+  "links": [],
+  "body": "support `before_each` block"
+}
