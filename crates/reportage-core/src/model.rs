@@ -9,7 +9,53 @@
 /// A parsed reportage script (one test module file).
 #[derive(Debug)]
 pub struct Script {
+    /// Module-level case-local setup, replayed inside each concrete case's
+    /// isolated workspace before the case body runs; `None` when the module
+    /// declares no `before_each` block.
+    pub before_each: Option<BeforeEach>,
     pub cases: Vec<Case>,
+}
+
+/// A module-level `before_each { ... }` block: case-local setup replayed
+/// inside each concrete case's isolated workspace, after the workspace is
+/// created and before the case body's first step.
+///
+/// Holds [`SideEffectingStep`]s only, so an action step or assertion block
+/// is unrepresentable here by construction — the write-only policy is
+/// structural, not a validation pass a future caller could forget to run.
+/// `before_each` is never shared state: each concrete case replays these
+/// steps against its own fresh workspace.
+/// See docs/reference/execution-model.md — `before_each`, and the
+/// accompanying ADR.
+#[derive(Debug)]
+pub struct BeforeEach {
+    steps: Vec<SideEffectingStep>,
+}
+
+/// Error returned when constructing a `BeforeEach` with invalid content.
+#[derive(Debug, PartialEq)]
+pub enum BeforeEachError {
+    /// A `before_each` block must contain at least one step.
+    /// The grammar accepts an empty body so Reportage can reject it as an
+    /// actionable parse-domain error (`parse.before_each.empty`) rather than
+    /// a generic syntax error; callers (the parser) are expected to have
+    /// already turned this into a `ParseError` before reaching this
+    /// constructor.
+    Empty,
+}
+
+impl BeforeEach {
+    /// Construct a `BeforeEach`, rejecting an empty step list.
+    pub fn new(steps: Vec<SideEffectingStep>) -> Result<Self, BeforeEachError> {
+        if steps.is_empty() {
+            return Err(BeforeEachError::Empty);
+        }
+        Ok(Self { steps })
+    }
+
+    pub fn steps(&self) -> &[SideEffectingStep] {
+        &self.steps
+    }
 }
 
 /// A test case with a name and an ordered sequence of steps.

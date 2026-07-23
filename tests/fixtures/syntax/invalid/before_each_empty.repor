@@ -1,0 +1,11 @@
+# A `before_each` block must contain at least one `write` step
+# (parse.before_each.empty).
+before_each {
+}
+
+case "empty before_each" {
+  $ true
+  assert {
+    exit 0
+  }
+}

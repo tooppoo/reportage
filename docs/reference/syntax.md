@@ -53,13 +53,15 @@ trail        = _{ (ws+ ~ comment)? ~ ws* ~ (nl | EOI) }
 // ─── Script ───────────────────────────────────────────────────────────────────
 
 // ws* before EOI handles a trailing whitespace-only line with no final newline.
-// Document blocks are grammar-legal anywhere at top level (and any number of
-// times) so that their placement rules — the canonical top-level form
-// `document file? (document case? case)*` — can be rejected during parser
-// construction with actionable diagnostics (parse.document_file.duplicate /
-// parse.document_file.after_case / parse.document_case.duplicate /
-// parse.document_case.orphan) instead of a bare pest syntax error.
-script = { SOI ~ (blank_line | comment_line | document_file_block | document_case_block | case_block)* ~ ws* ~ EOI }
+// Document blocks and the before_each block are grammar-legal anywhere at top
+// level (and any number of times) so that their placement rules — the
+// canonical top-level form `document file? before_each? (document case? case)*`
+// — can be rejected during parser construction with actionable diagnostics
+// (parse.document_file.duplicate / parse.document_file.after_case /
+// parse.document_case.duplicate / parse.document_case.orphan /
+// parse.before_each.duplicate / parse.before_each.after_case) instead of a
+// bare pest syntax error.
+script = { SOI ~ (blank_line | comment_line | document_file_block | document_case_block | before_each_block | case_block)* ~ ws* ~ EOI }
 
 // ─── Document blocks ──────────────────────────────────────────────────────────
 //
@@ -139,8 +141,35 @@ case_block = {
     ~ ws* ~ "}" ~ trail
 }
 
+// ─── before_each block ────────────────────────────────────────────────────────
+//
+// `before_each { ... }` declares module-level case-local setup: its steps are
+// replayed inside each concrete case's isolated workspace, after the workspace
+// is created and before the case body's first step. See
+// docs/reference/execution-model.md — `before_each`, and the accompanying ADR.
+//
+// The body reuses case_step, so an action step or assertion block is
+// grammar-legal here even though only `write` steps are allowed — the
+// deliberate opposite of the document blocks' whitelist approach above.
+// A user moving setup out of a case body will paste exactly those steps, so
+// each ban is rejected during parser construction with a diagnostic that
+// names it (parse.before_each.action_step / parse.before_each.assertion_block)
+// and points at the allowed alternative, instead of a bare pest syntax error.
+// Placement (at most one block per module, before the first case) is likewise
+// enforced during parser construction (parse.before_each.duplicate /
+// parse.before_each.after_case); a body with zero steps parses and is
+// rejected as parse.before_each.empty, mirroring empty_composition_body and
+// the empty document block.
+before_each_block = {
+    ws* ~ "before_each" ~ ws* ~ "{" ~ trail
+    ~ (blank_line | comment_line | case_step)*
+    ~ ws* ~ "}" ~ trail
+}
+
 // Silent: action_step, assertion_block, and the two write_step forms are
-// promoted directly into case_block. `write <"path"> <text_literal>` accepts
+// promoted directly into the enclosing block (case_block, or before_each_block
+// above — where non-write steps are then rejected during parser
+// construction). `write <"path"> <text_literal>` accepts
 // either a string literal or a heredoc literal (see "Text literals" below);
 // the string-literal form (write_step_string) is an ordinary single-line
 // construct and shares `trail` like action_step / assertion_block (so it

@@ -1,0 +1,15 @@
+# A source may contain at most one `before_each` block
+# (parse.before_each.duplicate).
+before_each {
+  write <"first.txt"> "first\n"
+}
+
+before_each {
+  write <"second.txt"> "second\n"
+}
+
+case "duplicate before_each" {
+  assert {
+    file <"first.txt"> exists
+  }
+}

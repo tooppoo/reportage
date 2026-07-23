@@ -1,0 +1,15 @@
+# An `assert` block is not allowed inside `before_each`; setup results are
+# verified at the start of each case body instead
+# (parse.before_each.assertion_block).
+before_each {
+  write <"seed.txt"> "seed\n"
+  assert {
+    file <"seed.txt"> exists
+  }
+}
+
+case "assertion block in before_each" {
+  assert {
+    file <"seed.txt"> exists
+  }
+}

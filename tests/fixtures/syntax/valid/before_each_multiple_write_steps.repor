@@ -1,0 +1,29 @@
+# Every concrete case starts with this config and input fixture already
+# present in its own isolated workspace.
+before_each {
+  write <"reportage.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+    }
+    ```
+
+  # A second fixture next to the config.
+  write <"input/data.txt"> "line 1\nline 2\n"
+}
+
+case "workspace contains the seeded files" {
+  assert {
+    file <"reportage.kdl"> exists
+    file <"input/data.txt"> contains "line 1"
+  }
+}
+
+case "case body sees the setup before its first action" {
+  $ cat input/data.txt
+  assert {
+    exit 0
+    stdout contains "line 2"
+  }
+}

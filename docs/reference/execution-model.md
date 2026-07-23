@@ -163,26 +163,50 @@ The user-facing working directory for `$` steps is the case workspace working di
 
 ## `before_each`
 
-`before_each` is module-level setup.
+`before_each` is module-level case-local setup.
 
 It is executed before every concrete case, including every concrete case produced by parameter variants.
+
+~~~reportage
+before_each {
+  write <"reportage.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+    }
+    ```
+}
+
+case "invalid config" {
+  $ reportage validate
+
+  assert {
+    exit 2
+    stderr contains "unsupported config version"
+  }
+}
+~~~
 
 v0 rules:
 
 - `before_each` is optional.
-- At most one `before_each` block is allowed per module.
-- `before_each` must appear before any `case` block.
+- At most one `before_each` block is allowed per module (`parse.before_each.duplicate`).
+- `before_each` must appear before any `case` block, and must not separate a `document case` block from its target case (`parse.before_each.after_case`).
 - `before_each` is not shared state; it is replayed inside each concrete case workspace.
+- Files created by `before_each` exist in the workspace before the case body's first step, and are workspace evidence at the initial checkpoint (see "Initial checkpoint" below).
+- A `before_each` step that fails at runtime is a runtime step error for that concrete case; the case body does not run.
 - v0 does not provide `before_all`, `after_all`, or `after_each`.
 
-Recommended v0 semantic restriction:
+Allowed steps:
 
-- `before_each` should be deterministic module-level setup.
-- `before_each` may use `write` steps and ordinary shell setup steps such as `$ mkdir -p ...` or `$ cp -R ... ...`.
-- Primary system-under-test actions and assertion blocks should usually live in `case` blocks.
-- Variant-specific setup should usually live in the parameterized `case`, not in `before_each`.
+- `before_each` may contain `write` steps only, and must contain at least one (`parse.before_each.empty`).
+- `$` action steps are rejected regardless of the command, setup-oriented or not (`parse.before_each.action_step`). Setup commands such as `$ mkdir -p ...` or `$ cp -R ... ...` belong in each case body, where they are explicit per case.
+- `assert` blocks are rejected (`parse.before_each.assertion_block`). To verify setup results, write workspace expectations at the start of each case body. Whether `before_each` should ever accept an assertion block is a deferred topic (see [Deferred topics](../planning/TBD.md)).
 
-This keeps `before_each` independent of case-local parameter context.
+See [ADR: `before_each` Is Write-Only Case-Local Setup](../adr/20260723T120000Z_before-each-case-local-setup.md) for the rationale behind these restrictions.
+
+Variant-specific setup should usually live in the parameterized `case`, not in `before_each`. This keeps `before_each` independent of case-local parameter context.
 
 ## Shell execution
 

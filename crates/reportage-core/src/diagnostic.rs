@@ -170,6 +170,18 @@ pub enum DiagnosticCode {
     ParseDocumentCaseDuplicate,
     /// A `document case` block is not followed by a case to associate with.
     ParseDocumentCaseOrphan,
+    /// A source contains more than one `before_each` block.
+    ParseBeforeEachDuplicate,
+    /// A `before_each` block appears after the source's first case block
+    /// or after a `document case` block.
+    ParseBeforeEachAfterCase,
+    /// A `before_each` body contains a `$` action step; actions are banned
+    /// there regardless of the command.
+    ParseBeforeEachActionStep,
+    /// A `before_each` body contains an `assert` block.
+    ParseBeforeEachAssertionBlock,
+    /// A `before_each` block contains no steps.
+    ParseBeforeEachEmpty,
 }
 
 impl DiagnosticCode {
@@ -242,6 +254,11 @@ impl DiagnosticCode {
         Self::ParseDocumentFileAfterCase,
         Self::ParseDocumentCaseDuplicate,
         Self::ParseDocumentCaseOrphan,
+        Self::ParseBeforeEachDuplicate,
+        Self::ParseBeforeEachAfterCase,
+        Self::ParseBeforeEachActionStep,
+        Self::ParseBeforeEachAssertionBlock,
+        Self::ParseBeforeEachEmpty,
     ];
 
     /// The stable external string representation of this code.
@@ -345,6 +362,11 @@ impl DiagnosticCode {
             Self::ParseDocumentFileAfterCase => "parse.document_file.after_case",
             Self::ParseDocumentCaseDuplicate => "parse.document_case.duplicate",
             Self::ParseDocumentCaseOrphan => "parse.document_case.orphan",
+            Self::ParseBeforeEachDuplicate => "parse.before_each.duplicate",
+            Self::ParseBeforeEachAfterCase => "parse.before_each.after_case",
+            Self::ParseBeforeEachActionStep => "parse.before_each.action_step",
+            Self::ParseBeforeEachAssertionBlock => "parse.before_each.assertion_block",
+            Self::ParseBeforeEachEmpty => "parse.before_each.empty",
         }
     }
 }

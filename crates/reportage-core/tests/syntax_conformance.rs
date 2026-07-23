@@ -90,6 +90,10 @@ struct SnapshotScript<'a> {
     /// fixtures unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
     file_documentation: Option<SnapshotFileDocumentation<'a>>,
+    /// Omitted when the source declares no `before_each` block, mirroring
+    /// `file_documentation` above.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    before_each: Option<SnapshotBeforeEach<'a>>,
     cases: Vec<SnapshotCase<'a>>,
 }
 
@@ -99,7 +103,25 @@ impl<'a> From<&'a SourceFile> for SnapshotScript<'a> {
             file_documentation: source_file
                 .file_documentation()
                 .map(SnapshotFileDocumentation::from),
+            before_each: source_file.before_each().map(SnapshotBeforeEach::from),
             cases: source_file.cases().iter().map(SnapshotCase::from).collect(),
+        }
+    }
+}
+
+/// Mirrors `model::BeforeEach`. Steps reuse `SnapshotStep`, so the snapshot
+/// shows the same `write_file` step shape as a case body — but only that
+/// shape can ever appear here, because the model holds `SideEffectingStep`s
+/// only.
+#[derive(Serialize)]
+struct SnapshotBeforeEach<'a> {
+    steps: Vec<SnapshotStep<'a>>,
+}
+
+impl<'a> From<&'a reportage_core::model::BeforeEach> for SnapshotBeforeEach<'a> {
+    fn from(before_each: &'a reportage_core::model::BeforeEach) -> Self {
+        Self {
+            steps: before_each.steps().iter().map(SnapshotStep::from).collect(),
         }
     }
 }
@@ -211,10 +233,17 @@ impl<'a> From<&'a Step> for SnapshotStep<'a> {
                     .map(SnapshotExpectation::from)
                     .collect(),
             },
-            Step::SideEffect(SideEffectingStep::WriteFile(write_step)) => Self::WriteFile {
-                path: write_step.path.as_str(),
-                content: SnapshotTextLiteral::from(&write_step.content),
-            },
+            Step::SideEffect(side_effect) => Self::from(side_effect),
+        }
+    }
+}
+
+impl<'a> From<&'a SideEffectingStep> for SnapshotStep<'a> {
+    fn from(step: &'a SideEffectingStep) -> Self {
+        let SideEffectingStep::WriteFile(write_step) = step;
+        Self::WriteFile {
+            path: write_step.path.as_str(),
+            content: SnapshotTextLiteral::from(&write_step.content),
         }
     }
 }
@@ -660,6 +689,29 @@ fn invalid_syntax_fixtures_are_rejected() {
             "document_case_orphan" => {
                 assert!(matches!(err, ParseError::OrphanDocumentCase { .. }));
                 assert_eq!(err.code().as_str(), "parse.document_case.orphan");
+            }
+            // `before_each` placement and body rules: at most one block, before
+            // the first case, `write` steps only, at least one step. See #70
+            // and the before_each ADR.
+            "before_each_duplicate" => {
+                assert!(matches!(err, ParseError::DuplicateBeforeEach { .. }));
+                assert_eq!(err.code().as_str(), "parse.before_each.duplicate");
+            }
+            "before_each_after_case" => {
+                assert!(matches!(err, ParseError::BeforeEachAfterCase { .. }));
+                assert_eq!(err.code().as_str(), "parse.before_each.after_case");
+            }
+            "before_each_action_step" => {
+                assert!(matches!(err, ParseError::BeforeEachActionStep { .. }));
+                assert_eq!(err.code().as_str(), "parse.before_each.action_step");
+            }
+            "before_each_assertion_block" => {
+                assert!(matches!(err, ParseError::BeforeEachAssertionBlock { .. }));
+                assert_eq!(err.code().as_str(), "parse.before_each.assertion_block");
+            }
+            "before_each_empty" => {
+                assert!(matches!(err, ParseError::EmptyBeforeEach { .. }));
+                assert_eq!(err.code().as_str(), "parse.before_each.empty");
             }
             // Literal kind mismatches parse at the grammar level and are
             // rejected as semantic invalid cases with an actionable

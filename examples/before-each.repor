@@ -1,0 +1,37 @@
+# `before_each` seeds every concrete case's isolated workspace with the same
+# files, so each case starts from an identical, explicit state. Only `write`
+# steps are allowed here; setup commands belong in each case body.
+
+before_each {
+  write <"config.yml"> ```
+    retries: 3
+    verbose: true
+    ```
+
+  write <"input/message.txt"> "hello reportage\n"
+}
+
+case "the seeded files are present before any action" {
+  assert {
+    file <"config.yml"> exists
+    file <"input/message.txt"> contains "hello"
+  }
+}
+
+case "a case mutates only its own copy of the seeded state" {
+  $ rm config.yml
+  assert {
+    exit 0
+    not {
+      file <"config.yml"> exists
+    }
+  }
+}
+
+case "a later case still sees the pristine seeded state" {
+  $ grep "retries" config.yml
+  assert {
+    exit 0
+    stdout contains "retries: 3"
+  }
+}

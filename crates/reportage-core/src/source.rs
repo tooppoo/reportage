@@ -15,7 +15,7 @@
 //!
 //! See docs/adr/20260712T090000Z_parser-returns-source-level-model.md.
 
-use crate::model::{Case, Script};
+use crate::model::{BeforeEach, Case, Script};
 
 /// The UTF-8 source text of one parsed reportage file, owned by its [`SourceFile`].
 ///
@@ -172,11 +172,13 @@ impl SourceCase {
 
 /// A parsed reportage file as the parser returns it:
 /// the owned source text, the file-scope documentation when the source declares one,
+/// the module's `before_each` setup when the source declares one,
 /// and the cases with their source spans, in source order.
 #[derive(Debug)]
 pub struct SourceFile {
     source: SourceText,
     file_documentation: Option<FileDocumentation>,
+    before_each: Option<BeforeEach>,
     cases: Vec<SourceCase>,
 }
 
@@ -188,6 +190,7 @@ impl SourceFile {
     pub(crate) fn new(
         source: SourceText,
         file_documentation: Option<FileDocumentation>,
+        before_each: Option<BeforeEach>,
         cases: Vec<SourceCase>,
     ) -> Self {
         let text = source.as_str();
@@ -216,6 +219,7 @@ impl SourceFile {
         Self {
             source,
             file_documentation,
+            before_each,
             cases,
         }
     }
@@ -230,6 +234,11 @@ impl SourceFile {
     /// it is never substituted with fallback values here (see [`FileDocumentation`]).
     pub fn file_documentation(&self) -> Option<&FileDocumentation> {
         self.file_documentation.as_ref()
+    }
+
+    /// The module's `before_each` setup, or `None` when the source declares none.
+    pub fn before_each(&self) -> Option<&BeforeEach> {
+        self.before_each.as_ref()
     }
 
     pub fn cases(&self) -> &[SourceCase] {
@@ -249,6 +258,7 @@ impl SourceFile {
     /// Source text, spans, and documentation metadata are dropped here.
     pub fn into_script(self) -> Script {
         Script {
+            before_each: self.before_each,
             cases: self
                 .cases
                 .into_iter()
