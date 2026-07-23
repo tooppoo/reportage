@@ -19,34 +19,43 @@
 //! case source content is never dropped or replaced.
 
 use super::catalog::DocumentationCatalog;
+use super::render::DocumentRenderer;
 
 const DOCUMENT_TITLE: &str = "Reportage Documentation";
 const VALUE_INDENT: usize = 2;
 const SOURCE_INDENT: usize = 4;
 
-/// Renders the whole catalog as one plain text document.
-pub fn render_plain(catalog: &DocumentationCatalog) -> String {
-    let mut blocks: Vec<String> = vec![DOCUMENT_TITLE.to_string()];
+/// The `plain` format: renders a catalog into one plain text document.
+pub struct PlainRenderer;
 
-    for group in &catalog.groups {
-        blocks.push(block("Group", &group.name, VALUE_INDENT));
-        for file in &group.files {
-            blocks.push(block("File", &file.title, VALUE_INDENT));
-            blocks.push(block("Source path", &file.source_path, VALUE_INDENT));
-            if let Some(description) = &file.description {
-                blocks.push(block("Description", description, VALUE_INDENT));
-            }
-            for case in &file.cases {
-                blocks.push(block("Case", &case.title, VALUE_INDENT));
-                if let Some(description) = &case.description {
+impl DocumentRenderer for PlainRenderer {
+    fn render(&self, catalog: &DocumentationCatalog) -> String {
+        let mut blocks: Vec<String> = vec![DOCUMENT_TITLE.to_string()];
+
+        for group in &catalog.groups {
+            blocks.push(block("Group", &group.name, VALUE_INDENT));
+            for file in &group.files {
+                blocks.push(block("File", &file.title, VALUE_INDENT));
+                blocks.push(block("Source path", &file.source_path, VALUE_INDENT));
+                if let Some(description) = &file.description {
                     blocks.push(block("Description", description, VALUE_INDENT));
                 }
-                blocks.push(block("Reportage source", &case.source, SOURCE_INDENT));
+                for case in &file.cases {
+                    blocks.push(block("Case", &case.title, VALUE_INDENT));
+                    if let Some(description) = &case.description {
+                        blocks.push(block("Description", description, VALUE_INDENT));
+                    }
+                    blocks.push(block("Reportage source", &case.source, SOURCE_INDENT));
+                }
             }
         }
+
+        blocks.join("\n\n") + "\n"
     }
 
-    blocks.join("\n\n") + "\n"
+    fn file_extension(&self) -> &'static str {
+        "txt"
+    }
 }
 
 /// One labeled block: the label line followed by the value's logical lines,
@@ -55,7 +64,7 @@ pub fn render_plain(catalog: &DocumentationCatalog) -> String {
 /// Empty logical lines are emitted without indentation so the document never
 /// contains trailing whitespace. A trailing final newline in the value does
 /// not add an extra empty line: block separation is owned by the join in
-/// [`render_plain`], keeping "exactly one empty line between blocks"
+/// [`PlainRenderer::render`], keeping "exactly one empty line between blocks"
 /// independent of whether the source ends with a newline.
 fn block(label: &str, value: &str, indent: usize) -> String {
     let pad = " ".repeat(indent);
@@ -108,7 +117,7 @@ mod tests {
 
     #[test]
     fn renders_the_fixed_block_layout() {
-        let output = render_plain(&single_case_catalog("case \"x\" {\n  $ true\n}\n"));
+        let output = PlainRenderer.render(&single_case_catalog("case \"x\" {\n  $ true\n}\n"));
 
         assert_eq!(
             output,
@@ -142,7 +151,7 @@ mod tests {
             }],
         };
 
-        let output = render_plain(&catalog);
+        let output = PlainRenderer.render(&catalog);
         assert!(!output.contains("Description"));
         // A zero-case file has no Case / Reportage source blocks either.
         assert!(!output.contains("Case"));
@@ -152,7 +161,7 @@ mod tests {
 
     #[test]
     fn source_empty_lines_stay_empty_without_trailing_whitespace() {
-        let output = render_plain(&single_case_catalog("case \"x\" {\n\n  $ true\n}\n"));
+        let output = PlainRenderer.render(&single_case_catalog("case \"x\" {\n\n  $ true\n}\n"));
 
         assert!(output.contains("Reportage source\n    case \"x\" {\n\n      $ true\n    }\n"));
         for line in output.lines() {
@@ -166,7 +175,8 @@ mod tests {
 
     #[test]
     fn crlf_sources_are_normalized_to_lf() {
-        let output = render_plain(&single_case_catalog("case \"x\" {\r\n  $ true\r\n}\r\n"));
+        let output =
+            PlainRenderer.render(&single_case_catalog("case \"x\" {\r\n  $ true\r\n}\r\n"));
 
         assert!(!output.contains('\r'));
         assert!(output.contains("Reportage source\n    case \"x\" {\n      $ true\n    }\n"));
@@ -174,15 +184,17 @@ mod tests {
 
     #[test]
     fn final_newline_presence_does_not_change_block_separation() {
-        let with_newline = render_plain(&single_case_catalog("case \"x\" {\n  $ true\n}\n"));
-        let without_newline = render_plain(&single_case_catalog("case \"x\" {\n  $ true\n}"));
+        let with_newline =
+            PlainRenderer.render(&single_case_catalog("case \"x\" {\n  $ true\n}\n"));
+        let without_newline =
+            PlainRenderer.render(&single_case_catalog("case \"x\" {\n  $ true\n}"));
 
         assert_eq!(with_newline, without_newline);
     }
 
     #[test]
     fn document_ends_with_exactly_one_lf() {
-        let output = render_plain(&single_case_catalog("case \"x\" {\n  $ true\n}\n"));
+        let output = PlainRenderer.render(&single_case_catalog("case \"x\" {\n  $ true\n}\n"));
         assert!(output.ends_with('\n'));
         assert!(!output.ends_with("\n\n"));
     }
@@ -192,7 +204,7 @@ mod tests {
         let mut catalog = single_case_catalog("case \"x\" {\n  $ true\n}\n");
         catalog.groups[0].files[0].description = Some("First line.\n\nThird line.\n".to_string());
 
-        let output = render_plain(&catalog);
+        let output = PlainRenderer.render(&catalog);
         assert!(output.contains("Description\n  First line.\n\n  Third line.\n"));
     }
 
@@ -221,7 +233,7 @@ mod tests {
             ],
         };
 
-        let output = render_plain(&catalog);
+        let output = PlainRenderer.render(&catalog);
         assert!(
             output.contains("Group\n  A\n\nFile\n  a\n\nSource path\n  a.repor\n\nGroup\n  B\n")
         );

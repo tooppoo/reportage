@@ -20,8 +20,16 @@ This ADR records the boundary and contract decisions of that slice, because they
 Generation is a pipeline of independently testable stages with explicit hand-offs:
 glob discovery produces source identities, the loader produces unconsumed source-level models, the Catalog builder produces a renderer-ready model, the layout maps the Catalog to relative output paths, the format serializes, and `OutputDirectory` owns all output filesystem rules.
 Each later extension point (a new format, a new layout, a new discovery mode) then changes exactly one stage.
+
+Formats and layouts sit behind uniform interfaces rather than per-format free functions:
+a format implements `DocumentRenderer` (serialize a Catalog, name the file extension) and a layout implements `DocumentLayoutPlan` (map a Catalog to planned documents, delegating serialization to any renderer), mirroring the CLI's existing `OutputRenderer` idiom.
+The planned near-term extensions — a Markdown format, then a multi-file layout — compose without touching each other:
+a new format is one more `DocumentRenderer`, and a multi-file layout can partition the Catalog into sub-catalogs and pass each to the same `render`.
+The user-facing `--format` / `--layout` values stay closed enums resolved to implementations in one exhaustive factory, so unknown values remain clap usage errors and the compiler still points at the single place a new variant must be wired.
+Interface growth that multi-file layouts may need later (index/TOC rendering, cross-links) is deliberately deferred until a consumer exists; all implementations live in-crate, so extending the trait then is cheap.
+
 `--out-dir` validation lives only in `OutputDirectory`, so adding formats or layouts cannot change output root rules;
-layouts return only root-relative paths made of normal components (`single-file` + `plain` returns exactly `index.txt`), and the output writer rejects anything else, so nothing can be written outside the output root.
+layouts return only root-relative paths made of normal components (`single-file` derives exactly `index.<extension>`, `index.txt` for `plain`), and the output writer rejects anything else, so nothing can be written outside the output root.
 
 ### Documentation discovery is separate from suite discovery
 

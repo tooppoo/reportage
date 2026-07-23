@@ -10,56 +10,60 @@
 
 pub mod catalog;
 pub mod discovery;
+pub mod layout;
 pub mod loader;
 pub mod output;
 pub mod plain;
+pub mod render;
 
 use std::path::{Path, PathBuf};
 
 use discovery::DiscoveryError;
+use layout::{DocumentLayoutPlan, PlannedDocument};
 use loader::SourceLoadError;
 use output::OutputError;
+use render::DocumentRenderer;
 
-/// The generated document format. The format owns serialization and the file
-/// extension of the produced document(s).
+/// The generated document format, as selected on the CLI. The closed set of
+/// v0 values: an unknown `--format` is a clap usage error, never a fallback.
+///
+/// Formats are implemented behind the uniform [`render::DocumentRenderer`]
+/// interface; this enum is only the user-facing selector, resolved to an
+/// implementation in [`renderer_for`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DocumentFormat {
     #[default]
     Plain,
 }
 
-/// The generated document layout: how many files the Catalog is written to
-/// and their relative structure under the output root.
+/// The generated document layout, as selected on the CLI. The closed set of
+/// v0 values: an unknown `--layout` is a clap usage error, never a fallback.
+///
+/// Layouts are implemented behind the uniform [`layout::DocumentLayoutPlan`]
+/// interface; this enum is only the user-facing selector, resolved to an
+/// implementation in [`layout_for`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DocumentLayout {
     #[default]
     SingleFile,
 }
 
-/// A rendered document and its output path relative to the output root.
+/// Resolves the format selector to its renderer implementation.
 ///
-/// The relative path must contain only normal components;
-/// [`output::OutputDirectory::write_document`] enforces that contract.
-#[derive(Debug, PartialEq, Eq)]
-pub struct PlannedDocument {
-    pub relative_path: String,
-    pub contents: String,
+/// The exhaustive match is deliberate: adding a format extends this single
+/// factory, and the compiler points here when the enum grows.
+pub fn renderer_for(format: DocumentFormat) -> &'static dyn DocumentRenderer {
+    match format {
+        DocumentFormat::Plain => &plain::PlainRenderer,
+    }
 }
 
-/// Renders the catalog into the documents the layout and format prescribe.
+/// Resolves the layout selector to its plan implementation.
 ///
-/// `single-file` + `plain` produces exactly one document at the fixed
-/// relative path `index.txt`.
-pub fn plan_documents(
-    catalog: &catalog::DocumentationCatalog,
-    layout: DocumentLayout,
-    format: DocumentFormat,
-) -> Vec<PlannedDocument> {
-    match (layout, format) {
-        (DocumentLayout::SingleFile, DocumentFormat::Plain) => vec![PlannedDocument {
-            relative_path: "index.txt".to_string(),
-            contents: plain::render_plain(catalog),
-        }],
+/// The exhaustive match is deliberate, exactly as in [`renderer_for`].
+pub fn layout_for(document_layout: DocumentLayout) -> &'static dyn DocumentLayoutPlan {
+    match document_layout {
+        DocumentLayout::SingleFile => &layout::SingleFileLayout,
     }
 }
 
@@ -147,7 +151,8 @@ pub fn generate(
         .map_err(GenerateError::Discovery)?;
     let loaded = loader::load_sources(discovered).map_err(GenerateError::SourceLoad)?;
     let catalog = catalog::build_catalog(&loaded);
-    let planned = plan_documents(&catalog, request.layout, request.format);
+    let planned: Vec<PlannedDocument> =
+        layout_for(request.layout).plan(&catalog, renderer_for(request.format));
 
     let output_directory =
         output::OutputDirectory::prepare(&request.out_dir).map_err(GenerateError::Output)?;
