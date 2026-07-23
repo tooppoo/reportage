@@ -88,3 +88,11 @@ find-hardcode-path *args:
     echo "$matches"
     exit 1
   fi
+
+[group('docs')]
+examples-gen:
+  #!/usr/bin/env sh
+  reportage docs examples/*.repor \
+    --out-dir docs/examples \
+    --format markdown \
+    --title "Reportage Examples"
