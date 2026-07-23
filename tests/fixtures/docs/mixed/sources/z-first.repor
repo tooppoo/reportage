@@ -1,0 +1,33 @@
+document file {
+  title "Getting started"
+  group "Guides"
+  order 1
+  description ```
+    The first guide.
+
+    Declared order 1, so it comes first in its group
+    even though its path sorts last.
+    ```
+}
+
+document case {
+  title "Hello world"
+  description "Runs the smallest possible command."
+}
+
+case "prints hello" {
+  $ echo hello
+
+  assert {
+    exit 0
+    stdout contains "hello"
+  }
+}
+
+case "undocumented sibling case" {
+  $ true
+
+  assert {
+    exit 0
+  }
+}

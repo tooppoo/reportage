@@ -1,0 +1,138 @@
+# `reportage docs` (issue #170): the primary documentation generation flow.
+# Sources selected by glob are parsed — never executed — and aggregated into a
+# single plain text document at <out-dir>/index.txt. The exact serialization
+# contract is fixed by tests/fixtures/docs/*/index.snapshot.txt; these cases
+# verify the CLI-observable flow: exit code, stdout mutation report, generated
+# file, fallbacks, and the absence of execution side effects.
+
+case "glob collects multiple sources into one plain text document" {
+  write <"src/a.repor"> ```
+    document file {
+      title "Documented file"
+      group "Filesystem"
+      description "File-level description."
+    }
+
+    document case {
+      title "Documented case"
+    }
+
+    case "documented" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"src/nested/b.repor"> ```
+    case "nested case" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/**/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    stdout contains "generated: out/index.txt"
+    file <"out/index.txt"> exists
+    file <"out/index.txt"> contains "Reportage Documentation"
+    file <"out/index.txt"> contains "Filesystem"
+    file <"out/index.txt"> contains "Documented file"
+    file <"out/index.txt"> contains "Documented case"
+    file <"out/index.txt"> contains "src/nested/b.repor"
+  }
+}
+
+# Sources without document blocks fall back to the file stem as title, the
+# fixed default group `Index`, and the case name as case title.
+case "documentation-free sources fall back to stem, Index group, and case names" {
+  write <"src/fallback-source.repor"> ```
+    case "fallback case name" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    file <"out/index.txt"> contains "Index"
+    file <"out/index.txt"> contains "fallback-source"
+    file <"out/index.txt"> contains "fallback case name"
+  }
+}
+
+# A valid source with zero cases still yields a document entry with its file
+# metadata and source path; generation succeeds.
+case "a source with zero cases still generates index.txt" {
+  write <"src/empty.repor"> ```
+    document file {
+      title "Case-less"
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    file <"out/index.txt"> contains "Case-less"
+    file <"out/index.txt"> contains "src/empty.repor"
+    not {
+      file <"out/index.txt"> contains "Reportage source"
+    }
+  }
+}
+
+# The document format and layout default to `plain` and `single-file`, so the
+# explicit flags produce the same output path.
+case "explicit --format plain and --layout single-file match the defaults" {
+  write <"src/a.repor"> ```
+    case "one" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --format plain --layout single-file
+
+  assert {
+    exit 0
+    stdout contains "generated: out/index.txt"
+    file <"out/index.txt"> exists
+  }
+}
+
+# Documentation generation parses sources but never executes them: the case
+# action must not run, and no execution artifact directory may appear.
+case "sources are not executed and no artifacts are generated" {
+  write <"src/side-effect.repor"> ```
+    case "would create a marker file" {
+      $ touch marker.txt
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    not {
+      file <"marker.txt"> exists
+    }
+    not {
+      dir <".reportage"> exists
+    }
+  }
+}

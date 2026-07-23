@@ -1,0 +1,82 @@
+# `reportage docs` CLI usage errors (issue #170): clap rejects the invocation
+# before any generation work starts, with the shared CLI usage exit code 4 —
+# distinct from request/source validation (2) and infrastructure failures (3).
+
+case "a missing --out-dir is a usage error" {
+  $ reportage docs 'src/*.repor'
+
+  assert {
+    exit 4
+    stdout empty
+    stderr contains "--out-dir"
+  }
+}
+
+case "a missing pattern is a usage error" {
+  $ reportage docs --out-dir out
+
+  assert {
+    exit 4
+    stdout empty
+    stderr contains "PATTERN"
+  }
+}
+
+case "an unknown --format value is a usage error" {
+  $ reportage docs 'src/*.repor' --out-dir out --format no-such-format
+
+  assert {
+    exit 4
+    stdout empty
+    stderr contains "no-such-format"
+  }
+}
+
+case "an unknown option is a usage error" {
+  $ reportage docs 'src/*.repor' --out-dir out --no-such-option
+
+  assert {
+    exit 4
+    stdout empty
+    stderr contains "--no-such-option"
+  }
+}
+
+# The command is a real, documented subcommand now: its help renders the
+# interface instead of the former reserved not-implemented error.
+case "docs --help prints the real interface" {
+  $ reportage docs --help
+
+  assert {
+    exit 0
+    stdout contains "Generate documentation from reportage sources"
+    stdout contains "--out-dir"
+    stdout contains "--format"
+    stdout contains "--layout"
+  }
+}
+
+# Usage errors happen before generation: nothing is written even when the
+# sources and output directory would be valid.
+case "usage errors write nothing" {
+  write <"src/a.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --format no-such-format
+
+  assert {
+    exit 4
+    not {
+      dir <"out"> exists
+    }
+    not {
+      dir <".reportage"> exists
+    }
+  }
+}

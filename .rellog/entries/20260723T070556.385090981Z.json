@@ -1,0 +1,10 @@
+{
+  "kind": "added",
+  "targets": [
+    "cli"
+  ],
+  "links": [
+    "https://github.com/tooppoo/reportage/issues/170"
+  ],
+  "body": "Add the `reportage docs` documentation generation command: glob-selected `.repor` sources are parsed (never executed) and aggregated into a single plain text document at `<out-dir>/index.txt`, with `document file` / `document case` metadata, display fallbacks, deterministic ordering, and existing-output-preserving replacement. Replaces the reserved not-implemented `docs` stub."
+}

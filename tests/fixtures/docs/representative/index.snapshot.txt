@@ -1,0 +1,28 @@
+Reportage Documentation
+
+Group
+  Filesystem
+
+File
+  File assertions
+
+Source path
+  sources/file-assertions.repor
+
+Description
+  ファイルに対する assertion の使用例をまとめる。
+
+Case
+  File creation
+
+Description
+  コマンドによってファイルが生成されたことを検証する。
+
+Reportage source
+    case "file exists" {
+      $ touch test.txt
+
+      assert {
+        file <"test.txt"> exists
+      }
+    }

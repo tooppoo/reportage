@@ -21,6 +21,7 @@ Documents here are either generated from an executable source, mechanically chec
 
 - [Configuration](configuration.md): the `reportage.kdl` config format, loading rules, and validation errors.
 - [Path matching](path-matching.md): the rules for path-like config values and test file glob discovery.
+- [Documentation generation](docs-generation.md): the `reportage docs` subcommand, its input pattern rules, the plain text serialization contract, and the output replacement guarantees. Its representative outputs are mechanically checked against the generated example documents under `tests/fixtures/docs/`.
 - [Exit codes](exit-codes.md): the process exit code policy and per-subcommand tables.
 - [Artifacts](artifacts.md): the `.reportage/runs/<run-id>/` bundle, the `result.json` canonical manifest, and the raw evidence policy. Its JSON examples are mechanically checked against fixture snapshots.
 - The stdout JSON contract for `--format=json` is owned by [`spec/output/json-report/`](../../spec/output/json-report/README.md), and the run result artifact contract by [`spec/artifacts/run-result/`](../../spec/artifacts/run-result/README.md).

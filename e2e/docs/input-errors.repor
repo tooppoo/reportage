@@ -1,0 +1,144 @@
+# `reportage docs` input validation (issue #170): every input error is the
+# reportage CLI process's own exit code 2 ("request / source validation
+# error"), with details on stderr and nothing written under --out-dir.
+# Exit code 3 (infrastructure) cases live in output-safety.repor.
+
+case "a pattern matching nothing is an error" {
+  write <"src/exists.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' 'missing/*.repor' --out-dir out
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "missing/*.repor"
+    stderr contains "matched no eligible source"
+    not {
+      dir <"out"> exists
+    }
+  }
+}
+
+# Only regular `.repor` files are eligible: a pattern matching only other
+# files or directories counts as zero eligible matches.
+case "a pattern matching only non-repor entries is an error" {
+  write <"src/readme.txt"> ```
+    not a reportage source
+    ```
+
+  $ reportage docs 'src/*' --out-dir out
+
+  assert {
+    exit 2
+    stderr contains "matched no eligible source"
+  }
+}
+
+case "invalid glob syntax is rejected" {
+  $ reportage docs '[' --out-dir out
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "invalid glob pattern"
+    not {
+      dir <"out"> exists
+    }
+  }
+}
+
+case "an absolute pattern is rejected" {
+  $ reportage docs '/tmp/*.repor' --out-dir out
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "is absolute"
+  }
+}
+
+case "a pattern escaping the working directory is rejected" {
+  $ reportage docs '../*.repor' --out-dir out
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "escape the current working directory"
+  }
+}
+
+# One unparsable source fails the whole generation: errors are reported per
+# display path and no partial document is produced.
+case "a parse error in any source fails the whole generation" {
+  write <"src/good.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"src/bad.repor"> ```
+    case "broken" {
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "src/bad.repor"
+    stderr contains "parse error"
+    not {
+      dir <"out"> exists
+    }
+  }
+}
+
+# Symlinked sources and symlinked path components are not eligible. A pattern
+# resolving only through symlinks therefore has zero eligible matches.
+case "symlinked sources are not eligible" {
+  write <"src/real.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ ln -s src/real.repor link.repor
+  $ reportage docs 'link.repor' --out-dir out
+
+  assert {
+    exit 2
+    stderr contains "matched no eligible source"
+  }
+}
+
+case "a symlinked directory component is not eligible" {
+  write <"src/real.repor"> ```
+    case "ok" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ ln -s src linkdir
+  $ reportage docs 'linkdir/*.repor' --out-dir out
+
+  assert {
+    exit 2
+    stderr contains "matched no eligible source"
+  }
+}
