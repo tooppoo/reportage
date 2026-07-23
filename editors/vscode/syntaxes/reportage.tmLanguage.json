@@ -10,6 +10,12 @@
       "include": "#comments"
     },
     {
+      "include": "#document-block"
+    },
+    {
+      "include": "#before-each-block"
+    },
+    {
       "include": "#case-block"
     },
     {
@@ -117,6 +123,94 @@
               "name": "keyword.control.case.reportage"
             }
           }
+        }
+      ]
+    },
+    "before-each-block": {
+      "patterns": [
+        {
+          "match": "^(\\s*)(before_each)\\b",
+          "captures": {
+            "2": {
+              "name": "keyword.control.before-each.reportage"
+            }
+          }
+        }
+      ]
+    },
+    "document-block": {
+      "patterns": [
+        {
+          "name": "meta.document.block.reportage",
+          "begin": "^(\\s*)(document)\\s+(file|case)\\b\\s*(\\{)?",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.control.document.reportage"
+            },
+            "3": {
+              "name": "storage.type.document-scope.reportage"
+            },
+            "4": {
+              "name": "punctuation.section.block.begin.reportage"
+            }
+          },
+          "end": "^(\\s*)(\\})",
+          "endCaptures": {
+            "2": {
+              "name": "punctuation.section.block.end.reportage"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#comments"
+            },
+            {
+              "include": "#document-description-heredoc"
+            },
+            {
+              "name": "keyword.other.documentation-field.reportage",
+              "match": "\\b(title|group|order|description)\\b"
+            },
+            {
+              "include": "#strings"
+            },
+            {
+              "include": "#numbers"
+            },
+            {
+              "include": "#punctuation"
+            }
+          ]
+        }
+      ]
+    },
+    "document-description-heredoc": {
+      "patterns": [
+        {
+          "name": "meta.heredoc.block.reportage",
+          "begin": "^(\\s*)(description)\\b(.*?)(`{3,})\\s*$",
+          "beginCaptures": {
+            "2": {
+              "name": "keyword.other.documentation-field.reportage"
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#strings"
+                }
+              ]
+            },
+            "4": {
+              "name": "punctuation.definition.raw.begin.reportage"
+            }
+          },
+          "end": "^\\s*(\\4`*)\\s*$",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.raw.end.reportage"
+            }
+          },
+          "contentName": "string.unquoted.raw.reportage"
         }
       ]
     },

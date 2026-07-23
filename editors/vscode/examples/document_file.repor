@@ -1,0 +1,9 @@
+document file {
+  title "Reportage syntax examples"
+  group "Editor preview"
+  order 10
+  description ```
+    Per-snippet examples for the VS Code extension.
+    Concatenated into full-syntax.repor for the highlighting preview.
+    ```
+}

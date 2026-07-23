@@ -1,4 +1,31 @@
 {
+  "Document (file)": {
+    "prefix": "document-file",
+    "body": [
+      "document file {",
+      "\ttitle \"${1:title}\"",
+      "}"
+    ],
+    "description": "File-scope documentation metadata (leads the file, at most one per module)"
+  },
+  "Before each": {
+    "prefix": "before_each",
+    "body": [
+      "before_each {",
+      "\twrite <\"${1:path}\"> \"${2:content}\"",
+      "}"
+    ],
+    "description": "Module-level case-local setup replayed into each concrete case workspace (write steps only)"
+  },
+  "Document (case)": {
+    "prefix": "document-case",
+    "body": [
+      "document case {",
+      "\ttitle \"${1:title}\"",
+      "}"
+    ],
+    "description": "Case-scope documentation metadata attached to the immediately following case"
+  },
   "Case block": {
     "prefix": "case",
     "body": [
