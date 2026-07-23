@@ -30,6 +30,11 @@
       "resolved": "ghcr.io/tooppoo/catalog-devcontainer-features/git-kura@sha256:ca0f31cfed12be0ef488b16a1430255c668df1ffd78a8514d5a49cc4ada4a1e5",
       "integrity": "sha256:ca0f31cfed12be0ef488b16a1430255c668df1ffd78a8514d5a49cc4ada4a1e5"
     },
+    "ghcr.io/tooppoo/catalog-devcontainer-features/installerer:0": {
+      "version": "0.1.0",
+      "resolved": "ghcr.io/tooppoo/catalog-devcontainer-features/installerer@sha256:ef0e1fde6eba502eb76df5e62a356e58907e6eafc5c5b22f5b65113cd23437cf",
+      "integrity": "sha256:ef0e1fde6eba502eb76df5e62a356e58907e6eafc5c5b22f5b65113cd23437cf"
+    },
     "ghcr.io/tooppoo/catalog-devcontainer-features/rellog:0": {
       "version": "0.1.0",
       "resolved": "ghcr.io/tooppoo/catalog-devcontainer-features/rellog@sha256:9437aef39b2a650464bc29d3e8999a46cc87ecd5e31cdcad6c7ba3dc94995528",

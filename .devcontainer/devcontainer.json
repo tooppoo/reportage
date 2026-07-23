@@ -21,7 +21,8 @@
     },
     "ghcr.io/tooppoo/catalog-devcontainer-features/git-kura:0": {},
     "ghcr.io/tooppoo/catalog-devcontainer-features/rellog:0": {},
-    "ghcr.io/tooppoo/catalog-devcontainer-features/enozunu:0": {}
+    "ghcr.io/tooppoo/catalog-devcontainer-features/enozunu:0": {},
+    "ghcr.io/tooppoo/catalog-devcontainer-features/installerer:0": {}
   },
   "customizations": {
     "vscode": {
