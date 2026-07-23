@@ -4,8 +4,9 @@ use crate::diagnostic::DiagnosticCode;
 use crate::executor::{ExecutionEnvironment, execute_action};
 use crate::fixture;
 use crate::model::{
-    Case, DirExpectation, DirMatcher, Expectation, FileContentsReference, FileExpectation,
-    FileMatcher, LogicalOperator, OutputMatcher, Script, SideEffectingStep, Step, TextLiteral,
+    BeforeEach, Case, DirExpectation, DirMatcher, Expectation, FileContentsReference,
+    FileExpectation, FileMatcher, LogicalOperator, OutputMatcher, Script, SideEffectingStep, Step,
+    TextLiteral,
 };
 use crate::result::{
     ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ContentsEqualsComparison,
@@ -168,7 +169,7 @@ pub fn evaluate(
         cases: script
             .cases
             .iter()
-            .map(|c| evaluate_case(c, env, source_path, commands))
+            .map(|c| evaluate_case(c, script.before_each.as_ref(), env, source_path, commands))
             .collect(),
         file_errors: vec![],
     }
@@ -176,6 +177,7 @@ pub fn evaluate(
 
 fn evaluate_case(
     case: &Case,
+    before_each: Option<&BeforeEach>,
     env: &ExecutionEnvironment,
     source_path: &Path,
     commands: &CommandRegistry,
@@ -268,6 +270,42 @@ fn evaluate_case(
         Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
         _ => PathBuf::from("."),
     };
+    // `before_each` setup replays inside this concrete case's own workspace,
+    // before the initial checkpoint below is established — so the checkpoint's
+    // workspace evidence already contains every file it wrote, and the case
+    // body's first assertion block can observe them. A failure is a runtime
+    // step error attributed to the module-level block, not to any case body
+    // step, hence `step_index: None`; the 1-based position inside
+    // `before_each` is carried in the message instead.
+    // See docs/reference/execution-model.md — Execution order and `before_each`.
+    if let Some(before_each) = before_each {
+        for (setup_idx, step) in before_each.steps().iter().enumerate() {
+            let SideEffectingStep::WriteFile(write_step) = step;
+            let content = write_step.content.to_text_value();
+            match workspace.write_file(&write_step.path, content.as_str()) {
+                Ok(()) => side_effects_executed += 1,
+                Err(e) => {
+                    return CaseResult {
+                        name: case.name.clone(),
+                        source_path: Some(source_path.to_path_buf()),
+                        status: CaseStatus::RuntimeError(RuntimeError {
+                            message: format!(
+                                "case '{}': before_each write step {} failed: {e}",
+                                case.name,
+                                setup_idx + 1,
+                            ),
+                            diagnostic_code: Some(e.code()),
+                            step_index: None,
+                        }),
+                        actions: action_results,
+                        assertion_blocks: assertion_block_results,
+                        side_effects_executed,
+                    };
+                }
+            }
+        }
+    }
+
     // Steps are processed in source order.
     // Assertion block failure stops execution before the next action.
     // See docs/reference/semantics.md — Assertion block and the checkpoint-based assertion ADR.
@@ -996,7 +1034,10 @@ mod tests {
     }
 
     fn make_script(cases: Vec<Case>) -> Script {
-        Script { cases }
+        Script {
+            before_each: None,
+            cases,
+        }
     }
 
     fn action(cmd: &str) -> Step {
@@ -2158,5 +2199,121 @@ mod tests {
             *expected_source,
             TextEqualsExpectedSource::Quoted("hello".to_string())
         );
+    }
+
+    // ─── `before_each` case-local setup (#70) ──────────────────────────────
+
+    fn before_each_writing(path: &str, content: &str) -> BeforeEach {
+        BeforeEach::new(vec![SideEffectingStep::WriteFile(WriteFileStep {
+            path: WorkspacePath::parse(path).unwrap(),
+            content: TextLiteral::Quoted(content.to_string()),
+        })])
+        .unwrap()
+    }
+
+    fn assert_file_exists_step(path: &str) -> Step {
+        let expectations = vec![Expectation::File(crate::model::FileExpectation {
+            path: path.to_string(),
+            matcher: FileMatcher::Exists,
+        })];
+        Step::AssertionBlock(AssertionBlock::new(expectations).unwrap())
+    }
+
+    #[test]
+    fn before_each_file_is_visible_at_initial_checkpoint_and_counted() {
+        let script = Script {
+            before_each: Some(before_each_writing("seed.txt", "seed\n")),
+            cases: vec![Case {
+                name: "sees setup".to_string(),
+                steps: vec![assert_file_exists_step("seed.txt")],
+            }],
+        };
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
+        assert!(matches!(result.cases[0].status, CaseStatus::Pass));
+        assert_eq!(result.cases[0].side_effects_executed, 1);
+    }
+
+    #[test]
+    fn before_each_replays_into_every_concrete_case_workspace() {
+        // The first case removes the seeded file; if `before_each` were shared
+        // state rather than replayed per concrete case, the second case's
+        // existence assertion would fail.
+        let script = Script {
+            before_each: Some(before_each_writing("seed.txt", "seed\n")),
+            cases: vec![
+                Case {
+                    name: "removes the seed".to_string(),
+                    steps: vec![action("rm seed.txt"), assert_exit(0)],
+                },
+                Case {
+                    name: "still sees the seed".to_string(),
+                    steps: vec![assert_file_exists_step("seed.txt")],
+                },
+            ],
+        };
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
+        assert!(matches!(result.cases[0].status, CaseStatus::Pass));
+        assert!(matches!(result.cases[1].status, CaseStatus::Pass));
+    }
+
+    #[test]
+    fn before_each_write_failure_is_runtime_error_without_case_step_index() {
+        // Two `before_each` writes to the same path: the second violates the
+        // create-only overwrite policy. The failure belongs to the
+        // module-level block, not to any case body step, so `step_index` is
+        // absent and the message carries the position inside `before_each`.
+        let before_each = BeforeEach::new(vec![
+            SideEffectingStep::WriteFile(WriteFileStep {
+                path: WorkspacePath::parse("a.txt").unwrap(),
+                content: TextLiteral::Quoted("first".to_string()),
+            }),
+            SideEffectingStep::WriteFile(WriteFileStep {
+                path: WorkspacePath::parse("a.txt").unwrap(),
+                content: TextLiteral::Quoted("second".to_string()),
+            }),
+        ])
+        .unwrap();
+        let script = Script {
+            before_each: Some(before_each),
+            cases: vec![Case {
+                name: "never runs its body".to_string(),
+                steps: vec![action("true"), assert_exit(0)],
+            }],
+        };
+        let result = evaluate(
+            &script,
+            &default_env(),
+            Path::new("test.repor"),
+            &default_commands(),
+        );
+        let CaseStatus::RuntimeError(runtime_error) = &result.cases[0].status else {
+            panic!(
+                "expected CaseStatus::RuntimeError, got {:?}",
+                result.cases[0].status
+            );
+        };
+        assert!(
+            runtime_error.message.contains("before_each write step 2"),
+            "message must name the failing before_each step: {}",
+            runtime_error.message
+        );
+        assert_eq!(runtime_error.step_index, None);
+        assert_eq!(
+            runtime_error.diagnostic_code,
+            Some(DiagnosticCode::StepWriteTargetExists)
+        );
+        // The first write completed before the failure and is still counted.
+        assert_eq!(result.cases[0].side_effects_executed, 1);
+        assert!(result.cases[0].actions.is_empty());
     }
 }

@@ -1,0 +1,15 @@
+# `document file` must lead the file: it may not appear after `before_each`
+# (parse.document_file.after_case).
+before_each {
+  write <"seed.txt"> "seed\n"
+}
+
+document file {
+  title "too late"
+}
+
+case "document file after before_each" {
+  assert {
+    file <"seed.txt"> exists
+  }
+}

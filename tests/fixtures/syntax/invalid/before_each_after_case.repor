@@ -1,0 +1,12 @@
+# A `before_each` block must appear before the source's first case
+# (parse.before_each.after_case).
+case "case before before_each" {
+  $ true
+  assert {
+    exit 0
+  }
+}
+
+before_each {
+  write <"seed.txt"> "seed\n"
+}

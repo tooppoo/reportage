@@ -127,6 +127,18 @@ $ rellog init {
 
 Rejected for v0. The fundamental problems are shell syntax ambiguity, need for standalone assertion blocks at the initial checkpoint, and added syntactic exceptions. They are better addressed after v0 establishes a stable baseline.
 
+### Assertion blocks inside `before_each`
+
+`before_each` rejects `assert` blocks (`parse.before_each.assertion_block`); setup results are verified by workspace expectations at the start of each case body instead. See [ADR: `before_each` Is Write-Only Case-Local Setup](../adr/20260723T120000Z_before-each-case-local-setup.md).
+
+Allowing an assertion block in `before_each` is deferred, not permanently rejected. The unresolved questions are:
+
+- how a setup assertion failure is classified — per concrete case, it would fire once per replay, so it is unclear whether it should count as one failure per case, or abort the whole module;
+- how it is reported and attributed, since `before_each` has no case name and no case body step index to anchor the result to;
+- whether it is worth a second assertion context at all, given that a `write`-only block has almost no observable state worth asserting beyond what the write itself guarantees.
+
+If a concrete need appears, it should be addressed in a separate issue that defines the failure classification, reporting attribution, and evidence model for setup-time assertions.
+
 ## Later
 
 ### Browser automation integration

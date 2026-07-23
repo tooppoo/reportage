@@ -1,0 +1,9 @@
+before_each {
+  write <"seed.txt"> "seed\n"
+}
+
+case "reads the seeded file" {
+  assert {
+    file <"seed.txt"> exists
+  }
+}

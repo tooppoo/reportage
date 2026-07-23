@@ -1,0 +1,10 @@
+# `before_each` is a module-level block; it is not a case body step, so a
+# nested `before_each` fails as a plain syntax error (parse.syntax).
+case "nested before_each" {
+  before_each {
+    write <"seed.txt"> "seed\n"
+  }
+  assert {
+    file <"seed.txt"> exists
+  }
+}

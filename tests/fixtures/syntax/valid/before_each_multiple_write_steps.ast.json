@@ -1,0 +1,85 @@
+{
+  "before_each": {
+    "steps": [
+      {
+        "kind": "write_file",
+        "path": "reportage.kdl",
+        "content": {
+          "kind": "heredoc",
+          "value": "reportage {\n  config {\n    version 1\n  }\n}\n"
+        }
+      },
+      {
+        "kind": "write_file",
+        "path": "input/data.txt",
+        "content": {
+          "kind": "quoted",
+          "value": "line 1\nline 2\n"
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "workspace contains the seeded files",
+      "span": {
+        "start": 319,
+        "end": 461
+      },
+      "steps": [
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "reportage.kdl",
+              "matcher": {
+                "kind": "exists"
+              }
+            },
+            {
+              "kind": "file",
+              "path": "input/data.txt",
+              "matcher": {
+                "kind": "contains",
+                "value": {
+                  "kind": "quoted",
+                  "value": "line 1"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "case body sees the setup before its first action",
+      "span": {
+        "start": 462,
+        "end": 600
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "cat input/data.txt"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            },
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "contains",
+                "value": "line 2"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "before_each": {
+    "steps": [
+      {
+        "kind": "write_file",
+        "path": "seed.txt",
+        "content": {
+          "kind": "quoted",
+          "value": "seed\n"
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "reads the seeded file",
+      "span": {
+        "start": 47,
+        "end": 124
+      },
+      "steps": [
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "seed.txt",
+              "matcher": {
+                "kind": "exists"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

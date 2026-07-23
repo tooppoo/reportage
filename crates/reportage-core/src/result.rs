@@ -503,7 +503,8 @@ pub struct CaseResult {
     pub actions: Vec<ActionResult>,
     pub assertion_blocks: Vec<AssertionBlockResult>,
     /// Number of side-effecting steps (`write`, etc.) that ran to completion
-    /// before this case finished. See [`RunSummary::steps_executed`].
+    /// before this case finished, including `before_each` steps replayed into
+    /// this concrete case's workspace. See [`RunSummary::steps_executed`].
     pub side_effects_executed: usize,
 }
 

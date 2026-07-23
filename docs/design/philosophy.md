@@ -104,7 +104,7 @@ The goal is not to move all testing to E2E. The goal is to make E2E tests cheap,
 
 reportage should make Arrange, Act, Assert easy to express:
 
-- arrange with `before_each`, `file`, and ordinary shell setup steps;
+- arrange with write-only `before_each` setup, `write` steps, and ordinary shell setup steps in the case body;
 - act with `$` shell steps;
 - assert with explicit `assert` statements.
 

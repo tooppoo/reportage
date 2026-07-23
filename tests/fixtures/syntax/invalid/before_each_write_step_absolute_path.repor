@@ -1,0 +1,11 @@
+# A `before_each` write step's path follows the same workspace path safety
+# policy as a case body write step (semantic.workspace_path.absolute).
+before_each {
+  write <"/etc/seed.txt"> "seed\n"
+}
+
+case "absolute path in before_each write" {
+  assert {
+    file <"seed.txt"> exists
+  }
+}

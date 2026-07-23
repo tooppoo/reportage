@@ -1713,6 +1713,114 @@ case "write step absolute path" {
         ));
 }
 
+// Representative `before_each` scenarios (setup visible at the initial
+// checkpoint, per-concrete-case replay, and each placement/body parse error)
+// live in e2e/cases/before-each.repor (#70). The tests below verify the
+// stderr contracts not asserted there in full.
+
+#[test]
+fn before_each_write_failure_is_a_runtime_error_naming_the_block() {
+    // The second before_each write violates the create-only overwrite policy.
+    // The failure must be attributed to the module-level block with its
+    // 1-based position, not to a case body step.
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+before_each {
+  write <"a.txt"> "first\n"
+  write <"a.txt"> "second\n"
+}
+
+case "never runs its body" {
+  $ true
+  assert {
+    exit 0
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains("before_each write step 2"))
+        .stderr(predicates::str::contains("step.write.target_exists"));
+}
+
+#[test]
+fn before_each_action_step_is_rejected_with_guidance() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+before_each {
+  write <"seed.txt"> "seed\n"
+  $ mkdir -p fixtures
+}
+
+case "never runs" {
+  $ true
+  assert {
+    exit 0
+  }
+}
+"#,
+    );
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains("parse.before_each.action_step"))
+        .stderr(predicates::str::contains(
+            "run setup commands in each case body instead",
+        ));
+}
+
+#[test]
+fn json_format_before_each_write_failure_reports_a_runtime_diagnostic() {
+    // The machine-readable channel must attribute the failure the same way
+    // stderr does: a runtime diagnostic with the write step's code, whose
+    // message names the position inside the module-level block — there is no
+    // case body step index to point at.
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "test.repor",
+        r#"
+before_each {
+  write <"a.txt"> "first\n"
+  write <"a.txt"> "second\n"
+}
+
+case "never runs its body" {
+  $ true
+  assert {
+    exit 0
+  }
+}
+"#,
+    );
+
+    let (json, actual_exit_code) = run_json(&dir, &script);
+
+    assert_eq!(json["status"], "error");
+    assert_eq!(actual_exit_code, 3);
+    assert_eq!(json["processExitCode"], actual_exit_code);
+    assert_eq!(json["diagnostics"][0]["category"], "runtime");
+    assert_eq!(json["diagnostics"][0]["code"], "step.write.target_exists");
+    assert!(
+        json["diagnostics"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("before_each write step 2"),
+        "diagnostic message must name the failing before_each step: {}",
+        json["diagnostics"][0]["message"]
+    );
+}
+
 #[test]
 fn concrete_cases_have_isolated_workspaces_and_do_not_collide_on_the_same_write_path() {
     // Two cases in the same script both `write` the same relative path.

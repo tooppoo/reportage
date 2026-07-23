@@ -1,0 +1,13 @@
+# A `$` action step is banned inside `before_each`, regardless of the
+# command; setup commands belong in each case body
+# (parse.before_each.action_step).
+before_each {
+  write <"seed.txt"> "seed\n"
+  $ mkdir -p fixtures
+}
+
+case "action step in before_each" {
+  assert {
+    file <"seed.txt"> exists
+  }
+}

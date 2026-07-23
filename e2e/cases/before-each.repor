@@ -1,0 +1,219 @@
+# `before_each` case-local setup (#70): setup files are visible at the
+# initial checkpoint, replay into every concrete case's isolated workspace,
+# and only `write` steps are allowed in the block.
+
+case "before_each files are visible to the case body's first assertion block" {
+  write <"inner.repor"> ```
+    before_each {
+      write <"seed.txt"> "seed\n"
+    }
+
+    case "asserts setup before any action" {
+      assert {
+        file <"seed.txt"> exists
+        file <"seed.txt"> contains "seed"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+case "before_each replays into each concrete case's isolated workspace" {
+  write <"inner.repor"> ```
+    before_each {
+      write <"seed.txt"> "seed\n"
+    }
+
+    case "consumes the seed" {
+      $ rm seed.txt
+      assert {
+        exit 0
+      }
+    }
+
+    case "gets a fresh seed" {
+      assert {
+        file <"seed.txt"> exists
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+  }
+}
+
+case "a heredoc write in before_each seeds a multi-line file" {
+  write <"inner.repor"> `````
+    before_each {
+      write <"reportage.kdl"> ```
+        reportage {
+          config {
+            version 1
+          }
+        }
+        ```
+    }
+
+    case "reads the seeded config" {
+      $ cat reportage.kdl
+      assert {
+        exit 0
+        stdout contains "version 1"
+      }
+    }
+    `````
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+  }
+}
+
+case "a second before_each block is a parse error" {
+  write <"inner.repor"> ```
+    before_each {
+      write <"a.txt"> "a\n"
+    }
+
+    before_each {
+      write <"b.txt"> "b\n"
+    }
+
+    case "never runs" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.before_each.duplicate"
+  }
+}
+
+case "before_each after a case is a parse error" {
+  write <"inner.repor"> ```
+    case "runs first" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+
+    before_each {
+      write <"seed.txt"> "seed\n"
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.before_each.after_case"
+  }
+}
+
+case "an action step inside before_each is a parse error" {
+  write <"inner.repor"> ```
+    before_each {
+      write <"seed.txt"> "seed\n"
+      $ mkdir -p fixtures
+    }
+
+    case "never runs" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.before_each.action_step"
+  }
+}
+
+case "an assertion block inside before_each is a parse error" {
+  write <"inner.repor"> ```
+    before_each {
+      write <"seed.txt"> "seed\n"
+      assert {
+        file <"seed.txt"> exists
+      }
+    }
+
+    case "never runs" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.before_each.assertion_block"
+  }
+}
+
+case "an empty before_each block is a parse error" {
+  write <"inner.repor"> ```
+    before_each {
+    }
+
+    case "never runs" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.before_each.empty"
+  }
+}
+
+case "a case body write to a before_each path is a runtime step error" {
+  write <"inner.repor"> ```
+    before_each {
+      write <"a.txt"> "from before_each\n"
+    }
+
+    case "writes the same path again" {
+      write <"a.txt"> "from the case body\n"
+      assert {
+        file <"a.txt"> exists
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 3
+    stderr contains "step.write.target_exists"
+  }
+}

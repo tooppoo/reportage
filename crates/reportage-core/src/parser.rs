@@ -3,11 +3,11 @@ use pest_derive::Parser;
 
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, DiagnosticLocation};
 use crate::model::{
-    ActionStep, AssertionBlock, Case, DirExpectation, DirMatcher, ExitExpectation, Expectation,
-    FileContentsReference, FileExpectation, FileMatcher, FixtureReference, FixtureReferenceError,
-    LogicalExpectation, LogicalOperator, OutputExpectation, OutputMatcher, RequiredLiteralKind,
-    SideEffectingStep, Step, TextLiteral, ValueLiteralKind, WorkspacePath, WorkspacePathError,
-    WriteFileStep,
+    ActionStep, AssertionBlock, BeforeEach, BeforeEachError, Case, DirExpectation, DirMatcher,
+    ExitExpectation, Expectation, FileContentsReference, FileExpectation, FileMatcher,
+    FixtureReference, FixtureReferenceError, LogicalExpectation, LogicalOperator,
+    OutputExpectation, OutputMatcher, RequiredLiteralKind, SideEffectingStep, Step, TextLiteral,
+    ValueLiteralKind, WorkspacePath, WorkspacePathError, WriteFileStep,
 };
 use crate::source::{
     CaseDocumentation, DocumentationText, FileDocumentation, SourceCase, SourceFile, SourceSpan,
@@ -90,15 +90,32 @@ pub enum ParseError {
     InvalidDocumentationOrder { line: usize, value: String },
     /// A source contains more than one `document file` block.
     DuplicateDocumentFile { line: usize },
-    /// A `document file` block appears after the source's first case block or
-    /// after a `document case` block, violating the canonical top-level form
-    /// `document file? (document case? case)*`.
+    /// A `document file` block appears after the source's first case block,
+    /// after a `document case` block, or after a `before_each` block,
+    /// violating the canonical top-level form
+    /// `document file? before_each? (document case? case)*`.
     DocumentFileAfterCase { line: usize },
     /// A second `document case` block appears before the previous one's
     /// target case, which would associate two blocks with one case.
     DuplicateDocumentCase { line: usize },
     /// A `document case` block is not followed by a case to associate with.
     OrphanDocumentCase { line: usize },
+    /// A source contains more than one `before_each` block.
+    DuplicateBeforeEach { line: usize },
+    /// A `before_each` block appears after the source's first case block or
+    /// after a `document case` block, violating the canonical top-level form
+    /// `document file? before_each? (document case? case)*`.
+    BeforeEachAfterCase { line: usize },
+    /// A `before_each` body contains a `$` action step. Actions are banned
+    /// there regardless of the command; setup commands belong in each case
+    /// body. See the `before_each` ADR.
+    BeforeEachActionStep { line: usize },
+    /// A `before_each` body contains an `assert` block. Setup results are
+    /// verified at the start of each case body instead; see the `before_each`
+    /// ADR and the deferred-topics record.
+    BeforeEachAssertionBlock { line: usize },
+    /// A `before_each` block contains no steps.
+    EmptyBeforeEach { line: usize },
 }
 
 impl std::fmt::Display for ParseError {
@@ -204,7 +221,7 @@ impl std::fmt::Display for ParseError {
             ),
             ParseError::DocumentFileAfterCase { line } => write!(
                 f,
-                "parse error at line {line}: `document file` must appear before all `document case` blocks and cases"
+                "parse error at line {line}: `document file` must appear before `before_each`, all `document case` blocks, and cases"
             ),
             ParseError::DuplicateDocumentCase { line } => write!(
                 f,
@@ -213,6 +230,26 @@ impl std::fmt::Display for ParseError {
             ParseError::OrphanDocumentCase { line } => write!(
                 f,
                 "parse error at line {line}: `document case` must be followed by the case it documents"
+            ),
+            ParseError::DuplicateBeforeEach { line } => write!(
+                f,
+                "parse error at line {line}: a source may contain at most one `before_each` block"
+            ),
+            ParseError::BeforeEachAfterCase { line } => write!(
+                f,
+                "parse error at line {line}: `before_each` must appear before all `document case` blocks and cases"
+            ),
+            ParseError::BeforeEachActionStep { line } => write!(
+                f,
+                "parse error at line {line}: `before_each` must not contain a `$` action step; run setup commands in each case body instead"
+            ),
+            ParseError::BeforeEachAssertionBlock { line } => write!(
+                f,
+                "parse error at line {line}: `before_each` must not contain an `assert` block; verify setup results at the start of each case body instead"
+            ),
+            ParseError::EmptyBeforeEach { line } => write!(
+                f,
+                "parse error at line {line}: `before_each` block must contain at least one `write` step"
             ),
         }
     }
@@ -262,6 +299,13 @@ impl ParseError {
             ParseError::DocumentFileAfterCase { .. } => DiagnosticCode::ParseDocumentFileAfterCase,
             ParseError::DuplicateDocumentCase { .. } => DiagnosticCode::ParseDocumentCaseDuplicate,
             ParseError::OrphanDocumentCase { .. } => DiagnosticCode::ParseDocumentCaseOrphan,
+            ParseError::DuplicateBeforeEach { .. } => DiagnosticCode::ParseBeforeEachDuplicate,
+            ParseError::BeforeEachAfterCase { .. } => DiagnosticCode::ParseBeforeEachAfterCase,
+            ParseError::BeforeEachActionStep { .. } => DiagnosticCode::ParseBeforeEachActionStep,
+            ParseError::BeforeEachAssertionBlock { .. } => {
+                DiagnosticCode::ParseBeforeEachAssertionBlock
+            }
+            ParseError::EmptyBeforeEach { .. } => DiagnosticCode::ParseBeforeEachEmpty,
         }
     }
 
@@ -381,7 +425,12 @@ impl ParseError {
             | ParseError::DuplicateDocumentFile { line }
             | ParseError::DocumentFileAfterCase { line }
             | ParseError::DuplicateDocumentCase { line }
-            | ParseError::OrphanDocumentCase { line } => (
+            | ParseError::OrphanDocumentCase { line }
+            | ParseError::DuplicateBeforeEach { line }
+            | ParseError::BeforeEachAfterCase { line }
+            | ParseError::BeforeEachActionStep { line }
+            | ParseError::BeforeEachAssertionBlock { line }
+            | ParseError::EmptyBeforeEach { line } => (
                 Some(DiagnosticLocation {
                     line: *line,
                     column: None,
@@ -444,19 +493,29 @@ pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
     // Call into_inner() to get its contents (document blocks, case_blocks, SOI, EOI).
     let script_pair = pairs.into_iter().next().expect("script always matches");
     let mut file_documentation: Option<FileDocumentation> = None;
+    let mut before_each: Option<BeforeEach> = None;
     // A parsed `document case` block waiting for its target case, with the
     // block's start line for the orphan diagnostic.
     let mut pending_case_documentation: Option<(CaseDocumentation, usize)> = None;
     let mut cases: Vec<SourceCase> = Vec::new();
     for pair in script_pair.into_inner() {
         match pair.as_rule() {
-            // The grammar accepts document blocks anywhere at top level, any
-            // number of times; the canonical top-level form
-            // `document file? (document case? case)*` is enforced here so
-            // each violation gets its own actionable diagnostic.
+            // The grammar accepts document blocks and the before_each block
+            // anywhere at top level, any number of times; the canonical
+            // top-level form `document file? before_each? (document case? case)*`
+            // is enforced here so each violation gets its own actionable
+            // diagnostic.
             Rule::document_file_block => {
                 let line = pair.line_col().0;
-                if !cases.is_empty() || pending_case_documentation.is_some() {
+                // `before_each.is_some()` is part of the placement check:
+                // `document file` describes the whole file, so it must lead
+                // the file, before `before_each` too, keeping the canonical
+                // form strict now rather than tightening it later against
+                // already-accepted sources.
+                if !cases.is_empty()
+                    || pending_case_documentation.is_some()
+                    || before_each.is_some()
+                {
                     return Err(ParseError::DocumentFileAfterCase { line });
                 }
                 if file_documentation.is_some() {
@@ -473,6 +532,21 @@ pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
                     return Err(ParseError::DuplicateDocumentCase { line });
                 }
                 pending_case_documentation = Some((parse_document_case_block(pair)?, line));
+            }
+            Rule::before_each_block => {
+                let line = pair.line_col().0;
+                // Rejected while a `document case` is pending, not only after
+                // the first case: a `document case` block must stay adjacent
+                // to the case it documents, so `before_each` cannot sit
+                // between them. Mirrors the `document file` placement check
+                // above.
+                if !cases.is_empty() || pending_case_documentation.is_some() {
+                    return Err(ParseError::BeforeEachAfterCase { line });
+                }
+                if before_each.is_some() {
+                    return Err(ParseError::DuplicateBeforeEach { line });
+                }
+                before_each = Some(parse_before_each_block(pair)?);
             }
             Rule::case_block => {
                 let pair_span = pair.as_span();
@@ -498,8 +572,45 @@ pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
     Ok(SourceFile::new(
         SourceText::new(source.to_string()),
         file_documentation,
+        before_each,
         cases,
     ))
+}
+
+/// Parses a `before_each_block` pair into the write-only [`BeforeEach`] model.
+///
+/// The grammar deliberately accepts the full case-body step surface here (see
+/// the `before_each_block` rule), so the write-only policy is enforced in this
+/// function: an action step or assertion block is rejected with a diagnostic
+/// naming the ban and the allowed alternative, at the offending step's line.
+fn parse_before_each_block(pair: pest::iterators::Pair<Rule>) -> Result<BeforeEach, ParseError> {
+    let line = pair.line_col().0;
+
+    let mut steps: Vec<SideEffectingStep> = Vec::new();
+    for pair in pair.into_inner() {
+        match pair.as_rule() {
+            Rule::action_step => {
+                return Err(ParseError::BeforeEachActionStep {
+                    line: pair.line_col().0,
+                });
+            }
+            Rule::assertion_block => {
+                return Err(ParseError::BeforeEachAssertionBlock {
+                    line: pair.line_col().0,
+                });
+            }
+            Rule::write_step_string | Rule::write_step_heredoc => {
+                steps.push(parse_write_step(pair)?);
+            }
+            // When the closing brace line has no final newline, its `trail`
+            // matches EOI, and pest surfaces that as an explicit EOI pair,
+            // exactly as in parse_case_block.
+            Rule::EOI => {}
+            rule => unreachable!("unexpected rule in before_each_block: {rule:?}"),
+        }
+    }
+
+    BeforeEach::new(steps).map_err(|BeforeEachError::Empty| ParseError::EmptyBeforeEach { line })
 }
 
 /// The duplicate-field check shared by every document field arm, kept out of
@@ -689,7 +800,7 @@ fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseErro
                 steps.push(parse_assertion_block(pair)?);
             }
             Rule::write_step_string | Rule::write_step_heredoc => {
-                steps.push(parse_write_step(pair)?)
+                steps.push(Step::SideEffect(parse_write_step(pair)?))
             }
             // When the closing brace line has no final newline, its `trail`
             // matches EOI, and pest surfaces that as an explicit EOI pair
@@ -1313,7 +1424,11 @@ fn parse_dir_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Parse
     Ok(Expectation::Dir(DirExpectation { path, matcher }))
 }
 
-fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
+// Returns the [`SideEffectingStep`] itself rather than a [`Step`], because a
+// `write` step is legal in two containers with different step models: a case
+// body (which wraps it in `Step::SideEffect`) and a `before_each` body (which
+// holds `SideEffectingStep`s only).
+fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<SideEffectingStep, ParseError> {
     match pair.as_rule() {
         Rule::write_step_string => parse_write_step_string(pair),
         Rule::write_step_heredoc => parse_write_step_heredoc(pair),
@@ -1321,7 +1436,9 @@ fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseErro
     }
 }
 
-fn parse_write_step_string(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
+fn parse_write_step_string(
+    pair: pest::iterators::Pair<Rule>,
+) -> Result<SideEffectingStep, ParseError> {
     // write_step_string = { "write" ~ ws+ ~ value_literal ~ ws+ ~ value_literal }
     let line = pair.line_col().0;
     let mut inner = pair.into_inner();
@@ -1346,12 +1463,15 @@ fn parse_write_step_string(pair: pest::iterators::Pair<Rule>) -> Result<Step, Pa
             position: "`write` step path",
         })?;
 
-    Ok(Step::SideEffect(SideEffectingStep::WriteFile(
-        WriteFileStep { path, content },
-    )))
+    Ok(SideEffectingStep::WriteFile(WriteFileStep {
+        path,
+        content,
+    }))
 }
 
-fn parse_write_step_heredoc(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
+fn parse_write_step_heredoc(
+    pair: pest::iterators::Pair<Rule>,
+) -> Result<SideEffectingStep, ParseError> {
     // write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ ws* ~ heredoc_literal }
     let line = pair.line_col().0;
     let mut inner = pair.into_inner();
@@ -1373,9 +1493,10 @@ fn parse_write_step_heredoc(pair: pest::iterators::Pair<Rule>) -> Result<Step, P
             position: "`write` step path",
         })?;
 
-    Ok(Step::SideEffect(SideEffectingStep::WriteFile(
-        WriteFileStep { path, content },
-    )))
+    Ok(SideEffectingStep::WriteFile(WriteFileStep {
+        path,
+        content,
+    }))
 }
 
 /// Parses a `heredoc_literal` pair into its dedented `String` content.
@@ -4309,8 +4430,8 @@ case "x" {
     fn document_file_after_pending_document_case_is_rejected() {
         // A `document file` between a pending `document case` and its target
         // case violates the canonical top-level form
-        // `document file? (document case? case)*`, and is classified as the
-        // existing `document file` placement violation.
+        // `document file? before_each? (document case? case)*`, and is
+        // classified as the existing `document file` placement violation.
         let src = format!(
             "document case {{\n  title \"pending\"\n}}\n\ndocument file {{\n  title \"too late\"\n}}\n\n{PASSING_CASE}"
         );
@@ -4368,5 +4489,133 @@ case "x" {
             documented_script.cases[0].steps.len(),
             undocumented_script.cases[0].steps.len()
         );
+    }
+
+    // ─── before_each block (#70) ────────────────────────────────────────────
+
+    const BEFORE_EACH: &str = "before_each {\n  write <\"seed.txt\"> \"seed\\n\"\n}\n";
+
+    #[test]
+    fn parse_before_each_with_write_steps() {
+        let src = format!(
+            "before_each {{\n  write <\"a.txt\"> \"a\\n\"\n  write <\"b/c.txt\"> ```\n    content\n    ```\n}}\n\n{PASSING_CASE}"
+        );
+        let script = parse_script(&src).unwrap();
+        let before_each = script.before_each.expect("before_each must be parsed");
+        assert_eq!(before_each.steps().len(), 2);
+        let SideEffectingStep::WriteFile(first) = &before_each.steps()[0];
+        assert_eq!(first.path.as_str(), "a.txt");
+        assert_eq!(first.content, TextLiteral::Quoted("a\n".to_string()));
+        let SideEffectingStep::WriteFile(second) = &before_each.steps()[1];
+        assert_eq!(second.path.as_str(), "b/c.txt");
+        assert_eq!(
+            second.content,
+            TextLiteral::Heredoc("content\n".to_string())
+        );
+        assert_eq!(script.cases.len(), 1);
+    }
+
+    #[test]
+    fn script_without_before_each_has_none() {
+        let script = parse_script(PASSING_CASE).unwrap();
+        assert!(script.before_each.is_none());
+    }
+
+    #[test]
+    fn before_each_may_follow_document_file() {
+        let src = format!("document file {{\n  title \"t\"\n}}\n\n{BEFORE_EACH}\n{PASSING_CASE}");
+        let script = parse_script(&src).unwrap();
+        assert!(script.before_each.is_some());
+    }
+
+    #[test]
+    fn document_file_after_before_each_is_rejected() {
+        // The canonical top-level form is strict: `document file` leads the
+        // file, before `before_each`.
+        let src = format!("{BEFORE_EACH}\ndocument file {{\n  title \"t\"\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::DocumentFileAfterCase { .. }));
+        assert_eq!(err.code().as_str(), "parse.document_file.after_case");
+    }
+
+    #[test]
+    fn duplicate_before_each_is_rejected() {
+        let src = format!("{BEFORE_EACH}\n{BEFORE_EACH}\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::DuplicateBeforeEach { line: 5 }));
+        assert_eq!(err.code().as_str(), "parse.before_each.duplicate");
+    }
+
+    #[test]
+    fn before_each_after_case_is_rejected() {
+        let src = format!("{PASSING_CASE}\n{BEFORE_EACH}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::BeforeEachAfterCase { .. }));
+        assert_eq!(err.code().as_str(), "parse.before_each.after_case");
+    }
+
+    #[test]
+    fn before_each_after_pending_document_case_is_rejected() {
+        // `before_each` must not separate a `document case` block from its
+        // target case, the same adjacency rule `document file` follows.
+        let src = format!("document case {{\n  title \"t\"\n}}\n{BEFORE_EACH}{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::BeforeEachAfterCase { .. }));
+        assert_eq!(err.code().as_str(), "parse.before_each.after_case");
+    }
+
+    #[test]
+    fn action_step_in_before_each_is_rejected() {
+        let src = format!("before_each {{\n  $ mkdir -p fixtures\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::BeforeEachActionStep { line: 2 }));
+        assert_eq!(err.code().as_str(), "parse.before_each.action_step");
+    }
+
+    #[test]
+    fn assertion_block_in_before_each_is_rejected() {
+        let src = format!(
+            "before_each {{\n  write <\"seed.txt\"> \"seed\\n\"\n  assert {{ file <\"seed.txt\"> exists }}\n}}\n\n{PASSING_CASE}"
+        );
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(
+            err,
+            ParseError::BeforeEachAssertionBlock { line: 3 }
+        ));
+        assert_eq!(err.code().as_str(), "parse.before_each.assertion_block");
+    }
+
+    #[test]
+    fn empty_before_each_is_rejected() {
+        let src = format!("before_each {{\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::EmptyBeforeEach { line: 1 }));
+        assert_eq!(err.code().as_str(), "parse.before_each.empty");
+    }
+
+    #[test]
+    fn comment_only_before_each_is_rejected() {
+        // Comment lines are not steps, so a comment-only body is rejected the
+        // same way an empty body is.
+        let src = format!("before_each {{\n  # only a comment\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::EmptyBeforeEach { .. }));
+    }
+
+    #[test]
+    fn before_each_inside_case_is_syntax_error() {
+        let src = "case \"x\" {\n  before_each {\n    write <\"seed.txt\"> \"seed\\n\"\n  }\n  assert { exit 0 }\n}\n";
+        let err = parse(src).unwrap_err();
+        assert!(matches!(err, ParseError::Syntax { .. }));
+    }
+
+    #[test]
+    fn before_each_write_step_absolute_path_is_rejected() {
+        // A `before_each` write step's path goes through the same
+        // `WorkspacePath::parse` validation as a case body write step.
+        let src = format!("before_each {{\n  write <\"/abs.txt\"> \"x\"\n}}\n\n{PASSING_CASE}");
+        let err = parse(&src).unwrap_err();
+        assert!(matches!(err, ParseError::InvalidWorkspacePath { .. }));
+        assert_eq!(err.code().as_str(), "semantic.workspace_path.absolute");
     }
 }

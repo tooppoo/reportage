@@ -244,7 +244,7 @@ write <"expected/stdout.txt"> ```
   ```
 ```
 
-`write` is a **side-effecting step**: unlike an action or an assertion block, it changes workspace state directly rather than executing an action or verifying a checkpoint. It is one of three step kinds a `case` body may contain — action (`$ ...`), assertion block (`assert { ... }`), and side-effecting step (`write ...`) — evaluated in source order, exactly like actions and assertion blocks.
+`write` is a **side-effecting step**: unlike an action or an assertion block, it changes workspace state directly rather than executing an action or verifying a checkpoint. It is one of three step kinds a `case` body may contain — action (`$ ...`), assertion block (`assert { ... }`), and side-effecting step (`write ...`) — evaluated in source order, exactly like actions and assertion blocks. It is also the only step kind a module-level `before_each` block may contain (see [Execution model](execution-model.md#before_each)).
 
 Semantics:
 
@@ -543,12 +543,13 @@ An `order` value that overflows the supported non-negative integer range (u64) i
 Ignoring blank lines and comment lines, a source's top-level items follow the canonical form:
 
 ```text
-document file? (document case? case)*
+document file? before_each? (document case? case)*
 ```
 
 - Document blocks are top-level constructs only; inside a case block they are syntax errors.
 - A source may contain at most one `document file` block (`parse.document_file.duplicate`).
-- `document file` must appear before every `document case` block and every case (`parse.document_file.after_case`).
+- `document file` must appear before `before_each`, every `document case` block, and every case (`parse.document_file.after_case`).
+- `before_each` must likewise appear before every `document case` block and every case (`parse.before_each.after_case`); see [Execution model](execution-model.md#before_each) for its semantics.
 - `document case` attaches to the next top-level case.
   Blank lines and comment lines may separate the two;
   a `document file` block or another `document case` block may not.
