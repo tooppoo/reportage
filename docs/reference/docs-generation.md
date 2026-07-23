@@ -7,7 +7,7 @@ The rationale for the command's internal boundaries is recorded in [ADR: Documen
 ## Synopsis
 
 ```console
-reportage docs '<pattern>'... --out-dir <directory> [--format plain|markdown] [--layout single-file] [--title <string>]
+reportage docs '<pattern>'... --out-dir <directory> [--format plain|markdown] [--layout single-file] [--title <string>] [--index-file-name <name>]
 ```
 
 Example:
@@ -22,6 +22,7 @@ reportage docs 'examples/**/*.repor' --out-dir generated/docs --format markdown 
 - `--format` defaults to `plain`; `plain` and `markdown` are the supported formats.
 - `--layout` defaults to `single-file`; `single-file` is the only v0 layout.
 - `--title` sets the document title for every format; it defaults to `Reportage Documentation`.
+- `--index-file-name` sets the generated index document's name; it defaults to `index` with the extension chosen by `--format`. See [Index file name](#index-file-name).
 - The generated document is written under `--out-dir`, never to stdout.
 - On success, each written file is reported on stdout as `generated: <path>`.
 
@@ -88,6 +89,15 @@ String ordering is locale-independent and case-sensitive (byte-wise `String` com
 - The value is used verbatim: empty strings, newlines, and Markdown syntax are neither rejected nor trimmed nor escaped (see [Input text policy](#input-text-policy)).
 - The title is a render option of the invocation, not a Catalog property: it never affects Catalog ordering, fallbacks, or anchor IDs.
 
+## Index file name
+
+`--index-file-name <name>` sets the name of the generated index document under `--out-dir`:
+
+- Unspecified, the name is `index` and the extension follows `--format`, so the single-file layout writes `index.txt` for `plain` and `index.md` for `markdown`.
+- Specified, the value is used verbatim, extension included: it is neither given the format's extension nor otherwise rewritten, so `--index-file-name readme.md` writes `readme.md`, and `--index-file-name overview` writes an extension-less `overview`.
+- The value must be a single file name placed directly under `--out-dir`: an empty value, a value containing a path separator, or one with a `.`, `..`, or absolute-path component is a request validation error (see [Exit codes](exit-codes.md) — `docs` exit codes), reported before any output directory is created.
+- The name selects only the output path; like the title, it is an option of the invocation and never affects the document body, Catalog ordering, fallbacks, or anchor IDs.
+
 ## Input text policy
 
 The document title, group names, file titles, case titles, source paths, and descriptions are inserted into the generated document verbatim: no Markdown escaping, sanitization, trimming, or dedenting is applied, and metadata is never parsed or restructured as Markdown.
@@ -99,7 +109,7 @@ Line endings are the one permitted normalization: CRLF sequences are normalized 
 
 ## Plain text serialization
 
-`--format plain` with `--layout single-file` writes exactly one document:
+`--format plain` with `--layout single-file` writes exactly one document, named `index.txt` unless `--index-file-name` overrides it (see [Index file name](#index-file-name)):
 
 ```text
 <out-dir>/index.txt
@@ -119,7 +129,7 @@ The representative example and the ordering / fallback / zero-case shapes are fi
 
 ## Markdown serialization
 
-`--format markdown` with `--layout single-file` writes exactly one document:
+`--format markdown` with `--layout single-file` writes exactly one document, named `index.md` unless `--index-file-name` overrides it (see [Index file name](#index-file-name)):
 
 ```text
 <out-dir>/index.md
@@ -178,7 +188,7 @@ A source without a final newline gets one structural LF so the closing fence sit
 - An existing path must be a regular directory; a regular file or a symlink is rejected.
 - Generated files are confined to the output root; layouts cannot address paths outside it.
 
-Replacement of the generated document (`index.txt` or `index.md`) is existing-output-preserving:
+Replacement of the generated document (`index.txt` or `index.md` by default, or the `--index-file-name` value) is existing-output-preserving:
 
 - An existing regular file is overwritten; an existing directory or symlink is rejected.
 - The document is fully written to a temporary file in the output directory first, then moved into place with a platform-appropriate replace, so a failure before the replace leaves the previous document unchanged and never leaves a partially written one.

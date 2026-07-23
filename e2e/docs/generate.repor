@@ -112,6 +112,56 @@ case "explicit --format plain and --layout single-file match the defaults" {
   }
 }
 
+# `--index-file-name` renames the generated index document. The value is used
+# verbatim including its extension, so it need not match the `--format`
+# extension: no default `index.md` is written alongside it.
+case "--index-file-name writes the document under the given name" {
+  write <"src/a.repor"> ```
+    case "one" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown --index-file-name readme.md
+
+  assert {
+    exit 0
+    stdout contains "generated: out/readme.md"
+    file <"out/readme.md"> exists
+    file <"out/readme.md"> contains "Reportage Documentation"
+    not {
+      file <"out/index.md"> exists
+    }
+  }
+}
+
+# The value is used verbatim: a name without an extension produces an
+# extension-less file, and no default `index.txt` appears beside it.
+case "--index-file-name without an extension produces an extension-less file" {
+  write <"src/a.repor"> ```
+    case "one" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --index-file-name overview
+
+  assert {
+    exit 0
+    stdout contains "generated: out/overview"
+    file <"out/overview"> exists
+    not {
+      file <"out/index.txt"> exists
+    }
+  }
+}
+
 # Documentation generation parses sources but never executes them: the case
 # action must not run, and no execution artifact directory may appear.
 case "sources are not executed and no artifacts are generated" {

@@ -88,8 +88,8 @@ It uses its own table, reusing the shared meanings of `2`, `3`, and `4`:
 | Code | Meaning |
 |------|---------|
 | `0`  | **Success** — the documentation was generated and written under `--out-dir`. |
-| `2`  | **Request / source validation error** — an invalid glob pattern, an absolute pattern or one escaping the working directory, a pattern with zero eligible matches, a non-UTF-8 source path, a source read or parse error, or an existing `--out-dir` / `index.txt` of the wrong filesystem type (regular file, directory, or symlink where the opposite is required). Nothing is written and no directory is created when this code is returned. |
-| `3`  | **Filesystem / runtime infrastructure error** — an OS-level I/O error during glob traversal, output directory creation failure, or a temporary file create / write / close / replace failure. An existing `index.txt` is left unchanged. |
+| `2`  | **Request / source validation error** — an invalid glob pattern, an absolute pattern or one escaping the working directory, a pattern with zero eligible matches, a non-UTF-8 source path, a source read or parse error, an `--index-file-name` that is not a single file name, or an existing `--out-dir` / generated document of the wrong filesystem type (regular file, directory, or symlink where the opposite is required). Nothing is written and no directory is created when this code is returned. |
+| `3`  | **Filesystem / runtime infrastructure error** — an OS-level I/O error during glob traversal, output directory creation failure, or a temporary file create / write / close / replace failure. An existing generated document is left unchanged. |
 | `4`  | **CLI usage error** — clap rejected the invocation: an unknown option, an unknown `--format` / `--layout` value, or a missing required pattern / `--out-dir`. |
 
 A source read error is classified as `2`, matching the run command's treatment of a selected source that cannot be used as valid input.

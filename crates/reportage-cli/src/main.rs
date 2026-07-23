@@ -125,6 +125,13 @@ struct DocsArgs {
     /// syntax; see docs/reference/docs-generation.md — Input text policy.
     #[arg(long, value_name = "STRING", default_value = docs::render::DEFAULT_DOCUMENT_TITLE)]
     title: String,
+
+    /// Name of the generated index document. Omitted, the name is `index` and
+    /// the extension follows `--format` (`index.txt`, `index.md`); given, the
+    /// value is used verbatim, extension included. Must be a single file name;
+    /// see docs/reference/docs-generation.md — Index file name.
+    #[arg(long = "index-file-name", value_name = "NAME")]
+    index_file_name: Option<String>,
 }
 
 /// Document format for the `docs` subcommand.
@@ -241,6 +248,7 @@ fn run_docs(args: &DocsArgs) -> ! {
             DocsLayout::SingleFile => docs::DocumentLayout::SingleFile,
         },
         title: args.title.clone(),
+        index_file_name: args.index_file_name.clone(),
     };
 
     match docs::generate(Path::new("."), &request) {
