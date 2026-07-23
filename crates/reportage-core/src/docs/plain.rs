@@ -4,7 +4,8 @@
 //! The serialization contract (fixed by generated-document snapshots and the
 //! reference documentation, docs/reference/docs-generation.md):
 //!
-//! - the document starts with the fixed title `Reportage Documentation`
+//! - the document starts with the document title from the render options
+//!   (`Reportage Documentation` unless `--title` overrides it)
 //! - blocks are separated by exactly one empty line
 //! - `Group` / `File` / `Source path` / `Case` / `Description` values are
 //!   indented by two spaces per logical line
@@ -19,9 +20,8 @@
 //! case source content is never dropped or replaced.
 
 use super::catalog::DocumentationCatalog;
-use super::render::DocumentRenderer;
+use super::render::{DocumentRenderer, RenderOptions};
 
-const DOCUMENT_TITLE: &str = "Reportage Documentation";
 const VALUE_INDENT: usize = 2;
 const SOURCE_INDENT: usize = 4;
 
@@ -29,8 +29,11 @@ const SOURCE_INDENT: usize = 4;
 pub struct PlainRenderer;
 
 impl DocumentRenderer for PlainRenderer {
-    fn render(&self, catalog: &DocumentationCatalog) -> String {
-        let mut blocks: Vec<String> = vec![DOCUMENT_TITLE.to_string()];
+    fn render(&self, catalog: &DocumentationCatalog, options: &RenderOptions) -> String {
+        // The title is inserted verbatim except for the document-wide LF
+        // normalization; logical_lines would also drop a trailing-newline
+        // tail, which the raw title mapping policy forbids.
+        let mut blocks: Vec<String> = vec![options.document_title.replace("\r\n", "\n")];
 
         for group in &catalog.groups {
             blocks.push(block("Group", &group.name, VALUE_INDENT));
@@ -117,7 +120,10 @@ mod tests {
 
     #[test]
     fn renders_the_fixed_block_layout() {
-        let output = PlainRenderer.render(&single_case_catalog("case \"x\" {\n  $ true\n}\n"));
+        let output = PlainRenderer.render(
+            &single_case_catalog("case \"x\" {\n  $ true\n}\n"),
+            &RenderOptions::default(),
+        );
 
         assert_eq!(
             output,
@@ -137,6 +143,39 @@ mod tests {
         );
     }
 
+    /// `--title` reaches the plain format through the render options: the
+    /// value replaces the default title verbatim, without escaping.
+    #[test]
+    fn the_document_title_option_replaces_the_default_title() {
+        let options = RenderOptions {
+            document_title: "**Custom** <em>title</em>".to_string(),
+        };
+
+        let output = PlainRenderer.render(
+            &single_case_catalog("case \"x\" {\n  $ true\n}\n"),
+            &options,
+        );
+        assert!(output.starts_with("**Custom** <em>title</em>\n\nGroup\n"));
+        assert!(!output.contains("Reportage Documentation"));
+    }
+
+    /// The documented empty-title promise: an empty `--title` is neither
+    /// rejected nor replaced by the default; the document starts with an
+    /// empty title line.
+    #[test]
+    fn an_empty_document_title_is_rendered_verbatim() {
+        let options = RenderOptions {
+            document_title: String::new(),
+        };
+
+        let output = PlainRenderer.render(
+            &single_case_catalog("case \"x\" {\n  $ true\n}\n"),
+            &options,
+        );
+        assert!(output.starts_with("\n\nGroup\n"));
+        assert!(!output.contains("Reportage Documentation"));
+    }
+
     #[test]
     fn description_blocks_are_omitted_when_absent() {
         let catalog = DocumentationCatalog {
@@ -151,7 +190,7 @@ mod tests {
             }],
         };
 
-        let output = PlainRenderer.render(&catalog);
+        let output = PlainRenderer.render(&catalog, &RenderOptions::default());
         assert!(!output.contains("Description"));
         // A zero-case file has no Case / Reportage source blocks either.
         assert!(!output.contains("Case"));
@@ -161,7 +200,10 @@ mod tests {
 
     #[test]
     fn source_empty_lines_stay_empty_without_trailing_whitespace() {
-        let output = PlainRenderer.render(&single_case_catalog("case \"x\" {\n\n  $ true\n}\n"));
+        let output = PlainRenderer.render(
+            &single_case_catalog("case \"x\" {\n\n  $ true\n}\n"),
+            &RenderOptions::default(),
+        );
 
         assert!(output.contains("Reportage source\n    case \"x\" {\n\n      $ true\n    }\n"));
         for line in output.lines() {
@@ -175,8 +217,10 @@ mod tests {
 
     #[test]
     fn crlf_sources_are_normalized_to_lf() {
-        let output =
-            PlainRenderer.render(&single_case_catalog("case \"x\" {\r\n  $ true\r\n}\r\n"));
+        let output = PlainRenderer.render(
+            &single_case_catalog("case \"x\" {\r\n  $ true\r\n}\r\n"),
+            &RenderOptions::default(),
+        );
 
         assert!(!output.contains('\r'));
         assert!(output.contains("Reportage source\n    case \"x\" {\n      $ true\n    }\n"));
@@ -184,17 +228,24 @@ mod tests {
 
     #[test]
     fn final_newline_presence_does_not_change_block_separation() {
-        let with_newline =
-            PlainRenderer.render(&single_case_catalog("case \"x\" {\n  $ true\n}\n"));
-        let without_newline =
-            PlainRenderer.render(&single_case_catalog("case \"x\" {\n  $ true\n}"));
+        let with_newline = PlainRenderer.render(
+            &single_case_catalog("case \"x\" {\n  $ true\n}\n"),
+            &RenderOptions::default(),
+        );
+        let without_newline = PlainRenderer.render(
+            &single_case_catalog("case \"x\" {\n  $ true\n}"),
+            &RenderOptions::default(),
+        );
 
         assert_eq!(with_newline, without_newline);
     }
 
     #[test]
     fn document_ends_with_exactly_one_lf() {
-        let output = PlainRenderer.render(&single_case_catalog("case \"x\" {\n  $ true\n}\n"));
+        let output = PlainRenderer.render(
+            &single_case_catalog("case \"x\" {\n  $ true\n}\n"),
+            &RenderOptions::default(),
+        );
         assert!(output.ends_with('\n'));
         assert!(!output.ends_with("\n\n"));
     }
@@ -204,7 +255,7 @@ mod tests {
         let mut catalog = single_case_catalog("case \"x\" {\n  $ true\n}\n");
         catalog.groups[0].files[0].description = Some("First line.\n\nThird line.\n".to_string());
 
-        let output = PlainRenderer.render(&catalog);
+        let output = PlainRenderer.render(&catalog, &RenderOptions::default());
         assert!(output.contains("Description\n  First line.\n\n  Third line.\n"));
     }
 
@@ -233,7 +284,7 @@ mod tests {
             ],
         };
 
-        let output = PlainRenderer.render(&catalog);
+        let output = PlainRenderer.render(&catalog, &RenderOptions::default());
         assert!(
             output.contains("Group\n  A\n\nFile\n  a\n\nSource path\n  a.repor\n\nGroup\n  B\n")
         );

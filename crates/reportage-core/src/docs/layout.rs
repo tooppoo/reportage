@@ -8,7 +8,7 @@
 //! docs/adr/20260723T070556Z_documentation-generation-command.md.
 
 use super::catalog::DocumentationCatalog;
-use super::render::DocumentRenderer;
+use super::render::{DocumentRenderer, RenderOptions};
 
 /// A rendered document and its output path relative to the output root.
 ///
@@ -23,11 +23,13 @@ pub struct PlannedDocument {
 /// One document layout: maps a [`DocumentationCatalog`] to the set of
 /// documents to write, delegating serialization to the given renderer.
 pub trait DocumentLayoutPlan {
-    /// Renders the catalog into the documents this layout prescribes.
+    /// Renders the catalog into the documents this layout prescribes,
+    /// forwarding the document-level render options to every `render` call.
     fn plan(
         &self,
         catalog: &DocumentationCatalog,
         renderer: &dyn DocumentRenderer,
+        options: &RenderOptions,
     ) -> Vec<PlannedDocument>;
 }
 
@@ -40,10 +42,11 @@ impl DocumentLayoutPlan for SingleFileLayout {
         &self,
         catalog: &DocumentationCatalog,
         renderer: &dyn DocumentRenderer,
+        options: &RenderOptions,
     ) -> Vec<PlannedDocument> {
         vec![PlannedDocument {
             relative_path: format!("index.{}", renderer.file_extension()),
-            contents: renderer.render(catalog),
+            contents: renderer.render(catalog, options),
         }]
     }
 }
@@ -58,8 +61,12 @@ mod tests {
     struct FakeRenderer;
 
     impl DocumentRenderer for FakeRenderer {
-        fn render(&self, catalog: &DocumentationCatalog) -> String {
-            format!("{} groups\n", catalog.groups.len())
+        fn render(&self, catalog: &DocumentationCatalog, options: &RenderOptions) -> String {
+            format!(
+                "{}: {} groups\n",
+                options.document_title,
+                catalog.groups.len()
+            )
         }
 
         fn file_extension(&self) -> &'static str {
@@ -71,12 +78,12 @@ mod tests {
     fn single_file_layout_produces_one_index_document() {
         let catalog = DocumentationCatalog { groups: vec![] };
 
-        let planned = SingleFileLayout.plan(&catalog, &FakeRenderer);
+        let planned = SingleFileLayout.plan(&catalog, &FakeRenderer, &RenderOptions::default());
         assert_eq!(
             planned,
             vec![PlannedDocument {
                 relative_path: "index.fake".to_string(),
-                contents: "0 groups\n".to_string(),
+                contents: "Reportage Documentation: 0 groups\n".to_string(),
             }]
         );
     }

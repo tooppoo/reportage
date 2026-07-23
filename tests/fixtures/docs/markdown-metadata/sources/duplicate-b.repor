@@ -1,0 +1,12 @@
+document file {
+  title "Dup Title"
+  group "Slug Cases"
+}
+
+case "sibling with the same file title" {
+  $ true
+
+  assert {
+    exit 0
+  }
+}

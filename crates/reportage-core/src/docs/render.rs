@@ -14,16 +14,44 @@
 
 use super::catalog::DocumentationCatalog;
 
+/// The document title used when `--title` is not given, shared by every
+/// format. This value is a user-facing output contract, fixed by generated
+/// document snapshots.
+pub const DEFAULT_DOCUMENT_TITLE: &str = "Reportage Documentation";
+
+/// Document-level render options: CLI-selected presentation values that apply
+/// to the whole generated document.
+///
+/// Deliberately separate from [`DocumentationCatalog`]: the Catalog holds only
+/// source-derived properties, while these options come from the invocation.
+/// The document title therefore never participates in Catalog ordering,
+/// fallbacks, or anchor identity. See
+/// docs/adr/20260723T143711Z_markdown-documentation-format.md.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenderOptions {
+    /// Used verbatim by renderers: never rejected, trimmed, or escaped, per
+    /// the raw metadata mapping policy.
+    pub document_title: String,
+}
+
+impl Default for RenderOptions {
+    fn default() -> Self {
+        Self {
+            document_title: DEFAULT_DOCUMENT_TITLE.to_string(),
+        }
+    }
+}
+
 /// One document format: serializes a [`DocumentationCatalog`] and names the
 /// file extension of the produced document(s).
 ///
-/// `render` must be a pure function of the catalog: renderers own
+/// `render` must be a pure function of the catalog and options: renderers own
 /// presentation (indentation, line ending normalization, wrappers) but must
 /// never drop or replace case source content beyond that — the exact
 /// contract is documented per implementation.
 pub trait DocumentRenderer {
     /// Serializes `catalog` into one document body.
-    fn render(&self, catalog: &DocumentationCatalog) -> String;
+    fn render(&self, catalog: &DocumentationCatalog, options: &RenderOptions) -> String;
 
     /// The file extension for documents this format produces, without the
     /// leading dot (e.g. `"txt"`).

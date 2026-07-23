@@ -1,0 +1,28 @@
+document file {
+  title "Dup Title"
+  group "Slug Cases"
+}
+
+document case {
+  title "same case"
+}
+
+case "first duplicate case" {
+  $ true
+
+  assert {
+    exit 0
+  }
+}
+
+document case {
+  title "same case"
+}
+
+case "second duplicate case" {
+  $ true
+
+  assert {
+    exit 0
+  }
+}

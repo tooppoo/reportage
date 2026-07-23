@@ -1,0 +1,12 @@
+document file {
+  title "dup?title"
+  group "Slug Cases"
+}
+
+case "normalizes to the same slug as Dup Title" {
+  $ true
+
+  assert {
+    exit 0
+  }
+}
