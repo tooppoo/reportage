@@ -40,8 +40,14 @@ pub enum DiscoveryError {
     NoEligibleSource { pattern: String },
     /// A matched source path is not valid UTF-8, so it cannot be converted to
     /// a display path losslessly. The path itself is deliberately not echoed:
-    /// a lossy rendering would misidentify the file.
+    /// a lossy rendering would misidentify the file. Defense-in-depth today:
+    /// the `glob` crate never matches non-UTF-8 paths (such a source surfaces
+    /// as `NoEligibleSource` instead), but this boundary must hold even if
+    /// the matching backend changes.
     NonUtf8SourcePath { pattern: String },
+    /// The working directory path itself is not valid UTF-8, so no pattern
+    /// can be resolved against it.
+    NonUtf8BaseDirectory { pattern: String },
     /// An OS-level I/O error occurred while walking the filesystem. Generation
     /// fails instead of producing a partial document.
     Traversal { pattern: String, message: String },
@@ -78,6 +84,12 @@ impl std::fmt::Display for DiscoveryError {
                 write!(
                     f,
                     "pattern '{pattern}' matched a path that is not valid UTF-8; non-UTF-8 source paths are not supported"
+                )
+            }
+            DiscoveryError::NonUtf8BaseDirectory { pattern } => {
+                write!(
+                    f,
+                    "cannot resolve pattern '{pattern}': the current working directory path is not valid UTF-8"
                 )
             }
             DiscoveryError::Traversal { pattern, message } => {
@@ -117,7 +129,7 @@ pub fn resolve_patterns(
         let full_pattern_str =
             full_pattern
                 .to_str()
-                .ok_or_else(|| DiscoveryError::NonUtf8SourcePath {
+                .ok_or_else(|| DiscoveryError::NonUtf8BaseDirectory {
                     pattern: pattern.clone(),
                 })?;
 
@@ -140,7 +152,7 @@ pub fn resolve_patterns(
                 });
             }
 
-            if !is_eligible(base_dir, &relative) {
+            if !is_eligible(base_dir, &relative, pattern)? {
                 continue;
             }
 
@@ -214,24 +226,36 @@ fn validate_pattern(pattern: &str) -> Result<(), DiscoveryError> {
 /// The symlink walk checks every accumulated prefix of the pre-normalization
 /// relative path: `sym/../x.repor` must be judged on `sym` (a symlink) before
 /// lexical normalization collapses it away.
-fn is_eligible(base_dir: &Path, relative: &Path) -> bool {
+///
+/// A path that vanished between glob matching and this check (`NotFound`) is
+/// simply not eligible, but any other metadata failure — e.g. a permission
+/// error on a matched path — is a traversal error: silently skipping it
+/// would generate a partial document, which the contract forbids.
+fn is_eligible(base_dir: &Path, relative: &Path, pattern: &str) -> Result<bool, DiscoveryError> {
     if relative.extension().and_then(|e| e.to_str()) != Some("repor") {
-        return false;
+        return Ok(false);
     }
 
     let mut current = base_dir.to_path_buf();
+    let mut file_type = None;
     for component in relative.components() {
         current.push(component);
         match std::fs::symlink_metadata(&current) {
-            Ok(metadata) if metadata.file_type().is_symlink() => return false,
-            Ok(_) => {}
-            Err(_) => return false,
+            Ok(metadata) if metadata.file_type().is_symlink() => return Ok(false),
+            Ok(metadata) => file_type = Some(metadata.file_type()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(e) => {
+                return Err(DiscoveryError::Traversal {
+                    pattern: pattern.to_string(),
+                    message: format!("cannot inspect '{}': {e}", current.display()),
+                });
+            }
         }
     }
 
-    std::fs::symlink_metadata(base_dir.join(relative))
-        .map(|metadata| metadata.file_type().is_file())
-        .unwrap_or(false)
+    // The last loop iteration statted `base_dir.join(relative)` itself, so
+    // `file_type` is the (non-symlink) type of the matched path.
+    Ok(file_type.is_some_and(|file_type| file_type.is_file()))
 }
 
 /// Lexically normalizes a matched relative path into the display form:
@@ -472,5 +496,68 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let err = resolve_patterns(dir.path(), &[]).unwrap_err();
         assert_eq!(err, DiscoveryError::NoPatterns);
+    }
+
+    /// A metadata failure on a matched path must fail the whole resolution
+    /// instead of silently thinning the result to a partial document.
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_matched_path_is_a_traversal_error() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        touch(&dir.path().join("open/a.repor"));
+        touch(&dir.path().join("locked/b.repor"));
+
+        let locked = dir.path().join("locked");
+        // r-- on the directory: glob can still list `locked/b.repor` (read
+        // bit), but statting entries inside fails (no execute bit).
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o444)).unwrap();
+
+        // Privileged users bypass permission checks entirely; the scenario
+        // cannot be produced there, so skip rather than assert the wrong thing.
+        let stat_blocked = std::fs::symlink_metadata(locked.join("b.repor")).is_err();
+        let result = if stat_blocked {
+            Some(resolve_patterns(dir.path(), &["**/*.repor".to_string()]))
+        } else {
+            None
+        };
+
+        // Restore permissions before TempDir cleanup regardless of outcome.
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        if let Some(result) = result {
+            let err = result.unwrap_err();
+            assert!(
+                matches!(err, DiscoveryError::Traversal { .. }),
+                "expected a traversal error, got {err:?}"
+            );
+        }
+    }
+
+    /// A non-UTF-8 source path is rejected without a lossy rendering: the
+    /// `glob` crate never matches non-UTF-8 paths, so a pattern selecting
+    /// only such a file resolves to zero eligible sources.
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_source_paths_are_rejected_without_lossy_display() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let name = OsStr::from_bytes(b"bad-\xff.repor");
+        std::fs::write(dir.path().join(name), "").unwrap();
+
+        let err = resolve_patterns(dir.path(), &["*.repor".to_string()]).unwrap_err();
+        assert_eq!(
+            err,
+            DiscoveryError::NoEligibleSource {
+                pattern: "*.repor".to_string()
+            }
+        );
+        assert!(
+            !err.to_string().contains('\u{FFFD}'),
+            "the error message must not contain a lossy path rendering"
+        );
     }
 }

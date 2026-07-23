@@ -259,6 +259,48 @@ mod tests {
         assert_eq!(first, second);
     }
 
+    /// Every output error variant maps to the documented exit code class:
+    /// wrong filesystem types are request validation, OS-level failures are
+    /// infrastructure.
+    #[test]
+    fn output_error_classification_is_exhaustive() {
+        use crate::docs::output::OutputError;
+
+        let request = [
+            OutputError::NotADirectory(PathBuf::from("x")),
+            OutputError::SymlinkOutputDirectory(PathBuf::from("x")),
+            OutputError::ExistingOutputNotReplaceable(PathBuf::from("x")),
+            OutputError::InvalidRelativePath("../x".to_string()),
+        ];
+        for error in request {
+            assert_eq!(
+                GenerateError::Output(error).class(),
+                ErrorClass::RequestValidation
+            );
+        }
+
+        let infrastructure = [
+            OutputError::CreateFailed {
+                path: PathBuf::from("x"),
+                message: "denied".to_string(),
+            },
+            OutputError::WriteFailed {
+                path: PathBuf::from("x"),
+                message: "denied".to_string(),
+            },
+            OutputError::ReplaceFailed {
+                path: PathBuf::from("x"),
+                message: "denied".to_string(),
+            },
+        ];
+        for error in infrastructure {
+            assert_eq!(
+                GenerateError::Output(error).class(),
+                ErrorClass::Infrastructure
+            );
+        }
+    }
+
     #[test]
     fn zero_case_sources_still_produce_a_document() {
         let dir = tempfile::tempdir().unwrap();

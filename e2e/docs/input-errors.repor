@@ -41,6 +41,19 @@ case "a pattern matching only non-repor entries is an error" {
   }
 }
 
+case "invalid glob syntax is rejected" {
+  $ reportage docs '[' --out-dir out
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "invalid glob pattern"
+    not {
+      dir <"out"> exists
+    }
+  }
+}
+
 case "an absolute pattern is rejected" {
   $ reportage docs '/tmp/*.repor' --out-dir out
 

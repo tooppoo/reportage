@@ -304,6 +304,55 @@ mod tests {
         );
     }
 
+    /// The replacement guarantee: a temp-file write failure leaves an
+    /// existing document byte-identical and leaves no temporary residue.
+    #[cfg(unix)]
+    #[test]
+    fn write_failure_preserves_the_existing_document() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let output = OutputDirectory::prepare(dir.path()).unwrap();
+        std::fs::write(dir.path().join("index.txt"), "old content").unwrap();
+
+        // r-x on the output directory: creating the temporary file fails.
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o555)).unwrap();
+
+        // Privileged users bypass permission checks; skip rather than assert
+        // the wrong thing there.
+        let write_blocked = std::fs::write(dir.path().join(".probe"), "").is_err();
+        let result = if write_blocked {
+            Some(output.write_document("index.txt", "new content\n"))
+        } else {
+            let _ = std::fs::remove_file(dir.path().join(".probe"));
+            None
+        };
+
+        // Restore permissions before TempDir cleanup regardless of outcome.
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        if let Some(result) = result {
+            let err = result.unwrap_err();
+            assert!(
+                matches!(err, OutputError::WriteFailed { .. }),
+                "expected WriteFailed, got {err:?}"
+            );
+            assert_eq!(
+                std::fs::read_to_string(dir.path().join("index.txt")).unwrap(),
+                "old content"
+            );
+            let leftovers: Vec<_> = std::fs::read_dir(dir.path())
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+                .filter(|name| name != "index.txt")
+                .collect();
+            assert!(
+                leftovers.is_empty(),
+                "no temporary file may remain: {leftovers:?}"
+            );
+        }
+    }
+
     #[test]
     fn rejects_relative_paths_that_could_escape_the_root() {
         let dir = tempfile::tempdir().unwrap();
