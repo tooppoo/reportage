@@ -1,3 +1,12 @@
+mod document;
+mod error;
+mod expectation;
+mod heredoc;
+mod literal;
+mod step;
+
+pub use error::ParseError;
+
 use pest::Parser;
 use pest_derive::Parser;
 
@@ -8,6 +17,9 @@ use crate::source::{SourceCase, SourceFile, SourceSpan, SourceText};
 #[derive(Parser)]
 #[grammar = "reportage.pest"]
 struct ReportageParser;
+
+#[cfg(test)]
+mod tests;
 
 pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
     let pairs = ReportageParser::parse(Rule::script, source).map_err(|e| {

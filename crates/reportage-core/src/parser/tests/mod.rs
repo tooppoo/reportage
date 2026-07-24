@@ -1,3 +1,10 @@
+mod document;
+mod expectation;
+mod heredoc;
+mod literal;
+mod step;
+mod syntax;
+
 use super::*;
 use crate::model::{Script, SideEffectingStep, Step, WriteFileStep};
 
