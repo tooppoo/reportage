@@ -1,9 +1,0 @@
-{
-  "kind": "added",
-  "targets": [
-    "cli",
-    "core"
-  ],
-  "links": [],
-  "body": "`--index-file-name` option is supported for `reportage docs`.\nUser can specify filename for reportage document."
-}

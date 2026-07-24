@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 0.0.6
+
+### added
+
+#### core / cli
+
+<!-- rellog:entry:start -->
+<!-- rellog:body:start -->
+`--index-file-name` option is supported for `reportage docs`.
+User can specify filename for reportage document.
+<!-- rellog:body:end -->
+<!-- rellog:entry:end -->
+
+### changed
+
+#### cli
+
+<!-- rellog:entry:start -->
+<!-- rellog:body:start -->
+Add reference to examples on `reportage references`
+<!-- rellog:body:end -->
+<!-- rellog:entry:end -->
+
 ## 0.0.5
 
 ### changed
