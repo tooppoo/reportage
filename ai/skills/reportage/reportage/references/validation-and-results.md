@@ -73,7 +73,7 @@ When validation is not performed, state:
 
 ## Use the Advertised Command
 
-Obtain the validation command from the current documentation index:
+Obtain the validation command from the current reference index:
 
 ```json
 {

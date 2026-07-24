@@ -4,10 +4,10 @@
 
 This document defines which version-matched reportage documents an agent should read for each task.
 
-The document index returned by:
+The reference index returned by:
 
 ```sh
-reportage docs --format=json
+reportage references --format=json
 ```
 
 is the authority for available document IDs, paths, URLs, order, version, and validation command.

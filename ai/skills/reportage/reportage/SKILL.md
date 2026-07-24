@@ -23,7 +23,7 @@ This skill does not contain the reportage language specification.
 Use the running `reportage` binary to locate documentation for that exact version:
 
 ```sh
-reportage docs --format=json
+reportage references --format=json
 ```
 
 Do not rely on remembered syntax, default-branch documentation, examples from another version, deferred features, or plausible-looking constructs inferred from other test tools.
@@ -35,17 +35,17 @@ If a construct is not present in the version-matched syntax documentation, do no
 For every reportage task:
 
 1. Confirm that `reportage` is available.
-2. Run `reportage docs --format=json`.
+2. Run `reportage references --format=json`.
 3. Parse stdout as structured JSON.
-4. Verify that the documentation-index schema is supported.
+4. Verify that the reference index schema is supported.
 5. Select a project-local documentation storage directory.
-6. Save the complete documentation index.
+6. Save the complete reference index.
 7. Fetch and save the required version-matched documents.
 8. Read the saved local copies.
 9. Perform the requested authoring, editing, review, diagnosis, or validation.
 10. Report which documentation and validation were used.
 
-Do not parse the documentation index with regular expressions.
+Do not parse the reference index with regular expressions.
 
 ## Documentation Storage
 
@@ -69,18 +69,15 @@ Do not create a new top-level cache or temporary directory without user approval
 
 If no eligible directory exists, stop and ask:
 
-> reportage のバージョン対応ドキュメントを保存するため、リポジトリ内の Git 管理対象外で継続利用できるディレクトリが必要です。保存先を指定してください。例: `./tmp`
->
-> 既存の `.gitignore` は変更しません。
+> reportage のバージョン対応ドキュメントを保存するため、リポジトリ内の Git 管理対象外で継続利用できるディレクトリが必要です。保存先を指定してください。例: `./tmp`。既存の `.gitignore` は変更しません。
 
 The absence of an eligible directory is a blocking condition.
 
-For the detailed storage, cache, path-validation, and reuse procedure, read
-[references/documentation-storage.md](references/documentation-storage.md).
+For the detailed storage, cache, path-validation, and reuse procedure, read [references/documentation-storage.md](references/documentation-storage.md).
 
 ## Documentation Provenance
 
-Use the `urls.ai` value returned by the current documentation index.
+Use the `urls.ai` value returned by the current reference index.
 
 Do not silently substitute:
 
@@ -97,10 +94,9 @@ If neither a retrievable document nor an exact matching cached copy exists, stop
 
 ## Selecting Documents
 
-Read only the documents required for the task, preserving their order in the documentation index.
+Read only the documents required for the task, preserving their order in the reference index.
 
-For the task-specific document matrix, read
-[references/document-selection.md](references/document-selection.md).
+For the task-specific document matrix, read [references/document-selection.md](references/document-selection.md).
 
 Document IDs are the primary lookup key. Do not select documents by title alone.
 
@@ -125,8 +121,7 @@ When reviewing a file, distinguish:
 * reproducibility
 * quality of retained evidence
 
-For the complete authoring and review procedure, read
-[references/authoring-and-review.md](references/authoring-and-review.md).
+For the complete authoring and review procedure, read [references/authoring-and-review.md](references/authoring-and-review.md).
 
 ## Dynamic Validation Safety
 
@@ -154,8 +149,7 @@ When execution is unsafe or cannot be assessed:
 * state that dynamic validation was not performed
 * identify the action that prevented safe execution
 
-For command execution and result interpretation, read
-[references/validation-and-results.md](references/validation-and-results.md).
+For command execution and result interpretation, read [references/validation-and-results.md](references/validation-and-results.md).
 
 ## Result Integrity
 

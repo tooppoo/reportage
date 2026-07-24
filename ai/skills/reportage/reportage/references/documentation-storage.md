@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines how an agent must select a local storage directory, save the documentation index, cache version-matched reportage documents, and safely reuse them.
+This document defines how an agent must select a local storage directory, save the reference index, cache version-matched reportage documents, and safely reuse them.
 
 The main skill contains the blocking rules. This document provides the detailed procedure.
 
@@ -110,9 +110,7 @@ If no eligible storage directory exists, stop before fetching documentation or m
 
 Ask the user for a storage location using a message equivalent to:
 
-> reportage のバージョン対応ドキュメントを保存するため、リポジトリ内の Git 管理対象外で継続利用できるディレクトリが必要です。保存先を指定してください。例: `./tmp`
->
-> 既存の `.gitignore` は変更しません。
+> reportage のバージョン対応ドキュメントを保存するため、リポジトリ内の Git 管理対象外で継続利用できるディレクトリが必要です。保存先を指定してください。例: `./tmp`。既存の `.gitignore` は変更しません。
 
 Do not silently:
 
@@ -144,7 +142,7 @@ Store documentation under a directory specific to the running reportage tag:
 <candidate>/
 └── reportage-docs/
     └── <tool-tag>/
-        ├── docs-index.json
+        ├── references-index.json
         ├── docs/
         │   ├── ai/
         │   │   └── README.md
@@ -155,7 +153,7 @@ Store documentation under a directory specific to the running reportage tag:
                     └── README.md
 ```
 
-Use the `tool.tag` value from `reportage docs --format=json` as the version directory name only after validating that it is safe as a single path component.
+Use the `tool.tag` value from `reportage references --format=json` as the version directory name only after validating that it is safe as a single path component.
 
 Reject or safely encode a tag that:
 
@@ -167,12 +165,12 @@ Reject or safely encode a tag that:
 
 Do not merge documentation from different tags into one directory.
 
-## Saving the Documentation Index
+## Saving the Reference Index
 
 Run:
 
 ```sh
-reportage docs --format=json
+reportage references --format=json
 ```
 
 Parse stdout as structured JSON.
@@ -180,7 +178,7 @@ Parse stdout as structured JSON.
 Save the complete, unmodified stdout as:
 
 ```text
-<candidate>/reportage-docs/<tool-tag>/docs-index.json
+<candidate>/reportage-docs/<tool-tag>/references-index.json
 ```
 
 Preserve the exact index used for document discovery. Do not save only selected fields.
@@ -227,7 +225,7 @@ Before using `documents[].path` as a local filesystem path, verify that it:
 - does not contain a Windows drive prefix
 - contains no `..` path traversal
 - does not resolve outside the version-specific cache directory
-- does not overwrite `docs-index.json`
+- does not overwrite `references-index.json`
 - does not collide with another document path
 - does not traverse a symbolic link that leaves the cache directory
 
@@ -248,11 +246,11 @@ If an atomic rename is unavailable, preserve the old file until the replacement 
 
 ## Cache Reuse
 
-Always run `reportage docs --format=json` at the beginning of a reportage task, even when cached documents exist.
+Always run `reportage references --format=json` at the beginning of a reportage task, even when cached documents exist.
 
 A cached document may be reused only when all of the following match the current index exactly:
 
-- documentation index `schema_version`
+- reference index `schema_version`
 - `tool.name`
 - `tool.version`
 - `tool.tag`
@@ -262,7 +260,7 @@ A cached document may be reused only when all of the following match the current
 
 Also verify that:
 
-- the cached `docs-index.json` parses successfully
+- the cached `references-index.json` parses successfully
 - the cached document exists at the mirrored path
 - the cached path remains inside the selected cache directory
 - the file is readable
