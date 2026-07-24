@@ -10,6 +10,10 @@ Documents (recommended reading order):
     human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/ai/quick-reference.md
     ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/ai/quick-reference.md
 
+  Examples
+    human: https://github.com/tooppoo/reportage/blob/X.Y.Z/examples/README.md
+    ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/examples/README.md
+
   Syntax reference
     human: https://github.com/tooppoo/reportage/blob/X.Y.Z/docs/reference/syntax.md
     ai:    https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/docs/reference/syntax.md

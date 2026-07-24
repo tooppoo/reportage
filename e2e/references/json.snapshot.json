@@ -19,6 +19,15 @@
       }
     },
     {
+      "id": "examples",
+      "path": "examples/README.md",
+      "title": "Examples",
+      "urls": {
+        "ai": "https://raw.githubusercontent.com/tooppoo/reportage/X.Y.Z/examples/README.md",
+        "human": "https://github.com/tooppoo/reportage/blob/X.Y.Z/examples/README.md"
+      }
+    },
+    {
       "id": "syntax",
       "path": "docs/reference/syntax.md",
       "title": "Syntax reference",

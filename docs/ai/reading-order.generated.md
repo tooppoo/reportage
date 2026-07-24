@@ -21,6 +21,13 @@ This is the recommended reading order for AI agents authoring, editing, or revie
 - Role: Shortest path to a minimal valid .repor file, for a fast orientation pass
 - Note: Not a full syntax or semantics reference; follow its links for anything beyond the minimal shape.
 
+## Examples
+
+- Link: [Examples](../../examples/README.md)
+- Path: `examples/README.md`
+- Role: A curated set of .repor files demonstrating the language and its semantics
+- Note: The examples are the canonical source of truth for what is valid and invalid; the syntax and semantics references below are derived from them.
+
 ## Syntax reference
 
 - Link: [Syntax reference](../reference/syntax.md)
