@@ -29,3 +29,6 @@ self-install:
 # install the vscode extension for reportage-self into the current environment
 vscode-install:
   sh scripts/dev/setup-reportage-vscode-extension.sh
+
+source-lines:
+  @find crates -type f -name '*.rs' | xargs -i wc -l {} | sort -nr
