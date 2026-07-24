@@ -18,7 +18,6 @@ use crate::source::{
 #[grammar = "reportage.pest"]
 struct ReportageParser;
 
-#[derive(Debug, PartialEq)]
 pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
     let pairs = ReportageParser::parse(Rule::script, source).map_err(|e| {
         let (line, col) = match e.line_col {
@@ -120,4 +119,3 @@ pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
         cases,
     ))
 }
-

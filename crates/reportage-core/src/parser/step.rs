@@ -34,8 +34,6 @@ fn parse_before_each_block(pair: pest::iterators::Pair<Rule>) -> Result<BeforeEa
     BeforeEach::new(steps).map_err(|BeforeEachError::Empty| ParseError::EmptyBeforeEach { line })
 }
 
-/// The duplicate-field check shared by every document field arm, kept out of
-/// line so each arm reads as "reject the duplicate, then parse the value".
 fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseError> {
     let line = pair.line_col().0;
     let mut inner = pair.into_inner();
@@ -170,8 +168,3 @@ fn parse_write_step_heredoc(
         content,
     }))
 }
-
-/// Parses a `heredoc_literal` pair into its dedented `String` content.
-/// Shared by `write_step_heredoc` and `file_exp_heredoc` — the fence and
-/// dedent rules are identical regardless of which construct the heredoc
-/// literal appears in.

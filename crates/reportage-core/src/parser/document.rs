@@ -1,3 +1,5 @@
+/// The duplicate-field check shared by every document field arm, kept out of
+/// line so each arm reads as "reject the duplicate, then parse the value".
 fn reject_duplicate_documentation_field<T>(
     slot: &Option<T>,
     field: &'static str,
@@ -165,4 +167,3 @@ fn parse_document_case_block(
 
     Ok(CaseDocumentation { title, description })
 }
-

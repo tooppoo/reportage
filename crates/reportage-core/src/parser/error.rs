@@ -1,3 +1,4 @@
+#[derive(Debug, PartialEq)]
 pub enum ParseError {
     /// A syntax error produced by the pest grammar.
     Syntax {
