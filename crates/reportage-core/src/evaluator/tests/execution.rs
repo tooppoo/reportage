@@ -284,4 +284,46 @@ fn before_each_write_failure_is_runtime_error_without_case_step_index() {
         Some(DiagnosticCode::StepWriteTargetExists)
     );
     assert_eq!(result.cases[0].side_effects_executed, 1);
+
+    let initialization_script = make_script(vec![Case {
+        name: "initialization failure".to_string(),
+        steps: vec![assert_file_exists_step("unused.txt")],
+    }]);
+    let result = super::super::execution::evaluate_with(
+        &initialization_script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+        || Err(std::io::Error::other("workspace unavailable")),
+        super::super::execution::build_case_execution_environment,
+    );
+    let CaseStatus::RuntimeError(runtime_error) = &result.cases[0].status else {
+        panic!("expected CaseStatus::RuntimeError");
+    };
+    assert!(
+        runtime_error
+            .message
+            .contains("failed to create isolated case workspace"),
+        "message must identify case-workspace initialization: {}",
+        runtime_error.message
+    );
+
+    let result = super::super::execution::evaluate_with(
+        &initialization_script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+        crate::workspace::Workspace::new,
+        |_, _, _| Err(std::io::Error::other("shim unavailable")),
+    );
+    let CaseStatus::RuntimeError(runtime_error) = &result.cases[0].status else {
+        panic!("expected CaseStatus::RuntimeError");
+    };
+    assert!(
+        runtime_error
+            .message
+            .contains("failed to set up registered command shims"),
+        "message must identify command-shim initialization: {}",
+        runtime_error.message
+    );
 }

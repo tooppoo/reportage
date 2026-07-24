@@ -16,6 +16,15 @@ use crate::semantic::{
     SemanticError, validate_dir_entry_name, validate_dir_path, validate_file_path,
 };
 
+macro_rules! or_expected_contents_error {
+    ($expression:expr, $error:ident => $result:expr) => {
+        match $expression {
+            Ok(value) => value,
+            Err($error) => return Err($result),
+        }
+    };
+}
+
 /// A `contents_equals` expected value could not be resolved to bytes: not a subject-under-test
 /// failure but a problem with the test definition itself (a missing / non-regular / unreadable
 /// expected `WorkspacePath`, or any `FixtureReference` resolution failure). Surfaces as
@@ -42,10 +51,10 @@ fn resolve_expected_contents(
     match expected {
         FileContentsReference::Workspace(path) => {
             let resolved = workspace_root.join(path.as_str());
-            let meta = std::fs::metadata(&resolved).map_err(|_| ExpectedContentsError {
+            let meta = or_expected_contents_error!(std::fs::metadata(&resolved), _e => ExpectedContentsError {
                 message: format!("expected workspace path {:?} does not exist", path.as_str()),
                 diagnostic_code: DiagnosticCode::SemanticFileContentsReferenceMissing,
-            })?;
+            });
             if !meta.is_file() {
                 return Err(ExpectedContentsError {
                     message: format!(
@@ -55,45 +64,32 @@ fn resolve_expected_contents(
                     diagnostic_code: DiagnosticCode::SemanticFileContentsReferenceNotARegularFile,
                 });
             }
-            let bytes = std::fs::read(&resolved).map_err(|e| ExpectedContentsError {
-                message: format!(
-                    "expected workspace path {:?} could not be read: {e}",
-                    path.as_str()
-                ),
+            let bytes = or_expected_contents_error!(std::fs::read(&resolved), e => ExpectedContentsError {
+                message: format!("expected workspace path {:?} could not be read: {e}", path.as_str()),
                 diagnostic_code: DiagnosticCode::SemanticFileContentsReferenceReadError,
-            })?;
+            });
             Ok((
                 bytes,
                 ContentsEqualsExpectedSource::Workspace(path.as_str().to_string()),
             ))
         }
         FileContentsReference::Fixture(fixture_ref) => {
-            let resolved =
-                fixture::resolve_fixture_source(repor_dir, fixture_ref).map_err(|e| {
-                    ExpectedContentsError {
-                        message: e.to_string(),
-                        diagnostic_code: e.code(),
-                    }
-                })?;
-            let reserved_dir = tempfile::TempDir::new().map_err(|e| ExpectedContentsError {
+            let resolved = or_expected_contents_error!(fixture::resolve_fixture_source(repor_dir, fixture_ref), e => ExpectedContentsError {
+                message: e.to_string(),
+                diagnostic_code: e.code(),
+            });
+            let reserved_dir = or_expected_contents_error!(tempfile::TempDir::new(), e => ExpectedContentsError {
                 message: format!("failed to create fixture materialization directory: {e}"),
                 diagnostic_code: DiagnosticCode::SemanticFixtureReferenceMissing,
-            })?;
-            let materialized = fixture::materialize_fixture(&resolved, reserved_dir.path())
-                .map_err(|e| ExpectedContentsError {
-                    message: format!(
-                        "fixture reference {:?} could not be materialized: {e}",
-                        fixture_ref.as_str()
-                    ),
-                    diagnostic_code: DiagnosticCode::SemanticFixtureReferenceMissing,
-                })?;
-            let bytes = std::fs::read(&materialized).map_err(|e| ExpectedContentsError {
-                message: format!(
-                    "fixture reference {:?} could not be read after materialization: {e}",
-                    fixture_ref.as_str()
-                ),
+            });
+            let materialized = or_expected_contents_error!(fixture::materialize_fixture(&resolved, reserved_dir.path()), e => ExpectedContentsError {
+                message: format!("fixture reference {:?} could not be materialized: {e}", fixture_ref.as_str()),
                 diagnostic_code: DiagnosticCode::SemanticFixtureReferenceMissing,
-            })?;
+            });
+            let bytes = or_expected_contents_error!(std::fs::read(&materialized), e => ExpectedContentsError {
+                message: format!("fixture reference {:?} could not be read after materialization: {e}", fixture_ref.as_str()),
+                diagnostic_code: DiagnosticCode::SemanticFixtureReferenceMissing,
+            });
             Ok((
                 bytes,
                 ContentsEqualsExpectedSource::Fixture(fixture_ref.as_str().to_string()),

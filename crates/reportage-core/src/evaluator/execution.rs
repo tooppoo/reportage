@@ -24,11 +24,43 @@ pub fn evaluate(
     source_path: &Path,
     commands: &CommandRegistry,
 ) -> ExecutionReport {
+    evaluate_with(
+        script,
+        env,
+        source_path,
+        commands,
+        Workspace::new,
+        build_case_execution_environment,
+    )
+}
+
+pub(super) fn evaluate_with(
+    script: &Script,
+    env: &ExecutionEnvironment,
+    source_path: &Path,
+    commands: &CommandRegistry,
+    create_workspace: fn() -> std::io::Result<Workspace>,
+    build_environment: fn(
+        &ExecutionEnvironment,
+        &CommandRegistry,
+        &Path,
+    ) -> std::io::Result<ExecutionEnvironment>,
+) -> ExecutionReport {
     ExecutionReport {
         cases: script
             .cases
             .iter()
-            .map(|c| evaluate_case(c, script.before_each.as_ref(), env, source_path, commands))
+            .map(|c| {
+                evaluate_case(
+                    c,
+                    script.before_each.as_ref(),
+                    env,
+                    source_path,
+                    commands,
+                    create_workspace,
+                    build_environment,
+                )
+            })
             .collect(),
         file_errors: vec![],
     }
@@ -40,6 +72,12 @@ fn evaluate_case(
     env: &ExecutionEnvironment,
     source_path: &Path,
     commands: &CommandRegistry,
+    create_workspace: fn() -> std::io::Result<Workspace>,
+    build_environment: fn(
+        &ExecutionEnvironment,
+        &CommandRegistry,
+        &Path,
+    ) -> std::io::Result<ExecutionEnvironment>,
 ) -> CaseResult {
     // Every case must contain at least one assertion block.
     let has_assertion_block = case
@@ -66,7 +104,7 @@ fn evaluate_case(
 
     // Each concrete case gets its own isolated workspace, destroyed when
     // this function returns. See docs/reference/semantics.md — Workspace lifecycle.
-    let workspace = match Workspace::new() {
+    let workspace = match create_workspace() {
         Ok(w) => w,
         Err(e) => {
             return CaseResult {
@@ -91,7 +129,7 @@ fn evaluate_case(
     // directory and prepend it to `env`'s PATH prefixes, so `$` steps resolve registered command
     // names through the shim before falling through to `env`'s own prefixes and the inherited
     // PATH. See docs/reference/semantics.md — Command resolution through PATH shims.
-    let case_env = match build_case_execution_environment(env, commands, workspace.root()) {
+    let case_env = match build_environment(env, commands, workspace.root()) {
         Ok(case_env) => case_env,
         Err(e) => {
             return CaseResult {
@@ -370,7 +408,7 @@ fn evaluate_case(
 /// Shims are materialized per case, not once at config-parse time, because each concrete case has
 /// its own isolated workspace and `bin` directory. See docs/reference/semantics.md — Execution order and
 /// Command resolution through PATH shims.
-fn build_case_execution_environment(
+pub(super) fn build_case_execution_environment(
     env: &ExecutionEnvironment,
     commands: &CommandRegistry,
     workspace_root: &Path,
