@@ -16,6 +16,10 @@ use crate::semantic::{
     SemanticError, validate_dir_entry_name, validate_dir_path, validate_file_path,
 };
 
+// Keep each fallible expected-content operation on the same early-return path while allowing
+// the call site to provide its own user-facing message and diagnostic code. This is a macro rather
+// than repeated `map_err` closures so coverage measures the resolver's actual error branches
+// instead of adding one compiler-generated closure function for every operation.
 macro_rules! or_expected_contents_error {
     ($expression:expr, $error:ident => $result:expr) => {
         match $expression {
