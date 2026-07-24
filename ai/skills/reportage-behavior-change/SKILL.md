@@ -1,3 +1,8 @@
+---
+name: reportage-behavior-change
+description: Require appropriate end-to-end coverage when changing reportage runtime or CLI-visible behavior, including exit codes, command execution, output, diagnostics, JSON, artifacts, assertions, and error handling.
+---
+
 # reportage-behavior-change
 
 Use this skill when changing reportage runtime behavior.

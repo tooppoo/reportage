@@ -1,3 +1,8 @@
+---
+name: reportage-syntax-change
+description: Require valid, syntax-invalid, and semantic-invalid examples plus parser, semantic, and documentation coverage when adding, removing, or changing reportage DSL syntax, grammar, parser behavior, AST shape, or syntax-related diagnostics.
+---
+
 # reportage-syntax-change
 
 Use this skill when adding, removing, or changing reportage DSL syntax.
