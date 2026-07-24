@@ -560,7 +560,7 @@ pub enum OutputMatcher {
     Matches(String),
     /// `stdout` / `stderr contents_equals <FileContentsReference>`: byte-for-byte
     /// comparison against a workspace file or fixture file. See
-    /// `evaluator::evaluate_expectation_at_checkpoint`.
+    /// `evaluator/expectation.rs`.
     ContentsEquals(FileContentsReference),
     /// `stdout` / `stderr text_equals <text_literal>`: byte-for-byte comparison
     /// of the captured stream's bytes against the `TextLiteral`'s `TextValue`
@@ -589,7 +589,7 @@ pub enum FileMatcher {
     Matches(String),
     /// `file <"path"> contents_equals <FileContentsReference>`: byte-for-byte
     /// comparison against a workspace file or fixture file. See
-    /// `evaluator::evaluate_file_expectation`.
+    /// `evaluator/expectation.rs`.
     ContentsEquals(FileContentsReference),
     /// `file <"path"> text_equals <text_literal>`: byte-for-byte comparison
     /// of the actual file's bytes against the `TextLiteral`'s `TextValue`
