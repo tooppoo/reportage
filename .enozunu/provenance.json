@@ -7,9 +7,12 @@
       "source": {
         "type": "git",
         "url": "https://github.com/tooppoo/catalog-agent-tools",
-        "branch": "main",
+        "selector": {
+          "type": "branch",
+          "value": "main"
+        },
         "path": "common/skills/documentation-writing",
-        "resolved_revision": "54a54e213078eea6e670dfdba319874cbdbac81b"
+        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
       },
       "target_ai": "claude",
       "target_path": ".claude/skills/documentation-writing"
@@ -20,9 +23,12 @@
       "source": {
         "type": "git",
         "url": "https://github.com/tooppoo/catalog-agent-tools",
-        "branch": "main",
+        "selector": {
+          "type": "branch",
+          "value": "main"
+        },
         "path": "common/skills/subagent-review-loop",
-        "resolved_revision": "54a54e213078eea6e670dfdba319874cbdbac81b"
+        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
       },
       "target_ai": "claude",
       "target_path": ".claude/skills/subagent-review-loop"
@@ -33,9 +39,12 @@
       "source": {
         "type": "git",
         "url": "https://github.com/tooppoo/catalog-agent-tools",
-        "branch": "main",
+        "selector": {
+          "type": "branch",
+          "value": "main"
+        },
         "path": "common/skills/code-comment",
-        "resolved_revision": "54a54e213078eea6e670dfdba319874cbdbac81b"
+        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
       },
       "target_ai": "claude",
       "target_path": ".claude/skills/code-comment"
@@ -46,9 +55,12 @@
       "source": {
         "type": "git",
         "url": "https://github.com/tooppoo/catalog-agent-tools",
-        "branch": "main",
+        "selector": {
+          "type": "branch",
+          "value": "main"
+        },
         "path": "common/skills/cli-output-design",
-        "resolved_revision": "54a54e213078eea6e670dfdba319874cbdbac81b"
+        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
       },
       "target_ai": "claude",
       "target_path": ".claude/skills/cli-output-design"
@@ -81,9 +93,12 @@
       "source": {
         "type": "git",
         "url": "https://github.com/tooppoo/catalog-agent-tools",
-        "branch": "main",
+        "selector": {
+          "type": "branch",
+          "value": "main"
+        },
         "path": "common/skills/documentation-writing",
-        "resolved_revision": "54a54e213078eea6e670dfdba319874cbdbac81b"
+        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
       },
       "target_ai": "codex",
       "target_path": ".agents/skills/documentation-writing"
@@ -94,9 +109,12 @@
       "source": {
         "type": "git",
         "url": "https://github.com/tooppoo/catalog-agent-tools",
-        "branch": "main",
+        "selector": {
+          "type": "branch",
+          "value": "main"
+        },
         "path": "common/skills/subagent-review-loop",
-        "resolved_revision": "54a54e213078eea6e670dfdba319874cbdbac81b"
+        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
       },
       "target_ai": "codex",
       "target_path": ".agents/skills/subagent-review-loop"
@@ -107,9 +125,12 @@
       "source": {
         "type": "git",
         "url": "https://github.com/tooppoo/catalog-agent-tools",
-        "branch": "main",
+        "selector": {
+          "type": "branch",
+          "value": "main"
+        },
         "path": "common/skills/code-comment",
-        "resolved_revision": "54a54e213078eea6e670dfdba319874cbdbac81b"
+        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
       },
       "target_ai": "codex",
       "target_path": ".agents/skills/code-comment"
@@ -120,9 +141,12 @@
       "source": {
         "type": "git",
         "url": "https://github.com/tooppoo/catalog-agent-tools",
-        "branch": "main",
+        "selector": {
+          "type": "branch",
+          "value": "main"
+        },
         "path": "common/skills/cli-output-design",
-        "resolved_revision": "54a54e213078eea6e670dfdba319874cbdbac81b"
+        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
       },
       "target_ai": "codex",
       "target_path": ".agents/skills/cli-output-design"
