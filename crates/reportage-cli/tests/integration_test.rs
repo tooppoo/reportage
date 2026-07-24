@@ -118,7 +118,7 @@ fn whitespace_only_script_is_noop_success() {
 // Representative `all`/`any`/`not` scenarios, including the `not { A B }` = `not(all(A, B))`
 // distinction, live in e2e/composition/logical-composition.repor (#109). The exhaustive
 // pass/fail combinations for `all`/`any`/`not` are unit-tested directly against the semantic
-// evaluator in `crates/reportage-core/src/evaluator.rs` (`all_passes_when_every_child_passes`
+// evaluator in `crates/reportage-core/src/evaluator/tests/logical.rs` (`all_passes_when_every_child_passes`
 // and its neighbors), independent of any CLI invocation. The tests below verify what the CLI
 // externalizes for a logical composition result, which the unit tests do not cover.
 

@@ -223,7 +223,7 @@ fn case_json(case_index: usize, case: &CaseResult, diagnostics: &mut Diagnostics
         CaseStatus::ScriptError(err) => {
             // `ParseMissingAssertionBlock` is the one parse-domain code detected at
             // evaluation time rather than by the parser itself; every other `ScriptError`
-            // site carries a `semantic.*` code. See `evaluator::evaluate_case`.
+            // site carries a `semantic.*` code. See `evaluator/execution.rs`.
             let category = match err.diagnostic_code {
                 Some(DiagnosticCode::ParseMissingAssertionBlock) => "parse",
                 _ => "semantic",

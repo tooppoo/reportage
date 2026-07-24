@@ -15,9 +15,9 @@
 //! fixture into a runner-reserved area so assertion evaluation never reads
 //! directly from the test-definition source tree.
 //!
-//! `evaluator::resolve_expected_contents` calls `resolve_fixture_source` /
-//! `materialize_fixture` from `evaluate_file_expectation` and the `stdout` /
-//! `stderr` equivalents to read a fixture's bytes during a live
+//! `evaluator/expectation.rs` calls `resolve_fixture_source` /
+//! `materialize_fixture` from the file, `stdout`, and `stderr` expectation
+//! evaluation paths to read a fixture's bytes during a live
 //! `contents_equals` evaluation (#87). `text_equals` (#88) does not accept a
 //! `FixtureReference` and so never calls into this module.
 
