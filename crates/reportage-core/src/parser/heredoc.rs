@@ -4,7 +4,7 @@ use super::{ParseError, Rule};
 /// Shared by `write_step_heredoc` and `file_exp_heredoc` — the fence and
 /// dedent rules are identical regardless of which construct the heredoc
 /// literal appears in.
-fn parse_heredoc_literal(pair: pest::iterators::Pair<Rule>) -> Result<String, ParseError> {
+pub(super) fn parse_heredoc_literal(pair: pest::iterators::Pair<Rule>) -> Result<String, ParseError> {
     // heredoc_literal = { PUSH(opening_fence) ~ ws* ~ nl ~ heredoc_body ~ closing_fence_line ~ DROP }
     let mut inner = pair.into_inner();
 

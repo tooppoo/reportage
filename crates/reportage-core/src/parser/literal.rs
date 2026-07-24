@@ -3,7 +3,7 @@ use crate::model::{
     FileContentsReference, FixtureReference, RequiredLiteralKind, ValueLiteralKind, WorkspacePath,
 };
 
-fn extract_string_inner(quoted: pest::iterators::Pair<Rule>) -> String {
+pub(super) fn extract_string_inner(quoted: pest::iterators::Pair<Rule>) -> String {
     // quoted_string = { "\"" ~ string_inner ~ "\"" }
     let raw = quoted
         .into_inner()
@@ -39,7 +39,7 @@ fn unescape_string(raw: &str) -> String {
 
 /// A parsed `value_literal`: its surface kind, its unescaped inner value,
 /// and enough source context to build an actionable kind-mismatch diagnostic.
-struct ValueLiteral {
+pub(super) struct ValueLiteral {
     kind: ValueLiteralKind,
     /// The unescaped inner string value.
     value: String,
@@ -56,7 +56,7 @@ struct ValueLiteral {
 /// or the suggestion would steer the author into the very `parse.syntax`
 /// error the semantic diagnostic exists to avoid.
 #[derive(Clone, Copy)]
-enum RequiredKind {
+pub(super) enum RequiredKind {
     /// The position requires a `<"...">` workspace path literal.
     WorkspacePath,
     /// The position requires a TextValue and its grammar accepts both the
@@ -104,7 +104,7 @@ impl ValueLiteral {
     /// Checks this literal against the kind `position` requires, returning
     /// the unescaped inner value on a match and an actionable
     /// `LiteralKindMismatch` (semantic.literal.kind_mismatch) otherwise.
-    fn expect_kind(
+    pub(super) fn expect_kind(
         self,
         expected: RequiredKind,
         position: &'static str,
@@ -159,7 +159,7 @@ impl ValueLiteral {
 /// Parses a `value_literal` pair into its kind, unescaped value, and source
 /// rendering. Infallible: which kinds a position accepts is checked
 /// separately via [`ValueLiteral::expect_kind`].
-fn parse_value_literal(pair: pest::iterators::Pair<Rule>) -> ValueLiteral {
+pub(super) fn parse_value_literal(pair: pest::iterators::Pair<Rule>) -> ValueLiteral {
     // value_literal = { workspace_path_literal | fixture_reference_literal | quoted_string }
     debug_assert_eq!(pair.as_rule(), Rule::value_literal);
     let line = pair.line_col().0;
@@ -201,7 +201,7 @@ fn parse_value_literal(pair: pest::iterators::Pair<Rule>) -> ValueLiteral {
 /// `"..."` string literal) is rejected as a `LiteralKindMismatch` via
 /// [`ValueLiteral::expect_kind`]. See #92 and
 /// docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
-fn parse_file_contents_reference(
+pub(super) fn parse_file_contents_reference(
     literal_pair: pest::iterators::Pair<Rule>,
     position: &'static str,
 ) -> Result<FileContentsReference, ParseError> {

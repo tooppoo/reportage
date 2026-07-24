@@ -59,7 +59,7 @@ fn parse_document_description_heredoc_field(
 /// and no field declared twice. Which fields can appear at all is the
 /// grammar's whitelist (`document_file_field_line`), not this function's
 /// concern.
-fn parse_document_file_block(
+pub(super) fn parse_document_file_block(
     pair: pest::iterators::Pair<Rule>,
 ) -> Result<FileDocumentation, ParseError> {
     let line = pair.line_col().0;
@@ -135,7 +135,7 @@ fn parse_document_file_block(
 /// the same open body rules as the file scope: at least one field, and no
 /// field declared twice. Association with the following case is the caller's
 /// concern (see `parse`).
-fn parse_document_case_block(
+pub(super) fn parse_document_case_block(
     pair: pest::iterators::Pair<Rule>,
 ) -> Result<CaseDocumentation, ParseError> {
     let line = pair.line_col().0;

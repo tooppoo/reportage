@@ -7,7 +7,7 @@ use crate::model::{
     TextLiteral,
 };
 
-fn parse_assertion_block(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
+pub(super) fn parse_assertion_block(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
     // assertion_block = { "assert" ~ ws* ~ "{" ~ (single_assert | multi_assert) ~ ws* ~ "}" }
     let body = pair
         .into_inner()

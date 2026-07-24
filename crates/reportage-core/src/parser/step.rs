@@ -13,7 +13,7 @@ use crate::model::{
 /// the `before_each_block` rule), so the write-only policy is enforced in this
 /// function: an action step or assertion block is rejected with a diagnostic
 /// naming the ban and the allowed alternative, at the offending step's line.
-fn parse_before_each_block(pair: pest::iterators::Pair<Rule>) -> Result<BeforeEach, ParseError> {
+pub(super) fn parse_before_each_block(pair: pest::iterators::Pair<Rule>) -> Result<BeforeEach, ParseError> {
     let line = pair.line_col().0;
 
     let mut steps: Vec<SideEffectingStep> = Vec::new();
@@ -43,7 +43,7 @@ fn parse_before_each_block(pair: pest::iterators::Pair<Rule>) -> Result<BeforeEa
     BeforeEach::new(steps).map_err(|BeforeEachError::Empty| ParseError::EmptyBeforeEach { line })
 }
 
-fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseError> {
+pub(super) fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseError> {
     let line = pair.line_col().0;
     let mut inner = pair.into_inner();
 
