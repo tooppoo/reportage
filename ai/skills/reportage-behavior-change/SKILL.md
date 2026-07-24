@@ -7,7 +7,7 @@ description: Require appropriate end-to-end coverage when changing reportage run
 
 Use this skill when changing reportage runtime behavior.
 
-This skill is required for changes that affect any of the following:
+Apply it to changes that affect any of the following:
 
 - reportage process exit code
 - target command execution behavior
@@ -23,13 +23,23 @@ This skill is required for changes that affect any of the following:
 - snapshot output
 - CLI-visible behavior
 
+## Read the current references
+
+For a repository change, start with [the generated AI reading order](../../../docs/ai/reading-order.generated.md) and read the local documents it lists.
+The checked-out files describe the current repository revision, including unreleased changes.
+
+For an installed reportage version, run `reportage references --format=json` and read the returned `documents[].urls.ai` entries in order.
+Do not use `reportage docs` for reference discovery: that command generates documentation from `.repor` sources.
+The URLs from `reportage references` are pinned to the running binary's version tag, so do not substitute them for the local documents when changing the current checkout.
+
 ## Required work
 
 When changing behavior, add or update e2e coverage.
 
 ### 1. Add e2e tests for observable behavior
 
-Any user-visible behavior change must be covered by e2e tests.
+Cover user-visible behavior with a `.repor` self-test under [`e2e/`](../../../e2e/).
+Use [the testing guide](../../../docs/design/testing/README.md) to choose the narrowest additional Rust test layer needed for internal models, harness behavior, or structural contracts.
 
 Observable behavior includes:
 
@@ -44,7 +54,8 @@ Observable behavior includes:
 - filesystem side effects
 - ordering of emitted events when relevant
 
-Unit tests are not enough when the behavior is visible through the CLI.
+Do not replace CLI-visible coverage with only a Rust unit or integration test.
+Do not duplicate a `.repor` assertion in Rust unless the Rust test verifies a boundary that self-testing cannot observe.
 
 ### 2. Cover both successful and failing command execution
 
@@ -113,6 +124,25 @@ When possible, add examples or fixtures that clearly show:
 
 Prefer fixtures that can be read by future maintainers and AI agents without reconstructing the scenario from test code alone.
 
+### 7. Run the current checks
+
+Run the self-test suite that executes [`e2e/`](../../../e2e/) through the Cargo-built reportage binary:
+
+```sh
+cargo nextest run --locked -p reportage-cli --test self_test
+```
+
+Run the focused contract recipe when its output surface changes:
+
+```sh
+just json-report-fixtures-check
+just run-result-fixtures-check
+just references-index-check
+```
+
+Choose only the focused recipes relevant to the change, then finish with `just check`.
+Do not invoke obsolete `just test-fixtures-valid` or `just test-fixtures-invalid` aliases; the current repository has no such recipes.
+
 ## Review checklist
 
 Before considering the change complete, verify:
@@ -126,6 +156,8 @@ Before considering the change complete, verify:
 - [ ] Failure classification is tested when relevant.
 - [ ] Snapshots are updated intentionally, not accidentally.
 - [ ] Documentation is updated if the user-visible contract changed.
+- [ ] The current local reading order and references were used instead of version-tag documentation for another version.
+- [ ] The self-test suite, relevant focused contract checks, and `just check` pass.
 
 ## Common mistakes
 
