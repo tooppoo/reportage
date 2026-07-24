@@ -21,6 +21,13 @@ struct ReportageParser;
 #[cfg(test)]
 mod tests;
 
+/// Parses `source` into the source-level model.
+///
+/// The returned [`SourceFile`] owns a copy of `source` and associates each case
+/// with its byte range in that text; run [`SourceFile::into_script`] to obtain
+/// the execution-model `Script`.
+/// Each case's span is exactly the pest `case_block` pair's matched range —
+/// the grammar, not this function, defines where a case block starts and ends.
 pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
     let pairs = ReportageParser::parse(Rule::script, source).map_err(|e| {
         let (line, col) = match e.line_col {

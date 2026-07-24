@@ -453,11 +453,3 @@ impl ParseError {
         }
     }
 }
-
-/// Parses `source` into the source-level model.
-///
-/// The returned [`SourceFile`] owns a copy of `source` and associates each case
-/// with its byte range in that text; run [`SourceFile::into_script`] to obtain
-/// the execution-model `Script`.
-/// Each case's span is exactly the pest `case_block` pair's matched range —
-/// the grammar, not this function, defines where a case block starts and ends.
