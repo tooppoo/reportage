@@ -12,7 +12,10 @@ use pest_derive::Parser;
 
 use self::document::{parse_document_case_block, parse_document_file_block};
 use self::step::{parse_before_each_block, parse_case_block};
-use crate::source::{SourceCase, SourceFile, SourceSpan, SourceText};
+use crate::model::BeforeEach;
+use crate::source::{
+    CaseDocumentation, FileDocumentation, SourceCase, SourceFile, SourceSpan, SourceText,
+};
 
 #[derive(Parser)]
 #[grammar = "reportage.pest"]

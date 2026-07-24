@@ -1,7 +1,5 @@
 use super::*;
-use crate::model::{
-    SideEffectingStep, Step, TextLiteral, WorkspacePath, WorkspacePathError,
-};
+use crate::model::{SideEffectingStep, Step, TextLiteral, WorkspacePathError};
 
 // ─── Write step: string literal / heredoc literal (#67, #86) ──────────
 

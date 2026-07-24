@@ -1,8 +1,7 @@
 use super::*;
 use crate::model::{
-    AssertionBlock, Expectation, FileContentsReference, FileMatcher, FixtureReference,
-    FixtureReferenceError, OutputExpectation, OutputMatcher, RequiredLiteralKind, Step,
-    TextLiteral, ValueLiteralKind, WorkspacePath, WorkspacePathError,
+    Expectation, FileContentsReference, FileMatcher, FixtureReferenceError, OutputExpectation,
+    OutputMatcher, RequiredLiteralKind, Step, TextLiteral, ValueLiteralKind, WorkspacePathError,
 };
 
 // ─── Workspace path literal / literal kind mismatch (#93) ──────────────

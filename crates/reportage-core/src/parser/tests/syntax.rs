@@ -1,5 +1,6 @@
 use super::*;
-use crate::model::{AssertionBlock, Expectation, OutputMatcher, Step};
+use crate::diagnostic::DiagnosticDetails;
+use crate::model::{Expectation, OutputMatcher, Step};
 
 #[test]
 fn parse_single_passing_case() {

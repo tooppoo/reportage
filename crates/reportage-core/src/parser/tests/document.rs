@@ -1,5 +1,5 @@
 use super::*;
-use crate::model::{FixtureReference, RequiredLiteralKind, ValueLiteralKind, WorkspacePath};
+use crate::model::{RequiredLiteralKind, ValueLiteralKind};
 
 // ── Document block: `document file` ─────────────────────────────────────
 //

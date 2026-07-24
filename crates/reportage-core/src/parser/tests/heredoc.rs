@@ -1,5 +1,5 @@
 use super::*;
-use crate::model::{AssertionBlock, Step};
+use crate::model::Step;
 
 #[test]
 fn write_step_empty_block_content_is_empty_string() {

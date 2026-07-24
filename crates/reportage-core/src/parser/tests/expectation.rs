@@ -1,7 +1,5 @@
 use super::*;
-use crate::model::{
-    AssertionBlock, DirMatcher, Expectation, FileMatcher, LogicalOperator, Step,
-};
+use crate::model::{DirMatcher, Expectation, FileMatcher, LogicalOperator, Step};
 
 #[test]
 fn parse_file_exists() {
