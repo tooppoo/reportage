@@ -393,12 +393,12 @@ fn escaped_quote_in_case_name_does_not_terminate_string() {
     let script = parse_script(src).unwrap();
     assert_eq!(script.cases[0].name, "a \"b\" c");
 
-    let err = parse_script("case \"a\\xb\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n")
-        .unwrap_err();
+    let err =
+        parse_script("case \"a\\xb\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n").unwrap_err();
     assert!(matches!(err, ParseError::Syntax { .. }));
 
-    let err = parse_script("case \"a\nb\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n")
-        .unwrap_err();
+    let err =
+        parse_script("case \"a\nb\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n").unwrap_err();
     assert!(matches!(err, ParseError::Syntax { .. }));
 }
 
@@ -425,8 +425,7 @@ fn bare_cr_in_string_is_rejected() {
 
 #[test]
 fn unclosed_string_literal_is_rejected() {
-    let src =
-        "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"never closed\n  }\n}\n";
+    let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"never closed\n  }\n}\n";
     let err = parse_script(src).unwrap_err();
     assert!(matches!(err, ParseError::Syntax { .. }));
 }
@@ -447,8 +446,7 @@ fn undefined_escape_r_is_rejected() {
 
 #[test]
 fn undefined_unicode_escape_is_rejected() {
-    let src =
-        "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\\u{1245}b\"\n  }\n}\n";
+    let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains \"a\\u{1245}b\"\n  }\n}\n";
     let err = parse_script(src).unwrap_err();
     assert!(matches!(err, ParseError::Syntax { .. }));
 }
@@ -877,7 +875,8 @@ fn case_span_with_crlf_line_endings_includes_final_crlf() {
 
 #[test]
 fn case_span_with_heredoc_body_covers_whole_block() {
-    let src = "case \"x\" {\n  write <\"o.txt\"> ```\n  line\n  ```\n  $ true\n  assert { exit 0 }\n}\n";
+    let src =
+        "case \"x\" {\n  write <\"o.txt\"> ```\n  line\n  ```\n  $ true\n  assert { exit 0 }\n}\n";
     assert_eq!(single_case_source(src), src);
 }
 

@@ -55,9 +55,8 @@ fn document_file_description_heredoc_is_dedented() {
 
 #[test]
 fn document_file_description_heredoc_shallow_indent_is_rejected() {
-    let src = format!(
-        "document file {{\n  description ```\n  shallow\n    ```\n}}\n\n{PASSING_CASE}"
-    );
+    let src =
+        format!("document file {{\n  description ```\n  shallow\n    ```\n}}\n\n{PASSING_CASE}");
     let err = parse(&src).unwrap_err();
     assert!(matches!(err, ParseError::ShallowHeredocIndent { .. }));
     assert_eq!(err.code().as_str(), "parse.heredoc_literal.shallow_indent");
@@ -90,9 +89,8 @@ fn document_file_order_overflow_is_rejected() {
 
 #[test]
 fn duplicate_documentation_field_is_rejected() {
-    let src = format!(
-        "document file {{\n  title \"first\"\n  title \"second\"\n}}\n\n{PASSING_CASE}"
-    );
+    let src =
+        format!("document file {{\n  title \"first\"\n  title \"second\"\n}}\n\n{PASSING_CASE}");
     let err = parse(&src).unwrap_err();
     assert!(matches!(
         err,
@@ -184,16 +182,14 @@ fn assertion_block_in_document_block_is_syntax_error() {
 
 #[test]
 fn write_step_in_document_block_is_syntax_error() {
-    let src =
-        format!("document file {{\n  write <\"out.txt\"> \"value\"\n}}\n\n{PASSING_CASE}");
+    let src = format!("document file {{\n  write <\"out.txt\"> \"value\"\n}}\n\n{PASSING_CASE}");
     let err = parse(&src).unwrap_err();
     assert!(matches!(err, ParseError::Syntax { .. }));
 }
 
 #[test]
 fn case_block_in_document_block_is_syntax_error() {
-    let src =
-        "document file {\n  case \"nested\" {\n    $ true\n    assert { exit 0 }\n  }\n}\n";
+    let src = "document file {\n  case \"nested\" {\n    $ true\n    assert { exit 0 }\n  }\n}\n";
     let err = parse(src).unwrap_err();
     assert!(matches!(err, ParseError::Syntax { .. }));
 }
@@ -331,8 +327,7 @@ fn document_case_fields_are_parsed_and_associated_with_next_case() {
 
 #[test]
 fn document_case_holds_only_explicit_fields() {
-    let src =
-        format!("document case {{\n  description \"No title given.\"\n}}\n{PASSING_CASE}");
+    let src = format!("document case {{\n  description \"No title given.\"\n}}\n{PASSING_CASE}");
     let source_file = parse(&src).unwrap();
     let documentation = source_file.cases()[0].documentation().unwrap();
     // The omitted title stays `None`: the case-name fallback is applied
@@ -602,8 +597,7 @@ fn second_document_case_before_target_case_is_rejected_as_duplicate() {
 fn duplicate_document_case_wins_over_orphan() {
     // Both blocks lack a target case; the second block is still reported
     // as a duplicate (of the pending first block), not as an orphan.
-    let src =
-        "document case {\n  title \"first\"\n}\n\ndocument case {\n  title \"second\"\n}\n";
+    let src = "document case {\n  title \"first\"\n}\n\ndocument case {\n  title \"second\"\n}\n";
     let err = parse(src).unwrap_err();
     assert!(matches!(err, ParseError::DuplicateDocumentCase { line: 5 }));
 }

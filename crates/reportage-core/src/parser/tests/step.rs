@@ -92,12 +92,10 @@ fn multiple_write_steps_are_kept_in_source_order() {
     let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    a\n    ```\n  write <\"b.txt\"> ```\n    b\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
     let script = parse_script(src).unwrap();
     assert_eq!(script.cases[0].steps.len(), 4);
-    let Step::SideEffect(SideEffectingStep::WriteFile(first)) = &script.cases[0].steps[0]
-    else {
+    let Step::SideEffect(SideEffectingStep::WriteFile(first)) = &script.cases[0].steps[0] else {
         panic!("expected write step");
     };
-    let Step::SideEffect(SideEffectingStep::WriteFile(second)) = &script.cases[0].steps[1]
-    else {
+    let Step::SideEffect(SideEffectingStep::WriteFile(second)) = &script.cases[0].steps[1] else {
         panic!("expected write step");
     };
     assert_eq!(first.path.as_str(), "a.txt");

@@ -3,7 +3,8 @@ use crate::model::Step;
 
 #[test]
 fn write_step_empty_block_content_is_empty_string() {
-    let src = "case \"x\" {\n  write <\"empty.txt\"> ```\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+    let src =
+        "case \"x\" {\n  write <\"empty.txt\"> ```\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
     let script = parse_script(src).unwrap();
     let step = write_file_step(&script);
     assert_eq!(step.content.to_text_value().as_str(), "");
@@ -31,7 +32,8 @@ fn write_step_whitespace_only_line_is_dedented_to_empty_line() {
 fn write_step_tab_indent_is_treated_as_literal_prefix_not_width() {
     // Closing fence indented with a tab; body lines must match that exact
     // tab character as a string prefix, not a width-equivalent number of spaces.
-    let src = "case \"x\" {\n  write <\"a.txt\"> ```\n\thello\n\t```\n  $ true\n  assert { exit 0 }\n}\n";
+    let src =
+        "case \"x\" {\n  write <\"a.txt\"> ```\n\thello\n\t```\n  $ true\n  assert { exit 0 }\n}\n";
     let script = parse_script(src).unwrap();
     let step = write_file_step(&script);
     assert_eq!(step.content.to_text_value().as_str(), "hello\n");

@@ -120,8 +120,7 @@ fn write_heredoc_path_string_literal_is_kind_mismatch() {
 
 #[test]
 fn write_content_workspace_path_literal_is_kind_mismatch() {
-    let src =
-        "case \"x\" {\n  write <\"a.txt\"> <\"b.txt\">\n  $ true\n  assert { exit 0 }\n}\n";
+    let src = "case \"x\" {\n  write <\"a.txt\"> <\"b.txt\">\n  $ true\n  assert { exit 0 }\n}\n";
     let err = parse_script(src).unwrap_err();
     assert!(matches!(
         err,
@@ -138,7 +137,8 @@ fn write_content_workspace_path_literal_is_kind_mismatch() {
 
 #[test]
 fn stdout_contains_workspace_path_literal_is_kind_mismatch() {
-    let src = "case \"x\" {\n  $ true\n  assert {\n    stdout contains <\"expected.stdout\">\n  }\n}\n";
+    let src =
+        "case \"x\" {\n  $ true\n  assert {\n    stdout contains <\"expected.stdout\">\n  }\n}\n";
     let err = parse_script(src).unwrap_err();
     assert!(matches!(
         err,
@@ -160,7 +160,8 @@ fn stdout_contains_workspace_path_literal_is_kind_mismatch() {
 
 #[test]
 fn stderr_contains_fixture_reference_is_kind_mismatch() {
-    let src = "case \"x\" {\n  $ true\n  assert {\n    stderr contains @\"expected.stderr\"\n  }\n}\n";
+    let src =
+        "case \"x\" {\n  $ true\n  assert {\n    stderr contains @\"expected.stderr\"\n  }\n}\n";
     let err = parse_script(src).unwrap_err();
     assert!(matches!(
         err,
@@ -402,8 +403,7 @@ fn heredoc_file_text_equals_subject_string_literal_is_kind_mismatch() {
 
 #[test]
 fn stdout_text_equals_accepts_string_literal() {
-    let src =
-        "case \"x\" {\n  $ true\n  assert {\n    stdout text_equals \"hello\\n\"\n  }\n}\n";
+    let src = "case \"x\" {\n  $ true\n  assert {\n    stdout text_equals \"hello\\n\"\n  }\n}\n";
     let script = parse_script(src).unwrap();
     let Step::AssertionBlock(block) = &script.cases[0].steps[1] else {
         panic!("expected assertion block");
@@ -452,7 +452,8 @@ fn stdout_text_equals_heredoc_parses_alongside_other_expectations() {
 
 #[test]
 fn stdout_text_equals_workspace_path_literal_is_kind_mismatch() {
-    let src = "case \"x\" {\n  $ true\n  assert {\n    stdout text_equals <\"expected.txt\">\n  }\n}\n";
+    let src =
+        "case \"x\" {\n  $ true\n  assert {\n    stdout text_equals <\"expected.txt\">\n  }\n}\n";
     let err = parse_script(src).unwrap_err();
     assert!(matches!(
         err,
@@ -469,7 +470,8 @@ fn stdout_text_equals_workspace_path_literal_is_kind_mismatch() {
 
 #[test]
 fn stderr_text_equals_fixture_reference_is_kind_mismatch() {
-    let src = "case \"x\" {\n  $ true\n  assert {\n    stderr text_equals @\"expected.txt\"\n  }\n}\n";
+    let src =
+        "case \"x\" {\n  $ true\n  assert {\n    stderr text_equals @\"expected.txt\"\n  }\n}\n";
     let err = parse_script(src).unwrap_err();
     assert!(matches!(
         err,
@@ -615,7 +617,8 @@ fn write_step_content_fixture_reference_is_kind_mismatch() {
     // just a value_literal whose kind never matches a write step's
     // TextValue content requirement: fixture references are only valid
     // in a FileContentsReference expected position (#92).
-    let src = "case \"x\" {\n  write <\"out.txt\"> @\"expected.txt\"\n  $ true\n  assert { exit 0 }\n}\n";
+    let src =
+        "case \"x\" {\n  write <\"out.txt\"> @\"expected.txt\"\n  $ true\n  assert { exit 0 }\n}\n";
     let err = parse_script(src).unwrap_err();
     assert!(matches!(
         err,
@@ -629,8 +632,7 @@ fn write_step_content_fixture_reference_is_kind_mismatch() {
 
 #[test]
 fn write_step_path_fixture_reference_is_kind_mismatch() {
-    let src =
-        "case \"x\" {\n  write @\"out.txt\" \"content\"\n  $ true\n  assert { exit 0 }\n}\n";
+    let src = "case \"x\" {\n  write @\"out.txt\" \"content\"\n  $ true\n  assert { exit 0 }\n}\n";
     let err = parse_script(src).unwrap_err();
     assert!(matches!(
         err,
@@ -648,8 +650,7 @@ fn workspace_path_literal_value_validation_still_applies_to_write_path() {
     // workspace path literal whose unescaped value violates the
     // workspace path policy still fails with the existing
     // semantic.workspace_path.* diagnostics.
-    let src =
-        "case \"x\" {\n  write <\"/etc/passwd\"> \"x\"\n  $ true\n  assert { exit 0 }\n}\n";
+    let src = "case \"x\" {\n  write <\"/etc/passwd\"> \"x\"\n  $ true\n  assert { exit 0 }\n}\n";
     let err = parse_script(src).unwrap_err();
     assert!(matches!(
         err,
