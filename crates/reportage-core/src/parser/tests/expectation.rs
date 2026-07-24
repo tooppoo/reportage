@@ -1,3 +1,8 @@
+use super::*;
+use crate::model::{
+    AssertionBlock, DirMatcher, Expectation, FileMatcher, LogicalOperator, Step,
+};
+
 #[test]
 fn parse_file_exists() {
     let src = r#"
@@ -399,4 +404,3 @@ fn single_line_composition_block_multiple_expectations_is_error() {
     let err = parse_script(src).unwrap_err();
     assert!(matches!(err, ParseError::Syntax { .. }));
 }
-

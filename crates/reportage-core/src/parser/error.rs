@@ -1,3 +1,9 @@
+use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, DiagnosticLocation};
+use crate::model::{
+    FixtureReferenceError, LogicalOperator, RequiredLiteralKind, ValueLiteralKind,
+    WorkspacePathError,
+};
+
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
     /// A syntax error produced by the pest grammar.

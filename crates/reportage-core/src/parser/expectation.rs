@@ -1,3 +1,12 @@
+use super::heredoc::parse_heredoc_literal;
+use super::literal::{RequiredKind, parse_file_contents_reference, parse_value_literal};
+use super::{ParseError, Rule};
+use crate::model::{
+    AssertionBlock, DirExpectation, DirMatcher, ExitExpectation, Expectation, FileExpectation,
+    FileMatcher, LogicalExpectation, LogicalOperator, OutputExpectation, OutputMatcher, Step,
+    TextLiteral,
+};
+
 fn parse_assertion_block(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
     // assertion_block = { "assert" ~ ws* ~ "{" ~ (single_assert | multi_assert) ~ ws* ~ "}" }
     let body = pair

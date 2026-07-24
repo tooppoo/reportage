@@ -1,3 +1,8 @@
+use super::{ParseError, Rule};
+use crate::model::{
+    FileContentsReference, FixtureReference, RequiredLiteralKind, ValueLiteralKind, WorkspacePath,
+};
+
 fn extract_string_inner(quoted: pest::iterators::Pair<Rule>) -> String {
     // quoted_string = { "\"" ~ string_inner ~ "\"" }
     let raw = quoted
@@ -226,4 +231,3 @@ fn parse_file_contents_reference(
         }
     }
 }
-

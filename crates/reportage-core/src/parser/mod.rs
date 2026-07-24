@@ -1,18 +1,9 @@
 use pest::Parser;
 use pest_derive::Parser;
 
-use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, DiagnosticLocation};
-use crate::model::{
-    ActionStep, AssertionBlock, BeforeEach, BeforeEachError, Case, DirExpectation, DirMatcher,
-    ExitExpectation, Expectation, FileContentsReference, FileExpectation, FileMatcher,
-    FixtureReference, FixtureReferenceError, LogicalExpectation, LogicalOperator,
-    OutputExpectation, OutputMatcher, RequiredLiteralKind, SideEffectingStep, Step, TextLiteral,
-    ValueLiteralKind, WorkspacePath, WorkspacePathError, WriteFileStep,
-};
-use crate::source::{
-    CaseDocumentation, DocumentationText, FileDocumentation, SourceCase, SourceFile, SourceSpan,
-    SourceText,
-};
+use self::document::{parse_document_case_block, parse_document_file_block};
+use self::step::{parse_before_each_block, parse_case_block};
+use crate::source::{SourceCase, SourceFile, SourceSpan, SourceText};
 
 #[derive(Parser)]
 #[grammar = "reportage.pest"]

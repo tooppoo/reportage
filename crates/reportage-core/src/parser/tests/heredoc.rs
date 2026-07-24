@@ -1,3 +1,6 @@
+use super::*;
+use crate::model::{AssertionBlock, Step};
+
 #[test]
 fn write_step_empty_block_content_is_empty_string() {
     let src = "case \"x\" {\n  write <\"empty.txt\"> ```\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
@@ -130,4 +133,3 @@ fn missing_closing_fence_silently_absorbs_a_later_write_step_as_content() {
     assert!(matches!(script.cases[0].steps[1], Step::Action(_)));
     assert!(matches!(script.cases[0].steps[2], Step::AssertionBlock(_)));
 }
-

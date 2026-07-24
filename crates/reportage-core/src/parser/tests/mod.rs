@@ -1,5 +1,5 @@
 use super::*;
-use crate::model::Script;
+use crate::model::{Script, SideEffectingStep, Step, WriteFileStep};
 
 /// Most tests here assert against the execution model, so they project
 /// the parse result immediately; span-focused tests call `parse` directly.
@@ -15,4 +15,3 @@ fn write_file_step(script: &Script) -> &WriteFileStep {
 }
 
 const PASSING_CASE: &str = "case \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
-

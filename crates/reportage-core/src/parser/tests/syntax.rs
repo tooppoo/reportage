@@ -1,3 +1,6 @@
+use super::*;
+use crate::model::{AssertionBlock, Expectation, OutputMatcher, Step};
+
 #[test]
 fn parse_single_passing_case() {
     let src = r#"
@@ -908,4 +911,3 @@ fn into_script_preserves_case_order_and_drops_source() {
     assert_eq!(script.cases[0].name, "a");
     assert_eq!(script.cases[1].name, "b");
 }
-

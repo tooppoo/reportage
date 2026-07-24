@@ -1,3 +1,5 @@
+use super::{ParseError, Rule};
+
 /// Parses a `heredoc_literal` pair into its dedented `String` content.
 /// Shared by `write_step_heredoc` and `file_exp_heredoc` — the fence and
 /// dedent rules are identical regardless of which construct the heredoc

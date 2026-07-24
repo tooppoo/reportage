@@ -1,3 +1,6 @@
+use super::*;
+use crate::model::{FixtureReference, RequiredLiteralKind, ValueLiteralKind, WorkspacePath};
+
 // ── Document block: `document file` ─────────────────────────────────────
 //
 // Field validation, placement rules, and the whitelist body contract.
@@ -669,4 +672,3 @@ fn into_script_drops_case_documentation() {
         undocumented_script.cases[0].steps.len()
     );
 }
-

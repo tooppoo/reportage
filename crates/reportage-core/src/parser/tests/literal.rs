@@ -1,3 +1,10 @@
+use super::*;
+use crate::model::{
+    AssertionBlock, Expectation, FileContentsReference, FileMatcher, FixtureReference,
+    FixtureReferenceError, OutputExpectation, OutputMatcher, RequiredLiteralKind, Step,
+    TextLiteral, ValueLiteralKind, WorkspacePath, WorkspacePathError,
+};
+
 // ─── Workspace path literal / literal kind mismatch (#93) ──────────────
 
 #[test]
@@ -653,4 +660,3 @@ fn workspace_path_literal_value_validation_still_applies_to_write_path() {
         }
     ));
 }
-

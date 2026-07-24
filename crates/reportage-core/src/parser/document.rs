@@ -1,3 +1,8 @@
+use super::heredoc::parse_heredoc_literal;
+use super::literal::{RequiredKind, parse_value_literal};
+use super::{ParseError, Rule};
+use crate::source::{CaseDocumentation, DocumentationText, FileDocumentation};
+
 /// The duplicate-field check shared by every document field arm, kept out of
 /// line so each arm reads as "reject the duplicate, then parse the value".
 fn reject_duplicate_documentation_field<T>(
