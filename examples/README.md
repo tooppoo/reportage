@@ -7,6 +7,10 @@
     - [long pipeline split across lines with backslash continuation](#case-1-1-1-long-pipeline-split-across-lines-with-backslash-continuation)
   - [Any shell command as an action](#file-1-2-any-shell-command-as-an-action)
     - [action is shell, so it is possible HTTP request!](#case-1-2-1-action-is-shell-so-it-is-possible-http-request)
+  - [Runtime evidence bindings](#file-1-3-runtime-evidence-bindings)
+    - [capture exact stdout and write it to a file](#case-1-3-1-capture-exact-stdout-and-write-it-to-a-file)
+    - [Single-line capture](#case-1-3-2-single-line-capture)
+    - [capture one stderr line for a later assertion](#case-1-3-3-capture-one-stderr-line-for-a-later-assertion)
 - [Assertions](#group-2-assertions)
   - [stdout and stderr expectations](#file-2-1-stdout-and-stderr-expectations)
     - [stdout is empty](#case-2-1-1-stdout-is-empty)
@@ -111,6 +115,67 @@ case "action is shell, so it is possible HTTP request!" {
     exit 0
     stdout contains "Example Domain"
     stdout contains "<!doctype html>"
+  }
+}
+```
+
+<a id="file-1-3-runtime-evidence-bindings"></a>
+### Runtime evidence bindings
+
+Source: examples/runtime-evidence-bindings.repor
+
+A runtime evidence binding captures stdout or stderr from the preceding action as immutable, case-local text.
+Use exact capture when newlines are significant, or a `_line` source when the action emits one logical line whose trailing newline should be removed.
+A binding reference such as `&output` can supply text to `write`, `contains`, and `text_equals`.
+
+<a id="case-1-3-1-capture-exact-stdout-and-write-it-to-a-file"></a>
+#### capture exact stdout and write it to a file
+
+```reportage
+case "capture exact stdout and write it to a file" {
+  $ printf 'hello\nworld\n'
+  let output <- stdout
+
+  write <"captured.txt"> &output
+
+  assert {
+    stdout text_equals &output
+    file <"captured.txt"> text_equals &output
+  }
+}
+```
+
+<a id="case-1-3-2-single-line-capture"></a>
+#### Single-line capture
+
+`stdout_line` removes one trailing LF or CRLF before binding the value.
+The captured line remains available only after its declaration and only within this case.
+
+```reportage
+case "capture one stdout line without its trailing newline" {
+  $ printf 'reportage\n'
+  let word <- stdout_line
+
+  write <"word.txt"> &word
+
+  assert {
+    stdout contains &word
+    file <"word.txt"> text_equals &word
+  }
+}
+```
+
+<a id="case-1-3-3-capture-one-stderr-line-for-a-later-assertion"></a>
+#### capture one stderr line for a later assertion
+
+```reportage
+case "capture one stderr line for a later assertion" {
+  $ printf 'warning: retrying\n' >&2
+  let warning <- stderr_line
+
+  assert {
+    exit 0
+    stderr contains &warning
   }
 }
 ```

@@ -1,0 +1,54 @@
+document file {
+  title "Runtime evidence bindings"
+  group "Actions"
+  order 30
+
+  description ```
+    A runtime evidence binding captures stdout or stderr from the preceding action as immutable, case-local text.
+    Use exact capture when newlines are significant, or a `_line` source when the action emits one logical line whose trailing newline should be removed.
+    A binding reference such as `&output` can supply text to `write`, `contains`, and `text_equals`.
+    ```
+}
+
+case "capture exact stdout and write it to a file" {
+  $ printf 'hello\nworld\n'
+  let output <- stdout
+
+  write <"captured.txt"> &output
+
+  assert {
+    stdout text_equals &output
+    file <"captured.txt"> text_equals &output
+  }
+}
+
+document case {
+  title "Single-line capture"
+
+  description ```
+    `stdout_line` removes one trailing LF or CRLF before binding the value.
+    The captured line remains available only after its declaration and only within this case.
+    ```
+}
+
+case "capture one stdout line without its trailing newline" {
+  $ printf 'reportage\n'
+  let word <- stdout_line
+
+  write <"word.txt"> &word
+
+  assert {
+    stdout contains &word
+    file <"word.txt"> text_equals &word
+  }
+}
+
+case "capture one stderr line for a later assertion" {
+  $ printf 'warning: retrying\n' >&2
+  let warning <- stderr_line
+
+  assert {
+    exit 0
+    stderr contains &warning
+  }
+}
