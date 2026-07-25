@@ -88,6 +88,17 @@
       "target_path": ".claude/skills/reportage-behavior-change"
     },
     {
+      "source_name": "reportage",
+      "kind": "skill",
+      "source": {
+        "type": "local",
+        "path": "ai/skills/reportage",
+        "resolved_path": "/workspaces/reportage/ai/skills/reportage"
+      },
+      "target_ai": "claude",
+      "target_path": ".claude/skills/reportage"
+    },
+    {
       "source_name": "documentation-writing",
       "kind": "skill",
       "source": {
@@ -172,6 +183,17 @@
       },
       "target_ai": "codex",
       "target_path": ".agents/skills/reportage-behavior-change"
+    },
+    {
+      "source_name": "reportage",
+      "kind": "skill",
+      "source": {
+        "type": "local",
+        "path": "ai/skills/reportage",
+        "resolved_path": "/workspaces/reportage/ai/skills/reportage"
+      },
+      "target_ai": "codex",
+      "target_path": ".agents/skills/reportage"
     }
   ]
 }
