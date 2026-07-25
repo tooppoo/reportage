@@ -43,6 +43,18 @@ case "capture one stdout line without its trailing newline" {
   }
 }
 
+case "capture exact stderr including newlines" {
+  $ printf 'warning: retrying\nerror: unavailable\n' >&2
+  let diagnostics <- stderr
+
+  write <"diagnostics.txt"> &diagnostics
+
+  assert {
+    stderr text_equals &diagnostics
+    file <"diagnostics.txt"> text_equals &diagnostics
+  }
+}
+
 case "capture one stderr line for a later assertion" {
   $ printf 'warning: retrying\n' >&2
   let warning <- stderr_line

@@ -10,7 +10,8 @@
   - [Runtime evidence bindings](#file-1-3-runtime-evidence-bindings)
     - [capture exact stdout and write it to a file](#case-1-3-1-capture-exact-stdout-and-write-it-to-a-file)
     - [Single-line capture](#case-1-3-2-single-line-capture)
-    - [capture one stderr line for a later assertion](#case-1-3-3-capture-one-stderr-line-for-a-later-assertion)
+    - [capture exact stderr including newlines](#case-1-3-3-capture-exact-stderr-including-newlines)
+    - [capture one stderr line for a later assertion](#case-1-3-4-capture-one-stderr-line-for-a-later-assertion)
 - [Assertions](#group-2-assertions)
   - [stdout and stderr expectations](#file-2-1-stdout-and-stderr-expectations)
     - [stdout is empty](#case-2-1-1-stdout-is-empty)
@@ -165,7 +166,24 @@ case "capture one stdout line without its trailing newline" {
 }
 ```
 
-<a id="case-1-3-3-capture-one-stderr-line-for-a-later-assertion"></a>
+<a id="case-1-3-3-capture-exact-stderr-including-newlines"></a>
+#### capture exact stderr including newlines
+
+```reportage
+case "capture exact stderr including newlines" {
+  $ printf 'warning: retrying\nerror: unavailable\n' >&2
+  let diagnostics <- stderr
+
+  write <"diagnostics.txt"> &diagnostics
+
+  assert {
+    stderr text_equals &diagnostics
+    file <"diagnostics.txt"> text_equals &diagnostics
+  }
+}
+```
+
+<a id="case-1-3-4-capture-one-stderr-line-for-a-later-assertion"></a>
 #### capture one stderr line for a later assertion
 
 ```reportage
