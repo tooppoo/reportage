@@ -137,6 +137,10 @@ A passing single-case run produces (`tool.version` normalised to a placeholder):
             "actualRef": "test-1/action-1/stdout.bin",
             "actualSizeBytes": 6,
             "expected": "hello",
+            "expectedSource": {
+              "kind": "quoted",
+              "value": "hello"
+            },
             "kind": "stdoutContains",
             "status": "passed"
           },

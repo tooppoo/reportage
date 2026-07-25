@@ -79,6 +79,10 @@
             "actualRef": "test-1/action-3/stdout.bin",
             "actualSizeBytes": 12,
             "expected": "hello",
+            "expectedSource": {
+              "kind": "quoted",
+              "value": "hello"
+            },
             "kind": "stdoutContains",
             "status": "passed"
           },
@@ -145,6 +149,10 @@
           "checkpoint": "action-3",
           "expectation": {
             "expected": "world",
+            "expectedSource": {
+              "kind": "quoted",
+              "value": "world"
+            },
             "kind": "fileContains",
             "observed": "found",
             "path": "data.txt",
@@ -226,6 +234,10 @@
                 "actualRef": "test-1/action-3/stdout.bin",
                 "actualSizeBytes": 12,
                 "expected": "world",
+                "expectedSource": {
+                  "kind": "quoted",
+                  "value": "world"
+                },
                 "kind": "stdoutContains",
                 "status": "passed"
               }

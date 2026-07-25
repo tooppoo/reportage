@@ -241,7 +241,7 @@
       }
     },
     "TextExpectedSource": {
-      "description": "A `text_equals` expected value's source: an inline literal or a case-local runtime binding reference.",
+      "description": "A text expectation's source: an inline literal or a case-local runtime binding reference.",
       "oneOf": [
         {
           "type": "object",
@@ -315,11 +315,12 @@
       "description": "kind is 'stdoutContains' or 'stderrContains'.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "status", "expected", "actualSizeBytes"],
+      "required": ["kind", "status", "expected", "expectedSource", "actualSizeBytes"],
       "properties": {
         "kind": { "enum": ["stdoutContains", "stderrContains"] },
         "status": { "type": "string", "enum": ["passed", "failed"] },
         "expected": { "type": "string" },
+        "expectedSource": { "$ref": "#/$defs/TextExpectedSource" },
         "actualRef": {
           "type": "string",
           "description": "Present only when this assertion was evaluated after at least one action ran."
@@ -356,12 +357,13 @@
     "FileContainsExpectation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "status", "path", "expected", "observed"],
+      "required": ["kind", "status", "path", "expected", "expectedSource", "observed"],
       "properties": {
         "kind": { "const": "fileContains" },
         "status": { "type": "string", "enum": ["passed", "failed"] },
         "path": { "type": "string" },
         "expected": { "type": "string" },
+        "expectedSource": { "$ref": "#/$defs/TextExpectedSource" },
         "observed": {
           "type": "string",
           "enum": ["found", "notFound", "missing", "notRegularFile", "unreadable", "notUtf8"]

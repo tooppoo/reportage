@@ -63,6 +63,7 @@ pub enum ParseError {
     /// an actionable diagnostic. See docs/reference/semantic-diagnostics.md.
     LiteralKindMismatch {
         line: usize,
+        column: usize,
         /// Human-readable name of the argument position, e.g. "`file` checkpoint subject".
         position: &'static str,
         expected: RequiredLiteralKind,
@@ -145,8 +146,8 @@ pub enum ParseError {
         line: usize,
     },
     InvalidBindingIdentifier {
-        line: usize,
         name: String,
+        span: BindingSpan,
     },
     DuplicateBinding {
         name: String,
@@ -165,8 +166,8 @@ pub enum ParseError {
         span: BindingSpan,
     },
     BindingTypeMismatch {
-        line: usize,
         name: String,
+        span: BindingSpan,
         expected: &'static str,
     },
 }
@@ -240,6 +241,7 @@ impl std::fmt::Display for ParseError {
             }
             ParseError::LiteralKindMismatch {
                 line,
+                column: _,
                 position,
                 expected,
                 actual,
@@ -306,11 +308,12 @@ impl std::fmt::Display for ParseError {
             ),
             ParseError::BeforeEachBindingStep { line } => write!(
                 f,
-                "parse error at line {line}: `before_each` must not contain a `let` binding step"
+                "parse error at line {line}: `before_each` must not contain bindings or binding references"
             ),
-            ParseError::InvalidBindingIdentifier { line, name } => write!(
+            ParseError::InvalidBindingIdentifier { name, span } => write!(
                 f,
-                "parse error at line {line}: binding identifier '{name}' must match [A-Za-z_][A-Za-z0-9_]*"
+                "parse error at line {line}: binding identifier '{name}' must match [A-Za-z_][A-Za-z0-9_]*",
+                line = span.line,
             ),
             ParseError::DuplicateBinding { name, .. } => write!(
                 f,
@@ -329,12 +332,13 @@ impl std::fmt::Display for ParseError {
                 "test-definition error: binding '{name}' captures process output before any action has run"
             ),
             ParseError::BindingTypeMismatch {
-                line,
                 name,
                 expected,
+                span,
             } => write!(
                 f,
-                "test-definition error at line {line}: position requires {expected}, but '&{name}' references a TextValue binding"
+                "test-definition error at line {line}: position requires {expected}, but '&{name}' references a TextValue binding",
+                line = span.line,
             ),
         }
     }
@@ -502,6 +506,7 @@ impl ParseError {
             ),
             ParseError::LiteralKindMismatch {
                 line,
+                column,
                 expected,
                 actual,
                 source,
@@ -510,7 +515,7 @@ impl ParseError {
             } => (
                 Some(DiagnosticLocation {
                     line: *line,
-                    column: None,
+                    column: Some(*column),
                 }),
                 DiagnosticDetails {
                     raw_value: Some(source.clone()),
@@ -537,13 +542,22 @@ impl ParseError {
             | ParseError::BeforeEachActionStep { line }
             | ParseError::BeforeEachAssertionBlock { line }
             | ParseError::EmptyBeforeEach { line }
-            | ParseError::BeforeEachBindingStep { line }
-            | ParseError::InvalidBindingIdentifier { line, .. } => (
+            | ParseError::BeforeEachBindingStep { line } => (
                 Some(DiagnosticLocation {
                     line: *line,
                     column: None,
                 }),
                 DiagnosticDetails::default(),
+            ),
+            ParseError::InvalidBindingIdentifier { name, span } => (
+                Some(DiagnosticLocation {
+                    line: span.line,
+                    column: Some(span.column),
+                }),
+                DiagnosticDetails {
+                    raw_value: Some(name.clone()),
+                    ..Default::default()
+                },
             ),
             ParseError::DuplicateDocumentationField { line, field } => (
                 Some(DiagnosticLocation {
@@ -579,13 +593,13 @@ impl ParseError {
                 },
             ),
             ParseError::BindingTypeMismatch {
-                line,
                 name,
+                span,
                 expected,
             } => (
                 Some(DiagnosticLocation {
-                    line: *line,
-                    column: None,
+                    line: span.line,
+                    column: Some(span.column),
                 }),
                 DiagnosticDetails {
                     raw_value: Some(format!("&{name}")),

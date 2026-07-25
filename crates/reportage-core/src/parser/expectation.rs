@@ -1,11 +1,11 @@
 use super::heredoc::parse_heredoc_literal;
 use super::literal::{RequiredKind, parse_file_contents_reference, parse_value_literal};
-use super::step::parse_text_source;
+use super::step::{parse_text_source, valid_binding_identifier};
 use super::{ParseError, Rule};
 use crate::model::{
-    AssertionBlock, DirExpectation, DirMatcher, ExitExpectation, Expectation, FileExpectation,
-    FileMatcher, LogicalExpectation, LogicalOperator, OutputExpectation, OutputMatcher, Step,
-    TextLiteral, TextSource,
+    AssertionBlock, BindingSpan, DirExpectation, DirMatcher, ExitExpectation, Expectation,
+    FileExpectation, FileMatcher, LogicalExpectation, LogicalOperator, OutputExpectation,
+    OutputMatcher, Step, TextLiteral, TextSource,
 };
 
 pub(super) fn parse_assertion_block(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
@@ -115,16 +115,26 @@ fn parse_exit_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Pars
         .next()
         .expect("exit_operand must have a value");
     if operand.as_rule() == Rule::binding_reference {
-        let line = operand.line_col().0;
+        let (line, column) = operand.line_col();
+        let range = operand.as_span();
+        let span = BindingSpan {
+            start: range.start(),
+            end: range.end(),
+            line,
+            column,
+        };
         let name = operand
             .into_inner()
             .next()
             .expect("binding_reference must have an identifier")
             .as_str()
             .to_string();
+        if !valid_binding_identifier(&name) {
+            return Err(ParseError::InvalidBindingIdentifier { name, span });
+        }
         return Err(ParseError::BindingTypeMismatch {
-            line,
             name,
+            span,
             expected: "ExitCode",
         });
     }

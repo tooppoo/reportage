@@ -34,7 +34,13 @@ pub(super) fn parse_before_each_block(
                 });
             }
             Rule::write_step_string | Rule::write_step_heredoc => {
-                steps.push(parse_write_step(pair)?);
+                let line = pair.line_col().0;
+                let step = parse_write_step(pair)?;
+                let SideEffectingStep::WriteFile(write) = &step;
+                if matches!(write.content, TextSource::Binding(_)) {
+                    return Err(ParseError::BeforeEachBindingStep { line });
+                }
+                steps.push(step);
             }
             Rule::binding_step => {
                 return Err(ParseError::BeforeEachBindingStep {
@@ -187,13 +193,20 @@ fn parse_binding_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseEr
     let span = pair.as_span();
     let (line, column) = pair.line_col();
     let mut inner = pair.into_inner();
-    let name = inner
-        .next()
-        .expect("binding_step must have an identifier")
-        .as_str()
-        .to_string();
+    let name_pair = inner.next().expect("binding_step must have an identifier");
+    let name = name_pair.as_str().to_string();
     if !valid_binding_identifier(&name) {
-        return Err(ParseError::InvalidBindingIdentifier { line, name });
+        let name_span = name_pair.as_span();
+        let (name_line, name_column) = name_pair.line_col();
+        return Err(ParseError::InvalidBindingIdentifier {
+            name,
+            span: BindingSpan {
+                start: name_span.start(),
+                end: name_span.end(),
+                line: name_line,
+                column: name_column,
+            },
+        });
     }
     let source = match inner
         .next()
@@ -218,7 +231,7 @@ fn parse_binding_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseEr
     }))
 }
 
-fn valid_binding_identifier(name: &str) -> bool {
+pub(super) fn valid_binding_identifier(name: &str) -> bool {
     let mut chars = name.chars();
     matches!(
         chars.next(),
@@ -337,6 +350,17 @@ pub(super) fn parse_text_source(
             .expect("binding_reference must have an identifier")
             .as_str()
             .to_string();
+        if !valid_binding_identifier(&name) {
+            return Err(ParseError::InvalidBindingIdentifier {
+                name,
+                span: BindingSpan {
+                    start: span.start(),
+                    end: span.end(),
+                    line,
+                    column,
+                },
+            });
+        }
         return Ok(TextSource::Binding(BindingReference {
             name,
             reference_span: BindingSpan {

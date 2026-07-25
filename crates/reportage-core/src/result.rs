@@ -36,11 +36,11 @@ pub enum ExpectationKind {
         actual: i32,
     },
     StdoutContains {
-        expected: String,
+        expected_source: TextEqualsExpectedSource,
         actual: Vec<u8>,
     },
     StderrContains {
-        expected: String,
+        expected_source: TextEqualsExpectedSource,
         actual: Vec<u8>,
     },
     StdoutEmpty {
@@ -55,7 +55,7 @@ pub enum ExpectationKind {
     },
     FileContains {
         path: String,
-        expected: String,
+        expected_source: TextEqualsExpectedSource,
         observation: FileContentObservation,
     },
     FileContentsEquals {

@@ -453,7 +453,7 @@
       }
     },
     "TextExpectedSource": {
-      "description": "A `text_equals` expected value's source: an inline literal or a case-local runtime binding reference.",
+      "description": "A text expectation's source: an inline literal or a case-local runtime binding reference.",
       "oneOf": [
         {
           "type": "object",
@@ -594,6 +594,7 @@
         "kind",
         "status",
         "expected",
+        "expectedSource",
         "actualSizeBytes"
       ],
       "properties": {
@@ -612,6 +613,9 @@
         },
         "expected": {
           "type": "string"
+        },
+        "expectedSource": {
+          "$ref": "#/$defs/TextExpectedSource"
         },
         "actualRef": {
           "type": "string",
@@ -705,6 +709,7 @@
         "status",
         "path",
         "expected",
+        "expectedSource",
         "observed"
       ],
       "properties": {
@@ -723,6 +728,9 @@
         },
         "expected": {
           "type": "string"
+        },
+        "expectedSource": {
+          "$ref": "#/$defs/TextExpectedSource"
         },
         "observed": {
           "type": "string",

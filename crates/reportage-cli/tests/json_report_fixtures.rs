@@ -185,6 +185,23 @@ enum Status {
     Failed,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+enum TextExpectedSource {
+    Quoted {
+        value: String,
+    },
+    Heredoc {
+        value: String,
+    },
+    Binding {
+        name: String,
+        action_index: u64,
+        stream: String,
+        capture_mode: String,
+    },
+}
+
 /// Only the `exit` and `stdoutContains` kinds these six fixtures exercise. The full 12-kind
 /// contract is `spec/output/json-report/schema.json`'s responsibility, not this test's.
 #[derive(Debug, Deserialize)]
@@ -204,6 +221,7 @@ enum Expectation {
     StdoutContains {
         status: Status,
         expected: String,
+        expected_source: TextExpectedSource,
         #[serde(default)]
         actual_ref: Option<String>,
         actual_size_bytes: u64,

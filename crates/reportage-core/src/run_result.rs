@@ -402,20 +402,26 @@ fn expectation_json(
             "expected": expected,
             "actual": actual,
         }),
-        ExpectationKind::StdoutContains { expected, actual } => stream_expectation_json(
+        ExpectationKind::StdoutContains {
+            expected_source,
+            actual,
+        } => contains_stream_expectation_json(
             "stdoutContains",
             "stdout",
             test_id,
             action_ref.as_deref(),
-            Some(expected),
+            expected_source,
             actual,
         ),
-        ExpectationKind::StderrContains { expected, actual } => stream_expectation_json(
+        ExpectationKind::StderrContains {
+            expected_source,
+            actual,
+        } => contains_stream_expectation_json(
             "stderrContains",
             "stderr",
             test_id,
             action_ref.as_deref(),
-            Some(expected),
+            expected_source,
             actual,
         ),
         ExpectationKind::StdoutEmpty { actual } => stream_expectation_json(
@@ -441,12 +447,13 @@ fn expectation_json(
         }),
         ExpectationKind::FileContains {
             path,
-            expected,
+            expected_source,
             observation,
         } => json!({
             "kind": "fileContains",
             "path": path,
-            "expected": expected,
+            "expected": text_expected_source_display(expected_source),
+            "expectedSource": text_equals_expected_source_json(expected_source),
             "observed": file_content_observation_str(*observation),
         }),
         ExpectationKind::FileContentsEquals {
@@ -737,24 +744,65 @@ fn stream_expectation_json(
     value
 }
 
+fn contains_stream_expectation_json(
+    kind: &str,
+    stream: &str,
+    test_id: &str,
+    action_ref: Option<&str>,
+    expected_source: &TextEqualsExpectedSource,
+    actual: &[u8],
+) -> Value {
+    let expected = text_expected_source_display(expected_source);
+    let mut value =
+        stream_expectation_json(kind, stream, test_id, action_ref, Some(&expected), actual);
+    value["expectedSource"] = text_equals_expected_source_json(expected_source);
+    value
+}
+
+fn text_expected_source_display(source: &TextEqualsExpectedSource) -> String {
+    match source {
+        TextEqualsExpectedSource::Quoted(value) | TextEqualsExpectedSource::Heredoc(value) => {
+            value.clone()
+        }
+        TextEqualsExpectedSource::Binding { name, .. } => format!("&{name}"),
+    }
+}
+
 fn assertion_failure_message(kind: &ExpectationKind, code: DiagnosticCode) -> String {
     match kind {
         ExpectationKind::Exit { expected, actual } => {
             format!("expected exit code {expected}, but got {actual}")
         }
-        ExpectationKind::StdoutContains { expected, .. } => {
-            format!("stdout did not contain expected substring {expected:?}")
+        ExpectationKind::StdoutContains {
+            expected_source, ..
+        } => {
+            format!(
+                "stdout did not contain expected substring {:?}",
+                text_expected_source_display(expected_source)
+            )
         }
-        ExpectationKind::StderrContains { expected, .. } => {
-            format!("stderr did not contain expected substring {expected:?}")
+        ExpectationKind::StderrContains {
+            expected_source, ..
+        } => {
+            format!(
+                "stderr did not contain expected substring {:?}",
+                text_expected_source_display(expected_source)
+            )
         }
         ExpectationKind::StdoutEmpty { .. } => "stdout was expected to be empty".to_string(),
         ExpectationKind::StderrEmpty { .. } => "stderr was expected to be empty".to_string(),
         ExpectationKind::FileExists { path, .. } => {
             format!("file {path:?} did not satisfy the exists check")
         }
-        ExpectationKind::FileContains { path, expected, .. } => {
-            format!("file {path:?} did not contain expected substring {expected:?}")
+        ExpectationKind::FileContains {
+            path,
+            expected_source,
+            ..
+        } => {
+            format!(
+                "file {path:?} did not contain expected substring {:?}",
+                text_expected_source_display(expected_source)
+            )
         }
         ExpectationKind::FileContentsEquals {
             path, observation, ..
@@ -908,7 +956,7 @@ mod tests {
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
-                        expected: "hello".to_string(),
+                        expected_source: TextEqualsExpectedSource::Quoted("hello".to_string()),
                         actual: b"hello\n".to_vec(),
                     },
                     passed: true,
@@ -989,7 +1037,7 @@ mod tests {
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
-                        expected: "world".to_string(),
+                        expected_source: TextEqualsExpectedSource::Quoted("world".to_string()),
                         actual: b"hello\n".to_vec(),
                     },
                     passed: false,
@@ -1077,7 +1125,7 @@ mod tests {
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
-                        expected: "world".to_string(),
+                        expected_source: TextEqualsExpectedSource::Quoted("world".to_string()),
                         actual: b"hello\n".to_vec(),
                     },
                     passed: false,
@@ -1351,7 +1399,7 @@ mod tests {
                     ExpectationResult {
                         kind: ExpectationKind::FileContains {
                             path: "out.txt".to_string(),
-                            expected: "ok".to_string(),
+                            expected_source: TextEqualsExpectedSource::Quoted("ok".to_string()),
                             observation: FileContentObservation::NotFound,
                         },
                         passed: false,

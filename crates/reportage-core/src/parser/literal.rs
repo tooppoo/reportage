@@ -1,3 +1,4 @@
+use super::step::valid_binding_identifier;
 use super::{ParseError, Rule};
 use crate::model::{
     FileContentsReference, FixtureReference, RequiredLiteralKind, ValueLiteralKind, WorkspacePath,
@@ -47,6 +48,9 @@ pub(super) struct ValueLiteral {
     /// surrounding quotes (e.g. `"out.txt"`), used to render suggestions.
     quoted_source: String,
     line: usize,
+    column: usize,
+    start: usize,
+    end: usize,
 }
 
 /// The literal kind an argument position requires, together with which
@@ -107,6 +111,18 @@ impl ValueLiteral {
         expected: RequiredKind,
         position: &'static str,
     ) -> Result<String, ParseError> {
+        if self.kind == ValueLiteralKind::BindingReference && !valid_binding_identifier(&self.value)
+        {
+            return Err(ParseError::InvalidBindingIdentifier {
+                name: self.value,
+                span: crate::model::BindingSpan {
+                    start: self.start,
+                    end: self.end,
+                    line: self.line,
+                    column: self.column,
+                },
+            });
+        }
         let matches = match expected {
             RequiredKind::WorkspacePath => self.kind == ValueLiteralKind::WorkspacePath,
             // TextValue's other form, the heredoc literal, is a distinct
@@ -145,6 +161,7 @@ impl ValueLiteral {
         };
         Err(ParseError::LiteralKindMismatch {
             line: self.line,
+            column: self.column,
             position,
             expected: expected.required_literal_kind(),
             actual: self.kind,
@@ -161,6 +178,10 @@ pub(super) fn parse_value_literal(pair: pest::iterators::Pair<Rule>) -> ValueLit
     // value_literal = { workspace_path_literal | fixture_reference_literal | quoted_string }
     debug_assert_eq!(pair.as_rule(), Rule::value_literal);
     let line = pair.line_col().0;
+    let column = pair.line_col().1;
+    let pair_span = pair.as_span();
+    let start = pair_span.start();
+    let end = pair_span.end();
     let variant = pair
         .into_inner()
         .next()
@@ -178,6 +199,9 @@ pub(super) fn parse_value_literal(pair: pest::iterators::Pair<Rule>) -> ValueLit
             value: name.clone(),
             quoted_source: format!("\"{name}\""),
             line,
+            column,
+            start,
+            end,
         };
     }
 
@@ -204,6 +228,9 @@ pub(super) fn parse_value_literal(pair: pest::iterators::Pair<Rule>) -> ValueLit
         value: extract_string_inner(quoted),
         quoted_source,
         line,
+        column,
+        start,
+        end,
     }
 }
 

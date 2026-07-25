@@ -195,15 +195,40 @@ fn binding_capture_requires_a_preceding_action() {
 #[test]
 fn invalid_binding_identifier_and_before_each_binding_are_rejected() {
     let invalid = "case \"x\" {\n  $ true\n  let 1value <- stdout\n  assert { exit 0 }\n}\n";
+    let error = parse(invalid).unwrap_err();
     assert_eq!(
-        parse(invalid).unwrap_err().code(),
+        error.code(),
         DiagnosticCode::SemanticBindingInvalidIdentifier
     );
+    let location = error.to_diagnostic().location.unwrap();
+    assert_eq!(location.line, 3);
+    assert!(location.column.is_some());
+
+    for reference in [
+        "case \"x\" {\n  $ true\n  assert { stdout contains &1value }\n}\n",
+        "case \"x\" {\n  $ true\n  assert { exit &1value }\n}\n",
+        "case \"x\" {\n  $ true\n  assert { file &1value exists }\n}\n",
+    ] {
+        let error = parse(reference).unwrap_err();
+        assert_eq!(
+            error.code(),
+            DiagnosticCode::SemanticBindingInvalidIdentifier
+        );
+        let location = error.to_diagnostic().location.unwrap();
+        assert_eq!(location.line, 3);
+        assert!(location.column.is_some());
+    }
 
     let before_each =
         "before_each {\n  let value <- stdout\n}\ncase \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
     assert_eq!(
         parse(before_each).unwrap_err().code(),
+        DiagnosticCode::SemanticBindingBeforeEachForbidden
+    );
+
+    let reference = "before_each {\n  write <\"x\"> &value\n}\ncase \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
+    assert_eq!(
+        parse(reference).unwrap_err().code(),
         DiagnosticCode::SemanticBindingBeforeEachForbidden
     );
 }
@@ -212,16 +237,18 @@ fn invalid_binding_identifier_and_before_each_binding_are_rejected() {
 fn binding_reference_in_non_text_positions_is_a_type_mismatch() {
     let path =
         "case \"x\" {\n  $ true\n  let value <- stdout\n  assert { file &value exists }\n}\n";
-    assert_eq!(
-        parse(path).unwrap_err().code(),
-        DiagnosticCode::SemanticBindingTypeMismatch
-    );
+    let error = parse(path).unwrap_err();
+    assert_eq!(error.code(), DiagnosticCode::SemanticBindingTypeMismatch);
+    let location = error.to_diagnostic().location.unwrap();
+    assert_eq!(location.line, 4);
+    assert!(location.column.is_some());
 
     let exit = "case \"x\" {\n  $ true\n  let value <- stdout\n  assert { exit &value }\n}\n";
-    assert_eq!(
-        parse(exit).unwrap_err().code(),
-        DiagnosticCode::SemanticBindingTypeMismatch
-    );
+    let error = parse(exit).unwrap_err();
+    assert_eq!(error.code(), DiagnosticCode::SemanticBindingTypeMismatch);
+    let location = error.to_diagnostic().location.unwrap();
+    assert_eq!(location.line, 4);
+    assert!(location.column.is_some());
 }
 
 #[test]

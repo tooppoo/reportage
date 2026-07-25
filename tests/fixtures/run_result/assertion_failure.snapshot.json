@@ -53,6 +53,10 @@
             "actualSizeBytes": 6,
             "diagnosticRef": "diagnostic-1",
             "expected": "world",
+            "expectedSource": {
+              "kind": "quoted",
+              "value": "world"
+            },
             "kind": "stdoutContains",
             "status": "failed"
           },

@@ -31,6 +31,13 @@ case "provenance" {
         json["tests"][0]["assertions"][1]["expectation"]["expected"],
         "&expected"
     );
+    let contains_source = &json["tests"][0]["assertions"][1]["expectation"]["expectedSource"];
+    assert_eq!(contains_source["kind"], "binding");
+    assert_eq!(contains_source["name"], "expected");
+    assert_eq!(contains_source["actionIndex"], 0);
+    assert_eq!(contains_source["stream"], "stdout");
+    assert_eq!(contains_source["captureMode"], "line");
+    assert!(contains_source.get("value").is_none());
 }
 
 // --- bootstrap / structural: no-op run artifact shape ---

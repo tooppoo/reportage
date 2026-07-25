@@ -182,7 +182,7 @@ pub(super) fn evaluate_expectation_with_bindings(
                     let passed = bytes_contains(&actual, expected.as_str().as_bytes());
                     Ok(ExpectationResult {
                         kind: ExpectationKind::StdoutContains {
-                            expected: display_text_source(source, expected.as_str()),
+                            expected_source: text_expected_source(source, bindings),
                             actual,
                         },
                         passed,
@@ -238,7 +238,7 @@ pub(super) fn evaluate_expectation_with_bindings(
                     let passed = bytes_contains(&actual, expected.as_str().as_bytes());
                     Ok(ExpectationResult {
                         kind: ExpectationKind::StderrContains {
-                            expected: display_text_source(source, expected.as_str()),
+                            expected_source: text_expected_source(source, bindings),
                             actual,
                         },
                         passed,
@@ -368,10 +368,26 @@ fn compare_output_text_equals(
     Ok((expected_source, comparison))
 }
 
-fn display_text_source(source: &TextSource, literal_fallback: &str) -> String {
+fn text_expected_source(
+    source: &TextSource,
+    bindings: &HashMap<String, Binding>,
+) -> TextEqualsExpectedSource {
     match source {
-        TextSource::Literal(_) => literal_fallback.to_string(),
-        TextSource::Binding(reference) => format!("&{}", reference.name),
+        TextSource::Literal(TextLiteral::Quoted(value)) => {
+            TextEqualsExpectedSource::Quoted(value.clone())
+        }
+        TextSource::Literal(TextLiteral::Heredoc(value)) => {
+            TextEqualsExpectedSource::Heredoc(value.clone())
+        }
+        TextSource::Binding(reference) => {
+            let binding = bindings
+                .get(&reference.name)
+                .expect("binding references are validated before evaluation");
+            TextEqualsExpectedSource::Binding {
+                name: reference.name.clone(),
+                source: binding.source,
+            }
+        }
     }
 }
 
@@ -483,7 +499,7 @@ fn evaluate_file_expectation(
             Ok(ExpectationResult {
                 kind: ExpectationKind::FileContains {
                     path: exp.path.clone(),
-                    expected: display_text_source(expected, expected_value.as_str()),
+                    expected_source: text_expected_source(expected, bindings),
                     observation,
                 },
                 passed,
