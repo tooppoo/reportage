@@ -1,46 +1,6 @@
 use super::*;
 
 #[test]
-fn write_step_creates_file_seen_by_subsequent_file_assertion() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "write then assert" {
-  write <"config.yml"> ```
-    key: value
-    ```
-  assert {
-    file <"config.yml"> contains "key: value"
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-fn write_step_creates_parent_directories_automatically() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "write into nested directory" {
-  write <"expected/nested/stdout.txt"> ```
-    ok
-    ```
-  assert {
-    file <"expected/nested/stdout.txt"> exists
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
 fn write_step_target_already_exists_is_a_runtime_step_error() {
     let dir = TempDir::new().unwrap();
     let script = write_script(
@@ -192,37 +152,4 @@ case "never runs its body" {
         .code(3)
         .stderr(predicates::str::contains("before_each write step 2"))
         .stderr(predicates::str::contains("step.write.target_exists"));
-}
-
-#[test]
-fn concrete_cases_have_isolated_workspaces_and_do_not_collide_on_the_same_write_path() {
-    // Two cases in the same script both `write` the same relative path.
-    // If workspaces were shared across cases (rather than isolated per
-    // concrete case), the second case's create-only write would fail
-    // because the first case already created that path.
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "first case writes a.txt" {
-  write <"a.txt"> ```
-    from first case
-    ```
-  assert {
-    file <"a.txt"> contains "from first case"
-  }
-}
-
-case "second case writes a.txt" {
-  write <"a.txt"> ```
-    from second case
-    ```
-  assert {
-    file <"a.txt"> contains "from second case"
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
 }

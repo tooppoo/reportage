@@ -13,45 +13,6 @@ fn write_executable(dir: &TempDir, name: &str, script_body: &str) -> PathBuf {
 
 #[test]
 #[cfg(unix)]
-fn config_registered_command_is_callable_by_name_from_repor() {
-    let dir = TempDir::new().unwrap();
-    write_executable(&dir, "real-tool", "echo real-output");
-    write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "calls registered command" {
-  $ mytool
-  assert {
-    exit 0
-    stdout contains "real-output"
-  }
-}
-"#,
-    );
-    write_config(
-        &dir,
-        r#"
-reportage {
-  config {
-    version 1
-  }
-  commands {
-    command "mytool" {
-      exec "real-tool"
-    }
-  }
-  tests {
-    path "test.repor"
-  }
-}
-"#,
-    );
-    reportage(&dir).assert().code(0);
-}
-
-#[test]
-#[cfg(unix)]
 fn config_registered_command_shim_takes_priority_over_ambient_path() {
     let dir = TempDir::new().unwrap();
     write_executable(&dir, "real-tool", "echo real-output");
@@ -161,47 +122,4 @@ reportage {
         std::fs::canonicalize(target_program).unwrap(),
         std::fs::canonicalize(&real_tool).unwrap()
     );
-}
-
-#[test]
-#[cfg(unix)]
-fn explicit_script_mode_does_not_register_config_commands() {
-    let dir = TempDir::new().unwrap();
-    write_executable(&dir, "real-tool", "echo real-output");
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "no config commands in explicit mode" {
-  $ mytool
-  assert {
-    exit 0
-  }
-}
-"#,
-    );
-    // A config file that registers "mytool" exists in the working directory, but explicit
-    // script mode must never read it.
-    write_config(
-        &dir,
-        r#"
-reportage {
-  config {
-    version 1
-  }
-  commands {
-    command "mytool" {
-      exec "real-tool"
-    }
-  }
-  tests {
-    path "test.repor"
-  }
-}
-"#,
-    );
-
-    // Explicit script argument selects explicit script mode: no config commands, so `mytool`
-    // is not found on the ambient PATH and the case fails.
-    reportage(&dir).arg(script).assert().code(1);
 }

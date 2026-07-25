@@ -19,11 +19,10 @@ case "file-exist requir subject" {
 
 case "file assertion verifies artifact evidence" {
   $ rm -rf \
-    .reportage/runs/file-assertion-selftest \
-    .reportage/tmp-file-assertion-selftest
-  $ mkdir -p .reportage/tmp-file-assertion-selftest
+    .reportage \
+    tmp-file-assertion-selftest
 
-  write <".reportage/tmp-file-assertion-selftest/inner.repor"> ```
+  write <"tmp-file-assertion-selftest/inner.repor"> ```
     case "inner" {
       $ true
       assert {
@@ -32,11 +31,34 @@ case "file assertion verifies artifact evidence" {
     }
     ```
 
-  $ reportage --debug-run-id file-assertion-selftest .reportage/tmp-file-assertion-selftest/inner.repor
+  $ reportage --debug-run-id file-assertion-selftest tmp-file-assertion-selftest/inner.repor
 
   assert {
     exit 0
     file <".reportage/runs/file-assertion-selftest/result.json"> exists
     file <".reportage/runs/file-assertion-selftest/result.json"> contains "\"status\": \"passed\""
+  }
+}
+
+case "file assertion verifies failed-run artifact evidence" {
+  $ rm -rf \
+    .reportage \
+    tmp-file-assertion-failure-selftest
+
+  write <"tmp-file-assertion-failure-selftest/inner.repor"> ```
+    case "inner failure" {
+      $ false
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --debug-run-id file-assertion-failure-selftest tmp-file-assertion-failure-selftest/inner.repor
+
+  assert {
+    exit 1
+    file <".reportage/runs/file-assertion-failure-selftest/result.json"> exists
+    file <".reportage/runs/file-assertion-failure-selftest/result.json"> contains "\"status\": \"failed\""
   }
 }

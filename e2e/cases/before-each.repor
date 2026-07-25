@@ -147,6 +147,7 @@ case "an action step inside before_each is a parse error" {
   assert {
     exit 2
     stderr contains "parse.before_each.action_step"
+    stderr contains "run setup commands in each case body instead"
   }
 }
 

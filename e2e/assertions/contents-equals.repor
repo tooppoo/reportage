@@ -52,6 +52,45 @@ case "stdout contents_equals passes against a fixture reference" {
   }
 }
 
+case "file contents_equals resolves a fixture beside a bare relative script path" {
+  write <"expected.txt"> "hello\n"
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf 'hello\n' > actual.txt
+      assert {
+        file <"actual.txt"> contents_equals @"expected.txt"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+  }
+}
+
+case "not reports matching file contents_equals bytes" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > expected.txt
+      $ printf hello > actual.txt
+      assert {
+        not {
+          file <"actual.txt"> contents_equals <"expected.txt">
+        }
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+    stderr contains "file \"actual.txt\" contents_equals <\"expected.txt\"> — bytes match"
+  }
+}
+
 case "an unclosed workspace path literal is a syntax error" {
   write <"inner.repor"> ```
     case "inner" {

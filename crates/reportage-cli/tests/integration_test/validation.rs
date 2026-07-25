@@ -338,38 +338,3 @@ case "write step absolute path" {
             "semantic.workspace_path.absolute",
         ));
 }
-
-// Representative `before_each` scenarios (setup visible at the initial
-// checkpoint, per-concrete-case replay, and each placement/body parse error)
-// live in e2e/cases/before-each.repor (#70). The tests below verify the
-// stderr contracts not asserted there in full.
-
-#[test]
-fn before_each_action_step_is_rejected_with_guidance() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-before_each {
-  write <"seed.txt"> "seed\n"
-  $ mkdir -p fixtures
-}
-
-case "never runs" {
-  $ true
-  assert {
-    exit 0
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(2)
-        .stderr(predicates::str::contains("parse.before_each.action_step"))
-        .stderr(predicates::str::contains(
-            "run setup commands in each case body instead",
-        ));
-}

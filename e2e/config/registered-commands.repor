@@ -1,0 +1,78 @@
+case "config-driven mode invokes a registered command by id" {
+  write <"reportage-selftest-registered-command"> ```
+    #!/bin/sh
+    printf 'registered-command-output\n'
+    ```
+  write <"registered-command.repor"> ```
+    case "invokes the registered command" {
+      $ reportage-selftest-registered-command
+      assert {
+        exit 0
+        stdout contains "registered-command-output"
+      }
+    }
+    ```
+  write <"reportage.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+      commands {
+        command "reportage-selftest-registered-command" {
+          exec "reportage-selftest-registered-command"
+        }
+      }
+      tests {
+        path "registered-command.repor"
+      }
+    }
+    ```
+
+  $ chmod +x reportage-selftest-registered-command
+  $ reportage
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+case "explicit script mode does not register working-directory config commands" {
+  write <"reportage-selftest-explicit-mode-command"> ```
+    #!/bin/sh
+    printf 'must-not-run\n'
+    ```
+  write <"explicit.repor"> ```
+    case "cannot invoke the config command" {
+      $ reportage-selftest-explicit-mode-command
+      assert {
+        exit 0
+      }
+    }
+    ```
+  write <"reportage.kdl"> ```
+    reportage {
+      config {
+        version 1
+      }
+      commands {
+        command "reportage-selftest-explicit-mode-command" {
+          exec "reportage-selftest-explicit-mode-command"
+        }
+      }
+      tests {
+        path "explicit.repor"
+      }
+    }
+    ```
+
+  $ chmod +x reportage-selftest-explicit-mode-command
+  $ reportage explicit.repor
+
+  assert {
+    exit 1
+    not {
+      stdout contains "must-not-run"
+    }
+  }
+}

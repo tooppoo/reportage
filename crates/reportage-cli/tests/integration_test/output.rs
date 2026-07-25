@@ -68,20 +68,6 @@ case "never runs its body" {
 }
 
 #[test]
-fn debug_run_id_writes_to_named_run_directory() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(&dir, "test.repor", PASSING_CASE);
-    reportage(&dir)
-        .args(["--debug-run-id", "fixed-id"])
-        .arg(script)
-        .assert()
-        .code(0);
-
-    dir.child(".reportage/runs/fixed-id/result.json")
-        .assert(predicates::path::is_file());
-}
-
-#[test]
 fn debug_run_id_does_not_silently_overwrite_existing_run_directory() {
     let dir = TempDir::new().unwrap();
     let script = write_script(&dir, "test.repor", PASSING_CASE);
@@ -110,17 +96,6 @@ fn debug_run_id_rejects_unsafe_values() {
         .assert()
         .code(3)
         .stderr(predicates::str::contains("invalid --debug-run-id"));
-}
-
-#[test]
-fn debug_run_id_is_hidden_from_help() {
-    use predicates::prelude::PredicateBooleanExt;
-
-    reportage(&TempDir::new().unwrap())
-        .arg("--help")
-        .assert()
-        .code(0)
-        .stdout(predicates::str::contains("--debug-run-id").not());
 }
 
 // --- --format=json (#75) ---

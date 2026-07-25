@@ -26,3 +26,12 @@ case "file exists fails for a missing file" {
     exit 1
   }
 }
+
+case "file assertion path remains rooted at the workspace after action cd" {
+  $ mkdir -p subdir && cd subdir && printf hi > moved.txt
+
+  assert {
+    exit 0
+    file <"subdir/moved.txt"> exists
+  }
+}
