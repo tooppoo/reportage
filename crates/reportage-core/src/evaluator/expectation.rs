@@ -339,6 +339,56 @@ fn compare_output_text_equals(
     (expected_source, comparison)
 }
 
+fn evaluate_file_contains_observation(
+    observation: observation::FileObservation,
+    expected: &str,
+) -> FileContentObservation {
+    match observation {
+        observation::FileObservation::Missing => FileContentObservation::Missing,
+        observation::FileObservation::NotRegularFile => FileContentObservation::NotRegularFile,
+        observation::FileObservation::Unreadable => FileContentObservation::Unreadable,
+        observation::FileObservation::Bytes(bytes) => match String::from_utf8(bytes) {
+            Ok(actual) if actual.contains(expected) => FileContentObservation::Found,
+            Ok(_) => FileContentObservation::NotFound,
+            Err(_) => FileContentObservation::NotUtf8,
+        },
+    }
+}
+
+fn evaluate_file_equals_observation(
+    observation: observation::FileObservation,
+    expected: Vec<u8>,
+) -> ContentsEqualsObservation {
+    match observation {
+        observation::FileObservation::Missing => ContentsEqualsObservation::ActualMissing,
+        observation::FileObservation::NotRegularFile => {
+            ContentsEqualsObservation::ActualNotRegularFile
+        }
+        observation::FileObservation::Unreadable => ContentsEqualsObservation::ActualUnreadable,
+        observation::FileObservation::Bytes(actual) => {
+            ContentsEqualsObservation::Compared(ContentsEqualsComparison::compare(actual, expected))
+        }
+    }
+}
+
+fn evaluate_dir_contains_observation(
+    observation: observation::DirObservation,
+    expected_entry: &str,
+) -> DirContainsObservation {
+    match observation {
+        observation::DirObservation::Missing => DirContainsObservation::SubjectMissing,
+        observation::DirObservation::NotADirectory => DirContainsObservation::SubjectNotADirectory,
+        observation::DirObservation::Unreadable => DirContainsObservation::SubjectUnreadable,
+        observation::DirObservation::Entries(mut entries) => {
+            if entries.any(|entry| entry == std::ffi::OsStr::new(expected_entry)) {
+                DirContainsObservation::Found
+            } else {
+                DirContainsObservation::EntryMissing
+            }
+        }
+    }
+}
+
 /// Evaluates a `file <"path"> ...` expectation against the real filesystem.
 ///
 /// The path policy (relative, no `.`/`..` segments) is checked earlier, in `evaluate_case`, before this function runs.
@@ -369,9 +419,8 @@ fn evaluate_file_expectation(
         }
         FileMatcher::Contains(expected) => {
             let expected_value = expected.to_text_value();
-            let observation = observation::observe_file_contains(
-                workspace_root,
-                &exp.path,
+            let observation = evaluate_file_contains_observation(
+                observation::observe_file(workspace_root, &exp.path),
                 expected_value.as_str(),
             );
             let passed = matches!(observation, FileContentObservation::Found);
@@ -387,9 +436,8 @@ fn evaluate_file_expectation(
         FileMatcher::ContentsEquals(expected_ref) => {
             let (expected_bytes, expected_source) =
                 resolve_expected_contents(expected_ref, workspace_root, repor_dir)?;
-            let observation = observation::observe_file_contents_equals(
-                workspace_root,
-                &exp.path,
+            let observation = evaluate_file_equals_observation(
+                observation::observe_file(workspace_root, &exp.path),
                 expected_bytes,
             );
             let passed = matches!(
@@ -414,9 +462,8 @@ fn evaluate_file_expectation(
                 TextLiteral::Heredoc(value) => TextEqualsExpectedSource::Heredoc(value.clone()),
             };
             let expected_bytes = text_literal.to_text_value().as_str().as_bytes().to_vec();
-            let observation = observation::observe_file_contents_equals(
-                workspace_root,
-                &exp.path,
+            let observation = evaluate_file_equals_observation(
+                observation::observe_file(workspace_root, &exp.path),
                 expected_bytes,
             );
             let passed = matches!(
@@ -460,8 +507,10 @@ fn evaluate_dir_expectation(exp: &DirExpectation, workspace_root: &Path) -> Expe
             }
         }
         DirMatcher::Contains(entry_name) => {
-            let observation =
-                observation::observe_dir_contains(workspace_root, &exp.path, entry_name);
+            let observation = evaluate_dir_contains_observation(
+                observation::observe_dir(workspace_root, &exp.path),
+                entry_name,
+            );
             let passed = matches!(observation, DirContainsObservation::Found);
             ExpectationResult {
                 kind: ExpectationKind::DirContains {

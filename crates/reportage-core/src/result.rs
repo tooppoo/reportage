@@ -229,7 +229,9 @@ pub enum FileExistsObservation {
     Missing,
 }
 
-/// What was observed on the filesystem for a `file <"path"> contains "<text>"` expectation.
+/// Runtime compatibility model for the evaluated result of a `file <"path"> contains "<text>"` expectation.
+///
+/// The evaluator's expectation layer constructs this after interpreting raw filesystem bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileContentObservation {
     /// `path` is a readable UTF-8 regular file whose content contains the expected substring.
@@ -342,8 +344,7 @@ fn first_byte_diff(a: &[u8], b: &[u8]) -> Option<usize> {
     }
 }
 
-/// What was observed for the actual side of a `file <"path"> contents_equals <expected>`
-/// expectation, once the expected side is already known to be resolvable.
+/// Runtime compatibility model for an evaluated `file <"path"> contents_equals <expected>` or `text_equals <expected>` expectation.
 ///
 /// Unlike the expected side (a test-definition error when unavailable), a missing /
 /// non-regular / unreadable actual `file` is the subject under test failing to produce
@@ -370,7 +371,9 @@ pub enum DirExistsObservation {
     Missing,
 }
 
-/// What was observed on the filesystem for a `dir <"path"> contains "<name>"` expectation.
+/// Runtime compatibility model for the evaluated result of a `dir <"path"> contains "<name>"` expectation.
+///
+/// The evaluator's expectation layer constructs this after comparing the expected name with raw direct-child entry names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DirContainsObservation {
     /// `path` is a directory containing an entry named `name`, directly under `path`.
