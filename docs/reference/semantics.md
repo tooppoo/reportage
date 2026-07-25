@@ -63,6 +63,26 @@ write <".rellog/entries/001.kdl"> ```
 
 For how a concrete case is expanded from a `case` with `params`, see [execution-model.md — Concrete case expansion](execution-model.md#concrete-case-expansion).
 
+## Runtime evidence bindings
+
+`let name <- stdout`, `let name <- stderr`, `let name <- stdout_line`, and `let name <- stderr_line` capture output from the current checkpoint's last action as an immutable, case-local `TextValue`.
+The declaration is a case step and does not create a new checkpoint.
+It does not inspect or assert the action exit status.
+
+Exact capture preserves every decoded UTF-8 character, including line terminators, spaces, and tabs.
+It performs no trimming, newline normalization, Unicode normalization, or lossy decoding.
+The `_line` sources remove at most one final LF or CRLF and then reject any remaining CR or LF.
+Empty output is valid in both modes.
+Invalid UTF-8 and multi-line `_line` input are runtime step errors.
+
+A binding is visible only after its declaration and through the end of that concrete case.
+Declarations are immutable, cannot be repeated, do not cross case boundaries, and are not exported to shell actions.
+The `&name` form passes the complete typed value to `write` content and to `contains` or `text_equals` expected-text positions for file, stdout, and stderr assertions.
+It is a direct reference, not interpolation or shell expansion.
+
+The parser validates duplicate declarations, undefined references, use before declaration, and capture before the first action before executing the case.
+Binding identifiers match `[A-Za-z_][A-Za-z0-9_]*`; examples use lower snake case by convention.
+
 ## Assertion block
 
 An assertion block is written as `assert { ... }` and is a checkpoint-level verification construct. See [execution-model.md — Checkpoint](execution-model.md#checkpoint) for what a checkpoint is and when it is updated.

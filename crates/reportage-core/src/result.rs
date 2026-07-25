@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::diagnostic::{DiagnosticCode, DiagnosticLocation};
-use crate::model::{LogicalOperator, Script};
+use crate::model::{BindingSource, LogicalOperator, Script};
 use crate::shim_event::ShimInvocationEvent;
 
 /// The captured output of a single `$` action step.
@@ -36,11 +36,11 @@ pub enum ExpectationKind {
         actual: i32,
     },
     StdoutContains {
-        expected: String,
+        expected_source: TextEqualsExpectedSource,
         actual: Vec<u8>,
     },
     StderrContains {
-        expected: String,
+        expected_source: TextEqualsExpectedSource,
         actual: Vec<u8>,
     },
     StdoutEmpty {
@@ -55,7 +55,7 @@ pub enum ExpectationKind {
     },
     FileContains {
         path: String,
-        expected: String,
+        expected_source: TextEqualsExpectedSource,
         observation: FileContentObservation,
     },
     FileContentsEquals {
@@ -274,6 +274,10 @@ pub enum TextEqualsExpectedSource {
     Quoted(String),
     /// A ``` ... ``` heredoc literal, already dedented.
     Heredoc(String),
+    Binding {
+        name: String,
+        source: BindingSource,
+    },
 }
 
 /// A completed byte-for-byte `contents_equals` comparison: the full actual and expected

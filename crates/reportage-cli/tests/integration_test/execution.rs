@@ -1,5 +1,53 @@
 use super::*;
 
+#[test]
+fn binding_capture_reports_non_utf8_output_as_runtime_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "binding.repor",
+        r#"
+case "non utf8" {
+  $ printf '\377'
+  let output <- stdout
+  assert {
+    exit 0
+  }
+}
+"#,
+    );
+
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains("step.binding.non_utf8"));
+}
+
+#[test]
+fn binding_line_capture_rejects_multiple_lines_as_runtime_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "binding.repor",
+        r#"
+case "multiple lines" {
+  $ printf 'one\ntwo\n'
+  let output <- stdout_line
+  assert {
+    exit 0
+  }
+}
+"#,
+    );
+
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains("step.binding.not_single_line"));
+}
+
 // Representative `all`/`any`/`not` scenarios live in e2e/composition/logical-composition.repor.
 // The tests here cover the CLI-externalized evaluation result and execution stopping behavior.
 

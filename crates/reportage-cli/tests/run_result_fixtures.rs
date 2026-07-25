@@ -206,8 +206,18 @@ enum ExpectedSource {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
 enum TextExpectedSource {
-    Quoted { value: String },
-    Heredoc { value: String },
+    Quoted {
+        value: String,
+    },
+    Heredoc {
+        value: String,
+    },
+    Binding {
+        name: String,
+        action_index: u64,
+        stream: String,
+        capture_mode: String,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -292,6 +302,7 @@ enum Expectation {
     StdoutContains {
         status: Status,
         expected: String,
+        expected_source: TextExpectedSource,
         #[serde(default)]
         actual_ref: Option<String>,
         actual_size_bytes: u64,
@@ -302,6 +313,7 @@ enum Expectation {
     StderrContains {
         status: Status,
         expected: String,
+        expected_source: TextExpectedSource,
         #[serde(default)]
         actual_ref: Option<String>,
         actual_size_bytes: u64,
@@ -339,6 +351,7 @@ enum Expectation {
         status: Status,
         path: String,
         expected: String,
+        expected_source: TextExpectedSource,
         observed: FileContentObserved,
         #[serde(default)]
         diagnostic_ref: Option<String>,

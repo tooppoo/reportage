@@ -129,22 +129,28 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
                 step_index + 1,
             );
         }
-        ExpectationKind::StdoutContains { expected, actual } => {
+        ExpectationKind::StdoutContains {
+            expected_source,
+            actual,
+        } => {
             let verb = if held { "contains" } else { "does not contain" };
             eprintln!(
-                "  assertion block at step {}: stdout {verb} {:?}",
+                "  assertion block at step {}: stdout {verb} {}",
                 step_index + 1,
-                expected,
+                format_text_equals_source(expected_source),
             );
             // Lossy decode is display-only here; the canonical actual value stays raw bytes.
             eprintln!("    actual stdout: {:?}", String::from_utf8_lossy(actual));
         }
-        ExpectationKind::StderrContains { expected, actual } => {
+        ExpectationKind::StderrContains {
+            expected_source,
+            actual,
+        } => {
             let verb = if held { "contains" } else { "does not contain" };
             eprintln!(
-                "  assertion block at step {}: stderr {verb} {:?}",
+                "  assertion block at step {}: stderr {verb} {}",
                 step_index + 1,
-                expected,
+                format_text_equals_source(expected_source),
             );
             eprintln!("    actual stderr: {:?}", String::from_utf8_lossy(actual));
         }
@@ -188,13 +194,14 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
         }
         ExpectationKind::FileContains {
             path,
-            expected,
+            expected_source,
             observation,
         } => {
+            let expected = format_text_equals_source(expected_source);
             let reason = match observation {
-                FileContentObservation::Found => format!("its content contains {expected:?}"),
+                FileContentObservation::Found => format!("its content contains {expected}"),
                 FileContentObservation::NotFound => {
-                    format!("its content does not contain {expected:?}")
+                    format!("its content does not contain {expected}")
                 }
                 FileContentObservation::Missing => "it does not exist".to_string(),
                 FileContentObservation::NotRegularFile => {
@@ -382,6 +389,7 @@ fn format_text_equals_source(source: &TextEqualsExpectedSource) -> String {
     match source {
         TextEqualsExpectedSource::Quoted(value) => format!("{value:?}"),
         TextEqualsExpectedSource::Heredoc(_) => "<heredoc literal>".to_string(),
+        TextEqualsExpectedSource::Binding { name, .. } => format!("&{name}"),
     }
 }
 

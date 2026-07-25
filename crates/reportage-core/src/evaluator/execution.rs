@@ -1,11 +1,16 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use super::{
-    Checkpoint, evaluate_expectation_at_checkpoint, expectation::validate_expectation_paths,
+    Checkpoint,
+    expectation::{evaluate_expectation_with_bindings, validate_expectation_paths},
 };
 use crate::diagnostic::DiagnosticCode;
 use crate::executor::{ExecutionEnvironment, execute_action};
-use crate::model::{BeforeEach, Case, Script, SideEffectingStep, Step};
+use crate::model::{
+    BeforeEach, Binding, BindingSource, BoundValue, CaptureMode, Case, RuntimeEvidenceSource,
+    Script, SideEffectingStep, Step, TextSource, TextValue,
+};
 use crate::result::{
     ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExecutionReport, ExpectationResult,
     RuntimeError, ScriptError,
@@ -151,6 +156,7 @@ fn evaluate_case(
     };
 
     let mut action_results: Vec<ActionResult> = Vec::new();
+    let mut bindings: HashMap<String, Binding> = HashMap::new();
     let mut assertion_block_results: Vec<AssertionBlockResult> = Vec::new();
     // Successful `write` (and future side-effecting) step count, independent
     // of `action_results`. See `RunSummary::steps_executed`.
@@ -178,7 +184,10 @@ fn evaluate_case(
     if let Some(before_each) = before_each {
         for (setup_idx, step) in before_each.steps().iter().enumerate() {
             let SideEffectingStep::WriteFile(write_step) = step;
-            let content = write_step.content.to_text_value();
+            let TextSource::Literal(literal) = &write_step.content else {
+                unreachable!("before_each rejects binding references")
+            };
+            let content = literal.to_text_value();
             match workspace.write_file(&write_step.path, content.as_str()) {
                 Ok(()) => side_effects_executed += 1,
                 Err(e) => {
@@ -246,7 +255,10 @@ fn evaluate_case(
                 if case_failed {
                     break;
                 }
-                let content = write_step.content.to_text_value();
+                let content = match resolve_text_source(&write_step.content, &bindings) {
+                    Some(content) => content,
+                    None => unreachable!("binding references are validated before execution"),
+                };
                 match workspace.write_file(&write_step.path, content.as_str()) {
                     Ok(()) => side_effects_executed += 1,
                     Err(e) => {
@@ -268,6 +280,63 @@ fn evaluate_case(
                         };
                     }
                 }
+            }
+
+            Step::Binding(declaration) => {
+                if case_failed {
+                    break;
+                }
+                let action = checkpoint
+                    .last_action
+                    .as_ref()
+                    .expect("binding capture is validated to follow an action");
+                let bytes = match declaration.source.stream() {
+                    crate::model::OutputSource::Stdout => &action.stdout,
+                    crate::model::OutputSource::Stderr => &action.stderr,
+                };
+                let captured = match capture_text(bytes, declaration.source) {
+                    Ok(value) => value,
+                    Err((message, diagnostic_code)) => {
+                        return CaseResult {
+                            name: case.name.clone(),
+                            source_path: Some(source_path.to_path_buf()),
+                            status: CaseStatus::RuntimeError(RuntimeError {
+                                message: format!(
+                                    "case '{}': binding '{}' at step {} failed: {message}",
+                                    case.name,
+                                    declaration.name,
+                                    step_idx + 1,
+                                ),
+                                diagnostic_code: Some(diagnostic_code),
+                                step_index: Some(step_idx),
+                            }),
+                            actions: action_results,
+                            assertion_blocks: assertion_block_results,
+                            side_effects_executed,
+                        };
+                    }
+                };
+                let capture_mode = match declaration.source {
+                    RuntimeEvidenceSource::StdoutExact | RuntimeEvidenceSource::StderrExact => {
+                        CaptureMode::Exact
+                    }
+                    RuntimeEvidenceSource::StdoutLine | RuntimeEvidenceSource::StderrLine => {
+                        CaptureMode::Line
+                    }
+                };
+                bindings.insert(
+                    declaration.name.clone(),
+                    Binding {
+                        name: declaration.name.clone(),
+                        value: BoundValue::Text(captured),
+                        declaration_span: declaration.declaration_span,
+                        source: BindingSource {
+                            action_index: action_results.len() - 1,
+                            stream: declaration.source.stream(),
+                            capture_mode,
+                        },
+                    },
+                );
             }
 
             Step::AssertionBlock(block) => {
@@ -342,7 +411,7 @@ fn evaluate_case(
                 let expectation_results: Vec<ExpectationResult> = match block
                     .expectations()
                     .iter()
-                    .map(|exp| evaluate_expectation_at_checkpoint(exp, &checkpoint))
+                    .map(|exp| evaluate_expectation_with_bindings(exp, &checkpoint, &bindings))
                     .collect()
                 {
                     Ok(results) => results,
@@ -395,6 +464,50 @@ fn evaluate_case(
         assertion_blocks: assertion_block_results,
         side_effects_executed,
     }
+}
+
+fn resolve_text_source(
+    source: &TextSource,
+    bindings: &HashMap<String, Binding>,
+) -> Option<TextValue> {
+    match source {
+        TextSource::Literal(literal) => Some(literal.to_text_value()),
+        TextSource::Binding(reference) => bindings.get(&reference.name).map(|binding| {
+            let BoundValue::Text(value) = &binding.value;
+            value.clone()
+        }),
+    }
+}
+
+fn capture_text(
+    bytes: &[u8],
+    source: RuntimeEvidenceSource,
+) -> Result<TextValue, (String, DiagnosticCode)> {
+    let mut value = std::str::from_utf8(bytes)
+        .map_err(|_| {
+            (
+                "captured output is not valid UTF-8".to_string(),
+                DiagnosticCode::StepBindingNonUtf8,
+            )
+        })?
+        .to_string();
+    if matches!(
+        source,
+        RuntimeEvidenceSource::StdoutLine | RuntimeEvidenceSource::StderrLine
+    ) {
+        if value.ends_with("\r\n") {
+            value.truncate(value.len() - 2);
+        } else if value.ends_with('\n') {
+            value.pop();
+        }
+        if value.contains(['\r', '\n']) {
+            return Err((
+                "captured output contains more than one line".to_string(),
+                DiagnosticCode::StepBindingNotSingleLine,
+            ));
+        }
+    }
+    Ok(TextValue::new(value))
 }
 
 /// Builds the case-local execution environment used for every `$` step in one concrete case.

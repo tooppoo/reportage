@@ -453,25 +453,39 @@
       }
     },
     "TextExpectedSource": {
-      "description": "A `text_equals` expected value's source: an inline `TextLiteral`, not a reference to another file. Unlike `ExpectedSource`, `value` carries the full inline text verbatim, mirroring `fileContains`'s `expected` field.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "kind",
-        "value"
-      ],
-      "properties": {
-        "kind": {
-          "type": "string",
-          "enum": [
-            "quoted",
-            "heredoc"
-          ]
+      "description": "A text expectation's source: an inline literal or a case-local runtime binding reference.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["quoted", "heredoc"]
+            },
+            "value": { "type": "string" }
+          }
         },
-        "value": {
-          "type": "string"
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name", "actionIndex", "stream", "captureMode"],
+          "properties": {
+            "kind": { "const": "binding" },
+            "name": { "type": "string" },
+            "actionIndex": { "type": "integer", "minimum": 0 },
+            "stream": {
+              "type": "string",
+              "enum": ["stdout", "stderr"]
+            },
+            "captureMode": {
+              "type": "string",
+              "enum": ["exact", "line"]
+            }
+          }
         }
-      }
+      ]
     },
     "ContentsMismatch": {
       "type": "object",
@@ -580,6 +594,7 @@
         "kind",
         "status",
         "expected",
+        "expectedSource",
         "actualSizeBytes"
       ],
       "properties": {
@@ -598,6 +613,9 @@
         },
         "expected": {
           "type": "string"
+        },
+        "expectedSource": {
+          "$ref": "#/$defs/TextExpectedSource"
         },
         "actualRef": {
           "type": "string",
@@ -691,6 +709,7 @@
         "status",
         "path",
         "expected",
+        "expectedSource",
         "observed"
       ],
       "properties": {
@@ -709,6 +728,9 @@
         },
         "expected": {
           "type": "string"
+        },
+        "expectedSource": {
+          "$ref": "#/$defs/TextExpectedSource"
         },
         "observed": {
           "type": "string",

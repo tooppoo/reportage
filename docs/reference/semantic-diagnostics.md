@@ -74,6 +74,13 @@ semantic.fixture_reference.escapes_repor_directory
 semantic.file_contents_reference.missing
 semantic.file_contents_reference.not_regular_file
 semantic.file_contents_reference.read_error
+semantic.binding.before_each_forbidden
+semantic.binding.invalid_identifier
+semantic.binding.duplicate
+semantic.binding.undefined
+semantic.binding.use_before_declaration
+semantic.binding.requires_action
+semantic.binding.type_mismatch
 assertion.file.contents_equals.mismatch
 assertion.file.contents_equals.actual_missing
 assertion.file.contents_equals.actual_not_regular_file
@@ -89,6 +96,8 @@ assertion.stderr.text_equals.mismatch
 step.write.target_exists
 step.write.parent_not_a_directory
 step.write.io_error
+step.binding.non_utf8
+step.binding.not_single_line
 ```
 
 As with `parse.*` codes, a diagnostic code is **not** the Rust error enum variant name that produces it. Internal enum structure may be renamed or restructured freely; the published code string is the external, stable identifier that tests and tooling depend on.

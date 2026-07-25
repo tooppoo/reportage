@@ -78,6 +78,7 @@ pub struct Case {
 pub enum Step {
     Action(ActionStep),
     AssertionBlock(AssertionBlock),
+    Binding(BindingDeclaration),
     /// A step that changes workspace state rather than executing an action
     /// or verifying a checkpoint. See docs/reference/semantics.md — Write step.
     SideEffect(SideEffectingStep),
@@ -95,16 +96,99 @@ pub enum SideEffectingStep {
     WriteFile(WriteFileStep),
 }
 
-/// A `write <"path"> <text_literal>` step: writes a text_literal's resolved
-/// content (dedented, in the heredoc-literal case) to a file in the concrete
-/// case workspace.
+/// A write step writes a literal or resolved binding value to a file in the concrete case workspace.
 ///
 /// Create-only: rejected at runtime if `path` already exists.
 /// See docs/reference/semantics.md — Write step.
 #[derive(Debug)]
 pub struct WriteFileStep {
     pub path: WorkspacePath,
-    pub content: TextLiteral,
+    pub content: TextSource,
+}
+
+#[derive(Debug)]
+pub struct BindingDeclaration {
+    pub name: String,
+    pub source: RuntimeEvidenceSource,
+    pub declaration_span: BindingSpan,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BindingSpan {
+    pub start: usize,
+    pub end: usize,
+    pub line: usize,
+    pub column: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuntimeEvidenceSource {
+    StdoutExact,
+    StderrExact,
+    StdoutLine,
+    StderrLine,
+}
+
+impl RuntimeEvidenceSource {
+    pub const fn stream(self) -> OutputSource {
+        match self {
+            Self::StdoutExact | Self::StdoutLine => OutputSource::Stdout,
+            Self::StderrExact | Self::StderrLine => OutputSource::Stderr,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BindingReference {
+    pub name: String,
+    pub reference_span: BindingSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TextSource {
+    Literal(TextLiteral),
+    Binding(BindingReference),
+}
+
+impl TextSource {
+    pub fn literal_text_value(&self) -> Option<TextValue> {
+        match self {
+            Self::Literal(literal) => Some(literal.to_text_value()),
+            Self::Binding(_) => None,
+        }
+    }
+}
+
+impl PartialEq<str> for TextSource {
+    fn eq(&self, other: &str) -> bool {
+        matches!(self, Self::Literal(literal) if literal.to_text_value().as_str() == other)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BoundValue {
+    Text(TextValue),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Binding {
+    pub name: String,
+    pub value: BoundValue,
+    pub declaration_span: BindingSpan,
+    pub source: BindingSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BindingSource {
+    pub action_index: usize,
+    pub stream: OutputSource,
+    pub capture_mode: CaptureMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureMode {
+    Exact,
+    Line,
 }
 
 /// A path known to be safe to resolve against a concrete case workspace root.
@@ -246,6 +330,7 @@ pub enum ValueLiteralKind {
     WorkspacePath,
     /// An `@"..."` fixture reference literal (test-definition-side file reference).
     FixtureReference,
+    BindingReference,
 }
 
 impl ValueLiteralKind {
@@ -255,6 +340,7 @@ impl ValueLiteralKind {
             ValueLiteralKind::StringLiteral => "StringLiteral",
             ValueLiteralKind::WorkspacePath => "WorkspacePath",
             ValueLiteralKind::FixtureReference => "FixtureReference",
+            ValueLiteralKind::BindingReference => "BindingReference<TextValue>",
         }
     }
 }
@@ -347,6 +433,10 @@ impl TextLiteral {
 pub struct TextValue(String);
 
 impl TextValue {
+    pub fn new(value: String) -> Self {
+        Self(value)
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -555,20 +645,15 @@ pub struct OutputExpectation {
 #[derive(Debug)]
 pub enum OutputMatcher {
     Empty,
-    Contains(String),
+    Contains(TextSource),
     NotContains(String),
     Matches(String),
     /// `stdout` / `stderr contents_equals <FileContentsReference>`: byte-for-byte
     /// comparison against a workspace file or fixture file. See
     /// `evaluator/expectation.rs`.
     ContentsEquals(FileContentsReference),
-    /// `stdout` / `stderr text_equals <text_literal>`: byte-for-byte comparison
-    /// of the captured stream's bytes against the `TextLiteral`'s `TextValue`
-    /// encoded as UTF-8, with no normalization, exactly like
-    /// [`FileMatcher::TextEquals`]. `text_literal` may be either a string
-    /// literal or a heredoc literal. See [`TextLiteral`] and
-    /// docs/adr — output text_equals evaluation.
-    TextEquals(TextLiteral),
+    /// Byte-for-byte comparison against a literal or binding-backed `TextValue`, encoded as UTF-8 without normalization.
+    TextEquals(TextSource),
 }
 
 /// File existence / content expectation.
@@ -583,20 +668,15 @@ pub struct FileExpectation {
 pub enum FileMatcher {
     Exists,
     NotExists,
-    /// `file <"path"> contains <text_literal>`: `text_literal` may be either
-    /// a string literal or a heredoc literal. See [`TextLiteral`].
-    Contains(TextLiteral),
+    /// Contains comparison against a literal or binding-backed `TextValue`.
+    Contains(TextSource),
     Matches(String),
     /// `file <"path"> contents_equals <FileContentsReference>`: byte-for-byte
     /// comparison against a workspace file or fixture file. See
     /// `evaluator/expectation.rs`.
     ContentsEquals(FileContentsReference),
-    /// `file <"path"> text_equals <text_literal>`: byte-for-byte comparison
-    /// of the actual file's bytes against the `TextLiteral`'s `TextValue`
-    /// encoded as UTF-8, with no normalization. `text_literal` may be either
-    /// a string literal or a heredoc literal. See [`TextLiteral`], #88, and
-    /// docs/adr — text_equals evaluation.
-    TextEquals(TextLiteral),
+    /// Byte-for-byte comparison against a literal or binding-backed `TextValue`, encoded as UTF-8 without normalization.
+    TextEquals(TextSource),
 }
 
 /// Directory existence / entry expectation.
@@ -640,7 +720,7 @@ pub struct JqExpectation {
 }
 
 /// Which output stream a jq expectation evaluates.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputSource {
     Stdout,
     Stderr,

@@ -31,6 +31,9 @@
       "include": "#fixture-reference"
     },
     {
+      "include": "#binding"
+    },
+    {
       "include": "#strings"
     },
     {
@@ -109,6 +112,40 @@
                   "match": "\\\\(?:\\\\|\\\"|n|t)"
                 }
               ]
+            }
+          }
+        }
+      ]
+    },
+    "binding": {
+      "patterns": [
+        {
+          "name": "meta.binding.reference.reportage",
+          "match": "(&)([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.binding-reference.reportage"
+            },
+            "2": {
+              "name": "variable.other.readwrite.reportage"
+            }
+          }
+        },
+        {
+          "name": "meta.binding.declaration.reportage",
+          "match": "\\b(let)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(<-)\\s*(stdout_line|stderr_line|stdout|stderr)\\b",
+          "captures": {
+            "1": {
+              "name": "storage.type.binding.reportage"
+            },
+            "2": {
+              "name": "variable.other.readwrite.reportage"
+            },
+            "3": {
+              "name": "keyword.operator.capture.reportage"
+            },
+            "4": {
+              "name": "support.constant.evidence-source.reportage"
             }
           }
         }
@@ -329,6 +366,9 @@
               "include": "#fixture-reference"
             },
             {
+              "include": "#binding"
+            },
+            {
               "include": "#strings"
             },
             {
@@ -378,6 +418,9 @@
             },
             {
               "include": "#fixture-reference"
+            },
+            {
+              "include": "#binding"
             },
             {
               "include": "#strings"

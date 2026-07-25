@@ -7,7 +7,7 @@ fn write_step_empty_block_content_is_empty_string() {
         "case \"x\" {\n  write <\"empty.txt\"> ```\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
     let script = parse_script(src).unwrap();
     let step = write_file_step(&script);
-    assert_eq!(step.content.to_text_value().as_str(), "");
+    assert_eq!(step.content.literal_text_value().unwrap().as_str(), "");
 }
 
 #[test]
@@ -15,7 +15,10 @@ fn write_step_blank_line_is_preserved_as_empty_line_after_dedent() {
     let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    first\n\n    third\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
     let script = parse_script(src).unwrap();
     let step = write_file_step(&script);
-    assert_eq!(step.content.to_text_value().as_str(), "first\n\nthird\n");
+    assert_eq!(
+        step.content.literal_text_value().unwrap().as_str(),
+        "first\n\nthird\n"
+    );
 }
 
 #[test]
@@ -25,7 +28,10 @@ fn write_step_whitespace_only_line_is_dedented_to_empty_line() {
     let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    first\n  \n    third\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
     let script = parse_script(src).unwrap();
     let step = write_file_step(&script);
-    assert_eq!(step.content.to_text_value().as_str(), "first\n\nthird\n");
+    assert_eq!(
+        step.content.literal_text_value().unwrap().as_str(),
+        "first\n\nthird\n"
+    );
 }
 
 #[test]
@@ -36,7 +42,10 @@ fn write_step_tab_indent_is_treated_as_literal_prefix_not_width() {
         "case \"x\" {\n  write <\"a.txt\"> ```\n\thello\n\t```\n  $ true\n  assert { exit 0 }\n}\n";
     let script = parse_script(src).unwrap();
     let step = write_file_step(&script);
-    assert_eq!(step.content.to_text_value().as_str(), "hello\n");
+    assert_eq!(
+        step.content.literal_text_value().unwrap().as_str(),
+        "hello\n"
+    );
 }
 
 #[test]
@@ -44,7 +53,10 @@ fn write_step_crlf_line_endings_are_preserved() {
     let src = "case \"x\" {\r\n  write <\"a.txt\"> ```\r\n    hello\r\n    ```\r\n  $ true\r\n  assert { exit 0 }\r\n}\r\n";
     let script = parse_script(src).unwrap();
     let step = write_file_step(&script);
-    assert_eq!(step.content.to_text_value().as_str(), "hello\r\n");
+    assert_eq!(
+        step.content.literal_text_value().unwrap().as_str(),
+        "hello\r\n"
+    );
 }
 
 #[test]
@@ -52,7 +64,10 @@ fn write_step_content_preserves_variable_looking_text_literally() {
     let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    ${ENTRY_KIND}\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
     let script = parse_script(src).unwrap();
     let step = write_file_step(&script);
-    assert_eq!(step.content.to_text_value().as_str(), "${ENTRY_KIND}\n");
+    assert_eq!(
+        step.content.literal_text_value().unwrap().as_str(),
+        "${ENTRY_KIND}\n"
+    );
 }
 
 #[test]
@@ -60,7 +75,10 @@ fn write_step_closing_fence_longer_than_opening_is_accepted() {
     let src = "case \"x\" {\n  write <\"a.txt\"> ```\n    hello\n    ````\n  $ true\n  assert { exit 0 }\n}\n";
     let script = parse_script(src).unwrap();
     let step = write_file_step(&script);
-    assert_eq!(step.content.to_text_value().as_str(), "hello\n");
+    assert_eq!(
+        step.content.literal_text_value().unwrap().as_str(),
+        "hello\n"
+    );
 }
 
 #[test]
@@ -69,7 +87,7 @@ fn write_step_longer_opening_fence_allows_embedded_triple_backticks() {
     let script = parse_script(src).unwrap();
     let step = write_file_step(&script);
     assert_eq!(
-        step.content.to_text_value().as_str(),
+        step.content.literal_text_value().unwrap().as_str(),
         "```ts\nconsole.log(1)\n```\n"
     );
 }
@@ -128,7 +146,7 @@ fn missing_closing_fence_silently_absorbs_a_later_write_step_as_content() {
     let step = write_file_step(&script);
     assert_eq!(step.path.as_str(), "a.txt");
     assert_eq!(
-        step.content.to_text_value().as_str(),
+        step.content.literal_text_value().unwrap().as_str(),
         "first\nwrite <\"b.txt\"> ```\nsecond\n"
     );
 

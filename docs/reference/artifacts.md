@@ -137,6 +137,10 @@ A passing single-case run produces (`tool.version` normalised to a placeholder):
             "actualRef": "test-1/action-1/stdout.bin",
             "actualSizeBytes": 6,
             "expected": "hello",
+            "expectedSource": {
+              "kind": "quoted",
+              "value": "hello"
+            },
             "kind": "stdoutContains",
             "status": "passed"
           },
@@ -210,6 +214,10 @@ Each action's captured stream is written as a separate raw byte file inside the 
 `sha256` is required: it makes it verifiable that the evidence file inside the bundle is the one the manifest describes.
 
 This keeps the manifest small and streaming-safe regardless of action output size, while the bundle as a whole remains a complete record. Raw byte semantics for stdout/stderr are defined in [semantics.md — stdout/stderr evidence representation](semantics.md#stdoutstderr-evidence-representation).
+
+Runtime bindings captured from stdout or stderr do not create a second plaintext artifact.
+Their provenance points back to the existing action stream evidence, which remains the canonical byte record.
+Consumers can therefore trace a binding to its action, stream, and capture mode without duplicating potentially sensitive output in the manifest.
 
 ## Relationship to `--format=json`
 

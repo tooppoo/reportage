@@ -1,0 +1,41 @@
+{
+  "cases": [
+    {
+      "name": "capture stdout",
+      "span": {
+        "start": 0,
+        "end": 112
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "printf value"
+        },
+        {
+          "kind": "binding",
+          "name": "output",
+          "source": "stdout",
+          "span": {
+            "start": 43,
+            "end": 63
+          }
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "text_equals",
+                "value": {
+                  "kind": "binding",
+                  "name": "output"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

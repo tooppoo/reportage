@@ -1,5 +1,45 @@
 use super::*;
 
+#[test]
+fn binding_expected_source_records_provenance_without_copying_the_value() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "binding.repor",
+        r#"
+case "provenance" {
+  $ printf 'runtime-value'
+  let expected <- stdout_line
+  assert {
+    stdout text_equals &expected
+    stdout contains &expected
+  }
+}
+"#,
+    );
+
+    reportage(&dir).arg(script).assert().success();
+    let (json, _) = read_single_result_json(&dir);
+    let source = &json["tests"][0]["assertions"][0]["expectation"]["expectedSource"];
+    assert_eq!(source["kind"], "binding");
+    assert_eq!(source["name"], "expected");
+    assert_eq!(source["actionIndex"], 0);
+    assert_eq!(source["stream"], "stdout");
+    assert_eq!(source["captureMode"], "line");
+    assert!(source.get("value").is_none());
+    assert_eq!(
+        json["tests"][0]["assertions"][1]["expectation"]["expected"],
+        "&expected"
+    );
+    let contains_source = &json["tests"][0]["assertions"][1]["expectation"]["expectedSource"];
+    assert_eq!(contains_source["kind"], "binding");
+    assert_eq!(contains_source["name"], "expected");
+    assert_eq!(contains_source["actionIndex"], 0);
+    assert_eq!(contains_source["stream"], "stdout");
+    assert_eq!(contains_source["captureMode"], "line");
+    assert!(contains_source.get("value").is_none());
+}
+
 // --- bootstrap / structural: no-op run artifact shape ---
 //
 // Representative passing/failing-assertion CLI scenarios live in
