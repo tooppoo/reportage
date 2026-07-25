@@ -1,0 +1,7 @@
+case "capture stdout" {
+  $ printf value
+  let output <- stdout
+  assert {
+    stdout text_equals &output
+  }
+}

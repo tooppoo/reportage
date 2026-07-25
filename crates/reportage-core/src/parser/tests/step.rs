@@ -1,5 +1,8 @@
 use super::*;
-use crate::model::{SideEffectingStep, Step, TextLiteral, WorkspacePathError};
+use crate::diagnostic::DiagnosticCode;
+use crate::model::{
+    RuntimeEvidenceSource, SideEffectingStep, Step, TextLiteral, TextSource, WorkspacePathError,
+};
 
 // ─── Write step: string literal / heredoc literal (#67, #86) ──────────
 
@@ -9,7 +12,10 @@ fn parse_basic_write_step() {
     let script = parse_script(src).unwrap();
     let step = write_file_step(&script);
     assert_eq!(step.path.as_str(), "a.txt");
-    assert_eq!(step.content.to_text_value().as_str(), "hello\n");
+    assert_eq!(
+        step.content.literal_text_value().unwrap().as_str(),
+        "hello\n"
+    );
     assert_eq!(script.cases[0].steps.len(), 3);
 }
 
@@ -21,7 +27,10 @@ fn write_step_can_follow_an_action_in_source_order() {
         panic!("expected second step to be a write step");
     };
     assert_eq!(step.path.as_str(), "a.txt");
-    assert_eq!(step.content.to_text_value().as_str(), "hello\n");
+    assert_eq!(
+        step.content.literal_text_value().unwrap().as_str(),
+        "hello\n"
+    );
 }
 
 #[test]
@@ -116,14 +125,103 @@ fn parse_before_each_with_write_steps() {
     assert_eq!(before_each.steps().len(), 2);
     let SideEffectingStep::WriteFile(first) = &before_each.steps()[0];
     assert_eq!(first.path.as_str(), "a.txt");
-    assert_eq!(first.content, TextLiteral::Quoted("a\n".to_string()));
+    assert_eq!(
+        first.content,
+        TextSource::Literal(TextLiteral::Quoted("a\n".to_string()))
+    );
     let SideEffectingStep::WriteFile(second) = &before_each.steps()[1];
     assert_eq!(second.path.as_str(), "b/c.txt");
     assert_eq!(
         second.content,
-        TextLiteral::Heredoc("content\n".to_string())
+        TextSource::Literal(TextLiteral::Heredoc("content\n".to_string()))
     );
     assert_eq!(script.cases.len(), 1);
+}
+
+#[test]
+fn binding_capture_parses_with_source_and_span() {
+    let src = "case \"x\" {\n  $ printf value\n  let output <- stdout_line\n  assert {\n    stdout text_equals &output\n  }\n}\n";
+    let file = parse(src).unwrap();
+    let Step::Binding(binding) = &file.cases()[0].case().steps[1] else {
+        panic!("expected binding step");
+    };
+    assert_eq!(binding.name, "output");
+    assert_eq!(binding.source, RuntimeEvidenceSource::StdoutLine);
+    assert_eq!(
+        &src[binding.declaration_span.start..binding.declaration_span.end],
+        "let output <- stdout_line"
+    );
+}
+
+#[test]
+fn duplicate_binding_is_rejected_before_execution() {
+    let src = "case \"x\" {\n  $ true\n  let value <- stdout\n  let value <- stderr\n  assert { exit 0 }\n}\n";
+    let error = parse(src).unwrap_err();
+    assert_eq!(error.code(), DiagnosticCode::SemanticBindingDuplicate);
+    let location = error.to_diagnostic().location.unwrap();
+    assert_eq!(location.line, 4);
+    assert_eq!(location.column, Some(3));
+}
+
+#[test]
+fn undefined_and_use_before_declaration_have_distinct_diagnostics() {
+    let undefined = "case \"x\" {\n  $ true\n  assert { stdout text_equals &missing }\n}\n";
+    let error = parse(undefined).unwrap_err();
+    assert_eq!(error.code(), DiagnosticCode::SemanticBindingUndefined);
+    let location = error.to_diagnostic().location.unwrap();
+    assert_eq!(location.line, 3);
+    assert!(location.column.is_some());
+
+    let early = "case \"x\" {\n  $ true\n  assert { stdout text_equals &later }\n  let later <- stdout\n}\n";
+    let error = parse(early).unwrap_err();
+    assert_eq!(
+        error.code(),
+        DiagnosticCode::SemanticBindingUseBeforeDeclaration
+    );
+    let location = error.to_diagnostic().location.unwrap();
+    assert_eq!(location.line, 3);
+    assert!(location.column.is_some());
+}
+
+#[test]
+fn binding_capture_requires_a_preceding_action() {
+    let src = "case \"x\" {\n  let value <- stdout\n  assert { file <\"x\"> exists }\n}\n";
+    assert_eq!(
+        parse(src).unwrap_err().code(),
+        DiagnosticCode::SemanticBindingRequiresAction
+    );
+}
+
+#[test]
+fn invalid_binding_identifier_and_before_each_binding_are_rejected() {
+    let invalid = "case \"x\" {\n  $ true\n  let 1value <- stdout\n  assert { exit 0 }\n}\n";
+    assert_eq!(
+        parse(invalid).unwrap_err().code(),
+        DiagnosticCode::SemanticBindingInvalidIdentifier
+    );
+
+    let before_each =
+        "before_each {\n  let value <- stdout\n}\ncase \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
+    assert_eq!(
+        parse(before_each).unwrap_err().code(),
+        DiagnosticCode::SemanticBindingBeforeEachForbidden
+    );
+}
+
+#[test]
+fn binding_reference_in_non_text_positions_is_a_type_mismatch() {
+    let path =
+        "case \"x\" {\n  $ true\n  let value <- stdout\n  assert { file &value exists }\n}\n";
+    assert_eq!(
+        parse(path).unwrap_err().code(),
+        DiagnosticCode::SemanticBindingTypeMismatch
+    );
+
+    let exit = "case \"x\" {\n  $ true\n  let value <- stdout\n  assert { exit &value }\n}\n";
+    assert_eq!(
+        parse(exit).unwrap_err().code(),
+        DiagnosticCode::SemanticBindingTypeMismatch
+    );
 }
 
 #[test]

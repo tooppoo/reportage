@@ -153,7 +153,7 @@ before_each_block = {
 // (write_step_heredoc) consumes its own trailing line ending (the closing
 // fence line, per its own no-inline-comment rule) so it does not share the
 // `trail` suffix.
-case_step = _{ ws* ~ ((action_step | assertion_block | write_step_string) ~ trail | write_step_heredoc) }
+case_step = _{ ws* ~ ((action_step | assertion_block | write_step_string | binding_step) ~ trail | write_step_heredoc) }
 
 // ─── Action step ──────────────────────────────────────────────────────────────
 
@@ -232,8 +232,12 @@ heredoc_literal = {
 // ordinary single-line construct; write_step_heredoc consumes its own
 // trailing line.
 
-write_step_string  = { "write" ~ ws+ ~ value_literal ~ ws+ ~ value_literal }
+write_step_string  = { "write" ~ ws+ ~ value_literal ~ ws+ ~ text_value_source }
 write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ ws* ~ heredoc_literal }
+
+binding_step       = { "let" ~ ws+ ~ binding_identifier ~ ws* ~ "<-" ~ ws* ~ evidence_source }
+binding_identifier = @{ (ASCII_ALPHANUMERIC | "_")+ }
+evidence_source    = { "stdout_line" | "stderr_line" | "stdout" | "stderr" }
 
 // ─── Assertion block ──────────────────────────────────────────────────────────
 
@@ -272,14 +276,15 @@ heredoc_assertion_line    = _{ ws* ~ heredoc_expectation }
 
 expectation     = { exit_exp | stdout_exp | stderr_exp | file_exp | dir_exp | logical_composition }
 
-exit_exp        = { "exit" ~ ws+ ~ exit_code }
+exit_exp        = { "exit" ~ ws+ ~ exit_operand }
+exit_operand    = { binding_reference | exit_code }
 exit_code       = @{ ASCII_DIGIT+ }
 
 stdout_exp      = { "stdout" ~ ws+ ~ output_matcher }
 stderr_exp      = { "stderr" ~ ws+ ~ output_matcher }
 
 output_matcher  = { output_contains | output_contents_equals | output_text_equals | output_empty }
-output_contains = { "contains" ~ ws+ ~ value_literal }
+output_contains = { "contains" ~ ws+ ~ text_value_source }
 output_empty    = { "empty" }
 
 // `stdout` / `stderr contents_equals @"<path>"` / `contents_equals <"path">`:
@@ -295,7 +300,7 @@ output_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
 // wires the string-literal form; the heredoc-literal forms are
 // stdout_text_equals_heredoc / stderr_text_equals_heredoc below.
 // See docs/adr/20260710T100918Z_output-text-equals-evaluation.md.
-output_text_equals = { "text_equals" ~ ws+ ~ value_literal }
+output_text_equals = { "text_equals" ~ ws+ ~ text_value_source }
 
 // `file <"path"> exists` / `file <"path"> contains "<text>"`.
 // Subject-first: `file <"path">` is the common subject, `exists` / `contains`
@@ -305,7 +310,7 @@ output_text_equals = { "text_equals" ~ ws+ ~ value_literal }
 file_exp        = { "file" ~ ws+ ~ value_literal ~ ws+ ~ file_predicate }
 file_predicate  = { file_contains | file_contents_equals | file_text_equals | file_exists }
 file_exists     = { "exists" }
-file_contains   = { "contains" ~ ws+ ~ value_literal }
+file_contains   = { "contains" ~ ws+ ~ text_value_source }
 
 // `file <"path"> contents_equals @"<path>"` / `contents_equals <"path">`:
 // byte-for-byte comparison against a `FileContentsReference` (a workspace
@@ -317,7 +322,7 @@ file_contains   = { "contains" ~ ws+ ~ value_literal }
 // literals" below). See #88, #92, and
 // docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
 file_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
-file_text_equals     = { "text_equals" ~ ws+ ~ value_literal }
+file_text_equals     = { "text_equals" ~ ws+ ~ text_value_source }
 
 // `file <"path"> contains <heredoc literal>` / `file <"path"> text_equals
 // <heredoc literal>` / `stdout text_equals <heredoc literal>` / `stderr
@@ -398,7 +403,9 @@ empty_composition_body = { trail? ~ (blank_line | comment_line)* ~ ws* }
 
 workspace_path_literal    = { "<" ~ quoted_string ~ ">" }
 fixture_reference_literal = { "@" ~ quoted_string }
-value_literal             = { workspace_path_literal | fixture_reference_literal | quoted_string }
+value_literal             = { binding_reference | workspace_path_literal | fixture_reference_literal | quoted_string }
+binding_reference         = { "&" ~ binding_identifier }
+text_value_source         = { binding_reference | value_literal }
 
 // ─── String literals ──────────────────────────────────────────────────────────
 

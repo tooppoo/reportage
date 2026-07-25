@@ -1,0 +1,7 @@
+case "binding used before declaration" {
+  $ printf value
+  assert {
+    stdout text_equals &output
+  }
+  let output <- stdout
+}

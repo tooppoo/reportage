@@ -1,0 +1,12 @@
+case "reuse a resolved revision" {
+  $ printf 'abc123\n'
+  assert {
+    exit 0
+  }
+  let resolved_revision <- stdout_line
+  write <"revision.txt"> &resolved_revision
+  assert {
+    file <"revision.txt"> text_equals &resolved_revision
+    stdout contains &resolved_revision
+  }
+}

@@ -382,6 +382,7 @@ fn format_text_equals_source(source: &TextEqualsExpectedSource) -> String {
     match source {
         TextEqualsExpectedSource::Quoted(value) => format!("{value:?}"),
         TextEqualsExpectedSource::Heredoc(_) => "<heredoc literal>".to_string(),
+        TextEqualsExpectedSource::Binding { name, .. } => format!("&{name}"),
     }
 }
 

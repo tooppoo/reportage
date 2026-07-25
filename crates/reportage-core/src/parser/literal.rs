@@ -63,9 +63,6 @@ pub(super) enum RequiredKind {
     /// string literal and heredoc literal forms (a `write` step's content,
     /// `file contains` expected text).
     TextValueStringOrHeredoc,
-    /// The position requires a TextValue but its grammar only wires up the
-    /// string literal form (`stdout contains` / `stderr contains` expected
-    /// text), so the suggestion must not mention a heredoc literal.
     TextValueStringOnly,
     /// The position requires a plain `"..."` string literal
     /// (`dir contains` entry name).
@@ -98,6 +95,7 @@ impl ValueLiteral {
             ValueLiteralKind::StringLiteral => self.quoted_source.clone(),
             ValueLiteralKind::WorkspacePath => format!("<{}>", self.quoted_source),
             ValueLiteralKind::FixtureReference => format!("@{}", self.quoted_source),
+            ValueLiteralKind::BindingReference => format!("&{}", self.value),
         }
     }
 
@@ -168,6 +166,21 @@ pub(super) fn parse_value_literal(pair: pest::iterators::Pair<Rule>) -> ValueLit
         .next()
         .expect("value_literal must have a variant");
 
+    if variant.as_rule() == Rule::binding_reference {
+        let name = variant
+            .into_inner()
+            .next()
+            .expect("binding_reference must contain an identifier")
+            .as_str()
+            .to_string();
+        return ValueLiteral {
+            kind: ValueLiteralKind::BindingReference,
+            value: name.clone(),
+            quoted_source: format!("\"{name}\""),
+            line,
+        };
+    }
+
     let (kind, quoted) = match variant.as_rule() {
         Rule::quoted_string => (ValueLiteralKind::StringLiteral, variant),
         Rule::workspace_path_literal | Rule::fixture_reference_literal => {
@@ -228,6 +241,9 @@ pub(super) fn parse_file_contents_reference(
         }
         ValueLiteralKind::StringLiteral => {
             unreachable!("expect_kind already rejected StringLiteral for FileContentsReference")
+        }
+        ValueLiteralKind::BindingReference => {
+            unreachable!("expect_kind already rejected BindingReference for FileContentsReference")
         }
     }
 }

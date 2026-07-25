@@ -8,7 +8,8 @@ use std::path::{Path, PathBuf};
 
 use reportage_core::model::{
     CountOp, DirMatcher, Expectation, FileContentsReference, FileMatcher, LogicalOperator,
-    OutputMatcher, OutputSource, SideEffectingStep, Step, TextLiteral,
+    OutputMatcher, OutputSource, RuntimeEvidenceSource, SideEffectingStep, Step, TextLiteral,
+    TextSource,
 };
 use reportage_core::parser::{ParseError, parse};
 use reportage_core::source::{SourceCase, SourceFile};
@@ -218,6 +219,11 @@ enum SnapshotStep<'a> {
         path: &'a str,
         content: SnapshotTextLiteral<'a>,
     },
+    Binding {
+        name: &'a str,
+        source: &'static str,
+        span: SnapshotSpan,
+    },
 }
 
 impl<'a> From<&'a Step> for SnapshotStep<'a> {
@@ -234,6 +240,19 @@ impl<'a> From<&'a Step> for SnapshotStep<'a> {
                     .collect(),
             },
             Step::SideEffect(side_effect) => Self::from(side_effect),
+            Step::Binding(binding) => Self::Binding {
+                name: &binding.name,
+                source: match binding.source {
+                    RuntimeEvidenceSource::StdoutExact => "stdout",
+                    RuntimeEvidenceSource::StderrExact => "stderr",
+                    RuntimeEvidenceSource::StdoutLine => "stdout_line",
+                    RuntimeEvidenceSource::StderrLine => "stderr_line",
+                },
+                span: SnapshotSpan {
+                    start: binding.declaration_span.start,
+                    end: binding.declaration_span.end,
+                },
+            },
         }
     }
 }
@@ -256,6 +275,7 @@ impl<'a> From<&'a SideEffectingStep> for SnapshotStep<'a> {
 enum SnapshotTextLiteral<'a> {
     Quoted { value: &'a str },
     Heredoc { value: &'a str },
+    Binding { name: &'a str },
 }
 
 impl<'a> From<&'a TextLiteral> for SnapshotTextLiteral<'a> {
@@ -263,6 +283,17 @@ impl<'a> From<&'a TextLiteral> for SnapshotTextLiteral<'a> {
         match literal {
             TextLiteral::Quoted(value) => Self::Quoted { value },
             TextLiteral::Heredoc(value) => Self::Heredoc { value },
+        }
+    }
+}
+
+impl<'a> From<&'a TextSource> for SnapshotTextLiteral<'a> {
+    fn from(source: &'a TextSource) -> Self {
+        match source {
+            TextSource::Literal(literal) => Self::from(literal),
+            TextSource::Binding(reference) => Self::Binding {
+                name: &reference.name,
+            },
         }
     }
 }
@@ -382,7 +413,12 @@ impl<'a> From<&'a OutputMatcher> for SnapshotOutputMatcher<'a> {
     fn from(matcher: &'a OutputMatcher) -> Self {
         match matcher {
             OutputMatcher::Empty => Self::Empty,
-            OutputMatcher::Contains(value) => Self::Contains { value },
+            OutputMatcher::Contains(TextSource::Literal(
+                TextLiteral::Quoted(value) | TextLiteral::Heredoc(value),
+            )) => Self::Contains { value },
+            OutputMatcher::Contains(TextSource::Binding(reference)) => Self::Contains {
+                value: &reference.name,
+            },
             OutputMatcher::NotContains(value) => Self::NotContains { value },
             OutputMatcher::Matches(value) => Self::Matches { value },
             OutputMatcher::ContentsEquals(value) => Self::ContentsEquals {
@@ -782,5 +818,29 @@ fn invalid_syntax_fixtures_are_rejected() {
                 assert_eq!(err.code().as_str(), "parse.syntax");
             }
         }
+    }
+}
+
+#[test]
+fn semantic_invalid_binding_fixtures_parse_grammar_but_fail_construction_validation() {
+    let expected = [
+        ("binding_duplicate", "semantic.binding.duplicate"),
+        ("binding_type_mismatch", "semantic.binding.type_mismatch"),
+        (
+            "binding_use_before_declaration",
+            "semantic.binding.use_before_declaration",
+        ),
+    ];
+    let paths = fixture_paths("semantic-invalid");
+    assert_eq!(paths.len(), expected.len());
+    for (path, (stem, code)) in paths.into_iter().zip(expected) {
+        assert_eq!(fixture_stem(&path), stem);
+        let error = parse(&read_fixture(&path)).unwrap_err();
+        assert!(
+            !matches!(error, ParseError::Syntax { .. }),
+            "{} must pass the pest grammar before semantic construction validation",
+            path.display()
+        );
+        assert_eq!(error.code().as_str(), code);
     }
 }

@@ -1,0 +1,66 @@
+{
+  "cases": [
+    {
+      "name": "reuse a resolved revision",
+      "span": {
+        "start": 0,
+        "end": 279
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "printf 'abc123\\n'"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        },
+        {
+          "kind": "binding",
+          "name": "resolved_revision",
+          "source": "stdout_line",
+          "span": {
+            "start": 85,
+            "end": 121
+          }
+        },
+        {
+          "kind": "write_file",
+          "path": "revision.txt",
+          "content": {
+            "kind": "binding",
+            "name": "resolved_revision"
+          }
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "revision.txt",
+              "matcher": {
+                "kind": "text_equals",
+                "value": {
+                  "kind": "binding",
+                  "name": "resolved_revision"
+                }
+              }
+            },
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "contains",
+                "value": "resolved_revision"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

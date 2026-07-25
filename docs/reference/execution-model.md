@@ -312,6 +312,16 @@ When an action completes, the current checkpoint is updated with the action resu
 
 For the assertion block construct that verifies a checkpoint, see [semantics.md — Assertion block](semantics.md#assertion-block).
 
+## Binding environment
+
+Every concrete case owns an initially empty binding environment.
+A successful `let` step decodes the selected stream from the current checkpoint, stores a typed bound value with its declaration span and capture provenance, and leaves the checkpoint unchanged.
+Provenance identifies the source action, stream, and exact or single-line capture mode.
+
+Assertions and writes resolve `&name` against this environment at the point where the step runs.
+The environment is discarded with the case workspace and is never projected into a later action's process environment.
+The underlying action output remains the canonical evidence for artifacts.
+
 ## Checkpoint
 
 A checkpoint is the observable evidence context available at a point in case execution.

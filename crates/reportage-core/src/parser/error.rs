@@ -1,6 +1,6 @@
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, DiagnosticLocation};
 use crate::model::{
-    FixtureReferenceError, LogicalOperator, RequiredLiteralKind, ValueLiteralKind,
+    BindingSpan, FixtureReferenceError, LogicalOperator, RequiredLiteralKind, ValueLiteralKind,
     WorkspacePathError,
 };
 
@@ -16,13 +16,24 @@ pub enum ParseError {
         source_line: String,
     },
     /// A case block must contain at least one step.
-    EmptyCase { line: usize, name: String },
+    EmptyCase {
+        line: usize,
+        name: String,
+    },
     /// A case block must contain at least one assertion block.
-    MissingAssertionBlock { line: usize, name: String },
+    MissingAssertionBlock {
+        line: usize,
+        name: String,
+    },
     /// An action step must contain a non-empty command after trimming whitespace.
-    EmptyAction { line: usize },
+    EmptyAction {
+        line: usize,
+    },
     /// Exit code is outside the valid range 0..=255.
-    InvalidExitCode { line: usize, value: String },
+    InvalidExitCode {
+        line: usize,
+        value: String,
+    },
     /// A `not` / `all` / `any` logical composition block contains zero expectation expressions.
     EmptyLogicalCompositionBlock {
         line: usize,
@@ -65,43 +76,99 @@ pub enum ParseError {
     /// A heredoc literal (in a `write` step or a `file ... contains`
     /// expectation) has a non-blank body line indented less than the
     /// closing fence's indentation.
-    ShallowHeredocIndent { line: usize },
+    ShallowHeredocIndent {
+        line: usize,
+    },
     /// A document block contains no documentation field.
-    EmptyDocumentBlock { line: usize },
+    EmptyDocumentBlock {
+        line: usize,
+    },
     /// A document block declares the same documentation field more than once.
-    DuplicateDocumentationField { line: usize, field: &'static str },
+    DuplicateDocumentationField {
+        line: usize,
+        field: &'static str,
+    },
     /// A document block's `order` value is a digit run that overflows the
     /// model's u64 range; the grammar guarantees it is otherwise a
     /// non-negative integer.
-    InvalidDocumentationOrder { line: usize, value: String },
+    InvalidDocumentationOrder {
+        line: usize,
+        value: String,
+    },
     /// A source contains more than one `document file` block.
-    DuplicateDocumentFile { line: usize },
+    DuplicateDocumentFile {
+        line: usize,
+    },
     /// A `document file` block appears after the source's first case block,
     /// after a `document case` block, or after a `before_each` block,
     /// violating the canonical top-level form
     /// `document file? before_each? (document case? case)*`.
-    DocumentFileAfterCase { line: usize },
+    DocumentFileAfterCase {
+        line: usize,
+    },
     /// A second `document case` block appears before the previous one's
     /// target case, which would associate two blocks with one case.
-    DuplicateDocumentCase { line: usize },
+    DuplicateDocumentCase {
+        line: usize,
+    },
     /// A `document case` block is not followed by a case to associate with.
-    OrphanDocumentCase { line: usize },
+    OrphanDocumentCase {
+        line: usize,
+    },
     /// A source contains more than one `before_each` block.
-    DuplicateBeforeEach { line: usize },
+    DuplicateBeforeEach {
+        line: usize,
+    },
     /// A `before_each` block appears after the source's first case block or
     /// after a `document case` block, violating the canonical top-level form
     /// `document file? before_each? (document case? case)*`.
-    BeforeEachAfterCase { line: usize },
+    BeforeEachAfterCase {
+        line: usize,
+    },
     /// A `before_each` body contains a `$` action step. Actions are banned
     /// there regardless of the command; setup commands belong in each case
     /// body. See the `before_each` ADR.
-    BeforeEachActionStep { line: usize },
+    BeforeEachActionStep {
+        line: usize,
+    },
     /// A `before_each` body contains an `assert` block. Setup results are
     /// verified at the start of each case body instead; see the `before_each`
     /// ADR and the deferred-topics record.
-    BeforeEachAssertionBlock { line: usize },
+    BeforeEachAssertionBlock {
+        line: usize,
+    },
     /// A `before_each` block contains no steps.
-    EmptyBeforeEach { line: usize },
+    EmptyBeforeEach {
+        line: usize,
+    },
+    BeforeEachBindingStep {
+        line: usize,
+    },
+    InvalidBindingIdentifier {
+        line: usize,
+        name: String,
+    },
+    DuplicateBinding {
+        name: String,
+        span: BindingSpan,
+    },
+    UndefinedBinding {
+        name: String,
+        span: BindingSpan,
+    },
+    BindingUsedBeforeDeclaration {
+        name: String,
+        span: BindingSpan,
+    },
+    BindingRequiresAction {
+        name: String,
+        span: BindingSpan,
+    },
+    BindingTypeMismatch {
+        line: usize,
+        name: String,
+        expected: &'static str,
+    },
 }
 
 impl std::fmt::Display for ParseError {
@@ -237,6 +304,38 @@ impl std::fmt::Display for ParseError {
                 f,
                 "parse error at line {line}: `before_each` block must contain at least one `write` step"
             ),
+            ParseError::BeforeEachBindingStep { line } => write!(
+                f,
+                "parse error at line {line}: `before_each` must not contain a `let` binding step"
+            ),
+            ParseError::InvalidBindingIdentifier { line, name } => write!(
+                f,
+                "parse error at line {line}: binding identifier '{name}' must match [A-Za-z_][A-Za-z0-9_]*"
+            ),
+            ParseError::DuplicateBinding { name, .. } => write!(
+                f,
+                "test-definition error: binding '{name}' is declared more than once in the same case"
+            ),
+            ParseError::UndefinedBinding { name, .. } => write!(
+                f,
+                "test-definition error: binding reference '&{name}' appears before its declaration or is undefined"
+            ),
+            ParseError::BindingUsedBeforeDeclaration { name, .. } => write!(
+                f,
+                "test-definition error: binding reference '&{name}' appears before its declaration"
+            ),
+            ParseError::BindingRequiresAction { name, .. } => write!(
+                f,
+                "test-definition error: binding '{name}' captures process output before any action has run"
+            ),
+            ParseError::BindingTypeMismatch {
+                line,
+                name,
+                expected,
+            } => write!(
+                f,
+                "test-definition error at line {line}: position requires {expected}, but '&{name}' references a TextValue binding"
+            ),
         }
     }
 }
@@ -270,7 +369,13 @@ impl ParseError {
                     DiagnosticCode::SemanticFixtureReferenceDotSegment
                 }
             },
-            ParseError::LiteralKindMismatch { .. } => DiagnosticCode::SemanticLiteralKindMismatch,
+            ParseError::LiteralKindMismatch { actual, .. } => {
+                if matches!(actual, ValueLiteralKind::BindingReference) {
+                    DiagnosticCode::SemanticBindingTypeMismatch
+                } else {
+                    DiagnosticCode::SemanticLiteralKindMismatch
+                }
+            }
             ParseError::ShallowHeredocIndent { .. } => {
                 DiagnosticCode::ParseHeredocLiteralShallowIndent
             }
@@ -292,6 +397,21 @@ impl ParseError {
                 DiagnosticCode::ParseBeforeEachAssertionBlock
             }
             ParseError::EmptyBeforeEach { .. } => DiagnosticCode::ParseBeforeEachEmpty,
+            ParseError::BeforeEachBindingStep { .. } => {
+                DiagnosticCode::SemanticBindingBeforeEachForbidden
+            }
+            ParseError::InvalidBindingIdentifier { .. } => {
+                DiagnosticCode::SemanticBindingInvalidIdentifier
+            }
+            ParseError::DuplicateBinding { .. } => DiagnosticCode::SemanticBindingDuplicate,
+            ParseError::UndefinedBinding { .. } => DiagnosticCode::SemanticBindingUndefined,
+            ParseError::BindingUsedBeforeDeclaration { .. } => {
+                DiagnosticCode::SemanticBindingUseBeforeDeclaration
+            }
+            ParseError::BindingRequiresAction { .. } => {
+                DiagnosticCode::SemanticBindingRequiresAction
+            }
+            ParseError::BindingTypeMismatch { .. } => DiagnosticCode::SemanticBindingTypeMismatch,
         }
     }
 
@@ -416,7 +536,9 @@ impl ParseError {
             | ParseError::BeforeEachAfterCase { line }
             | ParseError::BeforeEachActionStep { line }
             | ParseError::BeforeEachAssertionBlock { line }
-            | ParseError::EmptyBeforeEach { line } => (
+            | ParseError::EmptyBeforeEach { line }
+            | ParseError::BeforeEachBindingStep { line }
+            | ParseError::InvalidBindingIdentifier { line, .. } => (
                 Some(DiagnosticLocation {
                     line: *line,
                     column: None,
@@ -440,6 +562,35 @@ impl ParseError {
                 }),
                 DiagnosticDetails {
                     raw_value: Some(value.clone()),
+                    ..Default::default()
+                },
+            ),
+            ParseError::DuplicateBinding { name, span }
+            | ParseError::UndefinedBinding { name, span }
+            | ParseError::BindingUsedBeforeDeclaration { name, span }
+            | ParseError::BindingRequiresAction { name, span } => (
+                Some(DiagnosticLocation {
+                    line: span.line,
+                    column: Some(span.column),
+                }),
+                DiagnosticDetails {
+                    raw_value: Some(name.clone()),
+                    ..Default::default()
+                },
+            ),
+            ParseError::BindingTypeMismatch {
+                line,
+                name,
+                expected,
+            } => (
+                Some(DiagnosticLocation {
+                    line: *line,
+                    column: None,
+                }),
+                DiagnosticDetails {
+                    raw_value: Some(format!("&{name}")),
+                    expected_kind: Some((*expected).to_string()),
+                    actual_kind: Some("TextValue".to_string()),
                     ..Default::default()
                 },
             ),

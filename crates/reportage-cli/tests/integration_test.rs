@@ -103,6 +103,87 @@ fn whitespace_only_script_is_noop_success() {
     assert_eq!(json["summary"]["assertions"], 0);
 }
 
+#[test]
+fn binding_capture_reports_non_utf8_output_as_runtime_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "binding.repor",
+        r#"
+case "non utf8" {
+  $ printf '\377'
+  let output <- stdout
+  assert {
+    exit 0
+  }
+}
+"#,
+    );
+
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains("step.binding.non_utf8"));
+}
+
+#[test]
+fn binding_line_capture_rejects_multiple_lines_as_runtime_error() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "binding.repor",
+        r#"
+case "multiple lines" {
+  $ printf 'one\ntwo\n'
+  let output <- stdout_line
+  assert {
+    exit 0
+  }
+}
+"#,
+    );
+
+    reportage(&dir)
+        .arg(script)
+        .assert()
+        .code(3)
+        .stderr(predicates::str::contains("step.binding.not_single_line"));
+}
+
+#[test]
+fn binding_expected_source_records_provenance_without_copying_the_value() {
+    let dir = TempDir::new().unwrap();
+    let script = write_script(
+        &dir,
+        "binding.repor",
+        r#"
+case "provenance" {
+  $ printf 'runtime-value'
+  let expected <- stdout_line
+  assert {
+    stdout text_equals &expected
+    stdout contains &expected
+  }
+}
+"#,
+    );
+
+    reportage(&dir).arg(script).assert().success();
+    let (json, _) = read_single_result_json(&dir);
+    let source = &json["tests"][0]["assertions"][0]["expectation"]["expectedSource"];
+    assert_eq!(source["kind"], "binding");
+    assert_eq!(source["name"], "expected");
+    assert_eq!(source["actionIndex"], 0);
+    assert_eq!(source["stream"], "stdout");
+    assert_eq!(source["captureMode"], "line");
+    assert!(source.get("value").is_none());
+    assert_eq!(
+        json["tests"][0]["assertions"][1]["expectation"]["expected"],
+        "&expected"
+    );
+}
+
 // --- failing assertions ---
 //
 // Representative passing/failing-assertion CLI scenarios live in

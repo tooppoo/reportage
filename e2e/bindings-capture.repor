@@ -1,0 +1,49 @@
+document file {
+  title "Runtime evidence bindings"
+  group "bindings"
+  description "Captures exact and single-line process output for direct typed reuse."
+}
+
+case "exact stdout is written without normalization" {
+  $ printf ' value \n'
+  assert {
+    exit 0
+  }
+  let expected <- stdout
+  write <"expected.txt"> &expected
+  assert {
+    file <"expected.txt"> text_equals &expected
+    stdout text_equals &expected
+  }
+}
+
+case "stdout_line removes one trailing line terminator" {
+  $ printf 'revision-123\r\n'
+  let revision <- stdout_line
+  write <"revision.txt"> &revision
+  assert {
+    file <"revision.txt"> text_equals &revision
+    stdout contains &revision
+  }
+}
+
+case "stderr_line can be captured after a failing action" {
+  $ printf 'expected failure\n' >&2; exit 7
+  let message <- stderr_line
+  assert {
+    exit 7
+    stderr contains &message
+  }
+}
+
+case "empty output is a valid exact and line value" {
+  $ true
+  let exact <- stdout
+  let line <- stderr_line
+  write <"exact.txt"> &exact
+  write <"line.txt"> &line
+  assert {
+    file <"exact.txt"> text_equals &exact
+    file <"line.txt"> text_equals &line
+  }
+}

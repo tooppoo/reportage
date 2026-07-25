@@ -66,7 +66,9 @@ fn stdout_contains_matches_substring_in_non_utf8_output() {
     stdout.push(0xff);
     let checkpoint = checkpoint_after_output(stdout, vec![]);
     let expectation = Expectation::Stdout(crate::model::OutputExpectation {
-        matcher: OutputMatcher::Contains("ok".to_string()),
+        matcher: OutputMatcher::Contains(TextSource::Literal(TextLiteral::Quoted(
+            "ok".to_string(),
+        ))),
     });
     let result = evaluate_expectation_at_checkpoint(&expectation, &checkpoint).unwrap();
     assert!(result.passed);
@@ -76,13 +78,13 @@ fn stdout_contains_matches_substring_in_non_utf8_output() {
 
 fn stdout_text_equals_expectation(literal: TextLiteral) -> Expectation {
     Expectation::Stdout(crate::model::OutputExpectation {
-        matcher: OutputMatcher::TextEquals(literal),
+        matcher: OutputMatcher::TextEquals(TextSource::Literal(literal)),
     })
 }
 
 fn stderr_text_equals_expectation(literal: TextLiteral) -> Expectation {
     Expectation::Stderr(crate::model::OutputExpectation {
-        matcher: OutputMatcher::TextEquals(literal),
+        matcher: OutputMatcher::TextEquals(TextSource::Literal(literal)),
     })
 }
 

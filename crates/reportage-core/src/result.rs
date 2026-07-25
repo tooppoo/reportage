@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::diagnostic::{DiagnosticCode, DiagnosticLocation};
-use crate::model::{LogicalOperator, Script};
+use crate::model::{BindingSource, LogicalOperator, Script};
 use crate::shim_event::ShimInvocationEvent;
 
 /// The captured output of a single `$` action step.
@@ -274,6 +274,10 @@ pub enum TextEqualsExpectedSource {
     Quoted(String),
     /// A ``` ... ``` heredoc literal, already dedented.
     Heredoc(String),
+    Binding {
+        name: String,
+        source: BindingSource,
+    },
 }
 
 /// A completed byte-for-byte `contents_equals` comparison: the full actual and expected

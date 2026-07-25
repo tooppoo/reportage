@@ -1,0 +1,8 @@
+case "duplicate binding" {
+  $ printf value
+  let output <- stdout
+  let output <- stderr
+  assert {
+    exit 0
+  }
+}

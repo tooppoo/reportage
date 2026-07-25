@@ -614,6 +614,19 @@ fn text_equals_expected_source_json(source: &TextEqualsExpectedSource) -> Value 
             "kind": "heredoc",
             "value": value,
         }),
+        TextEqualsExpectedSource::Binding { name, source } => json!({
+            "kind": "binding",
+            "name": name,
+            "actionIndex": source.action_index,
+            "stream": match source.stream {
+                crate::model::OutputSource::Stdout => "stdout",
+                crate::model::OutputSource::Stderr => "stderr",
+            },
+            "captureMode": match source.capture_mode {
+                crate::model::CaptureMode::Exact => "exact",
+                crate::model::CaptureMode::Line => "line",
+            },
+        }),
     }
 }
 

@@ -220,11 +220,11 @@ fn before_each_write_failure_is_runtime_error_without_case_step_index() {
     let before_each = BeforeEach::new(vec![
         SideEffectingStep::WriteFile(WriteFileStep {
             path: WorkspacePath::parse("a.txt").unwrap(),
-            content: TextLiteral::Quoted("first".to_string()),
+            content: TextSource::Literal(TextLiteral::Quoted("first".to_string())),
         }),
         SideEffectingStep::WriteFile(WriteFileStep {
             path: WorkspacePath::parse("a.txt").unwrap(),
-            content: TextLiteral::Quoted("second".to_string()),
+            content: TextSource::Literal(TextLiteral::Quoted("second".to_string())),
         }),
     ])
     .unwrap();

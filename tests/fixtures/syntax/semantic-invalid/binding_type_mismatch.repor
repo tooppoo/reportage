@@ -1,0 +1,7 @@
+case "text binding used as an exit code" {
+  $ printf 0
+  let code <- stdout_line
+  assert {
+    exit &code
+  }
+}

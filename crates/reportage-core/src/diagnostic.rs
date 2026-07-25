@@ -182,6 +182,15 @@ pub enum DiagnosticCode {
     ParseBeforeEachAssertionBlock,
     /// A `before_each` block contains no steps.
     ParseBeforeEachEmpty,
+    SemanticBindingBeforeEachForbidden,
+    SemanticBindingInvalidIdentifier,
+    SemanticBindingDuplicate,
+    SemanticBindingUndefined,
+    SemanticBindingUseBeforeDeclaration,
+    SemanticBindingRequiresAction,
+    SemanticBindingTypeMismatch,
+    StepBindingNonUtf8,
+    StepBindingNotSingleLine,
 }
 
 impl DiagnosticCode {
@@ -259,6 +268,15 @@ impl DiagnosticCode {
         Self::ParseBeforeEachActionStep,
         Self::ParseBeforeEachAssertionBlock,
         Self::ParseBeforeEachEmpty,
+        Self::SemanticBindingBeforeEachForbidden,
+        Self::SemanticBindingInvalidIdentifier,
+        Self::SemanticBindingDuplicate,
+        Self::SemanticBindingUndefined,
+        Self::SemanticBindingUseBeforeDeclaration,
+        Self::SemanticBindingRequiresAction,
+        Self::SemanticBindingTypeMismatch,
+        Self::StepBindingNonUtf8,
+        Self::StepBindingNotSingleLine,
     ];
 
     /// The stable external string representation of this code.
@@ -367,6 +385,15 @@ impl DiagnosticCode {
             Self::ParseBeforeEachActionStep => "parse.before_each.action_step",
             Self::ParseBeforeEachAssertionBlock => "parse.before_each.assertion_block",
             Self::ParseBeforeEachEmpty => "parse.before_each.empty",
+            Self::SemanticBindingBeforeEachForbidden => "semantic.binding.before_each_forbidden",
+            Self::SemanticBindingInvalidIdentifier => "semantic.binding.invalid_identifier",
+            Self::SemanticBindingDuplicate => "semantic.binding.duplicate",
+            Self::SemanticBindingUndefined => "semantic.binding.undefined",
+            Self::SemanticBindingUseBeforeDeclaration => "semantic.binding.use_before_declaration",
+            Self::SemanticBindingRequiresAction => "semantic.binding.requires_action",
+            Self::SemanticBindingTypeMismatch => "semantic.binding.type_mismatch",
+            Self::StepBindingNonUtf8 => "step.binding.non_utf8",
+            Self::StepBindingNotSingleLine => "step.binding.not_single_line",
         }
     }
 }

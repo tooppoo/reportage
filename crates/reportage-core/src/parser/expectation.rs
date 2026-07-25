@@ -1,10 +1,11 @@
 use super::heredoc::parse_heredoc_literal;
 use super::literal::{RequiredKind, parse_file_contents_reference, parse_value_literal};
+use super::step::parse_text_source;
 use super::{ParseError, Rule};
 use crate::model::{
     AssertionBlock, DirExpectation, DirMatcher, ExitExpectation, Expectation, FileExpectation,
     FileMatcher, LogicalExpectation, LogicalOperator, OutputExpectation, OutputMatcher, Step,
-    TextLiteral,
+    TextLiteral, TextSource,
 };
 
 pub(super) fn parse_assertion_block(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseError> {
@@ -106,10 +107,28 @@ fn parse_logical_composition(pair: pest::iterators::Pair<Rule>) -> Result<Expect
 fn parse_exit_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, ParseError> {
     // exit_exp = { "exit" ~ ws+ ~ exit_code }
     // exit_code = @{ ASCII_DIGIT+ }
-    let code_pair = pair
+    let operand = pair
         .into_inner()
         .next()
-        .expect("exit_exp must have exit_code");
+        .expect("exit_exp must have exit_operand")
+        .into_inner()
+        .next()
+        .expect("exit_operand must have a value");
+    if operand.as_rule() == Rule::binding_reference {
+        let line = operand.line_col().0;
+        let name = operand
+            .into_inner()
+            .next()
+            .expect("binding_reference must have an identifier")
+            .as_str()
+            .to_string();
+        return Err(ParseError::BindingTypeMismatch {
+            line,
+            name,
+            expected: "ExitCode",
+        });
+    }
+    let code_pair = operand;
     let line = code_pair.line_col().0;
     let code_str = code_pair.as_str();
 
@@ -146,18 +165,16 @@ fn parse_output_exp(
         Rule::output_empty => OutputMatcher::Empty,
         Rule::output_contains => {
             // output_contains = { "contains" ~ ws+ ~ value_literal }
-            let literal_pair = inner
+            let source_pair = inner
                 .into_inner()
                 .next()
-                .expect("output_contains must have value_literal");
+                .expect("output_contains must have text_value_source");
             let position = if is_stdout {
                 "`stdout contains` expected text"
             } else {
                 "`stderr contains` expected text"
             };
-            let expected = parse_value_literal(literal_pair)
-                .expect_kind(RequiredKind::TextValueStringOnly, position)?;
-            OutputMatcher::Contains(expected)
+            OutputMatcher::Contains(parse_text_source(source_pair, position)?)
         }
         Rule::output_contents_equals => {
             // output_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
@@ -174,18 +191,16 @@ fn parse_output_exp(
         }
         Rule::output_text_equals => {
             // output_text_equals = { "text_equals" ~ ws+ ~ value_literal }
-            let literal_pair = inner
+            let source_pair = inner
                 .into_inner()
                 .next()
-                .expect("output_text_equals must have value_literal");
+                .expect("output_text_equals must have text_value_source");
             let position = if is_stdout {
                 "`stdout text_equals` expected text"
             } else {
                 "`stderr text_equals` expected text"
             };
-            let expected = parse_value_literal(literal_pair)
-                .expect_kind(RequiredKind::TextValueStringOrHeredoc, position)?;
-            OutputMatcher::TextEquals(TextLiteral::Quoted(expected))
+            OutputMatcher::TextEquals(parse_text_source(source_pair, position)?)
         }
         rule => unreachable!("unexpected rule in output_matcher: {rule:?}"),
     };
@@ -216,15 +231,14 @@ fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Pars
         Rule::file_exists => FileMatcher::Exists,
         Rule::file_contains => {
             // file_contains = { "contains" ~ ws+ ~ value_literal }
-            let literal_pair = predicate
+            let source_pair = predicate
                 .into_inner()
                 .next()
-                .expect("file_contains must have value_literal");
-            let expected = parse_value_literal(literal_pair).expect_kind(
-                RequiredKind::TextValueStringOrHeredoc,
+                .expect("file_contains must have text_value_source");
+            FileMatcher::Contains(parse_text_source(
+                source_pair,
                 "`file contains` expected text",
-            )?;
-            FileMatcher::Contains(TextLiteral::Quoted(expected))
+            )?)
         }
         Rule::file_contents_equals => {
             // file_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
@@ -240,15 +254,14 @@ fn parse_file_exp(pair: pest::iterators::Pair<Rule>) -> Result<Expectation, Pars
         }
         Rule::file_text_equals => {
             // file_text_equals = { "text_equals" ~ ws+ ~ value_literal }
-            let literal_pair = predicate
+            let source_pair = predicate
                 .into_inner()
                 .next()
-                .expect("file_text_equals must have value_literal");
-            let expected = parse_value_literal(literal_pair).expect_kind(
-                RequiredKind::TextValueStringOrHeredoc,
+                .expect("file_text_equals must have text_value_source");
+            FileMatcher::TextEquals(parse_text_source(
+                source_pair,
                 "`file text_equals` expected text",
-            )?;
-            FileMatcher::TextEquals(TextLiteral::Quoted(expected))
+            )?)
         }
         rule => unreachable!("unexpected rule in file_predicate: {rule:?}"),
     };
@@ -282,7 +295,7 @@ fn parse_heredoc_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expect
 
             Ok(Expectation::File(FileExpectation {
                 path,
-                matcher: FileMatcher::Contains(TextLiteral::Heredoc(content)),
+                matcher: FileMatcher::Contains(TextSource::Literal(TextLiteral::Heredoc(content))),
             }))
         }
         Rule::file_text_equals_heredoc => {
@@ -301,7 +314,9 @@ fn parse_heredoc_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expect
 
             Ok(Expectation::File(FileExpectation {
                 path,
-                matcher: FileMatcher::TextEquals(TextLiteral::Heredoc(content)),
+                matcher: FileMatcher::TextEquals(TextSource::Literal(TextLiteral::Heredoc(
+                    content,
+                ))),
             }))
         }
         Rule::stdout_text_equals_heredoc | Rule::stderr_text_equals_heredoc => {
@@ -315,7 +330,9 @@ fn parse_heredoc_expectation(pair: pest::iterators::Pair<Rule>) -> Result<Expect
             let content = parse_heredoc_literal(literal_pair)?;
 
             let exp = OutputExpectation {
-                matcher: OutputMatcher::TextEquals(TextLiteral::Heredoc(content)),
+                matcher: OutputMatcher::TextEquals(TextSource::Literal(TextLiteral::Heredoc(
+                    content,
+                ))),
             };
             if rule == Rule::stdout_text_equals_heredoc {
                 Ok(Expectation::Stdout(exp))

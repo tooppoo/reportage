@@ -1,7 +1,8 @@
 use super::*;
 use crate::model::{
     Expectation, FileContentsReference, FileMatcher, FixtureReferenceError, OutputExpectation,
-    OutputMatcher, RequiredLiteralKind, Step, TextLiteral, ValueLiteralKind, WorkspacePathError,
+    OutputMatcher, RequiredLiteralKind, Step, TextLiteral, TextSource, ValueLiteralKind,
+    WorkspacePathError,
 };
 
 // ─── Workspace path literal / literal kind mismatch (#93) ──────────────
@@ -330,7 +331,7 @@ fn file_text_equals_accepts_string_literal() {
         panic!("expected file expectation");
     };
     match &file_exp.matcher {
-        FileMatcher::TextEquals(TextLiteral::Quoted(value)) => {
+        FileMatcher::TextEquals(TextSource::Literal(TextLiteral::Quoted(value))) => {
             assert_eq!(value, "expected");
         }
         other => panic!("expected quoted text_equals, got {other:?}"),
@@ -381,7 +382,7 @@ fn file_text_equals_accepts_heredoc_literal() {
         panic!("expected file expectation");
     };
     match &file_exp.matcher {
-        FileMatcher::TextEquals(TextLiteral::Heredoc(value)) => {
+        FileMatcher::TextEquals(TextSource::Literal(TextLiteral::Heredoc(value))) => {
             assert_eq!(value, "hello\nworld\n");
         }
         other => panic!("expected heredoc text_equals, got {other:?}"),
@@ -410,7 +411,7 @@ fn stdout_text_equals_accepts_string_literal() {
     };
     match &block.expectations()[0] {
         Expectation::Stdout(OutputExpectation {
-            matcher: OutputMatcher::TextEquals(TextLiteral::Quoted(value)),
+            matcher: OutputMatcher::TextEquals(TextSource::Literal(TextLiteral::Quoted(value))),
         }) => assert_eq!(value, "hello\n"),
         other => panic!("expected quoted stdout text_equals, got {other:?}"),
     }
@@ -425,7 +426,7 @@ fn stderr_text_equals_accepts_heredoc_literal() {
     };
     match &block.expectations()[0] {
         Expectation::Stderr(OutputExpectation {
-            matcher: OutputMatcher::TextEquals(TextLiteral::Heredoc(value)),
+            matcher: OutputMatcher::TextEquals(TextSource::Literal(TextLiteral::Heredoc(value))),
         }) => assert_eq!(value, "warn\nline\n"),
         other => panic!("expected heredoc stderr text_equals, got {other:?}"),
     }
@@ -444,7 +445,7 @@ fn stdout_text_equals_heredoc_parses_alongside_other_expectations() {
     assert!(matches!(
         &block.expectations()[0],
         Expectation::Stdout(OutputExpectation {
-            matcher: OutputMatcher::TextEquals(TextLiteral::Heredoc(_)),
+            matcher: OutputMatcher::TextEquals(TextSource::Literal(TextLiteral::Heredoc(_))),
         })
     ));
     assert!(matches!(&block.expectations()[1], Expectation::Exit(_)));
