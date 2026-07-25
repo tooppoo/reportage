@@ -102,26 +102,6 @@ case "file contains non-utf8" {
 // `file contains` in one assertion block) is covered by
 // e2e/artifacts/file-assertion-evidence.repor.
 
-#[test]
-fn file_assertion_path_resolves_against_workspace_root_not_action_cd() {
-    // A `cd` performed inside a `$` action must not change how the following file assertion's path is resolved.
-    // See docs/reference/semantics.md.
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "cd does not affect file assertion root" {
-  $ mkdir -p subdir && cd subdir && echo hi > moved.txt
-  assert {
-    file <"subdir/moved.txt"> exists
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
 // --- `contents_equals` assertions (#87) ---
 //
 // The representative workspace-file pass scenario lives in
@@ -151,52 +131,6 @@ case "file contents_equals workspace mismatch" {
         .stderr(predicates::str::contains(
             "assertion.file.contents_equals.mismatch",
         ));
-}
-
-#[test]
-fn file_contents_equals_passes_against_a_fixture_expected_file() {
-    let dir = TempDir::new().unwrap();
-    dir.child("expected.txt").write_str("hello").unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file contents_equals fixture pass" {
-  $ printf hello > actual.txt
-  assert {
-    file <"actual.txt"> contents_equals @"expected.txt"
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
-}
-
-#[test]
-fn file_contents_equals_passes_against_a_fixture_expected_file_via_bare_relative_script_path() {
-    // Regression test: `Path::parent()` returns `Some("")`, not `None`, for a bare relative
-    // filename with no directory component (the common `cd examples && reportage foo.repor`
-    // invocation shape). An earlier version of `evaluate_case`'s `repor_dir` computation only
-    // substituted "." when `parent()` returned `None`, so this shape resolved `repor_dir` to an
-    // empty path, and `fixture::resolve_fixture_source` failed to canonicalize it even though
-    // the fixture file existed right next to the script.
-    let dir = TempDir::new().unwrap();
-    dir.child("expected.txt").write_str("hello").unwrap();
-    write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "file contents_equals fixture pass" {
-  $ printf hello > actual.txt
-  assert {
-    file <"actual.txt"> contents_equals @"expected.txt"
-  }
-}
-"#,
-    );
-    // Pass a bare filename, not the absolute path `write_script` returns, so `source_path` has
-    // no directory component when the CLI resolves it.
-    reportage(&dir).arg("test.repor").assert().code(0);
 }
 
 #[test]
@@ -346,35 +280,6 @@ case "file contents_equals actual is a directory" {
         ));
 }
 
-#[test]
-fn not_block_wrapping_a_passing_file_contents_equals_prints_bytes_match_detail() {
-    // A `not` composition recurses into every child regardless of the child's own pass/fail
-    // state (see render::human::print_failed_expectation's doc comment), so a `contents_equals`
-    // child that itself matched still has its "bytes match" detail printed when the
-    // surrounding `not` fails because that child held.
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "not wrapping a passing contents_equals" {
-  $ printf hello > expected.txt
-  $ printf hello > actual.txt
-  assert {
-    not {
-      file <"actual.txt"> contents_equals <"expected.txt">
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(1)
-        .stderr(predicates::str::contains("bytes match"));
-}
-
 // --- `text_equals` assertions (#88) ---
 //
 // Representative pass scenarios (quoted-string and heredoc literals) and the quoted-string
@@ -446,30 +351,6 @@ case "file text_equals actual is a directory" {
 // a workspace path literal as the expected value) are covered by e2e/assertions/text-equals.repor,
 // which checks the same `semantic.literal.kind_mismatch` diagnostic code for each case.
 
-#[test]
-fn not_block_wrapping_a_passing_file_text_equals_prints_bytes_match_detail() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "not wrapping a passing text_equals" {
-  $ printf hello > actual.txt
-  assert {
-    not {
-      file <"actual.txt"> text_equals "hello"
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(1)
-        .stderr(predicates::str::contains("bytes match"));
-}
-
 // --- stdout / stderr `text_equals` assertions ---
 //
 // Representative pass scenarios (quoted-string and heredoc literals), the quoted-string
@@ -537,32 +418,6 @@ case "stderr text_equals quoted mismatch" {
         ));
 }
 
-#[test]
-fn not_block_wrapping_a_passing_stdout_text_equals_prints_bytes_match_detail() {
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "not wrapping a passing stdout text_equals" {
-  $ printf hello
-  assert {
-    not {
-      stdout text_equals "hello"
-    }
-  }
-}
-"#,
-    );
-    reportage(&dir)
-        .arg(script)
-        .assert()
-        .code(1)
-        .stderr(predicates::str::contains(
-            "stdout text_equals \"hello\" — bytes match",
-        ));
-}
-
 // --- dir assertions (#66) ---
 //
 // Representative pass/fail scenarios for `dir exists` and `dir contains` live in
@@ -618,26 +473,6 @@ case "dir exists missing" {
         .assert()
         .code(1)
         .stderr(predicates::str::contains("assertion.dir.exists.missing"));
-}
-
-#[test]
-fn dir_assertion_path_resolves_against_workspace_root_not_action_cd() {
-    // A `cd` performed inside a `$` action must not change how the following dir assertion's path is resolved.
-    // See docs/reference/semantics.md.
-    let dir = TempDir::new().unwrap();
-    let script = write_script(
-        &dir,
-        "test.repor",
-        r#"
-case "cd does not affect dir assertion root" {
-  $ mkdir -p subdir && cd subdir && mkdir moved
-  assert {
-    dir <"subdir/moved"> exists
-  }
-}
-"#,
-    );
-    reportage(&dir).arg(script).assert().code(0);
 }
 
 #[test]

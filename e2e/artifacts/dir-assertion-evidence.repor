@@ -63,6 +63,15 @@ case "dir contains succeeds for a directory entry" {
   }
 }
 
+case "dir assertion path remains rooted at the workspace after action cd" {
+  $ mkdir -p subdir && cd subdir && mkdir moved
+
+  assert {
+    exit 0
+    dir <"subdir/moved"> exists
+  }
+}
+
 case "dir contains is not recursive, not a glob, and not a file content search" {
   $ mkdir -p artifacts/nested
   $ touch artifacts/nested/result.json

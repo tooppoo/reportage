@@ -5,6 +5,9 @@ case "with --help" {
   assert {
     exit 0
     stdout contains "Usage: reportage [OPTIONS] [SUBCOMMAND]..."
+    not {
+      stdout contains "--debug-run-id"
+    }
   }
 }
 

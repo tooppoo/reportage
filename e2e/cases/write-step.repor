@@ -1,0 +1,36 @@
+case "write is visible to the immediately following assertion" {
+  write <"config.yml"> ```
+    key: value
+    ```
+
+  assert {
+    file <"config.yml"> contains "key: value"
+  }
+}
+
+case "write creates missing parent directories" {
+  write <"expected/nested/stdout.txt"> ```
+    ok
+    ```
+
+  assert {
+    file <"expected/nested/stdout.txt"> exists
+    file <"expected/nested/stdout.txt"> contains "ok"
+  }
+}
+
+case "first isolated case writes the shared relative path" {
+  write <"same-path.txt"> "from first case\n"
+
+  assert {
+    file <"same-path.txt"> contains "from first case"
+  }
+}
+
+case "second isolated case writes the shared relative path" {
+  write <"same-path.txt"> "from second case\n"
+
+  assert {
+    file <"same-path.txt"> contains "from second case"
+  }
+}

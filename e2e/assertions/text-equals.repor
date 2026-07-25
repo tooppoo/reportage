@@ -36,6 +36,26 @@ case "file text_equals reports an assertion failure for a byte mismatch" {
   }
 }
 
+case "not reports matching file text_equals bytes" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello > actual.txt
+      assert {
+        not {
+          file <"actual.txt"> text_equals "hello"
+        }
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+    stderr contains "file \"actual.txt\" text_equals \"hello\" — bytes match"
+  }
+}
+
 case "file text_equals reports an assertion failure for a missing actual file" {
   write <"inner.repor"> ```
     case "inner" {
@@ -104,6 +124,26 @@ case "stdout text_equals reports an assertion failure for a byte mismatch" {
   assert {
     exit 1
     stderr contains "assertion.stdout.text_equals.mismatch"
+  }
+}
+
+case "not reports matching stdout text_equals bytes" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ printf hello
+      assert {
+        not {
+          stdout text_equals "hello"
+        }
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+    stderr contains "stdout text_equals \"hello\" — bytes match"
   }
 }
 
