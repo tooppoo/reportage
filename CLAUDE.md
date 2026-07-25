@@ -7,6 +7,7 @@
 - After completing file edits, always use the `subagent-review-loop` skill to review and revise the changes before reporting completion, unless the user explicitly instructs otherwise.
 - When updating documentation, always use the `documentation-writing` skill.
 - When writing or modifying code comments, always use both the `documentation-writing` skill and the `code-comment` skill.
+- When writing e2e test, use `reportage` skill.
 
 ## Subagent review loop
 

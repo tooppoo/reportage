@@ -44,6 +44,11 @@ enozunu config-version=1 {
           path "ai/skills/reportage-syntax-change"
         }
       }
+      skill "reportage" {
+        local {
+          path "ai/skills/reportage"
+        }
+      }
     }
   }
 
@@ -55,7 +60,8 @@ enozunu config-version=1 {
         "code-comment" \
         "cli-output-design" \
         "reportage-syntax-change" \
-        "reportage-behavior-change"
+        "reportage-behavior-change" \
+        "reportage"
     }
     codex {
       use-skills "documentation-writing" \
@@ -63,7 +69,8 @@ enozunu config-version=1 {
         "code-comment" \
         "cli-output-design" \
         "reportage-syntax-change" \
-        "reportage-behavior-change"
+        "reportage-behavior-change" \
+        "reportage"
     }
   }
 }
