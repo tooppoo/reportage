@@ -289,13 +289,14 @@ case "a binding reference inside a before_each write is a script error" {
   }
 }
 
-case "a failing interpolated assertion does not print the resolved expected value" {
+case "a failing interpolated assertion names the literal instead of quoting it" {
   write <"inner.repor"> ```
-    case "mismatch hides the captured secret" {
-      $ printf 'sup3rs3cret\n'
-      let token <- stdout_line
+    case "mismatch names the interpolated literal" {
+      $ printf 'abc123\n'
+      let revision <- stdout_line
+      write <"actual.txt"> "totally different"
       assert {
-        file <"absent.txt"> text_equals &"&{token}"
+        file <"actual.txt"> text_equals &"expected-&{revision}"
       }
     }
     ```
@@ -304,12 +305,35 @@ case "a failing interpolated assertion does not print the resolved expected valu
 
   assert {
     exit 1
-    stderr contains "<interpolated string literal referencing &token>"
-    not {
-      stderr contains "sup3rs3cret"
+    stderr contains "<interpolated string literal at line 6 referencing &revision>"
+  }
+}
+
+document case {
+  title "Mismatch context is bounded, not suppressed"
+
+  description ```
+    Naming the literal keeps the subject line free of the resolved value; the comparison's own bounded, escaped context window is unchanged.
+    Comparing against a captured value therefore still shows a bounded slice of it, exactly as a raw literal does.
+    ```
+}
+
+case "a failing interpolated comparison still emits its bounded mismatch context" {
+  write <"inner.repor"> ```
+    case "mismatch context shows the expected bytes" {
+      $ printf 'abc123\n'
+      let revision <- stdout_line
+      write <"actual.txt"> "totally different"
+      assert {
+        file <"actual.txt"> text_equals &"expected-&{revision}"
+      }
     }
-    not {
-      stdout contains "sup3rs3cret"
-    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+    stderr contains "expected-abc123"
   }
 }

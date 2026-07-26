@@ -347,7 +347,9 @@ Markers are recognized in the dedented text, but every diagnostic and provenance
 
 ### Interpolated values in output
 
-Failure output and the artifact manifest describe an interpolated expected value by its form, source position, and referenced binding names rather than reproducing the resolved value, because that value combines script text with captured process output. Assertion mismatches still use the existing bounded mismatch diagnostics.
+Wherever output *names* an interpolated expected value — the human subject line, the artifact's `expected` field, and the `expectedSource` record — it is described by its form, source line, and referenced binding names rather than by its resolved text, because that text combines script text with captured process output.
+
+A failing comparison is unchanged: it still emits the existing bounded, escaped mismatch context window, which shows a slice of the expected bytes exactly as it does for a raw literal. Comparing against a value captured from a process therefore puts a bounded slice of that value in failure output, whether the comparison uses `&name` or an interpolated literal.
 
 ## Write step
 

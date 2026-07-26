@@ -1,0 +1,10 @@
+# `stdout contains` is the inline-only TextValue position: it references the
+# inline grammar category alone, so neither heredoc form is part of its syntax.
+case "c" {
+  $ true
+  assert {
+    stdout contains &```
+      expected
+      ```
+  }
+}

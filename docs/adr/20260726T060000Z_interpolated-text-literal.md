@@ -69,10 +69,15 @@ Passing bindings to actions is left to explicit environment projection.
 A parity rule would have to be restated for each literal form and re-derived by every reader.
 Sequential left-to-right evaluation produces the same results and is stated once.
 
-### Reproducing a resolved interpolation result in output
+### Naming an interpolated expected value by its resolved text
 
-The resolved value mixes script text with captured process output, which may contain credentials or arbitrarily large data.
-Human output and the artifact manifest describe an interpolated expected value by form, source position, and referenced binding names instead.
+Wherever output names an expected value rather than comparing it — the human subject line, the artifact's `expected` field, and the `expectedSource` object — an interpolated literal is described by form, source line, and referenced binding names.
+Its resolved value mixes script text with captured process output, which may contain credentials or arbitrarily large data, so naming it by its own text would put that value in output that is not bounded by a comparison.
+
+This decision covers naming only.
+A failing comparison still emits the existing bounded, escaped mismatch context window, which shows a slice of the expected bytes exactly as it does for a raw literal.
+Suppressing that window for interpolated and binding-backed values was rejected: it is already bounded, it is the only thing that makes a mismatch diagnosable, and comparing against a captured value is the feature's primary use.
+Authors who must keep a captured secret out of a mismatch window should not compare against it directly.
 
 ## Consequences
 
@@ -86,7 +91,7 @@ Human output and the artifact manifest describe an interpolated expected value b
 
 - Interpolated literals carry an escape set that differs from raw literals, so `&` now needs escaping in one context and not the other.
 - An interpolated heredoc's markers are recognized after dedenting, so the parser has to carry a mapping from the dedented text back to the original source.
-- Failure output for an interpolated expected value is less direct than for a raw literal, because the resolved value is deliberately not printed.
+- Failure output names an interpolated expected value instead of quoting it, so identifying what was expected takes the mismatch context window rather than the subject line alone.
 
 ### Neutral Consequences
 

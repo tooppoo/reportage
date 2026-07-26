@@ -300,11 +300,19 @@ fn parse_write_step_string(
     // write_step_string = { "write" ~ ws+ ~ value_literal ~ ws+ ~ inline_text_value_expression }
     let mut inner = pair.into_inner();
     let path_pair = inner.next().expect("write_step_string must have a path");
+    // The path is validated before the content is parsed, so a step with both
+    // an invalid path and invalid content reports the path — only one
+    // diagnostic is emitted per parse, and the path is what the step names
+    // first.
+    let path = parse_write_path(path_pair)?;
     let content_pair = inner
         .next()
         .expect("write_step_string must have an inline_text_value_expression");
     let content = parse_inline_text_value_expression(content_pair, WRITE_CONTENT_POSITION)?;
-    write_file_step(path_pair, content)
+    Ok(SideEffectingStep::WriteFile(WriteFileStep {
+        path,
+        content,
+    }))
 }
 
 fn parse_write_step_heredoc(
@@ -313,33 +321,29 @@ fn parse_write_step_heredoc(
     // write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ ws* ~ heredoc_text_value_expression }
     let mut inner = pair.into_inner();
     let path_pair = inner.next().expect("write_step_heredoc must have a path");
+    let path = parse_write_path(path_pair)?;
     let content_pair = inner
         .next()
         .expect("write_step_heredoc must have a heredoc_text_value_expression");
     let content = parse_heredoc_text_value_expression(content_pair)?;
-    write_file_step(path_pair, content)
-}
-
-/// Validates a `write` step's path literal and assembles the step, shared by
-/// both content forms so the path policy is applied in exactly one place.
-fn write_file_step(
-    path_pair: pest::iterators::Pair<Rule>,
-    content: TextValueExpression,
-) -> Result<SideEffectingStep, ParseError> {
-    let line = path_pair.line_col().0;
-    let raw_path = parse_value_literal(path_pair)
-        .expect_kind(RequiredKind::WorkspacePath, WRITE_PATH_POSITION)?;
-    let path =
-        WorkspacePath::parse(&raw_path).map_err(|reason| ParseError::InvalidWorkspacePath {
-            line,
-            raw: raw_path,
-            reason,
-            position: WRITE_PATH_POSITION,
-        })?;
     Ok(SideEffectingStep::WriteFile(WriteFileStep {
         path,
         content,
     }))
+}
+
+/// Validates a `write` step's path literal, shared by both content forms so
+/// the kind check and the path policy are applied in exactly one place.
+fn parse_write_path(path_pair: pest::iterators::Pair<Rule>) -> Result<WorkspacePath, ParseError> {
+    let line = path_pair.line_col().0;
+    let raw_path = parse_value_literal(path_pair)
+        .expect_kind(RequiredKind::WorkspacePath, WRITE_PATH_POSITION)?;
+    WorkspacePath::parse(&raw_path).map_err(|reason| ParseError::InvalidWorkspacePath {
+        line,
+        raw: raw_path,
+        reason,
+        position: WRITE_PATH_POSITION,
+    })
 }
 
 const WRITE_PATH_POSITION: &str = "`write` step path";

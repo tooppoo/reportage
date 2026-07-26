@@ -727,7 +727,10 @@ fn invalid_syntax_fixtures_are_rejected() {
             // An interpolated literal's `&` markers are recognized during parser
             // construction, so each malformed shape gets its own parse-domain
             // diagnostic instead of one bare syntax error. See #71.
-            "interpolated_string_lone_ampersand" => {
+            // Covers both interpolated forms: the marker scan and its
+            // diagnostics are shared, and the heredoc form additionally
+            // exercises the dedented-body-to-source span mapping.
+            "interpolated_string_lone_ampersand" | "interpolated_heredoc_lone_ampersand" => {
                 assert!(matches!(
                     err,
                     ParseError::MalformedInterpolationMarker { .. }
@@ -750,7 +753,8 @@ fn invalid_syntax_fixtures_are_rejected() {
                     "parse.interpolated_text.unterminated_reference"
                 );
             }
-            "interpolated_string_empty_binding_name" => {
+            "interpolated_string_empty_binding_name"
+            | "interpolated_heredoc_empty_binding_name" => {
                 assert!(matches!(
                     err,
                     ParseError::EmptyInterpolationBindingName { .. }

@@ -801,8 +801,10 @@ fn text_expected_source_display(source: &TextValueProvenance) -> String {
         TextValueProvenance::Quoted(value) | TextValueProvenance::Heredoc(value) => value.clone(),
         TextValueProvenance::Binding { name, .. } => format!("&{name}"),
         TextValueProvenance::Interpolated {
-            form, references, ..
-        } => TextValueProvenance::describe_interpolated(*form, references),
+            form,
+            span,
+            references,
+        } => TextValueProvenance::describe_interpolated(*form, *span, references),
     }
 }
 

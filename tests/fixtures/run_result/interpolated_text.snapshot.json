@@ -79,7 +79,7 @@
           "expectation": {
             "actualRef": "test-1/action-1/stdout.bin",
             "actualSizeBytes": 7,
-            "expected": "<interpolated string literal referencing &revision>",
+            "expected": "<interpolated string literal at line 6 referencing &revision>",
             "expectedSource": {
               "column": 21,
               "form": "string",

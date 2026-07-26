@@ -77,31 +77,36 @@ pub enum TextValueProvenance {
 }
 
 impl TextValueProvenance {
-    /// A bounded description of an interpolated literal, for any output that
-    /// would otherwise print its resolved value.
+    /// A bounded description of an interpolated literal, used wherever an
+    /// expected value is named rather than compared.
     ///
-    /// The resolved value mixes script text with captured process output,
-    /// which may hold credentials or arbitrarily large data, so output names
-    /// the form and the bindings involved instead of reproducing the value.
-    /// Every renderer shares this one description so the human, artifact, and
-    /// JSON surfaces cannot disagree about what they disclose.
+    /// Names the form, the literal's source line, and the bindings involved,
+    /// so a script with several interpolated literals over the same binding
+    /// stays unambiguous. It deliberately does not reproduce the resolved
+    /// value, which mixes script text with captured process output; a
+    /// mismatch's own bounded, escaped context window remains the only place
+    /// any of that value is shown. Every renderer shares this one description
+    /// so the human, artifact, and JSON surfaces cannot disagree about what
+    /// they name.
     pub fn describe_interpolated(
         form: InterpolatedTextForm,
+        span: LocatedSpan,
         references: &[ResolvedBindingReference],
     ) -> String {
         let form = match form {
             InterpolatedTextForm::String => "interpolated string literal",
             InterpolatedTextForm::Heredoc => "interpolated heredoc literal",
         };
+        let line = span.line;
         if references.is_empty() {
-            return format!("<{form}>");
+            return format!("<{form} at line {line}>");
         }
         let names = references
             .iter()
             .map(|reference| format!("&{}", reference.name))
             .collect::<Vec<_>>()
             .join(", ");
-        format!("<{form} referencing {names}>")
+        format!("<{form} at line {line} referencing {names}>")
     }
 }
 

@@ -1,0 +1,11 @@
+# The marker scan and its diagnostics are shared by both interpolated forms, so
+# a reserved `&` in a heredoc body is rejected exactly as in a string literal.
+case "c" {
+  $ true
+  write <"out.txt"> &```
+    a & b
+    ```
+  assert {
+    exit 0
+  }
+}

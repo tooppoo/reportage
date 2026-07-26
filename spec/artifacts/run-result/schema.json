@@ -498,7 +498,7 @@
             "line": { "type": "integer", "minimum": 1 },
             "column": { "type": "integer", "minimum": 1 },
             "references": {
-              "description": "The bindings substituted into the literal, in source order. The resolved value itself is never recorded: it mixes script text with captured process output.",
+              "description": "The bindings substituted into the literal, in source order. This object never carries the resolved value, which mixes script text with captured process output; a failing comparison's bounded mismatch context is the only field that shows any part of it.",
               "type": "array",
               "items": {
                 "type": "object",

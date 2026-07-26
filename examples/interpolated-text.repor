@@ -1,7 +1,7 @@
 document file {
   title "Interpolated text literals"
   group "Actions"
-  order 31
+  order 40
 
   description ```
     An interpolated text literal builds a `TextValue` from literal text and case-local bindings.

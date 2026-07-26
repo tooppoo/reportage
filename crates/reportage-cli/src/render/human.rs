@@ -387,7 +387,9 @@ fn format_expected_source(source: &ContentsEqualsExpectedSource) -> String {
 /// full heredoc body here would risk unbounded output. See docs/adr — text_equals evaluation.
 ///
 /// An interpolated literal is rendered as a label for a second reason as well: its resolved
-/// value contains captured process output, which must never be echoed here.
+/// value mixes script text with captured process output, so naming the literal keeps the subject
+/// line free of it. This bounds the subject line only — a mismatch's own escaped context window
+/// below still shows a bounded slice of the expected bytes, exactly as it does for a raw literal.
 /// See docs/adr/20260726T060000Z_interpolated-text-literal.md.
 fn format_text_equals_source(source: &TextValueProvenance) -> String {
     match source {
@@ -395,8 +397,10 @@ fn format_text_equals_source(source: &TextValueProvenance) -> String {
         TextValueProvenance::Heredoc(_) => "<heredoc literal>".to_string(),
         TextValueProvenance::Binding { name, .. } => format!("&{name}"),
         TextValueProvenance::Interpolated {
-            form, references, ..
-        } => TextValueProvenance::describe_interpolated(*form, references),
+            form,
+            span,
+            references,
+        } => TextValueProvenance::describe_interpolated(*form, *span, references),
     }
 }
 

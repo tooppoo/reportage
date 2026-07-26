@@ -227,9 +227,10 @@ enum TextExpectedSource {
     },
 }
 
-/// One binding an interpolated expected value substituted. The resolved value
-/// is deliberately absent: it combines script text with captured process
-/// output, so the manifest records only where each part came from.
+/// One binding an interpolated expected value substituted. This object records
+/// only where each part came from, never the resolved value that combines
+/// script text with captured process output; a failing comparison's bounded
+/// mismatch context remains the only field showing any part of it.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct InterpolatedBindingReference {
