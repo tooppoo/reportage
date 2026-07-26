@@ -1,13 +1,23 @@
 use super::expectation::parse_assertion_block;
-use super::heredoc::parse_heredoc_literal;
 use super::literal::{RequiredKind, extract_string_inner, parse_value_literal};
+use super::text_expression::{
+    TextSurface, TextValuePosition, parse_heredoc_text_value_expression,
+    parse_inline_text_value_expression,
+};
 use super::{ParseError, Rule};
 use crate::model::{
-    ActionStep, BeforeEach, BeforeEachError, BindingDeclaration, BindingReference, BindingSpan,
-    Case, Expectation, FileMatcher, OutputMatcher, RuntimeEvidenceSource, SideEffectingStep, Step,
-    TextLiteral, TextSource, WorkspacePath, WriteFileStep,
+    ActionStep, BeforeEach, BeforeEachError, BindingDeclaration, Case, Expectation, FileMatcher,
+    LocatedSpan, OutputMatcher, RuntimeEvidenceSource, SideEffectingStep, Step,
+    TextValueExpression, WorkspacePath, WriteFileStep,
 };
 use std::collections::HashSet;
+
+/// The `write` step's content position: the same `TextValueExpression` model,
+/// grammar, and parser in a case body and in `before_each`. `before_each` has
+/// no binding scope of its own, so it validates the parsed expression against
+/// an empty scope rather than taking a raw-text-only input type.
+pub(super) const WRITE_CONTENT_POSITION: TextValuePosition =
+    TextValuePosition::new("`write` step content", TextSurface::InlineAndHeredoc);
 
 /// Parses a `before_each_block` pair into the write-only [`BeforeEach`] model.
 ///
@@ -37,7 +47,11 @@ pub(super) fn parse_before_each_block(
                 let line = pair.line_col().0;
                 let step = parse_write_step(pair)?;
                 let SideEffectingStep::WriteFile(write) = &step;
-                if matches!(write.content, TextSource::Binding(_)) {
+                // The binding scope is statically empty here, so any reference
+                // — a direct `&name`, or one inside an interpolated literal —
+                // is a test-definition error. The shared traversal is what
+                // makes the interpolated case impossible to forget.
+                if !write.content.binding_references().is_empty() {
                     return Err(ParseError::BeforeEachBindingStep { line });
                 }
                 steps.push(step);
@@ -131,7 +145,7 @@ fn validate_bindings(steps: &[Step]) -> Result<(), ParseError> {
                 }
             }
             Step::SideEffect(SideEffectingStep::WriteFile(write)) => {
-                validate_text_source(&write.content, &declared, &all_names)?;
+                validate_text_value_expression(&write.content, &declared, &all_names)?;
             }
         }
     }
@@ -145,14 +159,14 @@ fn validate_expectation_bindings(
 ) -> Result<(), ParseError> {
     match expectation {
         Expectation::Stdout(output) | Expectation::Stderr(output) => match &output.matcher {
-            OutputMatcher::Contains(source) | OutputMatcher::TextEquals(source) => {
-                validate_text_source(source, declared, all_names)
+            OutputMatcher::Contains(expression) | OutputMatcher::TextEquals(expression) => {
+                validate_text_value_expression(expression, declared, all_names)
             }
             _ => Ok(()),
         },
         Expectation::File(file) => match &file.matcher {
-            FileMatcher::Contains(source) | FileMatcher::TextEquals(source) => {
-                validate_text_source(source, declared, all_names)
+            FileMatcher::Contains(expression) | FileMatcher::TextEquals(expression) => {
+                validate_text_value_expression(expression, declared, all_names)
             }
             _ => Ok(()),
         },
@@ -166,14 +180,21 @@ fn validate_expectation_bindings(
     }
 }
 
-fn validate_text_source(
-    source: &TextSource,
+/// Checks every binding a text value expression references against the scope
+/// visible at its position.
+///
+/// A direct `&name` reference and a `&{name}` reference inside an interpolated
+/// literal are the same check on the same traversal, so the two forms can never
+/// diverge on which references are accepted or which diagnostic they produce.
+fn validate_text_value_expression(
+    expression: &TextValueExpression,
     declared: &HashSet<String>,
     all_names: &HashSet<String>,
 ) -> Result<(), ParseError> {
-    if let TextSource::Binding(reference) = source
-        && !declared.contains(&reference.name)
-    {
+    for reference in expression.binding_references() {
+        if declared.contains(&reference.name) {
+            continue;
+        }
         return if all_names.contains(&reference.name) {
             Err(ParseError::BindingUsedBeforeDeclaration {
                 name: reference.name.clone(),
@@ -200,7 +221,7 @@ fn parse_binding_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseEr
         let (name_line, name_column) = name_pair.line_col();
         return Err(ParseError::InvalidBindingIdentifier {
             name,
-            span: BindingSpan {
+            span: LocatedSpan {
                 start: name_span.start(),
                 end: name_span.end(),
                 line: name_line,
@@ -222,7 +243,7 @@ fn parse_binding_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseEr
     Ok(Step::Binding(BindingDeclaration {
         name,
         source,
-        declaration_span: BindingSpan {
+        declaration_span: LocatedSpan {
             start: span.start(),
             end: span.end(),
             line,
@@ -276,106 +297,49 @@ fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<SideEffectingSt
 fn parse_write_step_string(
     pair: pest::iterators::Pair<Rule>,
 ) -> Result<SideEffectingStep, ParseError> {
-    // write_step_string = { "write" ~ ws+ ~ value_literal ~ ws+ ~ value_literal }
-    let line = pair.line_col().0;
+    // write_step_string = { "write" ~ ws+ ~ value_literal ~ ws+ ~ inline_text_value_expression }
     let mut inner = pair.into_inner();
-
     let path_pair = inner.next().expect("write_step_string must have a path");
-    let raw_path = parse_value_literal(path_pair)
-        .expect_kind(RequiredKind::WorkspacePath, "`write` step path")?;
-
     let content_pair = inner
         .next()
-        .expect("write_step_string must have content value_literal");
-    let content = parse_text_source(content_pair, "`write` step content")?;
-
-    let path =
-        WorkspacePath::parse(&raw_path).map_err(|reason| ParseError::InvalidWorkspacePath {
-            line,
-            raw: raw_path,
-            reason,
-            position: "`write` step path",
-        })?;
-
-    Ok(SideEffectingStep::WriteFile(WriteFileStep {
-        path,
-        content,
-    }))
+        .expect("write_step_string must have an inline_text_value_expression");
+    let content = parse_inline_text_value_expression(content_pair, WRITE_CONTENT_POSITION)?;
+    write_file_step(path_pair, content)
 }
 
 fn parse_write_step_heredoc(
     pair: pest::iterators::Pair<Rule>,
 ) -> Result<SideEffectingStep, ParseError> {
-    // write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ ws* ~ heredoc_literal }
-    let line = pair.line_col().0;
+    // write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ ws* ~ heredoc_text_value_expression }
     let mut inner = pair.into_inner();
-
     let path_pair = inner.next().expect("write_step_heredoc must have a path");
-    let raw_path = parse_value_literal(path_pair)
-        .expect_kind(RequiredKind::WorkspacePath, "`write` step path")?;
-
-    let literal_pair = inner
+    let content_pair = inner
         .next()
-        .expect("write_step_heredoc must have a heredoc_literal");
-    let content = TextSource::Literal(TextLiteral::Heredoc(parse_heredoc_literal(literal_pair)?));
+        .expect("write_step_heredoc must have a heredoc_text_value_expression");
+    let content = parse_heredoc_text_value_expression(content_pair)?;
+    write_file_step(path_pair, content)
+}
 
+/// Validates a `write` step's path literal and assembles the step, shared by
+/// both content forms so the path policy is applied in exactly one place.
+fn write_file_step(
+    path_pair: pest::iterators::Pair<Rule>,
+    content: TextValueExpression,
+) -> Result<SideEffectingStep, ParseError> {
+    let line = path_pair.line_col().0;
+    let raw_path = parse_value_literal(path_pair)
+        .expect_kind(RequiredKind::WorkspacePath, WRITE_PATH_POSITION)?;
     let path =
         WorkspacePath::parse(&raw_path).map_err(|reason| ParseError::InvalidWorkspacePath {
             line,
             raw: raw_path,
             reason,
-            position: "`write` step path",
+            position: WRITE_PATH_POSITION,
         })?;
-
     Ok(SideEffectingStep::WriteFile(WriteFileStep {
         path,
         content,
     }))
 }
 
-pub(super) fn parse_text_source(
-    pair: pest::iterators::Pair<Rule>,
-    position: &'static str,
-) -> Result<TextSource, ParseError> {
-    let inner = pair
-        .into_inner()
-        .next()
-        .expect("text_value_source must have a value");
-    if inner.as_rule() == Rule::binding_reference {
-        let span = inner.as_span();
-        let (line, column) = inner.line_col();
-        let name = inner
-            .into_inner()
-            .next()
-            .expect("binding_reference must have an identifier")
-            .as_str()
-            .to_string();
-        if !valid_binding_identifier(&name) {
-            return Err(ParseError::InvalidBindingIdentifier {
-                name,
-                span: BindingSpan {
-                    start: span.start(),
-                    end: span.end(),
-                    line,
-                    column,
-                },
-            });
-        }
-        return Ok(TextSource::Binding(BindingReference {
-            name,
-            reference_span: BindingSpan {
-                start: span.start(),
-                end: span.end(),
-                line,
-                column,
-            },
-        }));
-    }
-    let required = if position.contains(" contains`") {
-        RequiredKind::TextValueStringOnly
-    } else {
-        RequiredKind::TextValueStringOrHeredoc
-    };
-    let value = parse_value_literal(inner).expect_kind(required, position)?;
-    Ok(TextSource::Literal(TextLiteral::Quoted(value)))
-}
+const WRITE_PATH_POSITION: &str = "`write` step path";

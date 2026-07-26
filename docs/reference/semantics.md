@@ -250,6 +250,105 @@ A heredoc literal missing its own closing fence does not always fail with a synt
 
 Because a heredoc literal spans multiple physical lines and its closing fence line consumes its own trailing line ending (with no inline comment allowed), it cannot appear in a single-line `assert { ... }` body — only in the multi-line form. It can, however, be used directly after `write <"path">` (which is inherently a multi-line construct already).
 
+## Text value expression
+
+A `TextValue` argument position accepts one **text value expression**, which is one of three source forms:
+
+| Form | Syntax | Meaning |
+| --- | --- | --- |
+| Raw text | `"..."` or a heredoc literal | The literal's own content, never expanded. See "Text literal" above. |
+| Direct binding reference | `&name` | The complete bound value. See "Runtime evidence bindings" above. |
+| Interpolated text | `&"..."` or `&` + a heredoc literal | Literal text with case-local bindings substituted at `&{name}`. |
+
+All three resolve to a `TextValue` before a consumer sees them, so `write` and every text matcher behave identically regardless of which form produced the value. Which form was written is retained for diagnostics and artifacts only.
+
+Positions differ in one respect: whether they accept the heredoc forms as well as the inline ones. `stdout contains` and `stderr contains` accept the inline forms only; `write` content, `file ... contains`, and every `text_equals` accept both. `contents_equals` takes a `FileContentsReference`, not a `TextValue`, so no text value expression is accepted there. See [Syntax reference](syntax.md) — `inline_text_value_expression` / `heredoc_text_value_expression`, and [ADR: Interpolated text literals](../adr/20260726T060000Z_interpolated-text-literal.md).
+
+### Interpolated text literal
+
+An `&` prefix turns a string literal or a heredoc literal into an interpolated text literal, in which `&{name}` references a case-local binding:
+
+```reportage
+$ git -C source-repo rev-parse main
+let head <- stdout_line
+
+assert {
+  file <"lock.json"> contains &"\"resolved_revision\": \"&{head}\""
+}
+```
+
+Semantics:
+
+- `&{name}` is replaced by the binding's exact UTF-8 text. No escaping, quoting, trimming, indentation, newline normalization, Unicode normalization, or path normalization is applied to the substituted value.
+- A binding value is never re-scanned: escape-like text and `&{other}` inside it stay literal.
+- An empty binding value, and a value containing line terminators or other control characters, are all substituted as-is.
+- One literal may reference the same binding more than once, and may reference several bindings.
+- Only case-local bindings are visible. Process environment variables, shell variables, and runner internals are never referenced implicitly.
+- An interpolated literal that references no binding is redundant but legal, so it stays usable where no binding scope exists — for example in `before_each`, whose binding scope is empty.
+- The resolved value is passed to the same write and comparison semantics as any other `TextValue`.
+
+Raw literals are unaffected. `&{name}` written inside `"..."` or a plain heredoc literal is literal text, which is what lets a script write shell scripts and other template engines' syntax verbatim:
+
+~~~reportage
+write <"script.sh"> ```
+  echo "&{HOME}"
+  ```
+~~~
+
+### Interpolated literal escapes
+
+Inside an interpolated literal an unescaped `&` is reserved as the interpolation marker, so a literal one is written `\&`. `&"prefix \& suffix"` resolves to `prefix & suffix`, and `&"\&{name}"` resolves to the literal text `&{name}`.
+
+Escape sequences are resolved before interpolation markers, scanning left to right in one pass:
+
+1. A backslash is evaluated together with the character after it against the literal form's escape set.
+2. A defined escape consumes both characters and produces one value.
+3. Any `&` still unescaped afterwards is evaluated as an interpolation marker, and must have the form `&{identifier}`.
+
+The result of a run of backslashes followed by `&` follows from that order; backslash count parity is not a rule of its own.
+
+An **interpolated string literal** extends the raw string literal escape set with `\&`:
+
+```text
+\\  -> backslash
+\"  -> double quote
+\n  -> newline
+\t  -> tab
+\&  -> ampersand
+```
+
+Any other backslash sequence is rejected, exactly as in a raw string literal.
+
+An **interpolated heredoc literal** defines only `\\` and `\&`, keeping a raw heredoc's backslash behavior otherwise: a backslash followed by anything else is literal text, and scanning resumes at the next character. The string literal escapes `\n`, `\t`, and `\"` do not apply.
+
+| Source fragment | Result |
+| --- | --- |
+| `&{name}` | binding reference |
+| `\&{name}` | literal `&{name}` |
+| `\\&{name}` | literal backslash, then the binding value |
+| `\\\&{name}` | literal backslash, then literal `&{name}` |
+| `\d+` | literal `\d+` |
+| `C:\temp` | literal `C:\temp` |
+
+A malformed marker, an unterminated `&{`, an empty binding name, and a name that is not a binding identifier are each rejected with their own diagnostic; see [Diagnostic codes](diagnostics.md) and [Semantic and assertion diagnostics](semantic-diagnostics.md).
+
+### Interpolated heredoc dedent order
+
+An interpolated heredoc resolves in this order:
+
+1. The opening and closing fences and the body are determined.
+2. The existing heredoc source processing runs: dedent against the closing fence's indentation, and the final line ending.
+3. The text value expression is built from the dedented literal segments and the binding reference segments.
+4. Binding values are substituted at step evaluation.
+
+A substituted value is never re-indented. A reference written at an indented position does not add that indentation to the second and later lines of a multi-line binding value: preserving the runtime value unchanged takes precedence over the surrounding layout.
+
+Markers are recognized in the dedented text, but every diagnostic and provenance span addresses the original source, never an offset in that intermediate text.
+
+### Interpolated values in output
+
+Failure output and the artifact manifest describe an interpolated expected value by its form, source position, and referenced binding names rather than reproducing the resolved value, because that value combines script text with captured process output. Assertion mismatches still use the existing bounded mismatch diagnostics.
+
 ## Write step
 
 A `write` step writes a `text_literal`'s resolved content to a file in the current concrete case's isolated workspace:

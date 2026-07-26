@@ -70,6 +70,7 @@ pub enum SemanticRuleId {
     ValueReferenceFixtureReferenceResolve,
     ValueReferenceFileContentsReferenceResolve,
     ValueReferenceLiteralKindMismatch,
+    ValueReferenceInterpolatedTextResolve,
 }
 
 impl SemanticRuleId {
@@ -101,6 +102,7 @@ impl SemanticRuleId {
         Self::ValueReferenceFixtureReferenceResolve,
         Self::ValueReferenceFileContentsReferenceResolve,
         Self::ValueReferenceLiteralKindMismatch,
+        Self::ValueReferenceInterpolatedTextResolve,
     ];
 
     /// The canonical string representation of this rule id.
@@ -136,6 +138,9 @@ impl SemanticRuleId {
                 "value-reference.file-contents-reference.resolve"
             }
             Self::ValueReferenceLiteralKindMismatch => "value-reference.literal.kind-mismatch",
+            Self::ValueReferenceInterpolatedTextResolve => {
+                "value-reference.interpolated-text.resolve"
+            }
         }
     }
 }
@@ -505,6 +510,22 @@ pub const SEMANTIC_RULE_REGISTRY: &[SemanticRuleEntry] = &[
         related_diagnostic_codes: &[SemanticValidation(
             DiagnosticCode::SemanticLiteralKindMismatch,
         )],
+    },
+    SemanticRuleEntry {
+        id: SemanticRuleId::ValueReferenceInterpolatedTextResolve,
+        category: ValueReference,
+        implementation_status: Implemented,
+        spec_required: true,
+        conformance_required: true,
+        docs_required: true,
+        related_syntax_rule: Some("interpolated_string"),
+        // Left empty deliberately. This rule's own rejections are parse-domain
+        // codes (`parse.interpolated_text.*`, see docs/reference/diagnostics.md),
+        // which the registry's relation kinds do not model, and its binding scope
+        // rejections reuse the `semantic.binding.*` codes that the direct binding
+        // reference form already owns outside this registry. The rule's spec file
+        // records both sets under `normative.diagnosticCodes`.
+        related_diagnostic_codes: &[],
     },
 ];
 

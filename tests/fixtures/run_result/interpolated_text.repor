@@ -1,0 +1,16 @@
+case "an interpolated expected value records its bindings, not its resolved text" {
+  $ printf 'abc123\n'
+  let revision <- stdout_line
+  assert {
+    stdout text_equals &"&{revision}\n"
+    stdout contains &"&{revision}"
+  }
+}
+
+case "a failing interpolated expectation records the same provenance" {
+  $ printf 'abc123\n'
+  let revision <- stdout_line
+  assert {
+    stdout text_equals &"other-&{revision}"
+  }
+}

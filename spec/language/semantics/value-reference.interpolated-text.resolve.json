@@ -1,0 +1,105 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "value-reference.interpolated-text.resolve",
+  "category": "value-reference",
+  "syntax": "&\"prefix &{name} suffix\"",
+  "normative": {
+    "forms": ["interpolatedString", "interpolatedHeredoc"],
+    "bindingSource": "caseLocalImmutableBinding",
+    "substitution": "exactUtf8TextValue",
+    "appliesNoTransformation": [
+      "escaping",
+      "quoting",
+      "trim",
+      "indentation",
+      "newlineNormalization",
+      "unicodeNormalization",
+      "pathNormalization",
+      "recursiveInterpolation"
+    ],
+    "rejects": [
+      "malformedMarker",
+      "unterminatedReference",
+      "emptyBindingName",
+      "invalidIdentifier",
+      "undefinedBinding",
+      "useBeforeDeclaration"
+    ],
+    "diagnosticCodes": {
+      "malformedMarker": "parse.interpolated_text.malformed_marker",
+      "unterminatedReference": "parse.interpolated_text.unterminated_reference",
+      "emptyBindingName": "parse.interpolated_text.empty_binding_name",
+      "invalidIdentifier": "semantic.binding.invalid_identifier",
+      "undefinedBinding": "semantic.binding.undefined",
+      "useBeforeDeclaration": "semantic.binding.use_before_declaration"
+    },
+    "usedBy": [
+      "write step content",
+      "file contains expected text",
+      "file text_equals expected text",
+      "stdout contains expected text",
+      "stdout text_equals expected text",
+      "stderr contains expected text",
+      "stderr text_equals expected text"
+    ],
+    "notUsedBy": [
+      "workspace path literal",
+      "fixture reference literal",
+      "file contents_equals expected value",
+      "stdout contents_equals expected value",
+      "stderr contents_equals expected value",
+      "dir contains entry name",
+      "exit code",
+      "action command source"
+    ]
+  },
+  "conformanceCases": [
+    {
+      "description": "an interpolated string literal that references no binding resolves to its literal text",
+      "assertionSource": "file <\"out.txt\"> contains &\"resolved_revision\"",
+      "expectedResult": "valid"
+    },
+    {
+      "description": "a literal ampersand is written as an escape and does not open a reference",
+      "assertionSource": "stdout contains &\"a \\& b\"",
+      "expectedResult": "valid"
+    },
+    {
+      "description": "invalid: an unescaped ampersand that opens no reference is rejected",
+      "assertionSource": "stdout contains &\"a & b\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "parse.interpolated_text.malformed_marker"
+    },
+    {
+      "description": "invalid: a binding reference that its line never closes is rejected",
+      "assertionSource": "stdout contains &\"&{revision\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "parse.interpolated_text.unterminated_reference"
+    },
+    {
+      "description": "invalid: a binding reference naming no binding is rejected",
+      "assertionSource": "stdout contains &\"&{}\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "parse.interpolated_text.empty_binding_name"
+    },
+    {
+      "description": "invalid: a binding reference whose name is not a binding identifier is rejected",
+      "assertionSource": "stdout contains &\"&{1revision}\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.binding.invalid_identifier"
+    },
+    {
+      "description": "invalid: a binding reference to an undeclared binding is rejected",
+      "assertionSource": "stdout contains &\"&{revision}\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "semantic.binding.undefined"
+    },
+    {
+      "description": "invalid: a contents_equals expected value takes a FileContentsReference, so an interpolated literal is not part of its syntax",
+      "assertionSource": "file <\"out.txt\"> contents_equals &\"expected.txt\"",
+      "expectedResult": "parseError",
+      "expectedDiagnosticCode": "parse.syntax"
+    }
+  ]
+}

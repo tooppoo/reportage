@@ -9,13 +9,14 @@ use crate::diagnostic::DiagnosticCode;
 use crate::executor::{ExecutionEnvironment, execute_action};
 use crate::model::{
     BeforeEach, Binding, BindingSource, BoundValue, CaptureMode, Case, RuntimeEvidenceSource,
-    Script, SideEffectingStep, Step, TextSource, TextValue,
+    Script, SideEffectingStep, Step, TextValue,
 };
 use crate::result::{
     ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExecutionReport, ExpectationResult,
     RuntimeError, ScriptError,
 };
 use crate::shim::CommandRegistry;
+use crate::text_value::{ResolveTextValue, TextResolutionContext};
 use crate::workspace::Workspace;
 
 /// Evaluates every case in `script`, loaded from the file at `source_path`.
@@ -184,10 +185,10 @@ fn evaluate_case(
     if let Some(before_each) = before_each {
         for (setup_idx, step) in before_each.steps().iter().enumerate() {
             let SideEffectingStep::WriteFile(write_step) = step;
-            let TextSource::Literal(literal) = &write_step.content else {
-                unreachable!("before_each rejects binding references")
-            };
-            let content = literal.to_text_value();
+            let content = write_step
+                .content
+                .binding_free_text_value()
+                .expect("before_each rejects every binding reference at parse time");
             match workspace.write_file(&write_step.path, content.as_str()) {
                 Ok(()) => side_effects_executed += 1,
                 Err(e) => {
@@ -255,9 +256,33 @@ fn evaluate_case(
                 if case_failed {
                     break;
                 }
-                let content = match resolve_text_source(&write_step.content, &bindings) {
-                    Some(content) => content,
-                    None => unreachable!("binding references are validated before execution"),
+                // The same resolver every text matcher uses: a raw literal, a
+                // direct binding reference, and an interpolated literal all
+                // reach `write_file` as one resolved `TextValue`.
+                let content = match write_step
+                    .content
+                    .resolve_text_value(&TextResolutionContext::new(&bindings))
+                {
+                    Ok(resolved) => resolved.into_value(),
+                    Err(error) => {
+                        return CaseResult {
+                            name: case.name.clone(),
+                            source_path: Some(source_path.to_path_buf()),
+                            status: CaseStatus::RuntimeError(RuntimeError {
+                                message: format!(
+                                    "case '{}': write step at step {} could not resolve its content: {}",
+                                    case.name,
+                                    step_idx + 1,
+                                    error.message,
+                                ),
+                                diagnostic_code: Some(error.diagnostic_code),
+                                step_index: Some(step_idx),
+                            }),
+                            actions: action_results,
+                            assertion_blocks: assertion_block_results,
+                            side_effects_executed,
+                        };
+                    }
                 };
                 match workspace.write_file(&write_step.path, content.as_str()) {
                     Ok(()) => side_effects_executed += 1,
@@ -463,19 +488,6 @@ fn evaluate_case(
         actions: action_results,
         assertion_blocks: assertion_block_results,
         side_effects_executed,
-    }
-}
-
-fn resolve_text_source(
-    source: &TextSource,
-    bindings: &HashMap<String, Binding>,
-) -> Option<TextValue> {
-    match source {
-        TextSource::Literal(literal) => Some(literal.to_text_value()),
-        TextSource::Binding(reference) => bindings.get(&reference.name).map(|binding| {
-            let BoundValue::Text(value) = &binding.value;
-            value.clone()
-        }),
     }
 }
 

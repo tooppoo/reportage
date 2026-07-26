@@ -106,7 +106,7 @@ fn file_text_equals_fails_on_heredoc_mismatch() {
     };
     assert_eq!(
         *expected_source,
-        TextEqualsExpectedSource::Heredoc("hello\nWORLD\n".to_string())
+        TextValueProvenance::Heredoc("hello\nWORLD\n".to_string())
     );
     let ContentsEqualsObservation::Compared(comparison) = observation else {
         panic!("expected ContentsEqualsObservation::Compared");
@@ -227,7 +227,7 @@ fn file_text_equals_expected_source_reflects_literal_kind() {
     };
     assert_eq!(
         *expected_source,
-        TextEqualsExpectedSource::Quoted("hello".to_string())
+        TextValueProvenance::Quoted("hello".to_string())
     );
 }
 

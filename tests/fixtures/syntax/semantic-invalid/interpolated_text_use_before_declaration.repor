@@ -1,0 +1,10 @@
+case "c" {
+  $ printf 'abc123\n'
+  assert {
+    stdout contains &"&{revision}"
+  }
+  let revision <- stdout_line
+  assert {
+    exit 0
+  }
+}

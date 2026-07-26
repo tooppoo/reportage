@@ -1,0 +1,11 @@
+# An interpolated heredoc's `&{` must be closed on the same body line; it never
+# swallows the following lines.
+case "c" {
+  $ true
+  assert {
+    file <"out.txt"> contains &```
+      &{revision
+      still body text
+      ```
+  }
+}

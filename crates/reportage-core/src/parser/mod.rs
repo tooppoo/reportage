@@ -4,6 +4,7 @@ mod expectation;
 mod heredoc;
 mod literal;
 mod step;
+mod text_expression;
 
 pub use error::ParseError;
 

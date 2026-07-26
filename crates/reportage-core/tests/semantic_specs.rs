@@ -26,7 +26,7 @@ use reportage_core::evaluator::{
 use reportage_core::model::{
     DirExpectation, DirMatcher, ExitExpectation, Expectation, FileContentsReference,
     FileExpectation, FileMatcher, FixtureReference, LogicalExpectation, LogicalOperator,
-    OutputExpectation, OutputMatcher, Step, TextLiteral, TextSource, WorkspacePath,
+    OutputExpectation, OutputMatcher, Step, TextLiteral, TextValueExpression, WorkspacePath,
 };
 use reportage_core::parser::parse;
 use reportage_core::result::ActionResult;
@@ -604,13 +604,15 @@ fn expectation_from_assertion(a: &Assertion, description: &str) -> Expectation {
         }
         AssertionSubject::Stdout | AssertionSubject::Stderr => {
             let matcher = match a.operator {
-                AssertionOperator::Contains => OutputMatcher::Contains(TextSource::Literal(
+                AssertionOperator::Contains => OutputMatcher::Contains(TextValueExpression::Raw(
                     TextLiteral::Quoted(json_expected_str(&a.expected, description).to_string()),
                 )),
                 AssertionOperator::Empty => OutputMatcher::Empty,
-                AssertionOperator::TextEquals => OutputMatcher::TextEquals(TextSource::Literal(
-                    TextLiteral::Quoted(json_expected_str(&a.expected, description).to_string()),
-                )),
+                AssertionOperator::TextEquals => {
+                    OutputMatcher::TextEquals(TextValueExpression::Raw(TextLiteral::Quoted(
+                        json_expected_str(&a.expected, description).to_string(),
+                    )))
+                }
                 other => {
                     panic!("case '{description}': unsupported stdout/stderr operator {other:?}")
                 }
@@ -628,13 +630,13 @@ fn expectation_from_assertion(a: &Assertion, description: &str) -> Expectation {
                 .unwrap_or_else(|| panic!("case '{description}': file assertion requires 'path'"));
             let matcher = match a.operator {
                 AssertionOperator::Exists => FileMatcher::Exists,
-                AssertionOperator::Contains => FileMatcher::Contains(TextSource::Literal(
+                AssertionOperator::Contains => FileMatcher::Contains(TextValueExpression::Raw(
                     TextLiteral::Quoted(json_expected_str(&a.expected, description).to_string()),
                 )),
                 AssertionOperator::ContentsEquals => FileMatcher::ContentsEquals(
                     file_contents_reference_from_json(&a.expected, description),
                 ),
-                AssertionOperator::TextEquals => FileMatcher::TextEquals(TextSource::Literal(
+                AssertionOperator::TextEquals => FileMatcher::TextEquals(TextValueExpression::Raw(
                     TextLiteral::Quoted(json_expected_str(&a.expected, description).to_string()),
                 )),
                 other => panic!("case '{description}': unsupported file operator {other:?}"),
@@ -737,13 +739,13 @@ fn assert_expectation_matches_assertion(
         | (Expectation::Stderr(e), AssertionSubject::Stderr) => {
             match (&e.matcher, declared.operator) {
                 (OutputMatcher::Contains(s), AssertionOperator::Contains) => assert_eq!(
-                    s.literal_text_value().unwrap().as_str(),
+                    s.binding_free_text_value().unwrap().as_str(),
                     json_expected_str(&declared.expected, description),
                     "case '{description}': contains expected mismatch"
                 ),
                 (OutputMatcher::Empty, AssertionOperator::Empty) => {}
                 (OutputMatcher::TextEquals(t), AssertionOperator::TextEquals) => assert_eq!(
-                    t.literal_text_value().unwrap().as_str(),
+                    t.binding_free_text_value().unwrap().as_str(),
                     json_expected_str(&declared.expected, description),
                     "case '{description}': stdout/stderr text_equals expected mismatch"
                 ),
@@ -761,7 +763,7 @@ fn assert_expectation_matches_assertion(
             match (&f.matcher, declared.operator) {
                 (FileMatcher::Exists, AssertionOperator::Exists) => {}
                 (FileMatcher::Contains(t), AssertionOperator::Contains) => assert_eq!(
-                    t.literal_text_value().unwrap().as_str(),
+                    t.binding_free_text_value().unwrap().as_str(),
                     json_expected_str(&declared.expected, description),
                     "case '{description}': file contains expected mismatch"
                 ),
@@ -769,7 +771,7 @@ fn assert_expectation_matches_assertion(
                     assert_file_contents_reference_matches(r, &declared.expected, description);
                 }
                 (FileMatcher::TextEquals(t), AssertionOperator::TextEquals) => assert_eq!(
-                    t.literal_text_value().unwrap().as_str(),
+                    t.binding_free_text_value().unwrap().as_str(),
                     json_expected_str(&declared.expected, description),
                     "case '{description}': file text_equals expected mismatch"
                 ),

@@ -218,6 +218,27 @@ enum TextExpectedSource {
         stream: String,
         capture_mode: String,
     },
+    #[serde(rename_all = "camelCase")]
+    Interpolated {
+        form: String,
+        line: u64,
+        column: u64,
+        references: Vec<InterpolatedBindingReference>,
+    },
+}
+
+/// One binding an interpolated expected value substituted. The resolved value
+/// is deliberately absent: it combines script text with captured process
+/// output, so the manifest records only where each part came from.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct InterpolatedBindingReference {
+    name: String,
+    line: u64,
+    column: u64,
+    action_index: u64,
+    stream: String,
+    capture_mode: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -672,6 +693,7 @@ fn all_required_representative_scenarios_are_present() {
         "expectation_kinds",
         "contents_equals",
         "text_equals",
+        "interpolated_text",
         "noop",
     ];
 

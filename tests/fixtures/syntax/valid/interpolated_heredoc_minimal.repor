@@ -1,0 +1,12 @@
+case "render a config file from a captured value" {
+  $ printf 'file:///src\n'
+  let source_url <- stdout_line
+  write <"config.kdl"> &```
+    provider {
+      url "&{source_url}"
+    }
+    ```
+  assert {
+    file <"config.kdl"> contains &"url \"&{source_url}\""
+  }
+}

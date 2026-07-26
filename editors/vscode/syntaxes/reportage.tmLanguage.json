@@ -4,6 +4,9 @@
   "scopeName": "source.reportage",
   "patterns": [
     {
+      "include": "#interpolated-heredoc-block"
+    },
+    {
       "include": "#heredoc-block"
     },
     {
@@ -32,6 +35,9 @@
     },
     {
       "include": "#binding"
+    },
+    {
+      "include": "#interpolated-string"
     },
     {
       "include": "#strings"
@@ -65,6 +71,44 @@
             {
               "name": "constant.character.escape.reportage",
               "match": "\\\\(?:\\\\|\\\"|n|t)"
+            }
+          ]
+        }
+      ]
+    },
+    "interpolated-string": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.interpolated.reportage",
+          "begin": "(&)(\")",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.interpolation.marker.reportage"
+            },
+            "2": {
+              "name": "punctuation.definition.string.begin.reportage"
+            }
+          },
+          "end": "\"|$",
+          "patterns": [
+            {
+              "name": "constant.character.escape.reportage",
+              "match": "\\\\(?:\\\\|\\\"|n|t|&)"
+            },
+            {
+              "name": "meta.interpolation.reportage",
+              "match": "(&\\{)([A-Za-z_][A-Za-z0-9_]*)(\\})",
+              "captures": {
+                "1": {
+                  "name": "punctuation.definition.interpolation.begin.reportage"
+                },
+                "2": {
+                  "name": "variable.other.readwrite.reportage"
+                },
+                "3": {
+                  "name": "punctuation.definition.interpolation.end.reportage"
+                }
+              }
             }
           ]
         }
@@ -291,6 +335,73 @@
             }
           },
           "contentName": "string.unquoted.raw.reportage"
+        }
+      ]
+    },
+    "interpolated-heredoc-block": {
+      "patterns": [
+        {
+          "name": "meta.heredoc.block.interpolated.reportage",
+          "begin": "^(\\s*)(write|file)\\b(.*?)(&)(`{3,})\\s*$",
+          "beginCaptures": {
+            "2": {
+              "patterns": [
+                {
+                  "include": "#keywords"
+                }
+              ]
+            },
+            "3": {
+              "patterns": [
+                {
+                  "include": "#workspace-path"
+                },
+                {
+                  "include": "#fixture-reference"
+                },
+                {
+                  "include": "#strings"
+                },
+                {
+                  "include": "#keywords"
+                }
+              ]
+            },
+            "4": {
+              "name": "punctuation.definition.interpolation.marker.reportage"
+            },
+            "5": {
+              "name": "punctuation.definition.raw.begin.reportage"
+            }
+          },
+          "end": "^\\s*(\\5`*)\\s*$",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.raw.end.reportage"
+            }
+          },
+          "contentName": "string.unquoted.raw.interpolated.reportage",
+          "patterns": [
+            {
+              "name": "constant.character.escape.reportage",
+              "match": "\\\\(?:\\\\|&)"
+            },
+            {
+              "name": "meta.interpolation.reportage",
+              "match": "(&\\{)([A-Za-z_][A-Za-z0-9_]*)(\\})",
+              "captures": {
+                "1": {
+                  "name": "punctuation.definition.interpolation.begin.reportage"
+                },
+                "2": {
+                  "name": "variable.other.readwrite.reportage"
+                },
+                "3": {
+                  "name": "punctuation.definition.interpolation.end.reportage"
+                }
+              }
+            }
+          ]
         }
       ]
     },

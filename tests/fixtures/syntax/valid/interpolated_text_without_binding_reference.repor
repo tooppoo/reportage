@@ -1,0 +1,11 @@
+before_each {
+  write <"seed.txt"> &"redundant but legal"
+}
+
+case "an interpolated literal that references no binding is accepted" {
+  $ true
+  assert {
+    exit 0
+    file <"seed.txt"> text_equals &"redundant but legal"
+  }
+}

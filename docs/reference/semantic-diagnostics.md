@@ -100,6 +100,8 @@ step.binding.non_utf8
 step.binding.not_single_line
 ```
 
+The `semantic.binding.*` codes are not specific to the direct `&name` form. A `&{name}` reference inside an interpolated text literal is validated by the same scope walk and produces the same codes, so a reference's diagnostic never depends on which form carried it. See [Language semantics](semantics.md) — Text value expression; the interpolated literal's own marker structure is a parse-domain concern (`parse.interpolated_text.*`, see [Parse diagnostics](diagnostics.md)).
+
 As with `parse.*` codes, a diagnostic code is **not** the Rust error enum variant name that produces it. Internal enum structure may be renamed or restructured freely; the published code string is the external, stable identifier that tests and tooling depend on.
 
 ## Semantic Errors vs. Assertion Failures

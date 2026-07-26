@@ -1,0 +1,315 @@
+document file {
+  title "Interpolated text literals"
+  group "bindings"
+  description "Embeds case-local bindings into text values, and keeps raw literals non-interpolating."
+}
+
+case "an interpolated string literal embeds a binding in expected text" {
+  $ printf 'abc123\n'
+  let revision <- stdout_line
+  write <"lock.json"> &"{\"resolved_revision\": \"&{revision}\"}\n"
+  assert {
+    exit 0
+    file <"lock.json"> contains &"\"resolved_revision\": \"&{revision}\""
+    file <"lock.json"> text_equals &"{\"resolved_revision\": \"&{revision}\"}\n"
+    stdout contains &"&{revision}"
+  }
+}
+
+case "an interpolated heredoc literal renders a file from a binding" {
+  $ printf 'file:///src\n'
+  let source_url <- stdout_line
+  write <"config.kdl"> &```
+    provider {
+      url "&{source_url}"
+    }
+    ```
+  assert {
+    exit 0
+    file <"config.kdl"> text_equals &```
+      provider {
+        url "&{source_url}"
+      }
+      ```
+  }
+}
+
+case "the same binding can be referenced more than once in one literal" {
+  $ printf 'v1\n'
+  let tag <- stdout_line
+  write <"repeated.txt"> &"&{tag}-&{tag}"
+  assert {
+    file <"repeated.txt"> text_equals "v1-v1"
+  }
+}
+
+case "several bindings can be referenced in one literal" {
+  $ printf 'alpha\n'
+  let first <- stdout_line
+  $ printf 'beta\n'
+  let second <- stdout_line
+  write <"pair.txt"> &"&{first}/&{second}"
+  assert {
+    file <"pair.txt"> text_equals "alpha/beta"
+  }
+}
+
+case "an empty binding value interpolates to nothing" {
+  $ printf ''
+  let empty <- stdout
+  write <"empty.txt"> &"[&{empty}]"
+  assert {
+    file <"empty.txt"> text_equals "[]"
+  }
+}
+
+case "a multi-line binding value is inserted exactly, without automatic indentation" {
+  $ printf 'first\nsecond\n'
+  let block <- stdout
+  write <"block.txt"> &```
+    start
+      &{block}
+    end
+    ```
+  assert {
+    file <"block.txt"> text_equals ```
+      start
+        first
+      second
+
+      end
+      ```
+  }
+}
+
+case "a binding value that looks like a binding reference is not interpolated again" {
+  $ printf 'x&{tag}y\n'
+  let literal_looking <- stdout_line
+  write <"recursive.txt"> &"&{literal_looking}"
+  assert {
+    file <"recursive.txt"> text_equals "x&{tag}y"
+  }
+}
+
+case "a binding value that looks like an escape sequence is not reinterpreted" {
+  $ printf '%s\n' 'C:\temp\new'
+  let path <- stdout_line
+  write <"escape-like.txt"> &"&{path}"
+  assert {
+    file <"escape-like.txt"> text_equals "C:\\temp\\new"
+  }
+}
+
+case "an escaped ampersand is literal text in both interpolated forms" {
+  $ printf 'v1\n'
+  let tag <- stdout_line
+  write <"escaped-string.txt"> &"a \& b \&{tag} &{tag}"
+  write <"escaped-heredoc.txt"> &```
+    a \& b \&{tag} &{tag}
+    ```
+  assert {
+    file <"escaped-string.txt"> text_equals "a & b &{tag} v1"
+    file <"escaped-heredoc.txt"> text_equals ```
+      a & b &{tag} v1
+      ```
+  }
+}
+
+case "an interpolated heredoc keeps every other backslash literal" {
+  $ printf 'v1\n'
+  let tag <- stdout_line
+  write <"backslashes.txt"> &```
+    \d+ C:\temp
+    \\&{tag}
+    \\\&{tag}
+    ```
+  assert {
+    file <"backslashes.txt"> text_equals ```
+      \d+ C:\temp
+      \v1
+      \&{tag}
+      ```
+  }
+}
+
+case "a raw literal never interpolates a binding reference" {
+  $ printf 'v1\n'
+  let tag <- stdout_line
+  write <"raw-string.txt"> "&{tag}"
+  write <"raw-heredoc.txt"> ```
+    echo "&{tag}"
+    ```
+  assert {
+    file <"raw-string.txt"> text_equals "&{tag}"
+    file <"raw-heredoc.txt"> contains "&{tag}"
+    not {
+      file <"raw-string.txt"> contains "v1"
+    }
+  }
+}
+
+case "an interpolated expectation still fails when the evidence does not match" {
+  write <"inner.repor"> ```
+    case "expected text does not occur in stdout" {
+      $ printf 'abc123\n'
+      let revision <- stdout_line
+      assert {
+        stdout contains &"missing-&{revision}"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+  }
+}
+
+case "an interpolated expectation is still evaluated after a failing target command" {
+  write <"inner.repor"> ```
+    case "a failing command still supplies a binding" {
+      $ printf 'boom\n' >&2; exit 7
+      let message <- stderr_line
+      assert {
+        exit 7
+        stderr contains &"[&{message}]"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+  }
+}
+
+case "a failing target command whose interpolated expectation matches is a pass" {
+  $ printf 'boom\n' >&2; exit 7
+  let message <- stderr_line
+  assert {
+    exit 7
+    stderr contains &"&{message}"
+  }
+}
+
+case "an undefined binding inside an interpolated literal is a script error" {
+  write <"inner.repor"> ```
+    case "undefined binding reference" {
+      $ true
+      assert {
+        stdout contains &"&{never_declared}"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.binding.undefined"
+  }
+}
+
+case "an unescaped ampersand in an interpolated literal is a script error" {
+  write <"inner.repor"> ```
+    case "reserved ampersand" {
+      $ true
+      assert {
+        stdout contains &"a & b"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.interpolated_text.malformed_marker"
+  }
+}
+
+case "an unterminated binding reference is a script error" {
+  write <"inner.repor"> ```
+    case "unterminated reference" {
+      $ true
+      assert {
+        stdout contains &"&{revision"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.interpolated_text.unterminated_reference"
+  }
+}
+
+case "an empty binding name is a script error" {
+  write <"inner.repor"> ```
+    case "empty binding name" {
+      $ true
+      assert {
+        stdout contains &"&{}"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.interpolated_text.empty_binding_name"
+  }
+}
+
+case "a binding reference inside a before_each write is a script error" {
+  write <"inner.repor"> ```
+    before_each {
+      write <"seed.txt"> &"&{revision}"
+    }
+
+    case "before_each has no binding scope" {
+      $ printf 'abc123\n'
+      let revision <- stdout_line
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.binding.before_each_forbidden"
+  }
+}
+
+case "a failing interpolated assertion does not print the resolved expected value" {
+  write <"inner.repor"> ```
+    case "mismatch hides the captured secret" {
+      $ printf 'sup3rs3cret\n'
+      let token <- stdout_line
+      assert {
+        file <"absent.txt"> text_equals &"&{token}"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+    stderr contains "<interpolated string literal referencing &token>"
+    not {
+      stderr contains "sup3rs3cret"
+    }
+    not {
+      stdout contains "sup3rs3cret"
+    }
+  }
+}

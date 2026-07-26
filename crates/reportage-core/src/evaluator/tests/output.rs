@@ -66,7 +66,7 @@ fn stdout_contains_matches_substring_in_non_utf8_output() {
     stdout.push(0xff);
     let checkpoint = checkpoint_after_output(stdout, vec![]);
     let expectation = Expectation::Stdout(crate::model::OutputExpectation {
-        matcher: OutputMatcher::Contains(TextSource::Literal(TextLiteral::Quoted(
+        matcher: OutputMatcher::Contains(TextValueExpression::Raw(TextLiteral::Quoted(
             "ok".to_string(),
         ))),
     });
@@ -78,13 +78,13 @@ fn stdout_contains_matches_substring_in_non_utf8_output() {
 
 fn stdout_text_equals_expectation(literal: TextLiteral) -> Expectation {
     Expectation::Stdout(crate::model::OutputExpectation {
-        matcher: OutputMatcher::TextEquals(TextSource::Literal(literal)),
+        matcher: OutputMatcher::TextEquals(TextValueExpression::Raw(literal)),
     })
 }
 
 fn stderr_text_equals_expectation(literal: TextLiteral) -> Expectation {
     Expectation::Stderr(crate::model::OutputExpectation {
-        matcher: OutputMatcher::TextEquals(TextSource::Literal(literal)),
+        matcher: OutputMatcher::TextEquals(TextValueExpression::Raw(literal)),
     })
 }
 
@@ -102,7 +102,7 @@ fn stdout_text_equals_passes_on_byte_for_byte_match() {
     };
     assert_eq!(
         *expected_source,
-        TextEqualsExpectedSource::Quoted("hello\n".to_string())
+        TextValueProvenance::Quoted("hello\n".to_string())
     );
 }
 
@@ -154,7 +154,7 @@ fn stderr_text_equals_heredoc_mismatch_reports_heredoc_expected_source() {
     };
     assert_eq!(
         *expected_source,
-        TextEqualsExpectedSource::Heredoc("other\n".to_string())
+        TextValueProvenance::Heredoc("other\n".to_string())
     );
 }
 

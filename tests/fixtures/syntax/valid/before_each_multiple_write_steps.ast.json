@@ -74,7 +74,10 @@
               "kind": "stdout",
               "matcher": {
                 "kind": "contains",
-                "value": "line 2"
+                "value": {
+                  "kind": "quoted",
+                  "value": "line 2"
+                }
               }
             }
           ]

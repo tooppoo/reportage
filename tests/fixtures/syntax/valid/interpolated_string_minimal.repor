@@ -1,0 +1,7 @@
+case "embed a captured revision in expected text" {
+  $ printf 'abc123\n'
+  let revision <- stdout_line
+  assert {
+    stdout contains &"abc&{revision}123"
+  }
+}

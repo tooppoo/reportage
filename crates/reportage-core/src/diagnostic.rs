@@ -125,6 +125,15 @@ pub enum DiagnosticCode {
     /// expectation) contains a non-blank body line that is indented less
     /// than the closing fence.
     ParseHeredocLiteralShallowIndent,
+    /// An interpolated text literal contains an unescaped `&` that does not
+    /// open a `&{name}` binding reference.
+    ParseInterpolatedTextMalformedMarker,
+    /// An interpolated text literal contains a `&{` binding reference that its
+    /// line never closes with `}`.
+    ParseInterpolatedTextUnterminatedReference,
+    /// An interpolated text literal contains a `&{}` binding reference naming
+    /// no binding.
+    ParseInterpolatedTextEmptyBindingName,
     /// An `@"<path>"` fixture reference literal's path was empty.
     SemanticFixtureReferenceEmpty,
     /// An `@"<path>"` fixture reference literal's path was absolute.
@@ -244,6 +253,9 @@ impl DiagnosticCode {
         Self::SemanticWorkspacePathDotSegment,
         Self::SemanticLiteralKindMismatch,
         Self::ParseHeredocLiteralShallowIndent,
+        Self::ParseInterpolatedTextMalformedMarker,
+        Self::ParseInterpolatedTextUnterminatedReference,
+        Self::ParseInterpolatedTextEmptyBindingName,
         Self::SemanticFixtureReferenceEmpty,
         Self::SemanticFixtureReferenceAbsolute,
         Self::SemanticFixtureReferenceDotSegment,
@@ -351,6 +363,15 @@ impl DiagnosticCode {
             Self::SemanticWorkspacePathDotSegment => "semantic.workspace_path.dot_segment",
             Self::SemanticLiteralKindMismatch => "semantic.literal.kind_mismatch",
             Self::ParseHeredocLiteralShallowIndent => "parse.heredoc_literal.shallow_indent",
+            Self::ParseInterpolatedTextMalformedMarker => {
+                "parse.interpolated_text.malformed_marker"
+            }
+            Self::ParseInterpolatedTextUnterminatedReference => {
+                "parse.interpolated_text.unterminated_reference"
+            }
+            Self::ParseInterpolatedTextEmptyBindingName => {
+                "parse.interpolated_text.empty_binding_name"
+            }
             Self::SemanticFixtureReferenceEmpty => "semantic.fixture_reference.empty",
             Self::SemanticFixtureReferenceAbsolute => "semantic.fixture_reference.absolute",
             Self::SemanticFixtureReferenceDotSegment => "semantic.fixture_reference.dot_segment",

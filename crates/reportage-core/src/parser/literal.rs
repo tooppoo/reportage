@@ -1,7 +1,8 @@
 use super::step::valid_binding_identifier;
 use super::{ParseError, Rule};
 use crate::model::{
-    FileContentsReference, FixtureReference, RequiredLiteralKind, ValueLiteralKind, WorkspacePath,
+    BindingReference, FileContentsReference, FixtureReference, LocatedSpan, RequiredLiteralKind,
+    ValueLiteralKind, WorkspacePath,
 };
 
 pub(super) fn extract_string_inner(quoted: pest::iterators::Pair<Rule>) -> String {
@@ -64,9 +65,11 @@ pub(super) enum RequiredKind {
     /// The position requires a `<"...">` workspace path literal.
     WorkspacePath,
     /// The position requires a TextValue and its grammar accepts both the
-    /// string literal and heredoc literal forms (a `write` step's content,
-    /// `file contains` expected text).
+    /// inline forms and the heredoc forms (a `write` step's content, every
+    /// `text_equals` expected text, `file contains` expected text).
     TextValueStringOrHeredoc,
+    /// The position requires a TextValue and its grammar accepts the inline
+    /// forms only (`stdout` / `stderr contains` expected text).
     TextValueStringOnly,
     /// The position requires a plain `"..."` string literal
     /// (`dir contains` entry name).
@@ -92,6 +95,35 @@ impl RequiredKind {
 }
 
 impl ValueLiteral {
+    /// The direct `&name` binding reference this literal is, or `None` when it
+    /// is one of the three quoted literal kinds.
+    ///
+    /// The inner `Result` carries the identifier check: the grammar's
+    /// `binding_identifier` accepts a leading digit, so a reference that parses
+    /// is not yet known to name a legal binding.
+    pub(super) fn binding_reference(&self) -> Option<Result<BindingReference, ParseError>> {
+        if self.kind != ValueLiteralKind::BindingReference {
+            return None;
+        }
+        let span = LocatedSpan {
+            start: self.start,
+            end: self.end,
+            line: self.line,
+            column: self.column,
+        };
+        Some(if valid_binding_identifier(&self.value) {
+            Ok(BindingReference {
+                name: self.value.clone(),
+                reference_span: span,
+            })
+        } else {
+            Err(ParseError::InvalidBindingIdentifier {
+                name: self.value.clone(),
+                span,
+            })
+        })
+    }
+
     /// The literal exactly as written in source, e.g. `"out.txt"`,
     /// `<"out.txt">`, or `@"out.txt"`.
     fn rendered(&self) -> String {
@@ -115,7 +147,7 @@ impl ValueLiteral {
         {
             return Err(ParseError::InvalidBindingIdentifier {
                 name: self.value,
-                span: crate::model::BindingSpan {
+                span: crate::model::LocatedSpan {
                     start: self.start,
                     end: self.end,
                     line: self.line,

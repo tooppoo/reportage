@@ -256,8 +256,8 @@ heredoc_literal = {
 // ordinary single-line construct; write_step_heredoc consumes its own
 // trailing line.
 
-write_step_string  = { "write" ~ ws+ ~ value_literal ~ ws+ ~ text_value_source }
-write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ ws* ~ heredoc_literal }
+write_step_string  = { "write" ~ ws+ ~ value_literal ~ ws+ ~ inline_text_value_expression }
+write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ ws* ~ heredoc_text_value_expression }
 
 binding_step       = { "let" ~ ws+ ~ binding_identifier ~ ws* ~ "<-" ~ ws* ~ evidence_source }
 binding_identifier = @{ (ASCII_ALPHANUMERIC | "_")+ }
@@ -308,7 +308,7 @@ stdout_exp      = { "stdout" ~ ws+ ~ output_matcher }
 stderr_exp      = { "stderr" ~ ws+ ~ output_matcher }
 
 output_matcher  = { output_contains | output_contents_equals | output_text_equals | output_empty }
-output_contains = { "contains" ~ ws+ ~ text_value_source }
+output_contains = { "contains" ~ ws+ ~ inline_text_value_expression }
 output_empty    = { "empty" }
 
 // `stdout` / `stderr contents_equals @"<path>"` / `contents_equals <"path">`:
@@ -324,7 +324,7 @@ output_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
 // wires the string-literal form; the heredoc-literal forms are
 // stdout_text_equals_heredoc / stderr_text_equals_heredoc below.
 // See docs/adr/20260710T100918Z_output-text-equals-evaluation.md.
-output_text_equals = { "text_equals" ~ ws+ ~ text_value_source }
+output_text_equals = { "text_equals" ~ ws+ ~ inline_text_value_expression }
 
 // `file <"path"> exists` / `file <"path"> contains "<text>"`.
 // Subject-first: `file <"path">` is the common subject, `exists` / `contains`
@@ -334,7 +334,7 @@ output_text_equals = { "text_equals" ~ ws+ ~ text_value_source }
 file_exp        = { "file" ~ ws+ ~ value_literal ~ ws+ ~ file_predicate }
 file_predicate  = { file_contains | file_contents_equals | file_text_equals | file_exists }
 file_exists     = { "exists" }
-file_contains   = { "contains" ~ ws+ ~ text_value_source }
+file_contains   = { "contains" ~ ws+ ~ inline_text_value_expression }
 
 // `file <"path"> contents_equals @"<path>"` / `contents_equals <"path">`:
 // byte-for-byte comparison against a `FileContentsReference` (a workspace
@@ -346,7 +346,7 @@ file_contains   = { "contains" ~ ws+ ~ text_value_source }
 // literals" below). See #88, #92, and
 // docs/adr/20260706T170000Z_fixture-reference-value-syntax.md.
 file_contents_equals = { "contents_equals" ~ ws+ ~ value_literal }
-file_text_equals     = { "text_equals" ~ ws+ ~ text_value_source }
+file_text_equals     = { "text_equals" ~ ws+ ~ inline_text_value_expression }
 
 // `file <"path"> contains <heredoc literal>` / `file <"path"> text_equals
 // <heredoc literal>` / `stdout text_equals <heredoc literal>` / `stderr
@@ -358,10 +358,10 @@ file_text_equals     = { "text_equals" ~ ws+ ~ text_value_source }
 // heredoc_assertion_line above) — the heredoc literal already consumed its
 // own trailing line. Reachable only through multi_assert. See #88.
 heredoc_expectation        = { file_exp_heredoc | file_text_equals_heredoc | stdout_text_equals_heredoc | stderr_text_equals_heredoc }
-file_exp_heredoc           = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "contains" ~ ws+ ~ heredoc_literal }
-file_text_equals_heredoc   = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_literal }
-stdout_text_equals_heredoc = { "stdout" ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_literal }
-stderr_text_equals_heredoc = { "stderr" ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_literal }
+file_exp_heredoc           = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "contains" ~ ws+ ~ heredoc_text_value_expression }
+file_text_equals_heredoc   = { "file" ~ ws+ ~ value_literal ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_text_value_expression }
+stdout_text_equals_heredoc = { "stdout" ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_text_value_expression }
+stderr_text_equals_heredoc = { "stderr" ~ ws+ ~ "text_equals" ~ ws+ ~ heredoc_text_value_expression }
 
 // `dir <"path"> exists` / `dir <"path"> contains "<name>"`.
 // Subject-first, mirroring file_exp: `dir <"path">` is the common subject,
@@ -429,7 +429,51 @@ workspace_path_literal    = { "<" ~ quoted_string ~ ">" }
 fixture_reference_literal = { "@" ~ quoted_string }
 value_literal             = { binding_reference | workspace_path_literal | fixture_reference_literal | quoted_string }
 binding_reference         = { "&" ~ binding_identifier }
-text_value_source         = { binding_reference | value_literal }
+
+// ─── Text value expressions ───────────────────────────────────────────────────
+//
+// The two grammar categories every `TextValue` argument position references,
+// instead of enumerating raw / binding / interpolated forms itself. A position
+// declares one surface capability — inline only, or inline and heredoc — and
+// the parser lowers both categories through one entry point into the same
+// `TextValueExpression`. Adding a new `TextValue` consumer therefore means
+// referencing a category here, never adding a per-consumer alternative list.
+// See #71 and docs/adr/20260726T060000Z_interpolated-text-literal.md.
+//
+// `value_literal` is the kind-agnostic union (see "Value literals" above), so a
+// wrong-kind literal in a text position stays a semantic diagnostic rather than
+// a syntax error. `interpolated_string` is not part of that union: it only
+// exists where a `TextValue` is accepted, so writing it in a path, fixture
+// reference, `contents_equals`, `dir contains`, or documentation position is a
+// plain syntax error — exactly like a heredoc literal in those positions.
+inline_text_value_expression  = { interpolated_string | value_literal }
+heredoc_text_value_expression = { interpolated_heredoc | heredoc_literal }
+
+// ─── Interpolated text literals ───────────────────────────────────────────────
+//
+// `&"..."` and `&` + heredoc literal build a `TextValue` from literal text and
+// case-local binding references (`&{name}`). The `&` prefix keeps raw literals
+// non-interpolating: `&{name}` inside an ordinary `"..."` or heredoc literal
+// stays literal text, and no `template` keyword is introduced.
+//
+// The grammar only delimits the literal; `&{name}` markers are recognized
+// during parser construction, so a malformed marker, an unterminated
+// reference, an empty name, and an invalid identifier each get their own
+// actionable diagnostic instead of one bare pest syntax error. An undefined
+// escape sequence is the exception: like a raw string literal's escape set, it
+// is rejected here, by the grammar.
+//
+// The interpolated string escape set is the raw string literal's set plus
+// `\&`. The interpolated heredoc has no rule of its own: its body is an
+// ordinary raw `heredoc_body`, and only `\\` / `\&` are consumed as escapes
+// while scanning, so every other backslash stays literal text the way it does
+// in a raw heredoc literal.
+interpolated_string       = { "&" ~ "\"" ~ interpolated_string_inner ~ "\"" }
+interpolated_string_inner = @{ interpolated_string_char* }
+interpolated_string_char  = _{ interpolated_escape_seq | (!("\"" | "\\" | "\r" | "\n") ~ ANY) }
+interpolated_escape_seq   = _{ "\\" ~ ("\\" | "\"" | "n" | "t" | "&") }
+
+interpolated_heredoc = { "&" ~ heredoc_literal }
 
 // ─── String literals ──────────────────────────────────────────────────────────
 

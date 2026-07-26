@@ -100,7 +100,7 @@ fn checkpoint_after_exit(code: i32) -> Checkpoint {
 fn write_step(path: &str, content: &str) -> Step {
     Step::SideEffect(SideEffectingStep::WriteFile(WriteFileStep {
         path: WorkspacePath::parse(path).unwrap(),
-        content: TextSource::Literal(TextLiteral::Quoted(content.to_string())),
+        content: TextValueExpression::Raw(TextLiteral::Quoted(content.to_string())),
     }))
 }
 
@@ -142,7 +142,7 @@ fn single_case(steps: Vec<Step>) -> Script {
 fn assert_file_text_equals(actual_path: &str, expected_text: &str) -> Step {
     let expectations = vec![Expectation::File(FileExpectation {
         path: actual_path.to_string(),
-        matcher: FileMatcher::TextEquals(TextSource::Literal(TextLiteral::Quoted(
+        matcher: FileMatcher::TextEquals(TextValueExpression::Raw(TextLiteral::Quoted(
             expected_text.to_string(),
         ))),
     })];
@@ -152,7 +152,7 @@ fn assert_file_text_equals(actual_path: &str, expected_text: &str) -> Step {
 fn assert_file_text_equals_heredoc(actual_path: &str, expected_text: &str) -> Step {
     let expectations = vec![Expectation::File(FileExpectation {
         path: actual_path.to_string(),
-        matcher: FileMatcher::TextEquals(TextSource::Literal(TextLiteral::Heredoc(
+        matcher: FileMatcher::TextEquals(TextValueExpression::Raw(TextLiteral::Heredoc(
             expected_text.to_string(),
         ))),
     })];
@@ -162,7 +162,7 @@ fn assert_file_text_equals_heredoc(actual_path: &str, expected_text: &str) -> St
 fn before_each_writing(path: &str, content: &str) -> BeforeEach {
     BeforeEach::new(vec![SideEffectingStep::WriteFile(WriteFileStep {
         path: WorkspacePath::parse(path).unwrap(),
-        content: TextSource::Literal(TextLiteral::Quoted(content.to_string())),
+        content: TextValueExpression::Raw(TextLiteral::Quoted(content.to_string())),
     })])
     .unwrap()
 }

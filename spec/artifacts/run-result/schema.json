@@ -453,7 +453,7 @@
       }
     },
     "TextExpectedSource": {
-      "description": "A text expectation's source: an inline literal or a case-local runtime binding reference.",
+      "description": "A text expectation's source: an inline literal, a case-local runtime binding reference, or an interpolated text literal.",
       "oneOf": [
         {
           "type": "object",
@@ -482,6 +482,43 @@
             "captureMode": {
               "type": "string",
               "enum": ["exact", "line"]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "form", "line", "column", "references"],
+          "properties": {
+            "kind": { "const": "interpolated" },
+            "form": {
+              "type": "string",
+              "enum": ["string", "heredoc"]
+            },
+            "line": { "type": "integer", "minimum": 1 },
+            "column": { "type": "integer", "minimum": 1 },
+            "references": {
+              "description": "The bindings substituted into the literal, in source order. The resolved value itself is never recorded: it mixes script text with captured process output.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "line", "column", "actionIndex", "stream", "captureMode"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "line": { "type": "integer", "minimum": 1 },
+                  "column": { "type": "integer", "minimum": 1 },
+                  "actionIndex": { "type": "integer", "minimum": 0 },
+                  "stream": {
+                    "type": "string",
+                    "enum": ["stdout", "stderr"]
+                  },
+                  "captureMode": {
+                    "type": "string",
+                    "enum": ["exact", "line"]
+                  }
+                }
+              }
             }
           }
         }

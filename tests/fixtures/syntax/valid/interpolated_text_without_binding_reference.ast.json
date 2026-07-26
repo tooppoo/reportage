@@ -1,0 +1,61 @@
+{
+  "before_each": {
+    "steps": [
+      {
+        "kind": "write_file",
+        "path": "seed.txt",
+        "content": {
+          "kind": "interpolated",
+          "form": "string",
+          "segments": [
+            {
+              "kind": "literal",
+              "value": "redundant but legal"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "an interpolated literal that references no binding is accepted",
+      "span": {
+        "start": 61,
+        "end": 227
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            },
+            {
+              "kind": "file",
+              "path": "seed.txt",
+              "matcher": {
+                "kind": "text_equals",
+                "value": {
+                  "kind": "interpolated",
+                  "form": "string",
+                  "segments": [
+                    {
+                      "kind": "literal",
+                      "value": "redundant but legal"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# A `write` step's path is a workspace path literal; interpolation never
+# applies to the path domain.
+case "c" {
+  $ true
+  write <"out.txt"> "content"
+  assert {
+    file &"out.txt" exists
+  }
+}

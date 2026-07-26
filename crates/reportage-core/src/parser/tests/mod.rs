@@ -4,6 +4,7 @@ mod heredoc;
 mod literal;
 mod step;
 mod syntax;
+mod text_expression;
 
 use super::*;
 use crate::model::{Script, SideEffectingStep, Step, WriteFileStep};

@@ -220,11 +220,11 @@ fn before_each_write_failure_is_runtime_error_without_case_step_index() {
     let before_each = BeforeEach::new(vec![
         SideEffectingStep::WriteFile(WriteFileStep {
             path: WorkspacePath::parse("a.txt").unwrap(),
-            content: TextSource::Literal(TextLiteral::Quoted("first".to_string())),
+            content: TextValueExpression::Raw(TextLiteral::Quoted("first".to_string())),
         }),
         SideEffectingStep::WriteFile(WriteFileStep {
             path: WorkspacePath::parse("a.txt").unwrap(),
-            content: TextSource::Literal(TextLiteral::Quoted("second".to_string())),
+            content: TextValueExpression::Raw(TextLiteral::Quoted("second".to_string())),
         }),
     ])
     .unwrap();
@@ -325,5 +325,58 @@ fn before_each_write_failure_is_runtime_error_without_case_step_index() {
             .contains("failed to set up registered command shims"),
         "message must identify command-shim initialization: {}",
         runtime_error.message
+    );
+}
+
+/// Parser-side scope validation guarantees a `write` step's binding references
+/// resolve, so this state is unreachable from any accepted script. The runtime
+/// still reports it as a runtime error rather than panicking, and only a
+/// hand-built model can reach that branch.
+#[test]
+fn a_write_step_whose_binding_never_resolves_is_a_runtime_error() {
+    let script = make_script(vec![Case {
+        name: "unresolvable write content".to_string(),
+        steps: vec![
+            action("true"),
+            Step::SideEffect(SideEffectingStep::WriteFile(WriteFileStep {
+                path: WorkspacePath::parse("out.txt").unwrap(),
+                content: TextValueExpression::Binding(crate::model::BindingReference {
+                    name: "never_captured".to_string(),
+                    reference_span: crate::model::LocatedSpan {
+                        start: 0,
+                        end: 0,
+                        line: 1,
+                        column: 1,
+                    },
+                }),
+            })),
+            assert_exit(0),
+        ],
+    }]);
+
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+
+    assert_eq!(result.exit_code(), 3);
+    let CaseStatus::RuntimeError(runtime_error) = &result.cases[0].status else {
+        panic!(
+            "expected CaseStatus::RuntimeError, got {:?}",
+            result.cases[0].status
+        );
+    };
+    assert!(
+        runtime_error
+            .message
+            .contains("could not resolve its content"),
+        "message must identify the write step's content: {}",
+        runtime_error.message
+    );
+    assert_eq!(
+        runtime_error.diagnostic_code.map(|code| code.as_str()),
+        Some("semantic.binding.undefined")
     );
 }

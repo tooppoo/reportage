@@ -1,0 +1,55 @@
+{
+  "cases": [
+    {
+      "name": "embed a captured revision in expected text",
+      "span": {
+        "start": 0,
+        "end": 162
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "printf 'abc123\\n'"
+        },
+        {
+          "kind": "binding",
+          "name": "revision",
+          "source": "stdout_line",
+          "span": {
+            "start": 76,
+            "end": 103
+          }
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "contains",
+                "value": {
+                  "kind": "interpolated",
+                  "form": "string",
+                  "segments": [
+                    {
+                      "kind": "literal",
+                      "value": "abc"
+                    },
+                    {
+                      "kind": "binding",
+                      "name": "revision"
+                    },
+                    {
+                      "kind": "literal",
+                      "value": "123"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

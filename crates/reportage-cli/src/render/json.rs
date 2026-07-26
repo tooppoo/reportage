@@ -101,7 +101,7 @@ mod tests {
     use super::*;
     use reportage_core::result::{
         ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind,
-        ExpectationResult, TextEqualsExpectedSource,
+        ExpectationResult, TextValueProvenance,
     };
     use std::path::PathBuf;
 
@@ -127,7 +127,7 @@ mod tests {
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
-                        expected_source: TextEqualsExpectedSource::Quoted("hello".to_string()),
+                        expected_source: TextValueProvenance::Quoted("hello".to_string()),
                         actual: b"hello\n".to_vec(),
                     },
                     passed: true,

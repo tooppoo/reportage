@@ -1,7 +1,8 @@
 use super::*;
 use crate::diagnostic::DiagnosticCode;
 use crate::model::{
-    RuntimeEvidenceSource, SideEffectingStep, Step, TextLiteral, TextSource, WorkspacePathError,
+    RuntimeEvidenceSource, SideEffectingStep, Step, TextLiteral, TextValueExpression,
+    WorkspacePathError,
 };
 
 // ─── Write step: string literal / heredoc literal (#67, #86) ──────────
@@ -13,7 +14,7 @@ fn parse_basic_write_step() {
     let step = write_file_step(&script);
     assert_eq!(step.path.as_str(), "a.txt");
     assert_eq!(
-        step.content.literal_text_value().unwrap().as_str(),
+        step.content.binding_free_text_value().unwrap().as_str(),
         "hello\n"
     );
     assert_eq!(script.cases[0].steps.len(), 3);
@@ -28,7 +29,7 @@ fn write_step_can_follow_an_action_in_source_order() {
     };
     assert_eq!(step.path.as_str(), "a.txt");
     assert_eq!(
-        step.content.literal_text_value().unwrap().as_str(),
+        step.content.binding_free_text_value().unwrap().as_str(),
         "hello\n"
     );
 }
@@ -127,13 +128,13 @@ fn parse_before_each_with_write_steps() {
     assert_eq!(first.path.as_str(), "a.txt");
     assert_eq!(
         first.content,
-        TextSource::Literal(TextLiteral::Quoted("a\n".to_string()))
+        TextValueExpression::Raw(TextLiteral::Quoted("a\n".to_string()))
     );
     let SideEffectingStep::WriteFile(second) = &before_each.steps()[1];
     assert_eq!(second.path.as_str(), "b/c.txt");
     assert_eq!(
         second.content,
-        TextSource::Literal(TextLiteral::Heredoc("content\n".to_string()))
+        TextValueExpression::Raw(TextLiteral::Heredoc("content\n".to_string()))
     );
     assert_eq!(script.cases.len(), 1);
 }

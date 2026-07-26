@@ -18,7 +18,10 @@
               "kind": "stderr",
               "matcher": {
                 "kind": "contains",
-                "value": "error"
+                "value": {
+                  "kind": "quoted",
+                  "value": "error"
+                }
               }
             }
           ]

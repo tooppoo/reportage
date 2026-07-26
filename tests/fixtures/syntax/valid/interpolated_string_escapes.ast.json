@@ -1,0 +1,78 @@
+{
+  "cases": [
+    {
+      "name": "write literal ampersands and escaped markers",
+      "span": {
+        "start": 0,
+        "end": 229
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "printf 'v1\\n'"
+        },
+        {
+          "kind": "binding",
+          "name": "tag",
+          "source": "stdout_line",
+          "span": {
+            "start": 74,
+            "end": 96
+          }
+        },
+        {
+          "kind": "write_file",
+          "path": "escaped.txt",
+          "content": {
+            "kind": "interpolated",
+            "form": "string",
+            "segments": [
+              {
+                "kind": "literal",
+                "value": "a & b &{tag} "
+              },
+              {
+                "kind": "binding",
+                "name": "tag"
+              },
+              {
+                "kind": "literal",
+                "value": "\n"
+              }
+            ]
+          }
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "escaped.txt",
+              "matcher": {
+                "kind": "text_equals",
+                "value": {
+                  "kind": "interpolated",
+                  "form": "string",
+                  "segments": [
+                    {
+                      "kind": "literal",
+                      "value": "a & b &{tag} "
+                    },
+                    {
+                      "kind": "binding",
+                      "name": "tag"
+                    },
+                    {
+                      "kind": "literal",
+                      "value": "\n"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
