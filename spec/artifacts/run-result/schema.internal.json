@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/tooppoo/reportage/spec/output/json-report/schema.json",
-  "title": "Reportage --format=json Execution Report",
-  "description": "External contract for `reportage run --format=json`'s CLI stdout document. This is a structured execution report, not a serialization of internal Rust types. It is a stdout-safe projection of the canonical artifact run result document (`result.json`, spec/artifacts/run-result/schema.json): it adds `artifactRoot` and omits the artifact-only `noop` field and the evidence `sha256` digests (see docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md). See docs/adr/20260707T045900Z_json-output-as-structured-execution-report.md, docs/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md, and docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md for the decisions this schema encodes.",
+  "$id": "https://github.com/tooppoo/reportage/spec/artifacts/run-result/schema.json",
+  "title": "Reportage Artifact Run Result (result.json)",
+  "description": "Canonical contract for the artifact `result.json` written to `.reportage/runs/<run-id>/` by `reportage run`. The artifact bundle (this manifest plus the evidence files it references) is the canonical record of a run; the `--format=json` CLI stdout document (spec/output/json-report/schema.json) is a stdout-safe projection derived from this document. Raw byte evidence (captured stdout/stderr) is never inlined here: it is stored as separate files inside the bundle and referenced via `artifactRef` / `sizeBytes` / `sha256`. See docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md and docs/reference/artifacts.md.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,7 +10,7 @@
     "tool",
     "status",
     "processExitCode",
-    "artifactRoot",
+    "noop",
     "summary",
     "diagnostics",
     "tests"
@@ -19,7 +19,7 @@
     "schemaVersion": {
       "type": "integer",
       "const": 1,
-      "description": "Version of this external JSON contract. Distinct from the reportage CLI/crate version (see `tool.version`)."
+      "description": "Version of this canonical artifact result contract. Distinct from the `--format=json` stdout contract's own schemaVersion and from the reportage CLI/crate version (see `tool.version`)."
     },
     "tool": {
       "$ref": "#/$defs/Tool"
@@ -37,9 +37,9 @@
       "type": "integer",
       "description": "The exit code `reportage run` will terminate with. Distinct from any individual action's `exitCode`."
     },
-    "artifactRoot": {
-      "type": "string",
-      "description": "Base path that every `artifactRef` in this document is relative to."
+    "noop": {
+      "type": "boolean",
+      "description": "True when the run was a no-op success: the selected input was valid but produced zero concrete cases, so nothing was executed and `tests` is empty. See docs/reference/exit-codes.md \u2014 Empty and zero-case scripts."
     },
     "summary": {
       "$ref": "#/$defs/Summary"
@@ -70,7 +70,11 @@
           "type": "string"
         },
         "version": {
-          "type": "string"
+          "type": "string",
+          "x-reportage-snapshot": {
+            "operation": "replace",
+            "value": "<VERSION>"
+          }
         }
       }
     },
@@ -292,18 +296,25 @@
       "additionalProperties": false,
       "required": [
         "artifactRef",
-        "sizeBytes"
+        "sizeBytes",
+        "sha256"
       ],
       "properties": {
         "artifactRef": {
           "type": "string",
-          "description": "Path relative to the document's `artifactRoot`. Captured stdout/stderr bytes are never inlined in v0; see docs/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md."
+          "description": "Path of the evidence file, relative to the directory containing this `result.json` (the run directory). Captured stdout/stderr bytes are never inlined; see docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md."
         },
         "sizeBytes": {
           "type": "integer",
           "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Lowercase hex SHA-256 digest of the referenced evidence file's bytes. Required so a consumer can verify that the bundle's evidence file is the one this manifest describes."
         }
-      }
+      },
+      "description": "Reference to one action's captured stdout or stderr, stored as a raw byte evidence file inside the artifact bundle."
     },
     "ShimInvocation": {
       "description": "One recorded shim invocation event. `additionalProperties` is intentionally not `false` here: this shape is emitted by the shim runtime rather than the JSON renderer itself and may grow new fields as shim tooling evolves, independently of this document's own schemaVersion.",
@@ -451,132 +462,64 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "kind",
-            "value"
-          ],
+          "required": ["kind", "value"],
           "properties": {
             "kind": {
               "type": "string",
-              "enum": [
-                "quoted",
-                "heredoc"
-              ]
+              "enum": ["quoted", "heredoc"]
             },
-            "value": {
-              "type": "string"
-            }
+            "value": { "type": "string" }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "kind",
-            "name",
-            "actionIndex",
-            "stream",
-            "captureMode"
-          ],
+          "required": ["kind", "name", "actionIndex", "stream", "captureMode"],
           "properties": {
-            "kind": {
-              "const": "binding"
-            },
-            "name": {
-              "type": "string"
-            },
-            "actionIndex": {
-              "type": "integer",
-              "minimum": 0
-            },
+            "kind": { "const": "binding" },
+            "name": { "type": "string" },
+            "actionIndex": { "type": "integer", "minimum": 0 },
             "stream": {
               "type": "string",
-              "enum": [
-                "stdout",
-                "stderr"
-              ]
+              "enum": ["stdout", "stderr"]
             },
             "captureMode": {
               "type": "string",
-              "enum": [
-                "exact",
-                "line"
-              ]
+              "enum": ["exact", "line"]
             }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "kind",
-            "form",
-            "line",
-            "column",
-            "references"
-          ],
+          "required": ["kind", "form", "line", "column", "references"],
           "properties": {
-            "kind": {
-              "const": "interpolated"
-            },
+            "kind": { "const": "interpolated" },
             "form": {
               "type": "string",
-              "enum": [
-                "string",
-                "heredoc"
-              ]
+              "enum": ["string", "heredoc"]
             },
-            "line": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "column": {
-              "type": "integer",
-              "minimum": 1
-            },
+            "line": { "type": "integer", "minimum": 1 },
+            "column": { "type": "integer", "minimum": 1 },
             "references": {
               "description": "The bindings substituted into the literal, in source order. This object never carries the resolved value, which mixes script text with captured process output; a failing comparison's bounded mismatch context is the only field that shows any part of it.",
               "type": "array",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "name",
-                  "line",
-                  "column",
-                  "actionIndex",
-                  "stream",
-                  "captureMode"
-                ],
+                "required": ["name", "line", "column", "actionIndex", "stream", "captureMode"],
                 "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "line": {
-                    "type": "integer",
-                    "minimum": 1
-                  },
-                  "column": {
-                    "type": "integer",
-                    "minimum": 1
-                  },
-                  "actionIndex": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
+                  "name": { "type": "string" },
+                  "line": { "type": "integer", "minimum": 1 },
+                  "column": { "type": "integer", "minimum": 1 },
+                  "actionIndex": { "type": "integer", "minimum": 0 },
                   "stream": {
                     "type": "string",
-                    "enum": [
-                      "stdout",
-                      "stderr"
-                    ]
+                    "enum": ["stdout", "stderr"]
                   },
                   "captureMode": {
                     "type": "string",
-                    "enum": [
-                      "exact",
-                      "line"
-                    ]
+                    "enum": ["exact", "line"]
                   }
                 }
               }
@@ -1250,7 +1193,7 @@
       }
     },
     "LogicalExpectation": {
-      "description": "A 'not' / 'all' / 'any' composition. Children are independently evaluated expectations; a child's own diagnosticRef is never set (see json.rs's expectation_json doc comment) — only the composition node itself may carry one, on its parent Assertion.",
+      "description": "A 'not' / 'all' / 'any' composition. Children are independently evaluated expectations; a child's own diagnosticRef is never set (see run_result.rs's expectation_json doc comment) \u2014 only the composition node itself may carry one, on its parent Assertion.",
       "type": "object",
       "additionalProperties": false,
       "required": [

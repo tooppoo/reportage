@@ -779,6 +779,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "xtask"
+version = "0.0.7"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"

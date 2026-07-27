@@ -22,7 +22,15 @@ Everything else is shared. The projection is implemented as a document transform
 
 ## JSON Schema
 
-`schema.json` defines the expected structure of the artifact `result.json` and is useful for editor integration (autocomplete, inline validation).
+`schema.json` defines the expected structure of the artifact `result.json` and is useful for editor integration (autocomplete, inline validation). It is the stable path for external consumers.
+
+### Which file to edit
+
+`schema.internal.json` is the only file to edit. `schema.json` is generated from it by `just schema-artifacts-gen` and must never be hand-edited; `just schema-artifacts-check`, which `just check` runs, fails when the committed file drifts from what the internal source generates.
+
+The two documents are identical apart from the `x-reportage-snapshot` snapshot normalization metadata, which the internal source carries and the generated public schema does not. `schema.internal.json` is repository tooling input rather than an external compatibility contract: its annotations and its path may change whenever the repository's own tooling needs change. See [`docs/adr/20260727T151234Z_json-schema-artifact-generation.md`](../../../docs/adr/20260727T151234Z_json-schema-artifact-generation.md).
+
+### Validation
 
 CI validation is performed by typed Rust deserialization in `crates/reportage-cli/tests/run_result_fixtures.rs`, following the same approach as `spec/output/json-report/schema.json` / `crates/reportage-cli/tests/json_report_fixtures.rs`: each fixture run's `result.json` is deserialised into Rust structs marked `#[serde(deny_unknown_fields)]`, which rejects unknown fields and enforces required fields and enum constraints, without an external JSON Schema validator dependency.
 
