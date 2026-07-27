@@ -1,0 +1,178 @@
+{
+  "diagnostics": [
+    {
+      "category": "assertion",
+      "code": "assertion.stdout.text_equals.mismatch",
+      "id": "diagnostic-1",
+      "location": null,
+      "message": "stdout contents did not match expected bytes (first differing byte at offset 0, line 1)",
+      "origin": {
+        "kind": "test",
+        "test": "test-2"
+      },
+      "severity": "failure"
+    }
+  ],
+  "noop": false,
+  "processExitCode": 1,
+  "schemaVersion": 1,
+  "status": "failed",
+  "summary": {
+    "actions": 2,
+    "assertions": 3,
+    "errors": 0,
+    "failed": 1,
+    "passed": 1,
+    "scripts": 1
+  },
+  "tests": [
+    {
+      "actions": [
+        {
+          "command": "printf 'abc123\\n'",
+          "exitCode": 0,
+          "id": "action-1",
+          "stderr": {
+            "artifactRef": "test-1/action-1/stderr.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-1/action-1/stdout.bin",
+            "sha256": "5ecf8d2cc410094e8b82dd0bc178a57f3aa1e80916689beb00fe56148b1b1256",
+            "sizeBytes": 7
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "checkpoint": "action-1",
+          "expectation": {
+            "actualRef": "test-1/action-1/stdout.bin",
+            "actualSizeBytes": 7,
+            "expectedSizeBytes": 7,
+            "expectedSource": {
+              "column": 24,
+              "form": "string",
+              "kind": "interpolated",
+              "line": 5,
+              "references": [
+                {
+                  "actionIndex": 0,
+                  "captureMode": "line",
+                  "column": 26,
+                  "line": 5,
+                  "name": "revision",
+                  "stream": "stdout"
+                }
+              ]
+            },
+            "kind": "stdoutTextEquals",
+            "outcome": "match",
+            "status": "passed"
+          },
+          "id": "assertion-1",
+          "status": "passed"
+        },
+        {
+          "checkpoint": "action-1",
+          "expectation": {
+            "actualRef": "test-1/action-1/stdout.bin",
+            "actualSizeBytes": 7,
+            "expected": "<interpolated string literal at line 6 referencing &revision>",
+            "expectedSource": {
+              "column": 21,
+              "form": "string",
+              "kind": "interpolated",
+              "line": 6,
+              "references": [
+                {
+                  "actionIndex": 0,
+                  "captureMode": "line",
+                  "column": 23,
+                  "line": 6,
+                  "name": "revision",
+                  "stream": "stdout"
+                }
+              ]
+            },
+            "kind": "stdoutContains",
+            "status": "passed"
+          },
+          "id": "assertion-2",
+          "status": "passed"
+        }
+      ],
+      "id": "test-1",
+      "name": "an interpolated expected value records its bindings, not its resolved text",
+      "path": "interpolated_text.repor",
+      "status": "passed"
+    },
+    {
+      "actions": [
+        {
+          "command": "printf 'abc123\\n'",
+          "exitCode": 0,
+          "id": "action-1",
+          "stderr": {
+            "artifactRef": "test-2/action-1/stderr.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-2/action-1/stdout.bin",
+            "sha256": "5ecf8d2cc410094e8b82dd0bc178a57f3aa1e80916689beb00fe56148b1b1256",
+            "sizeBytes": 7
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "checkpoint": "action-1",
+          "diagnosticRef": "diagnostic-1",
+          "expectation": {
+            "actualRef": "test-2/action-1/stdout.bin",
+            "actualSizeBytes": 7,
+            "diagnosticRef": "diagnostic-1",
+            "expectedSizeBytes": 12,
+            "expectedSource": {
+              "column": 24,
+              "form": "string",
+              "kind": "interpolated",
+              "line": 14,
+              "references": [
+                {
+                  "actionIndex": 0,
+                  "captureMode": "line",
+                  "column": 32,
+                  "line": 14,
+                  "name": "revision",
+                  "stream": "stdout"
+                }
+              ]
+            },
+            "kind": "stdoutTextEquals",
+            "mismatch": {
+              "actualContext": "abc123\\n",
+              "expectedContext": "other-abc123",
+              "firstDiffLine": 1,
+              "firstDiffOffset": 0
+            },
+            "outcome": "mismatch",
+            "status": "failed"
+          },
+          "id": "assertion-1",
+          "status": "failed"
+        }
+      ],
+      "id": "test-2",
+      "name": "a failing interpolated expectation records the same provenance",
+      "path": "interpolated_text.repor",
+      "status": "failed"
+    }
+  ],
+  "tool": {
+    "name": "reportage",
+    "version": "<VERSION>"
+  }
+}

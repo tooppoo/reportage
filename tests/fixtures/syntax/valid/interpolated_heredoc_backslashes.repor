@@ -1,0 +1,13 @@
+case "keep heredoc backslashes literal beside interpolation" {
+  $ printf 'v1\n'
+  let tag <- stdout_line
+  write <"patterns.txt"> &```
+    \d+ C:\temp
+    \\&{tag}
+    \\\&{tag}
+    \&{tag}
+    ```
+  assert {
+    file <"patterns.txt"> contains "\\d+ C:\\temp"
+  }
+}

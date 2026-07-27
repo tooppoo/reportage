@@ -1,0 +1,8 @@
+# An unescaped `&` in an interpolated literal is reserved as an interpolation
+# marker; a literal one must be written `\&`.
+case "c" {
+  $ true
+  assert {
+    stdout contains &"a & b"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "cases": [
+    {
+      "name": "keep heredoc backslashes literal beside interpolation",
+      "span": {
+        "start": 0,
+        "end": 267
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "printf 'v1\\n'"
+        },
+        {
+          "kind": "binding",
+          "name": "tag",
+          "source": "stdout_line",
+          "span": {
+            "start": 83,
+            "end": 105
+          }
+        },
+        {
+          "kind": "write_file",
+          "path": "patterns.txt",
+          "content": {
+            "kind": "interpolated",
+            "form": "heredoc",
+            "segments": [
+              {
+                "kind": "literal",
+                "value": "\\d+ C:\\temp\n\\"
+              },
+              {
+                "kind": "binding",
+                "name": "tag"
+              },
+              {
+                "kind": "literal",
+                "value": "\n\\&{tag}\n&{tag}\n"
+              }
+            ]
+          }
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "patterns.txt",
+              "matcher": {
+                "kind": "contains",
+                "value": {
+                  "kind": "quoted",
+                  "value": "\\d+ C:\\temp"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -44,3 +44,36 @@ case "file contains fails for a missing file" {
     exit 1
   }
 }
+
+case "a wrong-kind expected literal names both text forms file contains accepts" {
+  write <"inner.repor"> ```
+    case "inner" {
+      $ true
+      assert {
+        file <"out.txt"> contains <"expected.txt">
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.literal.kind_mismatch"
+    stderr contains "use a string literal or heredoc literal (e.g. \"expected.txt\") instead"
+  }
+}
+
+case "the heredoc literal that suggestion names is genuinely accepted" {
+  write <"expected.txt"> ```
+    hello
+    ```
+
+  $ true
+
+  assert {
+    file <"expected.txt"> contains ```
+      hello
+      ```
+  }
+}

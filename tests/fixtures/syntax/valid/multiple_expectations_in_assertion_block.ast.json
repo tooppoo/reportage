@@ -22,7 +22,10 @@
               "kind": "stdout",
               "matcher": {
                 "kind": "contains",
-                "value": "hello"
+                "value": {
+                  "kind": "quoted",
+                  "value": "hello"
+                }
               }
             },
             {

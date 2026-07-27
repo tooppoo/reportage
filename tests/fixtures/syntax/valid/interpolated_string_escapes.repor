@@ -1,0 +1,8 @@
+case "write literal ampersands and escaped markers" {
+  $ printf 'v1\n'
+  let tag <- stdout_line
+  write <"escaped.txt"> &"a \& b \&{tag} &{tag}\n"
+  assert {
+    file <"escaped.txt"> text_equals &"a \& b \&{tag} &{tag}\n"
+  }
+}

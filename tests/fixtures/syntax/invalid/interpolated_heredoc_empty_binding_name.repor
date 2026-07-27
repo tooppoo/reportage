@@ -1,0 +1,11 @@
+# `&{}` names no binding. Reported through the dedented-body-to-source span
+# mapping, like every other interpolated heredoc diagnostic.
+case "c" {
+  $ true
+  write <"out.txt"> &```
+    &{}
+    ```
+  assert {
+    exit 0
+  }
+}

@@ -9,7 +9,7 @@ use reportage_core::result::{
     CaseStatus, ContentsEqualsComparison, ContentsEqualsExpectedSource, ContentsEqualsObservation,
     ContentsEqualsOutcome, DirContainsObservation, DirExistsObservation, ExecutionReport,
     ExpectationKind, ExpectationResult, FileContentObservation, FileErrorKind,
-    FileExistsObservation, TextEqualsExpectedSource,
+    FileExistsObservation, TextValueProvenance,
 };
 
 use super::OutputRenderer;
@@ -385,11 +385,22 @@ fn format_expected_source(source: &ContentsEqualsExpectedSource) -> String {
 /// literal is rendered as a plain label instead of its full body: the mismatch detail below
 /// already carries a bounded, escaped context window and a line number, and printing the
 /// full heredoc body here would risk unbounded output. See docs/adr — text_equals evaluation.
-fn format_text_equals_source(source: &TextEqualsExpectedSource) -> String {
+///
+/// An interpolated literal is rendered as a label for a second reason as well: its resolved
+/// value mixes script text with captured process output, so naming the literal keeps the subject
+/// line free of it. This bounds the subject line only — a mismatch's own escaped context window
+/// below still shows a bounded slice of the expected bytes, exactly as it does for a raw literal.
+/// See docs/adr/20260726T060000Z_interpolated-text-literal.md.
+fn format_text_equals_source(source: &TextValueProvenance) -> String {
     match source {
-        TextEqualsExpectedSource::Quoted(value) => format!("{value:?}"),
-        TextEqualsExpectedSource::Heredoc(_) => "<heredoc literal>".to_string(),
-        TextEqualsExpectedSource::Binding { name, .. } => format!("&{name}"),
+        TextValueProvenance::Quoted(value) => format!("{value:?}"),
+        TextValueProvenance::Heredoc(_) => "<heredoc literal>".to_string(),
+        TextValueProvenance::Binding { name, .. } => format!("&{name}"),
+        TextValueProvenance::Interpolated {
+            form,
+            span,
+            references,
+        } => TextValueProvenance::describe_interpolated(*form, *span, references),
     }
 }
 

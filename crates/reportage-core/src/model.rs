@@ -103,18 +103,29 @@ pub enum SideEffectingStep {
 #[derive(Debug)]
 pub struct WriteFileStep {
     pub path: WorkspacePath,
-    pub content: TextSource,
+    pub content: TextValueExpression,
 }
 
 #[derive(Debug)]
 pub struct BindingDeclaration {
     pub name: String,
     pub source: RuntimeEvidenceSource,
-    pub declaration_span: BindingSpan,
+    pub declaration_span: LocatedSpan,
 }
 
+/// A byte range in the original `*.repor` source, with the 1-based line and
+/// column of its first character.
+///
+/// Distinct from [`crate::source::SourceSpan`], which is a bare byte range
+/// tied to a `SourceFile`'s own text: this type carries the resolved position
+/// a diagnostic prints, and is produced wherever the parser already knows it.
+///
+/// Spans always address the source a user wrote, never an intermediate
+/// representation: an interpolated heredoc's binding reference is recorded
+/// against the original body, not against the dedented text it is scanned in.
+/// See [`InterpolatedText`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BindingSpan {
+pub struct LocatedSpan {
     pub start: usize,
     pub end: usize,
     pub line: usize,
@@ -141,28 +152,147 @@ impl RuntimeEvidenceSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindingReference {
     pub name: String,
-    pub reference_span: BindingSpan,
+    pub reference_span: LocatedSpan,
 }
 
+/// A source-level text value expression: the one input type every `TextValue`
+/// argument position takes.
+///
+/// The three forms are kept apart here, not collapsed to a value at parse
+/// time, so diagnostics, AST snapshots, and provenance can still say which one
+/// a script wrote. Runtime consumers must not branch on the variant: they
+/// resolve the expression through [`crate::text_value::ResolveTextValue`] and
+/// operate on the resulting [`TextValue`], so `write` and every text matcher
+/// behave identically regardless of the form that produced the value.
+/// See docs/adr/20260726T060000Z_interpolated-text-literal.md.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TextSource {
-    Literal(TextLiteral),
+pub enum TextValueExpression {
+    /// A raw `"..."` string literal or raw heredoc literal. Never interpolated:
+    /// `&{name}` inside it is literal text.
+    Raw(TextLiteral),
+    /// A direct `&name` reference to a case-local binding's whole value.
     Binding(BindingReference),
+    /// An `&"..."` / `&` + heredoc interpolated text literal.
+    Interpolated(InterpolatedText),
 }
 
-impl TextSource {
-    pub fn literal_text_value(&self) -> Option<TextValue> {
+impl TextValueExpression {
+    /// The expression's `TextValue` when it needs no binding environment to
+    /// resolve, and `None` when it does.
+    ///
+    /// Only callers that legitimately have no binding environment (a
+    /// `before_each` write step, whose binding scope is statically empty) may
+    /// use this; everything else resolves through
+    /// [`crate::text_value::ResolveTextValue`].
+    pub fn binding_free_text_value(&self) -> Option<TextValue> {
         match self {
-            Self::Literal(literal) => Some(literal.to_text_value()),
+            Self::Raw(literal) => Some(literal.to_text_value()),
             Self::Binding(_) => None,
+            Self::Interpolated(text) => text.binding_free_text_value(),
+        }
+    }
+
+    /// Every binding reference this expression makes, in source order.
+    ///
+    /// One traversal shared by scope validation and provenance collection, so
+    /// a direct reference and a reference inside an interpolated literal are
+    /// never validated by two different code paths.
+    pub fn binding_references(&self) -> Vec<&BindingReference> {
+        match self {
+            Self::Raw(_) => Vec::new(),
+            Self::Binding(reference) => vec![reference],
+            Self::Interpolated(text) => text.binding_references().collect(),
         }
     }
 }
 
-impl PartialEq<str> for TextSource {
+impl PartialEq<str> for TextValueExpression {
     fn eq(&self, other: &str) -> bool {
-        matches!(self, Self::Literal(literal) if literal.to_text_value().as_str() == other)
+        matches!(self, Self::Raw(literal) if literal.to_text_value().as_str() == other)
     }
+}
+
+/// Which surface literal an [`InterpolatedText`] was written as.
+///
+/// Retained for diagnostics, snapshots, and provenance only: both forms
+/// produce the same `TextValue` and the same runtime behavior.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InterpolatedTextForm {
+    /// An `&"..."` interpolated string literal.
+    String,
+    /// An `&` + heredoc interpolated heredoc literal.
+    Heredoc,
+}
+
+/// An interpolated text literal, held as the alternating literal and binding
+/// reference segments recognized in its source, never as a pre-evaluated
+/// string.
+///
+/// Segments are already unescaped and (for the heredoc form) dedented, so
+/// evaluation is a concatenation with each binding's exact value: binding
+/// values are inserted verbatim, with no escaping, quoting, indentation,
+/// newline normalization, or recursive interpolation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InterpolatedText {
+    form: InterpolatedTextForm,
+    segments: Vec<InterpolatedTextSegment>,
+    span: LocatedSpan,
+}
+
+impl InterpolatedText {
+    pub fn new(
+        form: InterpolatedTextForm,
+        segments: Vec<InterpolatedTextSegment>,
+        span: LocatedSpan,
+    ) -> Self {
+        Self {
+            form,
+            segments,
+            span,
+        }
+    }
+
+    pub fn form(&self) -> InterpolatedTextForm {
+        self.form
+    }
+
+    pub fn segments(&self) -> &[InterpolatedTextSegment] {
+        &self.segments
+    }
+
+    /// The whole literal's span in the original source.
+    pub fn span(&self) -> LocatedSpan {
+        self.span
+    }
+
+    pub fn binding_references(&self) -> impl Iterator<Item = &BindingReference> {
+        self.segments.iter().filter_map(|segment| match segment {
+            InterpolatedTextSegment::Literal(_) => None,
+            InterpolatedTextSegment::Binding(reference) => Some(reference),
+        })
+    }
+
+    /// The literal's `TextValue` when it references no binding, and `None`
+    /// when it does. A reference-free interpolated literal is redundant but
+    /// legal, so it stays usable where no binding environment exists.
+    fn binding_free_text_value(&self) -> Option<TextValue> {
+        let mut value = String::new();
+        for segment in &self.segments {
+            match segment {
+                InterpolatedTextSegment::Literal(text) => value.push_str(text.as_str()),
+                InterpolatedTextSegment::Binding(_) => return None,
+            }
+        }
+        Some(TextValue::new(value))
+    }
+}
+
+/// One piece of an [`InterpolatedText`]: literal text, or a binding reference
+/// to substitute at step evaluation time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InterpolatedTextSegment {
+    Literal(TextValue),
+    Binding(BindingReference),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -174,7 +304,7 @@ pub enum BoundValue {
 pub struct Binding {
     pub name: String,
     pub value: BoundValue,
-    pub declaration_span: BindingSpan,
+    pub declaration_span: LocatedSpan,
     pub source: BindingSource,
 }
 
@@ -645,7 +775,7 @@ pub struct OutputExpectation {
 #[derive(Debug)]
 pub enum OutputMatcher {
     Empty,
-    Contains(TextSource),
+    Contains(TextValueExpression),
     NotContains(String),
     Matches(String),
     /// `stdout` / `stderr contents_equals <FileContentsReference>`: byte-for-byte
@@ -653,7 +783,7 @@ pub enum OutputMatcher {
     /// `evaluator/expectation.rs`.
     ContentsEquals(FileContentsReference),
     /// Byte-for-byte comparison against a literal or binding-backed `TextValue`, encoded as UTF-8 without normalization.
-    TextEquals(TextSource),
+    TextEquals(TextValueExpression),
 }
 
 /// File existence / content expectation.
@@ -669,14 +799,14 @@ pub enum FileMatcher {
     Exists,
     NotExists,
     /// Contains comparison against a literal or binding-backed `TextValue`.
-    Contains(TextSource),
+    Contains(TextValueExpression),
     Matches(String),
     /// `file <"path"> contents_equals <FileContentsReference>`: byte-for-byte
     /// comparison against a workspace file or fixture file. See
     /// `evaluator/expectation.rs`.
     ContentsEquals(FileContentsReference),
     /// Byte-for-byte comparison against a literal or binding-backed `TextValue`, encoded as UTF-8 without normalization.
-    TextEquals(TextSource),
+    TextEquals(TextValueExpression),
 }
 
 /// Directory existence / entry expectation.

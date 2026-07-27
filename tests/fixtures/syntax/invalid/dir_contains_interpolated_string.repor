@@ -1,0 +1,8 @@
+# A `dir contains` entry name is a plain string literal, not a TextValue
+# position, so interpolation is not part of its syntax.
+case "c" {
+  $ true
+  assert {
+    dir <"out"> contains &"entry.txt"
+  }
+}

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::diagnostic::{DiagnosticCode, DiagnosticLocation};
-use crate::model::{BindingSource, LogicalOperator, Script};
+use crate::model::{LogicalOperator, Script};
 use crate::shim_event::ShimInvocationEvent;
 
 /// The captured output of a single `$` action step.
@@ -36,11 +36,11 @@ pub enum ExpectationKind {
         actual: i32,
     },
     StdoutContains {
-        expected_source: TextEqualsExpectedSource,
+        expected_source: TextValueProvenance,
         actual: Vec<u8>,
     },
     StderrContains {
-        expected_source: TextEqualsExpectedSource,
+        expected_source: TextValueProvenance,
         actual: Vec<u8>,
     },
     StdoutEmpty {
@@ -55,7 +55,7 @@ pub enum ExpectationKind {
     },
     FileContains {
         path: String,
-        expected_source: TextEqualsExpectedSource,
+        expected_source: TextValueProvenance,
         observation: FileContentObservation,
     },
     FileContentsEquals {
@@ -73,15 +73,15 @@ pub enum ExpectationKind {
     },
     FileTextEquals {
         path: String,
-        expected_source: TextEqualsExpectedSource,
+        expected_source: TextValueProvenance,
         observation: ContentsEqualsObservation,
     },
     StdoutTextEquals {
-        expected_source: TextEqualsExpectedSource,
+        expected_source: TextValueProvenance,
         comparison: ContentsEqualsComparison,
     },
     StderrTextEquals {
-        expected_source: TextEqualsExpectedSource,
+        expected_source: TextValueProvenance,
         comparison: ContentsEqualsComparison,
     },
     DirExists {
@@ -261,24 +261,17 @@ pub enum ContentsEqualsExpectedSource {
     Fixture(String),
 }
 
-/// Where a `text_equals` expected value's `TextLiteral` source representation came from,
-/// for display purposes only.
+/// Where an expected `TextValue` came from, for display purposes only.
+///
+/// Re-exported from the resolver that produces it: an expectation records the
+/// provenance resolution already attached, rather than deriving a second
+/// display model by re-examining the source expression.
 ///
 /// The runtime comparison always operates on the resolved `TextValue`'s UTF-8 bytes,
-/// which are identical regardless of literal form; only diagnostic rendering may
-/// differentiate on `Quoted` vs. `Heredoc` (e.g. to show heredoc body line numbers).
+/// which are identical regardless of source form; only diagnostic rendering may
+/// differentiate on the form (e.g. to show heredoc body line numbers).
 /// See docs/adr — text_equals evaluation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TextEqualsExpectedSource {
-    /// A `"..."` string literal.
-    Quoted(String),
-    /// A ``` ... ``` heredoc literal, already dedented.
-    Heredoc(String),
-    Binding {
-        name: String,
-        source: BindingSource,
-    },
-}
+pub use crate::text_value::TextValueProvenance;
 
 /// A completed byte-for-byte `contents_equals` comparison: the full actual and expected
 /// byte buffers (kept for artifact evidence, exactly like `ExpectationKind::StdoutContains`

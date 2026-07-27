@@ -1,0 +1,7 @@
+# `&{}` names no binding.
+case "c" {
+  $ true
+  assert {
+    stdout contains &"&{}"
+  }
+}

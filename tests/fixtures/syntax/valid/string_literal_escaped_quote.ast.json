@@ -18,7 +18,10 @@
               "kind": "stdout",
               "matcher": {
                 "kind": "contains",
-                "value": "say \"hi\""
+                "value": {
+                  "kind": "quoted",
+                  "value": "say \"hi\""
+                }
               }
             }
           ]

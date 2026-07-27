@@ -39,7 +39,7 @@ file <"out/result.json"> contains "\"status\":\"passed\""
         &block.expectations()[0],
         Expectation::File(f) if f.path == "out/result.json"
             && matches!(&f.matcher, FileMatcher::Contains(s)
-                if s.literal_text_value().unwrap().as_str() == "\"status\":\"passed\"")
+                if s.binding_free_text_value().unwrap().as_str() == "\"status\":\"passed\"")
     ));
 }
 

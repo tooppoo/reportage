@@ -1,0 +1,10 @@
+# An interpolated string literal forbids raw newlines, exactly as a raw string
+# literal does: its own `interpolated_string_char` rule excludes CR and LF, so
+# a runaway literal can never swallow the following lines.
+case "raw newline in interpolated string" {
+  $ true
+  assert {
+    stdout contains &"line one
+line two"
+  }
+}

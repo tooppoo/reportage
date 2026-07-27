@@ -7,9 +7,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use reportage_core::model::{
-    CountOp, DirMatcher, Expectation, FileContentsReference, FileMatcher, LogicalOperator,
-    OutputMatcher, OutputSource, RuntimeEvidenceSource, SideEffectingStep, Step, TextLiteral,
-    TextSource,
+    CountOp, DirMatcher, Expectation, FileContentsReference, FileMatcher, InterpolatedTextForm,
+    InterpolatedTextSegment, LogicalOperator, OutputMatcher, OutputSource, RuntimeEvidenceSource,
+    SideEffectingStep, Step, TextLiteral, TextValueExpression,
 };
 use reportage_core::parser::{ParseError, parse};
 use reportage_core::source::{SourceCase, SourceFile};
@@ -217,7 +217,7 @@ enum SnapshotStep<'a> {
     },
     WriteFile {
         path: &'a str,
-        content: SnapshotTextLiteral<'a>,
+        content: SnapshotTextExpression<'a>,
     },
     Binding {
         name: &'a str,
@@ -262,23 +262,42 @@ impl<'a> From<&'a SideEffectingStep> for SnapshotStep<'a> {
         let SideEffectingStep::WriteFile(write_step) = step;
         Self::WriteFile {
             path: write_step.path.as_str(),
-            content: SnapshotTextLiteral::from(&write_step.content),
+            content: SnapshotTextExpression::from(&write_step.content),
         }
     }
 }
 
-/// Mirrors `model::TextLiteral`, keeping the literal kind (`quoted` vs.
-/// `heredoc`) visible in the AST snapshot rather than flattening straight to
-/// the resolved value.
+/// Mirrors `model::TextValueExpression`, keeping the source form (`quoted` /
+/// `heredoc` / `binding` / `interpolated`) visible in the AST snapshot rather
+/// than flattening straight to a resolved value. An interpolated literal keeps
+/// its segments, so a change in how markers or escapes are recognized shows up
+/// as a snapshot diff.
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-enum SnapshotTextLiteral<'a> {
-    Quoted { value: &'a str },
-    Heredoc { value: &'a str },
+enum SnapshotTextExpression<'a> {
+    Quoted {
+        value: &'a str,
+    },
+    Heredoc {
+        value: &'a str,
+    },
+    Binding {
+        name: &'a str,
+    },
+    Interpolated {
+        form: &'static str,
+        segments: Vec<SnapshotInterpolatedSegment<'a>>,
+    },
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum SnapshotInterpolatedSegment<'a> {
+    Literal { value: &'a str },
     Binding { name: &'a str },
 }
 
-impl<'a> From<&'a TextLiteral> for SnapshotTextLiteral<'a> {
+impl<'a> From<&'a TextLiteral> for SnapshotTextExpression<'a> {
     fn from(literal: &'a TextLiteral) -> Self {
         match literal {
             TextLiteral::Quoted(value) => Self::Quoted { value },
@@ -287,12 +306,34 @@ impl<'a> From<&'a TextLiteral> for SnapshotTextLiteral<'a> {
     }
 }
 
-impl<'a> From<&'a TextSource> for SnapshotTextLiteral<'a> {
-    fn from(source: &'a TextSource) -> Self {
-        match source {
-            TextSource::Literal(literal) => Self::from(literal),
-            TextSource::Binding(reference) => Self::Binding {
+impl<'a> From<&'a TextValueExpression> for SnapshotTextExpression<'a> {
+    fn from(expression: &'a TextValueExpression) -> Self {
+        match expression {
+            TextValueExpression::Raw(literal) => Self::from(literal),
+            TextValueExpression::Binding(reference) => Self::Binding {
                 name: &reference.name,
+            },
+            TextValueExpression::Interpolated(text) => Self::Interpolated {
+                form: match text.form() {
+                    InterpolatedTextForm::String => "string",
+                    InterpolatedTextForm::Heredoc => "heredoc",
+                },
+                segments: text
+                    .segments()
+                    .iter()
+                    .map(|segment| match segment {
+                        InterpolatedTextSegment::Literal(value) => {
+                            SnapshotInterpolatedSegment::Literal {
+                                value: value.as_str(),
+                            }
+                        }
+                        InterpolatedTextSegment::Binding(reference) => {
+                            SnapshotInterpolatedSegment::Binding {
+                                name: &reference.name,
+                            }
+                        }
+                    })
+                    .collect(),
             },
         }
     }
@@ -393,7 +434,7 @@ impl From<LogicalOperator> for SnapshotLogicalOperator {
 enum SnapshotOutputMatcher<'a> {
     Empty,
     Contains {
-        value: &'a str,
+        value: SnapshotTextExpression<'a>,
     },
     NotContains {
         value: &'a str,
@@ -405,7 +446,7 @@ enum SnapshotOutputMatcher<'a> {
         value: SnapshotFileContentsReference<'a>,
     },
     TextEquals {
-        value: SnapshotTextLiteral<'a>,
+        value: SnapshotTextExpression<'a>,
     },
 }
 
@@ -413,11 +454,8 @@ impl<'a> From<&'a OutputMatcher> for SnapshotOutputMatcher<'a> {
     fn from(matcher: &'a OutputMatcher) -> Self {
         match matcher {
             OutputMatcher::Empty => Self::Empty,
-            OutputMatcher::Contains(TextSource::Literal(
-                TextLiteral::Quoted(value) | TextLiteral::Heredoc(value),
-            )) => Self::Contains { value },
-            OutputMatcher::Contains(TextSource::Binding(reference)) => Self::Contains {
-                value: &reference.name,
+            OutputMatcher::Contains(value) => Self::Contains {
+                value: SnapshotTextExpression::from(value),
             },
             OutputMatcher::NotContains(value) => Self::NotContains { value },
             OutputMatcher::Matches(value) => Self::Matches { value },
@@ -425,7 +463,7 @@ impl<'a> From<&'a OutputMatcher> for SnapshotOutputMatcher<'a> {
                 value: SnapshotFileContentsReference::from(value),
             },
             OutputMatcher::TextEquals(value) => Self::TextEquals {
-                value: SnapshotTextLiteral::from(value),
+                value: SnapshotTextExpression::from(value),
             },
         }
     }
@@ -437,7 +475,7 @@ enum SnapshotFileMatcher<'a> {
     Exists,
     NotExists,
     Contains {
-        value: SnapshotTextLiteral<'a>,
+        value: SnapshotTextExpression<'a>,
     },
     Matches {
         value: &'a str,
@@ -446,7 +484,7 @@ enum SnapshotFileMatcher<'a> {
         value: SnapshotFileContentsReference<'a>,
     },
     TextEquals {
-        value: SnapshotTextLiteral<'a>,
+        value: SnapshotTextExpression<'a>,
     },
 }
 
@@ -456,14 +494,14 @@ impl<'a> From<&'a FileMatcher> for SnapshotFileMatcher<'a> {
             FileMatcher::Exists => Self::Exists,
             FileMatcher::NotExists => Self::NotExists,
             FileMatcher::Contains(value) => Self::Contains {
-                value: SnapshotTextLiteral::from(value),
+                value: SnapshotTextExpression::from(value),
             },
             FileMatcher::Matches(value) => Self::Matches { value },
             FileMatcher::ContentsEquals(value) => Self::ContentsEquals {
                 value: SnapshotFileContentsReference::from(value),
             },
             FileMatcher::TextEquals(value) => Self::TextEquals {
-                value: SnapshotTextLiteral::from(value),
+                value: SnapshotTextExpression::from(value),
             },
         }
     }
@@ -686,6 +724,46 @@ fn invalid_syntax_fixtures_are_rejected() {
                 assert!(matches!(err, ParseError::ShallowHeredocIndent { .. }));
                 assert_eq!(err.code().as_str(), "parse.heredoc_literal.shallow_indent");
             }
+            // An interpolated literal's `&` markers are recognized during parser
+            // construction, so each malformed shape gets its own parse-domain
+            // diagnostic instead of one bare syntax error. See #71.
+            // Covers both interpolated forms: the marker scan and its
+            // diagnostics are shared, and the heredoc form additionally
+            // exercises the dedented-body-to-source span mapping.
+            "interpolated_string_lone_ampersand" | "interpolated_heredoc_lone_ampersand" => {
+                assert!(matches!(
+                    err,
+                    ParseError::MalformedInterpolationMarker { .. }
+                ));
+                assert_eq!(
+                    err.code().as_str(),
+                    "parse.interpolated_text.malformed_marker"
+                );
+            }
+            // Covers both interpolated forms: a reference is a single-line
+            // token, so neither swallows the text that follows it.
+            "interpolated_string_unterminated_reference"
+            | "interpolated_heredoc_unterminated_reference" => {
+                assert!(matches!(
+                    err,
+                    ParseError::UnterminatedInterpolationReference { .. }
+                ));
+                assert_eq!(
+                    err.code().as_str(),
+                    "parse.interpolated_text.unterminated_reference"
+                );
+            }
+            "interpolated_string_empty_binding_name"
+            | "interpolated_heredoc_empty_binding_name" => {
+                assert!(matches!(
+                    err,
+                    ParseError::EmptyInterpolationBindingName { .. }
+                ));
+                assert_eq!(
+                    err.code().as_str(),
+                    "parse.interpolated_text.empty_binding_name"
+                );
+            }
             // Document block body rules the grammar deliberately leaves open
             // (see the "Document block" section of reportage.pest) are
             // rejected during parser construction with fine-grained codes.
@@ -823,11 +901,43 @@ fn invalid_syntax_fixtures_are_rejected() {
 
 #[test]
 fn semantic_invalid_binding_fixtures_parse_grammar_but_fail_construction_validation() {
+    // A binding reference inside an interpolated literal is validated by the
+    // same scope walk as a direct `&name` reference, so the two forms share
+    // these diagnostics. See #71.
+    //
+    // The identifier check has three independent call sites — the `let`
+    // declaration, a direct `&name` reference, and a `&{name}` reference — so
+    // each is pinned separately: the grammar's `binding_identifier` accepts a
+    // leading digit, and only parser construction rejects it.
     let expected = [
+        (
+            "binding_declaration_invalid_identifier",
+            "semantic.binding.invalid_identifier",
+        ),
         ("binding_duplicate", "semantic.binding.duplicate"),
+        (
+            "binding_reference_invalid_identifier",
+            "semantic.binding.invalid_identifier",
+        ),
         ("binding_type_mismatch", "semantic.binding.type_mismatch"),
         (
             "binding_use_before_declaration",
+            "semantic.binding.use_before_declaration",
+        ),
+        (
+            "interpolated_text_in_before_each",
+            "semantic.binding.before_each_forbidden",
+        ),
+        (
+            "interpolated_text_invalid_identifier",
+            "semantic.binding.invalid_identifier",
+        ),
+        (
+            "interpolated_text_undefined_binding",
+            "semantic.binding.undefined",
+        ),
+        (
+            "interpolated_text_use_before_declaration",
             "semantic.binding.use_before_declaration",
         ),
     ];

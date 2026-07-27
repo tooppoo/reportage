@@ -1,0 +1,78 @@
+{
+  "cases": [
+    {
+      "name": "render a config file from a captured value",
+      "span": {
+        "start": 0,
+        "end": 269
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "printf 'file:///src\\n'"
+        },
+        {
+          "kind": "binding",
+          "name": "source_url",
+          "source": "stdout_line",
+          "span": {
+            "start": 81,
+            "end": 110
+          }
+        },
+        {
+          "kind": "write_file",
+          "path": "config.kdl",
+          "content": {
+            "kind": "interpolated",
+            "form": "heredoc",
+            "segments": [
+              {
+                "kind": "literal",
+                "value": "provider {\n  url \""
+              },
+              {
+                "kind": "binding",
+                "name": "source_url"
+              },
+              {
+                "kind": "literal",
+                "value": "\"\n}\n"
+              }
+            ]
+          }
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "config.kdl",
+              "matcher": {
+                "kind": "contains",
+                "value": {
+                  "kind": "interpolated",
+                  "form": "string",
+                  "segments": [
+                    {
+                      "kind": "literal",
+                      "value": "url \""
+                    },
+                    {
+                      "kind": "binding",
+                      "name": "source_url"
+                    },
+                    {
+                      "kind": "literal",
+                      "value": "\""
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

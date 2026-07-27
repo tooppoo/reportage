@@ -1,6 +1,6 @@
 use crate::diagnostic::{Diagnostic, DiagnosticCode, DiagnosticDetails, DiagnosticLocation};
 use crate::model::{
-    BindingSpan, FixtureReferenceError, LogicalOperator, RequiredLiteralKind, ValueLiteralKind,
+    FixtureReferenceError, LocatedSpan, LogicalOperator, RequiredLiteralKind, ValueLiteralKind,
     WorkspacePathError,
 };
 
@@ -147,28 +147,42 @@ pub enum ParseError {
     },
     InvalidBindingIdentifier {
         name: String,
-        span: BindingSpan,
+        span: LocatedSpan,
     },
     DuplicateBinding {
         name: String,
-        span: BindingSpan,
+        span: LocatedSpan,
     },
     UndefinedBinding {
         name: String,
-        span: BindingSpan,
+        span: LocatedSpan,
     },
     BindingUsedBeforeDeclaration {
         name: String,
-        span: BindingSpan,
+        span: LocatedSpan,
     },
     BindingRequiresAction {
         name: String,
-        span: BindingSpan,
+        span: LocatedSpan,
     },
     BindingTypeMismatch {
         name: String,
-        span: BindingSpan,
+        span: LocatedSpan,
         expected: &'static str,
+    },
+    /// An interpolated literal contains an unescaped `&` that does not open a
+    /// `&{name}` reference — `&` is reserved there, and a literal one is
+    /// written `\&`.
+    MalformedInterpolationMarker {
+        span: LocatedSpan,
+    },
+    /// An interpolated literal contains a `&{` that its line never closes.
+    UnterminatedInterpolationReference {
+        span: LocatedSpan,
+    },
+    /// An interpolated literal contains `&{}`, naming no binding.
+    EmptyInterpolationBindingName {
+        span: LocatedSpan,
     },
 }
 
@@ -340,6 +354,24 @@ impl std::fmt::Display for ParseError {
                 "test-definition error at line {line}: position requires {expected}, but '&{name}' references a TextValue binding",
                 line = span.line,
             ),
+            ParseError::MalformedInterpolationMarker { span } => write!(
+                f,
+                "parse error at line {line}, column {column}: '&' is reserved in an interpolated literal and must open a '&{{name}}' binding reference; write '\\&' for a literal '&'",
+                line = span.line,
+                column = span.column,
+            ),
+            ParseError::UnterminatedInterpolationReference { span } => write!(
+                f,
+                "parse error at line {line}, column {column}: binding reference '&{{' is not closed by '}}' on the same line",
+                line = span.line,
+                column = span.column,
+            ),
+            ParseError::EmptyInterpolationBindingName { span } => write!(
+                f,
+                "parse error at line {line}, column {column}: binding reference '&{{}}' names no binding",
+                line = span.line,
+                column = span.column,
+            ),
         }
     }
 }
@@ -416,6 +448,15 @@ impl ParseError {
                 DiagnosticCode::SemanticBindingRequiresAction
             }
             ParseError::BindingTypeMismatch { .. } => DiagnosticCode::SemanticBindingTypeMismatch,
+            ParseError::MalformedInterpolationMarker { .. } => {
+                DiagnosticCode::ParseInterpolatedTextMalformedMarker
+            }
+            ParseError::UnterminatedInterpolationReference { .. } => {
+                DiagnosticCode::ParseInterpolatedTextUnterminatedReference
+            }
+            ParseError::EmptyInterpolationBindingName { .. } => {
+                DiagnosticCode::ParseInterpolatedTextEmptyBindingName
+            }
         }
     }
 
@@ -607,6 +648,19 @@ impl ParseError {
                     actual_kind: Some("TextValue".to_string()),
                     ..Default::default()
                 },
+            ),
+            // The offending marker text is not carried in `raw_value`: an
+            // interpolated literal's content may hold expected values a
+            // diagnostic should not echo in full, and the span already locates
+            // the marker precisely.
+            ParseError::MalformedInterpolationMarker { span }
+            | ParseError::UnterminatedInterpolationReference { span }
+            | ParseError::EmptyInterpolationBindingName { span } => (
+                Some(DiagnosticLocation {
+                    line: span.line,
+                    column: Some(span.column),
+                }),
+                DiagnosticDetails::default(),
             ),
         };
 

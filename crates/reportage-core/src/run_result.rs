@@ -15,11 +15,12 @@ use sha2::{Digest, Sha256};
 use crate::artifact::{action_id, test_id};
 use crate::contents_diagnostic::mismatch_context;
 use crate::diagnostic::{DiagnosticCode, DiagnosticLocation};
+use crate::model::{CaptureMode, InterpolatedTextForm, OutputSource};
 use crate::result::{
     ActionResult, CaseResult, CaseStatus, ContentsEqualsComparison, ContentsEqualsExpectedSource,
     ContentsEqualsObservation, ContentsEqualsOutcome, DirContainsObservation, DirExistsObservation,
     ExecutionReport, ExpectationKind, ExpectationResult, FileContentObservation, FileErrorKind,
-    FileExistsObservation, TextEqualsExpectedSource,
+    FileExistsObservation, TextValueProvenance,
 };
 
 /// Version of the canonical artifact result contract (`spec/artifacts/run-result/schema.json`).
@@ -608,32 +609,68 @@ fn expected_source_json(source: &ContentsEqualsExpectedSource) -> Value {
 }
 
 /// JSON representation of a `text_equals` expected value's source. Unlike
-/// `expected_source_json` (a reference to another file), the full inline text is included
-/// verbatim — it is already present in the script source, mirroring how `fileContains`'s
+/// `expected_source_json` (a reference to another file), a raw literal's full inline text is
+/// included verbatim — it is already present in the script source, mirroring how `fileContains`'s
 /// `expected` field includes its full inline expected text.
-fn text_equals_expected_source_json(source: &TextEqualsExpectedSource) -> Value {
+///
+/// An interpolated literal is the deliberate exception: its resolved result mixes script text with
+/// runtime-captured binding values, so it is described by form, source position, and the bindings
+/// it substituted, never reproduced in full.
+fn text_equals_expected_source_json(source: &TextValueProvenance) -> Value {
     match source {
-        TextEqualsExpectedSource::Quoted(value) => json!({
+        TextValueProvenance::Quoted(value) => json!({
             "kind": "quoted",
             "value": value,
         }),
-        TextEqualsExpectedSource::Heredoc(value) => json!({
+        TextValueProvenance::Heredoc(value) => json!({
             "kind": "heredoc",
             "value": value,
         }),
-        TextEqualsExpectedSource::Binding { name, source } => json!({
+        TextValueProvenance::Binding { name, source } => json!({
             "kind": "binding",
             "name": name,
             "actionIndex": source.action_index,
-            "stream": match source.stream {
-                crate::model::OutputSource::Stdout => "stdout",
-                crate::model::OutputSource::Stderr => "stderr",
-            },
-            "captureMode": match source.capture_mode {
-                crate::model::CaptureMode::Exact => "exact",
-                crate::model::CaptureMode::Line => "line",
-            },
+            "stream": output_stream_name(source.stream),
+            "captureMode": capture_mode_name(source.capture_mode),
         }),
+        TextValueProvenance::Interpolated {
+            form,
+            span,
+            references,
+        } => json!({
+            "kind": "interpolated",
+            "form": match form {
+                InterpolatedTextForm::String => "string",
+                InterpolatedTextForm::Heredoc => "heredoc",
+            },
+            "line": span.line,
+            "column": span.column,
+            "references": references
+                .iter()
+                .map(|reference| json!({
+                    "name": reference.name,
+                    "line": reference.reference_span.line,
+                    "column": reference.reference_span.column,
+                    "actionIndex": reference.source.action_index,
+                    "stream": output_stream_name(reference.source.stream),
+                    "captureMode": capture_mode_name(reference.source.capture_mode),
+                }))
+                .collect::<Vec<_>>(),
+        }),
+    }
+}
+
+fn output_stream_name(stream: OutputSource) -> &'static str {
+    match stream {
+        OutputSource::Stdout => "stdout",
+        OutputSource::Stderr => "stderr",
+    }
+}
+
+fn capture_mode_name(mode: CaptureMode) -> &'static str {
+    match mode {
+        CaptureMode::Exact => "exact",
+        CaptureMode::Line => "line",
     }
 }
 
@@ -711,7 +748,7 @@ fn stream_text_equals_json(
     stream: &str,
     test_id: &str,
     action_ref: Option<&str>,
-    expected_source: &TextEqualsExpectedSource,
+    expected_source: &TextValueProvenance,
     comparison: &ContentsEqualsComparison,
 ) -> Value {
     let mut value = json!({
@@ -749,7 +786,7 @@ fn contains_stream_expectation_json(
     stream: &str,
     test_id: &str,
     action_ref: Option<&str>,
-    expected_source: &TextEqualsExpectedSource,
+    expected_source: &TextValueProvenance,
     actual: &[u8],
 ) -> Value {
     let expected = text_expected_source_display(expected_source);
@@ -759,12 +796,15 @@ fn contains_stream_expectation_json(
     value
 }
 
-fn text_expected_source_display(source: &TextEqualsExpectedSource) -> String {
+fn text_expected_source_display(source: &TextValueProvenance) -> String {
     match source {
-        TextEqualsExpectedSource::Quoted(value) | TextEqualsExpectedSource::Heredoc(value) => {
-            value.clone()
-        }
-        TextEqualsExpectedSource::Binding { name, .. } => format!("&{name}"),
+        TextValueProvenance::Quoted(value) | TextValueProvenance::Heredoc(value) => value.clone(),
+        TextValueProvenance::Binding { name, .. } => format!("&{name}"),
+        TextValueProvenance::Interpolated {
+            form,
+            span,
+            references,
+        } => TextValueProvenance::describe_interpolated(*form, *span, references),
     }
 }
 
@@ -956,7 +996,7 @@ mod tests {
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
-                        expected_source: TextEqualsExpectedSource::Quoted("hello".to_string()),
+                        expected_source: TextValueProvenance::Quoted("hello".to_string()),
                         actual: b"hello\n".to_vec(),
                     },
                     passed: true,
@@ -1037,7 +1077,7 @@ mod tests {
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
-                        expected_source: TextEqualsExpectedSource::Quoted("world".to_string()),
+                        expected_source: TextValueProvenance::Quoted("world".to_string()),
                         actual: b"hello\n".to_vec(),
                     },
                     passed: false,
@@ -1125,7 +1165,7 @@ mod tests {
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
-                        expected_source: TextEqualsExpectedSource::Quoted("world".to_string()),
+                        expected_source: TextValueProvenance::Quoted("world".to_string()),
                         actual: b"hello\n".to_vec(),
                     },
                     passed: false,
@@ -1399,7 +1439,7 @@ mod tests {
                     ExpectationResult {
                         kind: ExpectationKind::FileContains {
                             path: "out.txt".to_string(),
-                            expected_source: TextEqualsExpectedSource::Quoted("ok".to_string()),
+                            expected_source: TextValueProvenance::Quoted("ok".to_string()),
                             observation: FileContentObservation::NotFound,
                         },
                         passed: false,
@@ -1457,7 +1497,7 @@ mod tests {
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::FileTextEquals {
                         path: "out.txt".to_string(),
-                        expected_source: TextEqualsExpectedSource::Quoted("hello".to_string()),
+                        expected_source: TextValueProvenance::Quoted("hello".to_string()),
                         observation: ContentsEqualsObservation::Compared(comparison),
                     },
                     passed: false,
@@ -1552,7 +1592,7 @@ mod tests {
     #[test]
     fn file_text_equals_heredoc_expected_source_json_shape() {
         // Mirrors `file_text_equals_expectation_kind_json_shape`, but for the `Heredoc` variant
-        // of `TextEqualsExpectedSource`: the `Quoted` case above must not be the only one
+        // of `TextValueProvenance`: the `Quoted` case above must not be the only one
         // exercised, since `text_equals_expected_source_json`'s two match arms are otherwise
         // untested on the `Heredoc` side.
         let comparison = ContentsEqualsComparison::compare(
@@ -1570,9 +1610,7 @@ mod tests {
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::FileTextEquals {
                         path: "out.txt".to_string(),
-                        expected_source: TextEqualsExpectedSource::Heredoc(
-                            "hello\nworld\n".to_string(),
-                        ),
+                        expected_source: TextValueProvenance::Heredoc("hello\nworld\n".to_string()),
                         observation: ContentsEqualsObservation::Compared(comparison),
                     },
                     passed: false,

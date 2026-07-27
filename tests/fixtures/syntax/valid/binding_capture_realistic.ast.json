@@ -55,7 +55,10 @@
               "kind": "stdout",
               "matcher": {
                 "kind": "contains",
-                "value": "resolved_revision"
+                "value": {
+                  "kind": "binding",
+                  "name": "resolved_revision"
+                }
               }
             }
           ]

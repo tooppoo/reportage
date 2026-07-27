@@ -12,6 +12,11 @@
     - [Single-line capture](#case-1-3-2-single-line-capture)
     - [capture exact stderr including newlines](#case-1-3-3-capture-exact-stderr-including-newlines)
     - [capture one stderr line for a later assertion](#case-1-3-4-capture-one-stderr-line-for-a-later-assertion)
+  - [Interpolated text literals](#file-1-4-interpolated-text-literals)
+    - [assert a captured revision inside surrounding expected text](#case-1-4-1-assert-a-captured-revision-inside-surrounding-expected-text)
+    - [Interpolated heredoc](#case-1-4-2-interpolated-heredoc)
+    - [Raw literals are never interpolated](#case-1-4-3-raw-literals-are-never-interpolated)
+    - [Escaping a literal ampersand](#case-1-4-4-escaping-a-literal-ampersand)
 - [Assertions](#group-2-assertions)
   - [stdout and stderr expectations](#file-2-1-stdout-and-stderr-expectations)
     - [stdout is empty](#case-2-1-1-stdout-is-empty)
@@ -197,6 +202,111 @@ case "capture one stderr line for a later assertion" {
   }
 }
 ```
+
+<a id="file-1-4-interpolated-text-literals"></a>
+### Interpolated text literals
+
+Source: examples/interpolated-text.repor
+
+An interpolated text literal builds a `TextValue` from literal text and case-local bindings.
+Prefix a string literal or a heredoc literal with `&`, then reference a binding as `&{name}` inside it.
+Ordinary `"..."` and heredoc literals stay raw: `&{name}` written in one of those is literal text, which keeps shell scripts and other template syntax predictable.
+Inside an interpolated literal `&` is reserved, so a literal ampersand is written `\&`.
+
+<a id="case-1-4-1-assert-a-captured-revision-inside-surrounding-expected-text"></a>
+#### assert a captured revision inside surrounding expected text
+
+```reportage
+case "assert a captured revision inside surrounding expected text" {
+  $ printf 'abc123\n'
+  let revision <- stdout_line
+
+  write <"lock.json"> &"{\"resolved_revision\": \"&{revision}\"}\n"
+
+  assert {
+    file <"lock.json"> contains &"\"resolved_revision\": \"&{revision}\""
+  }
+}
+```
+
+<a id="case-1-4-2-interpolated-heredoc"></a>
+#### Interpolated heredoc
+
+An interpolated heredoc is dedented against its closing fence first, and the binding value is then inserted exactly as captured.
+A multi-line binding value is never re-indented to match the reference's own indentation: the runtime value is inserted unchanged.
+
+````reportage
+case "render a fixture file from a value produced by the run" {
+  $ printf 'file:///source-repo\n'
+  let source_url <- stdout_line
+
+  write <"provider.kdl"> &```
+    provider {
+      skills {
+        skill "demo-skill" {
+          url "&{source_url}"
+          branch "main"
+        }
+      }
+    }
+    ```
+
+  assert {
+    file <"provider.kdl"> contains &"url \"&{source_url}\""
+  }
+}
+````
+
+<a id="case-1-4-3-raw-literals-are-never-interpolated"></a>
+#### Raw literals are never interpolated
+
+A raw literal keeps `&{name}` as literal text, so a shell script or another template engine's syntax can be written verbatim.
+Only the `&`-prefixed forms interpolate.
+
+````reportage
+case "write a shell script whose own placeholder must survive verbatim" {
+  $ printf 'v1\n'
+  let tag <- stdout_line
+
+  write <"release.sh"> ```
+    echo "&{tag}"
+    ```
+
+  write <"release.txt"> &"released &{tag}"
+
+  assert {
+    file <"release.sh"> contains "&{tag}"
+    file <"release.txt"> text_equals "released v1"
+  }
+}
+````
+
+<a id="case-1-4-4-escaping-a-literal-ampersand"></a>
+#### Escaping a literal ampersand
+
+`\&` produces a literal `&`, so `\&{name}` is the literal text `&{name}` rather than a binding reference.
+An interpolated heredoc keeps every other backslash literal, exactly as a raw heredoc does.
+
+````reportage
+case "mix literal ampersands, escaped markers, and real references" {
+  $ printf 'v1\n'
+  let tag <- stdout_line
+
+  write <"notes.txt"> &```
+    matched by \d+ under C:\temp
+    literal marker: \&{tag}
+    interpolated:   &{tag}
+    ```
+
+  assert {
+    file <"notes.txt"> text_equals ```
+      matched by \d+ under C:\temp
+      literal marker: &{tag}
+      interpolated:   v1
+      ```
+  }
+}
+````
 
 <a id="group-2-assertions"></a>
 ## Assertions

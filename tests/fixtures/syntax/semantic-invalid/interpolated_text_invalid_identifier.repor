@@ -1,0 +1,6 @@
+case "c" {
+  $ true
+  assert {
+    stdout contains &"&{1revision}"
+  }
+}

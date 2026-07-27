@@ -18,7 +18,10 @@
               "kind": "stdout",
               "matcher": {
                 "kind": "contains",
-                "value": "a\nb"
+                "value": {
+                  "kind": "quoted",
+                  "value": "a\nb"
+                }
               }
             }
           ]

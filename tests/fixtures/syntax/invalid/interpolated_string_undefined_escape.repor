@@ -1,0 +1,8 @@
+# An interpolated string literal allows only \\, \", \n, \t, and \&; every other
+# backslash sequence is a syntax error, exactly as in a raw string literal.
+case "c" {
+  $ true
+  assert {
+    stdout contains &"\d+"
+  }
+}

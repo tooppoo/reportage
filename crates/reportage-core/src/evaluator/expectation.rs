@@ -5,17 +5,18 @@ use super::{Checkpoint, observation};
 use crate::diagnostic::DiagnosticCode;
 use crate::fixture;
 use crate::model::{
-    Binding, BoundValue, DirExpectation, DirMatcher, Expectation, FileContentsReference,
-    FileExpectation, FileMatcher, LogicalOperator, OutputMatcher, TextLiteral, TextSource,
+    Binding, DirExpectation, DirMatcher, Expectation, FileContentsReference, FileExpectation,
+    FileMatcher, LogicalOperator, OutputMatcher, TextValue, TextValueExpression,
 };
 use crate::result::{
     ContentsEqualsComparison, ContentsEqualsExpectedSource, ContentsEqualsObservation,
     ContentsEqualsOutcome, DirContainsObservation, DirExistsObservation, ExpectationKind,
-    ExpectationResult, FileContentObservation, FileExistsObservation, TextEqualsExpectedSource,
+    ExpectationResult, FileContentObservation, FileExistsObservation, TextValueProvenance,
 };
 use crate::semantic::{
     SemanticError, validate_dir_entry_name, validate_dir_path, validate_file_path,
 };
+use crate::text_value::{ResolveTextValue, ResolvedTextValue, TextResolutionContext};
 
 // Keep each fallible expected-content operation on the same early-return path while allowing
 // the call site to provide its own user-facing message and diagnostic code. This is a macro rather
@@ -177,12 +178,12 @@ pub(super) fn evaluate_expectation_with_bindings(
                 .map(|a| a.stdout.clone())
                 .unwrap_or_default();
             match &exp.matcher {
-                OutputMatcher::Contains(source) => {
-                    let expected = resolve_text_source(source, bindings)?;
+                OutputMatcher::Contains(expression) => {
+                    let (expected, expected_source) = resolve_expected_text(expression, bindings)?;
                     let passed = bytes_contains(&actual, expected.as_str().as_bytes());
                     Ok(ExpectationResult {
                         kind: ExpectationKind::StdoutContains {
-                            expected_source: text_expected_source(source, bindings),
+                            expected_source,
                             actual,
                         },
                         passed,
@@ -211,9 +212,9 @@ pub(super) fn evaluate_expectation_with_bindings(
                         passed,
                     })
                 }
-                OutputMatcher::TextEquals(text_source) => {
+                OutputMatcher::TextEquals(expression) => {
                     let (expected_source, comparison) =
-                        compare_output_text_equals(text_source, actual, bindings)?;
+                        compare_output_text_equals(expression, actual, bindings)?;
                     let passed = matches!(comparison.outcome, ContentsEqualsOutcome::Match);
                     Ok(ExpectationResult {
                         kind: ExpectationKind::StdoutTextEquals {
@@ -233,12 +234,12 @@ pub(super) fn evaluate_expectation_with_bindings(
                 .map(|a| a.stderr.clone())
                 .unwrap_or_default();
             match &exp.matcher {
-                OutputMatcher::Contains(source) => {
-                    let expected = resolve_text_source(source, bindings)?;
+                OutputMatcher::Contains(expression) => {
+                    let (expected, expected_source) = resolve_expected_text(expression, bindings)?;
                     let passed = bytes_contains(&actual, expected.as_str().as_bytes());
                     Ok(ExpectationResult {
                         kind: ExpectationKind::StderrContains {
-                            expected_source: text_expected_source(source, bindings),
+                            expected_source,
                             actual,
                         },
                         passed,
@@ -267,9 +268,9 @@ pub(super) fn evaluate_expectation_with_bindings(
                         passed,
                     })
                 }
-                OutputMatcher::TextEquals(text_source) => {
+                OutputMatcher::TextEquals(expression) => {
                     let (expected_source, comparison) =
-                        compare_output_text_equals(text_source, actual, bindings)?;
+                        compare_output_text_equals(expression, actual, bindings)?;
                     let passed = matches!(comparison.outcome, ContentsEqualsOutcome::Match);
                     Ok(ExpectationResult {
                         kind: ExpectationKind::StderrTextEquals {
@@ -333,7 +334,7 @@ fn bytes_contains(haystack: &[u8], needle: &[u8]) -> bool {
     needle.is_empty() || haystack.windows(needle.len()).any(|w| w == needle)
 }
 
-/// Compares captured stream bytes against a `text_equals` expected `TextLiteral`.
+/// Compares captured stream bytes against a `text_equals` expected text expression.
 ///
 /// The expected side is resolved to its `TextValue`'s UTF-8 bytes and compared byte-for-byte,
 /// exactly like `FileMatcher::TextEquals` (see `evaluate_file_expectation`). Unlike a `file`
@@ -341,73 +342,33 @@ fn bytes_contains(haystack: &[u8], needle: &[u8]) -> bool {
 /// (possibly empty), so the comparison outcome is the whole result.
 /// See docs/adr — output text_equals evaluation.
 fn compare_output_text_equals(
-    text_source: &TextSource,
+    expression: &TextValueExpression,
     actual: Vec<u8>,
     bindings: &HashMap<String, Binding>,
-) -> Result<(TextEqualsExpectedSource, ContentsEqualsComparison), ExpectedContentsError> {
-    let expected_value = resolve_text_source(text_source, bindings)?;
-    let expected_source = match text_source {
-        TextSource::Literal(TextLiteral::Quoted(value)) => {
-            TextEqualsExpectedSource::Quoted(value.clone())
-        }
-        TextSource::Literal(TextLiteral::Heredoc(value)) => {
-            TextEqualsExpectedSource::Heredoc(value.clone())
-        }
-        TextSource::Binding(reference) => {
-            let binding = bindings
-                .get(&reference.name)
-                .expect("binding references are validated before evaluation");
-            TextEqualsExpectedSource::Binding {
-                name: reference.name.clone(),
-                source: binding.source,
-            }
-        }
-    };
-    let expected_bytes = expected_value.as_str().as_bytes().to_vec();
+) -> Result<(TextValueProvenance, ContentsEqualsComparison), ExpectedContentsError> {
+    let (expected, expected_source) = resolve_expected_text(expression, bindings)?;
+    let expected_bytes = expected.as_str().as_bytes().to_vec();
     let comparison = ContentsEqualsComparison::compare(actual, expected_bytes);
     Ok((expected_source, comparison))
 }
 
-fn text_expected_source(
-    source: &TextSource,
+/// Resolves an expected text expression to the value to compare and the
+/// provenance to record.
+///
+/// Every text matcher goes through here, so none of them inspects which source
+/// form produced the value — the provenance the resolver attached is what the
+/// result carries.
+fn resolve_expected_text(
+    expression: &TextValueExpression,
     bindings: &HashMap<String, Binding>,
-) -> TextEqualsExpectedSource {
-    match source {
-        TextSource::Literal(TextLiteral::Quoted(value)) => {
-            TextEqualsExpectedSource::Quoted(value.clone())
-        }
-        TextSource::Literal(TextLiteral::Heredoc(value)) => {
-            TextEqualsExpectedSource::Heredoc(value.clone())
-        }
-        TextSource::Binding(reference) => {
-            let binding = bindings
-                .get(&reference.name)
-                .expect("binding references are validated before evaluation");
-            TextEqualsExpectedSource::Binding {
-                name: reference.name.clone(),
-                source: binding.source,
-            }
-        }
-    }
-}
-
-fn resolve_text_source(
-    source: &TextSource,
-    bindings: &HashMap<String, Binding>,
-) -> Result<crate::model::TextValue, ExpectedContentsError> {
-    match source {
-        TextSource::Literal(literal) => Ok(literal.to_text_value()),
-        TextSource::Binding(reference) => match bindings.get(&reference.name) {
-            Some(Binding {
-                value: BoundValue::Text(value),
-                ..
-            }) => Ok(value.clone()),
-            None => Err(ExpectedContentsError {
-                message: format!("binding '{}' is unavailable", reference.name),
-                diagnostic_code: DiagnosticCode::SemanticBindingUndefined,
-            }),
-        },
-    }
+) -> Result<(TextValue, TextValueProvenance), ExpectedContentsError> {
+    expression
+        .resolve_text_value(&TextResolutionContext::new(bindings))
+        .map(ResolvedTextValue::into_parts)
+        .map_err(|error| ExpectedContentsError {
+            message: error.message,
+            diagnostic_code: error.diagnostic_code,
+        })
 }
 
 fn evaluate_file_contains_observation(
@@ -489,17 +450,17 @@ fn evaluate_file_expectation(
                 passed,
             })
         }
-        FileMatcher::Contains(expected) => {
-            let expected_value = resolve_text_source(expected, bindings)?;
+        FileMatcher::Contains(expression) => {
+            let (expected, expected_source) = resolve_expected_text(expression, bindings)?;
             let observation = evaluate_file_contains_observation(
                 observation::observe_file(workspace_root, &exp.path),
-                expected_value.as_str(),
+                expected.as_str(),
             );
             let passed = matches!(observation, FileContentObservation::Found);
             Ok(ExpectationResult {
                 kind: ExpectationKind::FileContains {
                     path: exp.path.clone(),
-                    expected_source: text_expected_source(expected, bindings),
+                    expected_source,
                     observation,
                 },
                 passed,
@@ -528,26 +489,9 @@ fn evaluate_file_expectation(
                 passed,
             })
         }
-        FileMatcher::TextEquals(text_source) => {
-            let expected_value = resolve_text_source(text_source, bindings)?;
-            let expected_source = match text_source {
-                TextSource::Literal(TextLiteral::Quoted(value)) => {
-                    TextEqualsExpectedSource::Quoted(value.clone())
-                }
-                TextSource::Literal(TextLiteral::Heredoc(value)) => {
-                    TextEqualsExpectedSource::Heredoc(value.clone())
-                }
-                TextSource::Binding(reference) => {
-                    let binding = bindings
-                        .get(&reference.name)
-                        .expect("binding references are validated before evaluation");
-                    TextEqualsExpectedSource::Binding {
-                        name: reference.name.clone(),
-                        source: binding.source,
-                    }
-                }
-            };
-            let expected_bytes = expected_value.as_str().as_bytes().to_vec();
+        FileMatcher::TextEquals(expression) => {
+            let (expected, expected_source) = resolve_expected_text(expression, bindings)?;
+            let expected_bytes = expected.as_str().as_bytes().to_vec();
             let observation = evaluate_file_equals_observation(
                 observation::observe_file(workspace_root, &exp.path),
                 expected_bytes,

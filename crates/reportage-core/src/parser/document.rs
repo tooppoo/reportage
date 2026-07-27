@@ -51,7 +51,9 @@ fn parse_document_description_heredoc_field(
         .into_inner()
         .next()
         .expect("document_description_heredoc_field must have heredoc_literal");
-    Ok(DocumentationText::new(parse_heredoc_literal(literal_pair)?))
+    Ok(DocumentationText::new(
+        parse_heredoc_literal(literal_pair)?.into_text(),
+    ))
 }
 
 /// Parses a `document_file_block` pair into [`FileDocumentation`], enforcing

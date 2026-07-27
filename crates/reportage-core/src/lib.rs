@@ -19,4 +19,5 @@ pub mod shim_event;
 pub mod shim_scaffold;
 pub mod source;
 pub mod suite;
+pub mod text_value;
 pub mod workspace;

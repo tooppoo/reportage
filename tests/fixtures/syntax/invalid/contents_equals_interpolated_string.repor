@@ -1,0 +1,8 @@
+# `contents_equals` expects a FileContentsReference, so an interpolated text
+# literal is not part of its syntax.
+case "c" {
+  $ true
+  assert {
+    file <"out.txt"> contents_equals &"expected.txt"
+  }
+}

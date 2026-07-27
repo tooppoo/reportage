@@ -474,6 +474,38 @@ Semantic conformance verifies the expected pass/fail result by passing the norma
 | invalid: a fixture reference is a script error when it resolves to a directory, not a regular file | `"file <\\"actual.txt\\"> contents_equals @\\"expected.txt\\""` | `{"expected":{"kind":"fixtureReference","value":"expected.txt"},"operator":"contentsEquals","path":"actual.txt","subject":"file"}` | `{"exitCode":0,"stderr":{"data":"","encoding":"base64","text":""},"stdout":{"data":"","encoding":"base64","text":""},"workspace":{"files":[{"contents":{"data":"aGVsbG8=","encoding":"base64","text":"hello"},"path":"actual.txt"}],"reporDirDirs":["expected.txt"]}}` | `scriptError` | `semantic.fixture_reference.not_a_regular_file` |
 | invalid: a fixture reference is a script error when a symlink planted under repor_dir makes it escape repor_dir, even though the reference itself has no '.'/'..' segment | `"file <\\"actual.txt\\"> contents_equals @\\"escape/secret.txt\\""` | `{"expected":{"kind":"fixtureReference","value":"escape/secret.txt"},"operator":"contentsEquals","path":"actual.txt","subject":"file"}` | `{"exitCode":0,"stderr":{"data":"","encoding":"base64","text":""},"stdout":{"data":"","encoding":"base64","text":""},"workspace":{"files":[{"contents":{"data":"aGVsbG8=","encoding":"base64","text":"hello"},"path":"actual.txt"}],"reporDirSymlinks":[{"outsideDirFiles":[{"contents":{"data":"c2VjcmV0","encoding":"base64","text":"secret"},"path":"secret.txt"}],"path":"escape"}]}}` | `scriptError` | `semantic.fixture_reference.escapes_repor_directory` |
 
+## value-reference.interpolated-text.resolve
+
+- Source: `spec/language/semantics/value-reference.interpolated-text.resolve.json`
+- Syntax form: `&"prefix &{name} suffix"`
+- Category: `value-reference`
+
+### Normative Fields
+
+| Field | Value |
+|---|---|
+| appliesNoTransformation | `["escaping","quoting","trim","indentation","newlineNormalization","unicodeNormalization","pathNormalization","recursiveInterpolation"]` |
+| bindingSource | `"caseLocalImmutableBinding"` |
+| diagnosticCodes | `{"emptyBindingName":"parse.interpolated_text.empty_binding_name","invalidIdentifier":"semantic.binding.invalid_identifier","malformedMarker":"parse.interpolated_text.malformed_marker","undefinedBinding":"semantic.binding.undefined","unterminatedReference":"parse.interpolated_text.unterminated_reference","useBeforeDeclaration":"semantic.binding.use_before_declaration"}` |
+| forms | `["interpolatedString","interpolatedHeredoc"]` |
+| notUsedBy | `["workspace path literal","fixture reference literal","file contents_equals expected value","stdout contents_equals expected value","stderr contents_equals expected value","dir contains entry name","exit code","action command source"]` |
+| rejects | `["malformedMarker","unterminatedReference","emptyBindingName","invalidIdentifier","undefinedBinding","useBeforeDeclaration"]` |
+| substitution | `"exactUtf8TextValue"` |
+| usedBy | `["write step content","file contains expected text","file text_equals expected text","stdout contains expected text","stdout text_equals expected text","stderr contains expected text","stderr text_equals expected text"]` |
+
+### Conformance Cases
+
+| Description | Assertion source | Normalized assertion | Checkpoint | Expected result | Expected diagnostic |
+|---|---|---|---|---|---|
+| an interpolated string literal that references no binding resolves to its literal text | `"file <\\"out.txt\\"> contains &\\"resolved_revision\\""` | - | - | `valid` | - |
+| a literal ampersand is written as an escape and does not open a reference | `"stdout contains &\\"a \\\\& b\\""` | - | - | `valid` | - |
+| invalid: an unescaped ampersand that opens no reference is rejected | `"stdout contains &\\"a & b\\""` | - | - | `parseError` | `parse.interpolated_text.malformed_marker` |
+| invalid: a binding reference that its line never closes is rejected | `"stdout contains &\\"&{revision\\""` | - | - | `parseError` | `parse.interpolated_text.unterminated_reference` |
+| invalid: a binding reference naming no binding is rejected | `"stdout contains &\\"&{}\\""` | - | - | `parseError` | `parse.interpolated_text.empty_binding_name` |
+| invalid: a binding reference whose name is not a binding identifier is rejected | `"stdout contains &\\"&{1revision}\\""` | - | - | `parseError` | `semantic.binding.invalid_identifier` |
+| invalid: a binding reference to an undeclared binding is rejected | `"stdout contains &\\"&{revision}\\""` | - | - | `parseError` | `semantic.binding.undefined` |
+| invalid: a contents_equals expected value takes a FileContentsReference, so an interpolated literal is not part of its syntax | `"file <\\"out.txt\\"> contents_equals &\\"expected.txt\\""` | - | - | `parseError` | `parse.syntax` |
+
 ## value-reference.literal.kind-mismatch
 
 - Source: `spec/language/semantics/value-reference.literal.kind-mismatch.json`

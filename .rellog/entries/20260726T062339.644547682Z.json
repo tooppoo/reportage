@@ -1,0 +1,11 @@
+{
+  "kind": "added",
+  "targets": [
+    "core",
+    "docs"
+  ],
+  "links": [
+    "https://github.com/tooppoo/reportage/issues/71"
+  ],
+  "body": "support interpolated text literals.\n`\u0026\"...\"` and `\u0026` + heredoc embed case-local bindings via `\u0026{name}`, while raw literals stay non-interpolating."
+}

@@ -1,0 +1,7 @@
+# `&{` must be closed by `}` on the same line.
+case "c" {
+  $ true
+  assert {
+    stdout contains &"&{revision"
+  }
+}
