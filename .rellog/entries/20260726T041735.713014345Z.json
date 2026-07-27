@@ -1,8 +1,0 @@
-{
-  "kind": "added",
-  "targets": [
-    "core"
-  ],
-  "links": [],
-  "body": "support `let` bindings.\nuser can capture stdout or stderr of an action and use on assertion\n."
-}
