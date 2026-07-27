@@ -1,5 +1,7 @@
-//! Entry point for repository maintenance tasks. Keep this thin: everything worth testing
-//! belongs in the library modules, because this file is excluded from coverage enforcement.
+//! Entry point for repository maintenance tasks. Keep this thin: command behaviour belongs in
+//! the library modules, where it can be tested without spawning a process. What is left here is
+//! covered by the process-level tests in `tests/cli.rs`, and this file is inside the coverage
+//! gate, so logic added here has to be exercised.
 //!
 //! Exit codes are the tool's automation contract and are defined by
 //! [`xtask::output::Category`]: 0 success, 1 internal, 2 usage, 3 input, 4 filesystem,
