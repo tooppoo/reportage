@@ -1,0 +1,7 @@
+case "c" {
+  $ printf 'revision\n'
+  let 1revision <- stdout
+  assert {
+    exit 0
+  }
+}

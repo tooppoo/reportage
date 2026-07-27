@@ -904,8 +904,21 @@ fn semantic_invalid_binding_fixtures_parse_grammar_but_fail_construction_validat
     // A binding reference inside an interpolated literal is validated by the
     // same scope walk as a direct `&name` reference, so the two forms share
     // these diagnostics. See #71.
+    //
+    // The identifier check has three independent call sites — the `let`
+    // declaration, a direct `&name` reference, and a `&{name}` reference — so
+    // each is pinned separately: the grammar's `binding_identifier` accepts a
+    // leading digit, and only parser construction rejects it.
     let expected = [
+        (
+            "binding_declaration_invalid_identifier",
+            "semantic.binding.invalid_identifier",
+        ),
         ("binding_duplicate", "semantic.binding.duplicate"),
+        (
+            "binding_reference_invalid_identifier",
+            "semantic.binding.invalid_identifier",
+        ),
         ("binding_type_mismatch", "semantic.binding.type_mismatch"),
         (
             "binding_use_before_declaration",

@@ -1,0 +1,7 @@
+case "c" {
+  $ printf 'revision\n'
+  let revision <- stdout
+  assert {
+    stdout contains &1revision
+  }
+}
