@@ -1,7 +1,7 @@
 //! Representative-fixture conformance for the artifact `result.json` manifest (issue #102).
 //!
 //! Mirrors `json_report_fixtures.rs`'s approach to "schema validation": each fixture run's `result.json` is deserialised into typed Rust structs marked `#[serde(deny_unknown_fields)]`, rather than run through an external JSON Schema validator.
-//! See `spec/artifacts/run-result/schema.json` for the authoritative contract.
+//! See `spec/artifacts/run-result/schema.json` for the authoritative contract. That file is generated: edit `spec/artifacts/run-result/schema.internal.json` and run `just schema-artifacts-gen`.
 //!
 //! Unlike `json_report_fixtures.rs` (whose structs deliberately model only the expectation kinds its fixtures exercise), the structs here model the *full* stable contract the schema defines — every expectation kind, observation enum, and diagnostic shape — because `result.json` is the canonical manifest of a run (see issue #102's requirement that typed validation covers the whole stable contract, not just fixture-exercised shapes).
 //!
@@ -29,7 +29,8 @@ use serde_json::Value;
 // ---------------------------------------------------------------------------
 // Typed representation of the artifact result document (schema validation)
 //
-// One struct/enum per shape in spec/artifacts/run-result/schema.json, in the same order.
+// One struct/enum per shape in spec/artifacts/run-result/schema.internal.json, the hand-edited
+// source of the generated public spec/artifacts/run-result/schema.json, in the same order.
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]

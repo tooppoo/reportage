@@ -15,7 +15,7 @@ use xtask::json::{self, JsonValue};
 use xtask::output::{OutputFormat, ReportBody, render};
 use xtask::schema_artifacts::{
     CONTRACTS, PreparationError, SNAPSHOT_ANNOTATION, SchemaContract, check, generate,
-    public_schema_text, repository_root,
+    public_schema_text, repository_root, temporary_path,
 };
 
 /// A json-report internal source schema carrying exactly the allowlisted annotations.
@@ -292,6 +292,22 @@ fn a_malformed_internal_source_reports_its_position() {
 }
 
 #[test]
+fn a_non_utf8_internal_source_is_an_input_failure() {
+    let root = synthetic_repository(JSON_REPORT_SOURCE, RUN_RESULT_SOURCE);
+    fs::write(
+        root.path().join(contract("run-result").internal_path),
+        [b'{', 0xff, b'}'],
+    )
+    .expect("write a non-UTF-8 schema");
+
+    let report = check(root.path());
+
+    assert_eq!(error_code(&report), "SOURCE_SCHEMA_NOT_UTF8");
+    assert_eq!(report.exit_code(), 3);
+    assert!(failure_text(&report).contains("first invalid byte at offset 1"));
+}
+
+#[test]
 fn a_missing_internal_source_is_a_filesystem_failure() {
     let root = TempDir::new().expect("temporary directory");
     let report = check(root.path());
@@ -344,6 +360,14 @@ fn a_dry_run_reports_planned_changes_without_writing() {
             .iter()
             .all(|change| change.state == xtask::output::FileState::Planned)
     );
+    match &report.body {
+        // The result block must not claim a mutation the dry run did not perform.
+        ReportBody::Success { result, .. } => {
+            assert_eq!(result["contracts"][0]["state"], "wouldCreate");
+            assert_eq!(result["contracts"][1]["state"], "wouldCreate");
+        }
+        other => panic!("expected success, got {other:?}"),
+    }
     assert!(
         !root
             .path()
@@ -404,6 +428,74 @@ fn check_detects_a_stale_public_schema_and_leaves_it_alone() {
         hand_edited,
         "check must not rewrite the working tree"
     );
+}
+
+#[test]
+fn an_unreadable_public_schema_is_a_filesystem_failure_not_a_stale_artifact() {
+    let root = synthetic_repository(JSON_REPORT_SOURCE, RUN_RESULT_SOURCE);
+    // A directory in the public schema's place fails every read with EISDIR, without depending
+    // on permission bits that a root-owned CI runner would ignore.
+    fs::create_dir_all(root.path().join(contract("json-report").public_path))
+        .expect("occupy the public schema path with a directory");
+
+    for report in [check(root.path()), generate(root.path(), false)] {
+        assert_eq!(error_code(&report), "PUBLIC_SCHEMA_UNREADABLE");
+        assert_eq!(
+            report.exit_code(),
+            4,
+            "an unreadable artifact must not be reported as a regenerable conflict"
+        );
+        let text = failure_text(&report);
+        assert!(!text.contains("just schema-artifacts-gen"), "{text}");
+    }
+}
+
+#[test]
+fn a_write_failure_still_reports_the_change_already_completed() {
+    let root = synthetic_repository(JSON_REPORT_SOURCE, RUN_RESULT_SOURCE);
+    let blocked = temporary_path(&root.path().join(contract("run-result").public_path));
+    fs::create_dir_all(&blocked).expect("occupy the staging path with a directory");
+
+    let report = generate(root.path(), false);
+
+    assert_eq!(error_code(&report), "PUBLIC_SCHEMA_WRITE_FAILED");
+    assert_eq!(report.exit_code(), 4);
+    assert_eq!(
+        report.file_changes,
+        vec![xtask::output::FileChange {
+            action: xtask::output::FileAction::Create,
+            path: contract("json-report").public_path.to_owned(),
+            state: xtask::output::FileState::Completed,
+        }],
+        "a partial mutation must stay visible in the failure report"
+    );
+    assert!(
+        root.path()
+            .join(contract("json-report").public_path)
+            .exists()
+    );
+    assert!(
+        !root
+            .path()
+            .join(contract("run-result").public_path)
+            .exists(),
+        "a failed write must not leave a truncated public schema"
+    );
+}
+
+#[test]
+fn a_successful_generation_leaves_no_staging_file_behind() {
+    let root = synthetic_repository(JSON_REPORT_SOURCE, RUN_RESULT_SOURCE);
+
+    generate(root.path(), false);
+
+    for contract in CONTRACTS {
+        assert!(
+            !temporary_path(&root.path().join(contract.public_path)).exists(),
+            "{} left staging debris",
+            contract.public_path
+        );
+    }
 }
 
 #[test]

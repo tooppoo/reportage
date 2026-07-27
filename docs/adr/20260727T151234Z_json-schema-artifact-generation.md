@@ -95,6 +95,19 @@ Generation lives in a non-published workspace crate, `crates/xtask`, invoked thr
 
 Keeping it out of the shipped crates means the reportage CLI does not grow a dependency, a binary, or a public API for a repository maintenance concern. Keeping its scope at "strip one annotation deterministically" means it is not a JSON Schema compiler, optimizer, or validator; contract validation is tracked separately by #192.
 
+Its exit codes are the automation contract CI branches on, and are stable:
+
+| Code | Category | Meaning |
+| --- | --- | --- |
+| 0 | — | Success. |
+| 1 | internal | A violated invariant inside the tool. |
+| 2 | usage | Invalid command line. |
+| 3 | input | The internal source schema is unusable: not UTF-8, not valid JSON, or annotations outside the allowlist. |
+| 4 | filesystem | A schema file could not be read or written. |
+| 5 | conflict | A committed public schema is missing or stale. |
+
+Only exit 5 means "regenerate and commit"; a filesystem fault must not be reported as staleness, because regenerating cannot fix it.
+
 ## Alternatives Considered
 
 ### Hand-maintain both schemas

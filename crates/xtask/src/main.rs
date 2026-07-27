@@ -6,9 +6,10 @@
 //! 5 conflict. Usage errors come from clap, which already exits with 2.
 
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 
 use xtask::output::{OutputFormat, Rendered, render};
 use xtask::schema_artifacts;
@@ -36,14 +37,27 @@ enum SchemaArtifactsAction {
         /// Report what would change without writing any file.
         #[arg(long)]
         dry_run: bool,
-        #[arg(long, value_enum, default_value_t = Format::Text)]
-        format: Format,
+        #[command(flatten)]
+        common: CommonArgs,
     },
     /// Verify each committed public `schema.json` matches its `schema.internal.json`.
     Check {
-        #[arg(long, value_enum, default_value_t = Format::Text)]
-        format: Format,
+        #[command(flatten)]
+        common: CommonArgs,
     },
+}
+
+#[derive(Args)]
+struct CommonArgs {
+    #[arg(long, value_enum, default_value_t = Format::Text)]
+    format: Format,
+    /// Repository root to operate on.
+    ///
+    /// Hidden because the `just` recipes never pass it. It exists so tests can drive the real
+    /// binary against a synthetic root and observe the process exit code, which is this tool's
+    /// automation contract and cannot be verified by calling the library directly.
+    #[arg(long, hide = true)]
+    root: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -62,19 +76,22 @@ impl From<Format> for OutputFormat {
 }
 
 fn main() -> ExitCode {
-    let cli = Cli::parse();
-    let root = schema_artifacts::repository_root();
-
-    let (report, format) = match cli.command {
-        Command::SchemaArtifacts {
-            action: SchemaArtifactsAction::Gen { dry_run, format },
-        } => (schema_artifacts::generate(&root, dry_run), format),
-        Command::SchemaArtifacts {
-            action: SchemaArtifactsAction::Check { format },
-        } => (schema_artifacts::check(&root), format),
+    let (action, common) = match Cli::parse().command {
+        Command::SchemaArtifacts { action } => match action {
+            SchemaArtifactsAction::Gen { dry_run, common } => (Some(dry_run), common),
+            SchemaArtifactsAction::Check { common } => (None, common),
+        },
     };
 
-    emit(render(&report, format.into()))
+    let root = common
+        .root
+        .unwrap_or_else(schema_artifacts::repository_root);
+    let report = match action {
+        Some(dry_run) => schema_artifacts::generate(&root, dry_run),
+        None => schema_artifacts::check(&root),
+    };
+
+    emit(render(&report, common.format.into()))
 }
 
 fn emit(rendered: Rendered) -> ExitCode {

@@ -7,6 +7,9 @@ cov.json
 # reportage artifacts
 .reportage/
 
+# staging files left behind by an interrupted `just schema-artifacts-gen`
+.*.json.tmp
+
 # vscode extension
 .pnpm-store/
 

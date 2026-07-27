@@ -3,7 +3,12 @@
 //! Commands in this crate build a [`Report`] and never decide how it is displayed. The
 //! rendering functions here are the only place that knows about streams, text layout, or the
 //! JSON envelope, which keeps `--format json` from leaking format branches into the schema
-//! artifact logic. See .claude/skills/cli-output-design for the contract this implements.
+//! artifact logic.
+//!
+//! The envelope shape is fixed by four rules the rest of the crate depends on: exactly one
+//! envelope per run, a successful envelope on stdout and a failed one on stderr with the other
+//! stream empty, an `error.category` that agrees with the process exit code, and a concrete
+//! `recovery` whenever `recoverable` is true.
 
 use serde_json::{Value, json};
 

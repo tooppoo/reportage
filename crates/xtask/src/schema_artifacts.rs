@@ -192,16 +192,30 @@ fn annotation_violations(allowed: &[&str], removed: &[String]) -> Vec<Annotation
 /// An internal source schema that failed before its public text could be produced.
 enum ContractFailure {
     Unreadable(Cause),
+    NotUtf8(Cause),
     Malformed(Cause),
     Annotations(Vec<Cause>),
 }
 
 fn prepare(root: &Path, contract: &'static SchemaContract) -> Result<String, Box<ContractFailure>> {
-    let source = fs::read_to_string(root.join(contract.internal_path)).map_err(|error| {
+    let bytes = fs::read(root.join(contract.internal_path)).map_err(|error| {
         Box::new(ContractFailure::Unreadable(internal_cause(
             contract,
             "SOURCE_SCHEMA_UNREADABLE",
             format!("internal source schema could not be read: {error}"),
+        )))
+    })?;
+
+    // Decoded explicitly rather than through `read_to_string`, which reports a non-UTF-8 file as
+    // an I/O error and would classify an encoding defect as a filesystem failure.
+    let source = String::from_utf8(bytes).map_err(|error| {
+        Box::new(ContractFailure::NotUtf8(internal_cause(
+            contract,
+            "SOURCE_SCHEMA_NOT_UTF8",
+            format!(
+                "internal source schema is not valid UTF-8: first invalid byte at offset {}.",
+                error.utf8_error().valid_up_to()
+            ),
         )))
     })?;
 
@@ -237,6 +251,7 @@ fn prepare(root: &Path, contract: &'static SchemaContract) -> Result<String, Box
 fn prepare_all(root: &Path) -> Result<Vec<(&'static SchemaContract, String)>, CommandError> {
     let mut prepared = Vec::new();
     let mut unreadable = Vec::new();
+    let mut not_utf8 = Vec::new();
     let mut malformed = Vec::new();
     let mut annotations = Vec::new();
 
@@ -245,6 +260,7 @@ fn prepare_all(root: &Path) -> Result<Vec<(&'static SchemaContract, String)>, Co
             Ok(text) => prepared.push((contract, text)),
             Err(failure) => match *failure {
                 ContractFailure::Unreadable(cause) => unreadable.push(cause),
+                ContractFailure::NotUtf8(cause) => not_utf8.push(cause),
                 ContractFailure::Malformed(cause) => malformed.push(cause),
                 ContractFailure::Annotations(causes) => annotations.extend(causes),
             },
@@ -264,6 +280,22 @@ fn prepare_all(root: &Path) -> Result<Vec<(&'static SchemaContract, String)>, Co
                     .to_owned(),
             ),
             causes: unreadable,
+        });
+    }
+
+    if !not_utf8.is_empty() {
+        return Err(CommandError {
+            code: "SOURCE_SCHEMA_NOT_UTF8",
+            category: Category::Input,
+            message: format!(
+                "{} {} not valid UTF-8.",
+                pluralize(not_utf8.len(), "internal source schema"),
+                is_are(not_utf8.len())
+            ),
+            recovery: Some(
+                "Re-save the internal source schema as UTF-8, then rerun the command.".to_owned(),
+            ),
+            causes: not_utf8,
         });
     }
 
@@ -326,10 +358,7 @@ pub fn generate(root: &Path, dry_run: bool) -> Report {
                     GEN_COMMAND,
                     dry_run,
                     file_changes,
-                    write_failure(
-                        contract,
-                        format!("public schema could not be read: {error}"),
-                    ),
+                    read_failure(contract, error),
                 );
             }
         };
@@ -363,9 +392,11 @@ pub fn generate(root: &Path, dry_run: bool) -> Report {
                         FileState::Completed
                     },
                 });
-                match action {
-                    FileAction::Create => "created",
-                    FileAction::Modify => "updated",
+                match (action, dry_run) {
+                    (FileAction::Create, false) => "created",
+                    (FileAction::Modify, false) => "updated",
+                    (FileAction::Create, true) => "wouldCreate",
+                    (FileAction::Modify, true) => "wouldUpdate",
                 }
             }
         };
@@ -411,11 +442,17 @@ pub fn check(root: &Path) -> Report {
 
     for (contract, text) in prepared {
         match read_optional(&root.join(contract.public_path)) {
-            Err(error) => causes.push(public_cause(
-                contract,
-                "PUBLIC_SCHEMA_UNREADABLE",
-                format!("public schema could not be read: {error}"),
-            )),
+            // A public schema that exists but cannot be read is a filesystem fault, not a stale
+            // artifact: regenerating it would fail for the same reason, so it must not be folded
+            // into the out-of-date diagnostic whose recovery is "regenerate and commit".
+            Err(error) => {
+                return failure(
+                    CHECK_COMMAND,
+                    false,
+                    Vec::new(),
+                    read_failure(contract, error),
+                );
+            }
             Ok(None) => causes.push(public_cause(
                 contract,
                 "PUBLIC_SCHEMA_MISSING",
@@ -485,8 +522,12 @@ fn read_optional(path: &Path) -> io::Result<Option<Vec<u8>>> {
 
 /// Writes through a sibling temporary file so a failure mid-write cannot leave a truncated
 /// public schema behind, which a later `check` would report as ordinary staleness.
+///
+/// The temporary must be a sibling for `rename` to stay within one filesystem. It is
+/// dot-prefixed and matched by the `.gitignore` rule for generator debris, so a temporary left
+/// behind by a killed process cannot be committed by a broad `git add`.
 fn write_atomically(path: &Path, text: &str) -> io::Result<()> {
-    let temporary = path.with_extension("json.tmp");
+    let temporary = temporary_path(path);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -497,6 +538,16 @@ fn write_atomically(path: &Path, text: &str) -> io::Result<()> {
             Err(error)
         }
     }
+}
+
+/// Sibling temporary path [`write_atomically`] stages a public schema through. Exposed so tests
+/// can assert that no debris survives a run.
+pub fn temporary_path(public_schema: &Path) -> PathBuf {
+    let name = public_schema
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    public_schema.with_file_name(format!(".{name}.tmp"))
 }
 
 fn internal_cause(contract: &'static SchemaContract, code: &'static str, message: String) -> Cause {
@@ -534,6 +585,25 @@ fn annotation_cause(contract: &'static SchemaContract, violation: AnnotationViol
     };
 
     internal_cause(contract, code, message).with_pointer(violation.pointer)
+}
+
+/// A public schema that exists but cannot be read. Distinct from [`write_failure`], because
+/// nothing was written and no reported change is at risk.
+fn read_failure(contract: &'static SchemaContract, error: io::Error) -> CommandError {
+    CommandError {
+        code: "PUBLIC_SCHEMA_UNREADABLE",
+        category: Category::Filesystem,
+        message: "A public schema could not be read.".to_owned(),
+        recovery: Some(
+            "Check that the public schema is a readable regular file, then rerun the command."
+                .to_owned(),
+        ),
+        causes: vec![public_cause(
+            contract,
+            "PUBLIC_SCHEMA_UNREADABLE",
+            format!("public schema could not be read: {error}"),
+        )],
+    }
 }
 
 fn write_failure(contract: &'static SchemaContract, message: String) -> CommandError {
