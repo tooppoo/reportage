@@ -10,6 +10,15 @@ This file records every document in this tree that is produced by a generator or
 | [`docs/reference/semantic-rules.md`](reference/semantic-rules.md) | [`crates/reportage-core/src/bin/gen_semantic_docs.rs`](../crates/reportage-core/src/bin/gen_semantic_docs.rs) (`just semantic-docs-gen`, drift-checked by `just semantic-docs-check`), from the JSON specs under [`spec/language/semantics/`](../spec/language/semantics/README.md) | The JSON specs are the source of truth for each rule's normative fields and conformance cases; the catalog is a read-only view of them. |
 | [`docs/ai/reading-order.generated.md`](ai/reading-order.generated.md) | [`crates/reportage-cli/src/bin/gen_ai_reading_order.rs`](../crates/reportage-cli/src/bin/gen_ai_reading_order.rs) (`just ai-docs-gen`, drift-checked by `just ai-docs-check`), from the `DOCUMENTS` table in [`crates/reportage-cli/src/references.rs`](../crates/reportage-cli/src/references.rs) | Generating the reading order from the same table `reportage references --format=json` reads keeps the two from drifting apart. |
 
+## Generated contract artifacts outside this tree
+
+These are not documents, but they follow the same rule: the generated file is never hand-edited.
+
+| Path | Generator and source | Reason |
+| --- | --- | --- |
+| [`spec/output/json-report/schema.json`](../spec/output/json-report/schema.json) | [`crates/xtask/src/schema_artifacts.rs`](../crates/xtask/src/schema_artifacts.rs) (`just schema-artifacts-gen`, drift-checked by `just schema-artifacts-check`), from [`spec/output/json-report/schema.internal.json`](../spec/output/json-report/schema.internal.json) | The internal source schema carries `x-reportage-snapshot` snapshot normalization metadata that must not appear in the published contract; maintaining both by hand would let them drift. See [`docs/adr/20260727T151234Z_json-schema-artifact-generation.md`](adr/20260727T151234Z_json-schema-artifact-generation.md). |
+| [`spec/artifacts/run-result/schema.json`](../spec/artifacts/run-result/schema.json) | [`crates/xtask/src/schema_artifacts.rs`](../crates/xtask/src/schema_artifacts.rs) (`just schema-artifacts-gen`, drift-checked by `just schema-artifacts-check`), from [`spec/artifacts/run-result/schema.internal.json`](../spec/artifacts/run-result/schema.internal.json) | Same arrangement as the `--format=json` contract above. |
+
 ## Mechanically checked documents in this tree
 
 | Path | Check | Reason |

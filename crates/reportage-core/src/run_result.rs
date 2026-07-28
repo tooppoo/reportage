@@ -3,6 +3,7 @@
 //! `build_run_result_document` turns an [`ExecutionReport`] into the canonical manifest written to `.reportage/runs/<run-id>/result.json` by [`crate::artifact::ArtifactWriter`].
 //! The artifact bundle (`result.json` plus the evidence files it references) is the canonical record of a `reportage run`; the `--format=json` CLI stdout document is a stdout-safe projection derived from this document by the CLI renderer.
 //! See `spec/artifacts/run-result/schema.json` for the external contract this builder implements, and docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md for the decisions.
+//! That schema is generated: a contract change is edited in `spec/artifacts/run-result/schema.internal.json` and regenerated with `just schema-artifacts-gen`.
 //!
 //! ## Raw byte evidence is referenced, never inlined
 //!

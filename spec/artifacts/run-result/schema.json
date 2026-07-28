@@ -39,7 +39,7 @@
     },
     "noop": {
       "type": "boolean",
-      "description": "True when the run was a no-op success: the selected input was valid but produced zero concrete cases, so nothing was executed and `tests` is empty. See docs/reference/exit-codes.md \u2014 Empty and zero-case scripts."
+      "description": "True when the run was a no-op success: the selected input was valid but produced zero concrete cases, so nothing was executed and `tests` is empty. See docs/reference/exit-codes.md — Empty and zero-case scripts."
     },
     "summary": {
       "$ref": "#/$defs/Summary"
@@ -458,64 +458,132 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "value"],
+          "required": [
+            "kind",
+            "value"
+          ],
           "properties": {
             "kind": {
               "type": "string",
-              "enum": ["quoted", "heredoc"]
+              "enum": [
+                "quoted",
+                "heredoc"
+              ]
             },
-            "value": { "type": "string" }
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["kind", "name", "actionIndex", "stream", "captureMode"],
-          "properties": {
-            "kind": { "const": "binding" },
-            "name": { "type": "string" },
-            "actionIndex": { "type": "integer", "minimum": 0 },
-            "stream": {
-              "type": "string",
-              "enum": ["stdout", "stderr"]
-            },
-            "captureMode": {
-              "type": "string",
-              "enum": ["exact", "line"]
+            "value": {
+              "type": "string"
             }
           }
         },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "form", "line", "column", "references"],
+          "required": [
+            "kind",
+            "name",
+            "actionIndex",
+            "stream",
+            "captureMode"
+          ],
           "properties": {
-            "kind": { "const": "interpolated" },
+            "kind": {
+              "const": "binding"
+            },
+            "name": {
+              "type": "string"
+            },
+            "actionIndex": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "stream": {
+              "type": "string",
+              "enum": [
+                "stdout",
+                "stderr"
+              ]
+            },
+            "captureMode": {
+              "type": "string",
+              "enum": [
+                "exact",
+                "line"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "form",
+            "line",
+            "column",
+            "references"
+          ],
+          "properties": {
+            "kind": {
+              "const": "interpolated"
+            },
             "form": {
               "type": "string",
-              "enum": ["string", "heredoc"]
+              "enum": [
+                "string",
+                "heredoc"
+              ]
             },
-            "line": { "type": "integer", "minimum": 1 },
-            "column": { "type": "integer", "minimum": 1 },
+            "line": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "column": {
+              "type": "integer",
+              "minimum": 1
+            },
             "references": {
               "description": "The bindings substituted into the literal, in source order. This object never carries the resolved value, which mixes script text with captured process output; a failing comparison's bounded mismatch context is the only field that shows any part of it.",
               "type": "array",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["name", "line", "column", "actionIndex", "stream", "captureMode"],
+                "required": [
+                  "name",
+                  "line",
+                  "column",
+                  "actionIndex",
+                  "stream",
+                  "captureMode"
+                ],
                 "properties": {
-                  "name": { "type": "string" },
-                  "line": { "type": "integer", "minimum": 1 },
-                  "column": { "type": "integer", "minimum": 1 },
-                  "actionIndex": { "type": "integer", "minimum": 0 },
+                  "name": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "column": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "actionIndex": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
                   "stream": {
                     "type": "string",
-                    "enum": ["stdout", "stderr"]
+                    "enum": [
+                      "stdout",
+                      "stderr"
+                    ]
                   },
                   "captureMode": {
                     "type": "string",
-                    "enum": ["exact", "line"]
+                    "enum": [
+                      "exact",
+                      "line"
+                    ]
                   }
                 }
               }
@@ -1189,7 +1257,7 @@
       }
     },
     "LogicalExpectation": {
-      "description": "A 'not' / 'all' / 'any' composition. Children are independently evaluated expectations; a child's own diagnosticRef is never set (see run_result.rs's expectation_json doc comment) \u2014 only the composition node itself may carry one, on its parent Assertion.",
+      "description": "A 'not' / 'all' / 'any' composition. Children are independently evaluated expectations; a child's own diagnosticRef is never set (see run_result.rs's expectation_json doc comment) — only the composition node itself may carry one, on its parent Assertion.",
       "type": "object",
       "additionalProperties": false,
       "required": [
