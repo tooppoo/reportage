@@ -98,7 +98,11 @@ Each JSON Schema keyword the contracts rely on gets valid and invalid instances 
 
 Representative fixtures cannot serve this purpose. Making a producer emit a contract violation would mean adding test-only behavior to the runtime, and a keyword can only be shown to bite by feeding it something that must fail. The instances are therefore hand-built, as edits to a valid document so that an invalid case fails for the reason it names.
 
-Which keywords need cases is derived from the schemas rather than listed by hand. Every keyword occurring in a schema position must either map to a covered feature or be recorded as structural, so adding a constraint to a contract without exercising it fails the suite. A keyword the contracts state in several definitions independently — the contents-comparison conditional appears in four — gets a case per definition, because producer fixtures only ever emit conforming instances and would not notice one of them weakening.
+Which keywords need cases is derived from the schemas rather than listed by hand. Every keyword occurring in a schema position must either map to a covered feature or be recorded as structural, so adding a constraint to a contract without exercising it fails the suite.
+
+One case per keyword is not always enough. A contract states the same constraint in many definitions independently — `additionalProperties: false` in more than twenty, the contents-comparison conditional in four — and producer fixtures emit only conforming instances, so a single definition quietly losing its constraint would go unnoticed. That is how the contents-comparison conditional came to be wrong in all four of its definitions while every check passed.
+
+Coverage is therefore per site for the constraints that repeat: every object in the case suite's base document must reject an undefined member, every scalar must reject a value of the wrong JSON type, and each `oneOf` and each definition stating the conditional gets its own case. `const`, `enum`, `pattern`, `minimum`, `required`, and `items` are covered once each; one definition dropping one of those is a gap this suite does not close.
 
 This is also what covers the `jsonschema` crate's own Draft 2020-12 conformance for the keywords Reportage actually uses. Proving the crate's conformance in general is not Reportage's job; noticing that a keyword this repository depends on stopped being enforced is.
 
@@ -120,7 +124,7 @@ CI guarantees, for both contracts:
 
 - each schema artifact is a valid Draft 2020-12 document, and a malformed one fails before any instance is validated;
 - every representative fixture's producer output conforms to both the internal source and the public schema, with all violations reported together and each locating itself by instance path, schema path, and evaluation path;
-- each JSON Schema keyword the contracts rely on accepts and rejects the instances it is supposed to, at each definition that states it, and no keyword occurs in a schema without such cases;
+- each JSON Schema keyword the contracts rely on accepts and rejects the instances it is supposed to, and no keyword occurs in a schema without such cases; for `additionalProperties`, `type`, `oneOf`, and the contents-comparison conditional, at every site that states it;
 - typed Rust consumers can deserialize real producer output;
 - the domain invariants listed above hold.
 
@@ -170,7 +174,8 @@ Rejected. Covering an invalid case would require the runtime to be able to emit 
 
 - CI gains a dev-dependency, and with it a dependency to keep current and a compile-time cost in the `reportage-cli` test profile.
 - A contract change now touches the schema, the typed consumer model, the fixtures, the snapshots, and possibly the feature cases; the pieces are more clearly separated, but there are more of them.
-- Feature cases are hand-maintained. The coverage check catches a keyword with no cases, and a per-definition case catches one definition weakening, but neither catches a case that still runs and has stopped being about what its description claims.
+- Feature cases are hand-maintained. The coverage check catches a keyword with no cases anywhere, and per-site generation catches one definition weakening for the four constraints it covers, but neither catches a case that still runs and has stopped being about what its description claims.
+- Per-site coverage reaches only what the base document instantiates, and only for four constraints. A `const`, `enum`, `pattern`, `minimum`, `required`, or `items` constraint removed from one definition still passes.
 
 ### Neutral Consequences
 

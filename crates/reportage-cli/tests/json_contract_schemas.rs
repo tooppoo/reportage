@@ -392,6 +392,52 @@ fn feature_cases(base: Value, contract_specific: Vec<FeatureCase>) -> Vec<Featur
             ),
             false,
         ),
+        // `Diagnostic.location` and `TextExpectedSource` are the two remaining `oneOf` sites; the
+        // four in each contract are covered by a case each, for the reason the conditional is.
+        FeatureCase::new(
+            Feature::OneOf,
+            "the null branch of a diagnostic location is accepted",
+            set(&base, "/diagnostics/0/location", json!(null)),
+            true,
+        ),
+        FeatureCase::new(
+            Feature::OneOf,
+            "a diagnostic location that is neither null nor a location object is rejected",
+            set(&base, "/diagnostics/0/location", json!("line 3, column 5")),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::OneOf,
+            "the binding branch of a text expectation source is accepted",
+            set(
+                &base,
+                &format!(
+                    "{}/expectedSource",
+                    expectation_pointer(&base, "fileTextEquals")
+                ),
+                json!({
+                    "kind": "binding",
+                    "name": "greeting",
+                    "actionIndex": 0,
+                    "stream": "stdout",
+                    "captureMode": "exact"
+                }),
+            ),
+            true,
+        ),
+        FeatureCase::new(
+            Feature::OneOf,
+            "a text expectation source mixing two branches' fields matches neither",
+            set(
+                &base,
+                &format!(
+                    "{}/expectedSource",
+                    expectation_pointer(&base, "fileTextEquals")
+                ),
+                json!({ "kind": "quoted", "value": "hello", "name": "greeting" }),
+            ),
+            false,
+        ),
         FeatureCase::new(
             Feature::NestedLocalRef,
             "a logical composition recurses into child expectations",
@@ -481,8 +527,95 @@ fn feature_cases(base: Value, contract_specific: Vec<FeatureCase>) -> Vec<Featur
         ));
     }
 
+    cases.extend(closed_object_cases(&base));
+    cases.extend(declared_type_cases(&base));
     cases.extend(contract_specific);
     cases
+}
+
+/// One case per object in the base document: a member the contract does not define must be
+/// rejected there.
+///
+/// `additionalProperties: false` is stated in more than twenty definitions per contract. A single
+/// hand-written case shows the keyword works somewhere, not that any particular definition still
+/// carries it — the same one-case-for-many-definitions gap that let the contents-comparison
+/// conditional ship broken. Generating a case per object closes it for every definition the base
+/// document reaches.
+///
+/// A definition the contract intentionally leaves open would fail here. That is the right direction
+/// to fail in: `shimInvocations` is open on purpose, and its case says so explicitly rather than
+/// being absorbed by a rule that would then stop covering everything else.
+fn closed_object_cases(base: &Value) -> Vec<FeatureCase> {
+    instance_pointers(base)
+        .into_iter()
+        .filter(|(_, node)| node.is_object())
+        .map(|(pointer, _)| {
+            FeatureCase::new(
+                Feature::AdditionalProperties,
+                format!(
+                    "an undefined member at {} is rejected",
+                    render_pointer(&pointer)
+                ),
+                set(base, &format!("{pointer}/undefinedMember"), json!(true)),
+                false,
+            )
+        })
+        .collect()
+}
+
+/// One case per scalar in the base document: a value of the wrong JSON type must be rejected there.
+///
+/// `type` is the most-stated keyword in both contracts, and the reasoning is the same as for
+/// closed objects: covering it once says nothing about the several hundred other places it appears.
+/// An object is used as the wrong value because no scalar position in either contract accepts one.
+fn declared_type_cases(base: &Value) -> Vec<FeatureCase> {
+    instance_pointers(base)
+        .into_iter()
+        .filter(|(_, node)| !node.is_object() && !node.is_array())
+        .map(|(pointer, _)| {
+            FeatureCase::new(
+                Feature::Type,
+                format!(
+                    "an object where {} declares a scalar is rejected",
+                    render_pointer(&pointer)
+                ),
+                set(base, &pointer, json!({ "wrongType": true })),
+                false,
+            )
+        })
+        .collect()
+}
+
+/// Every value in `document` paired with its JSON Pointer, the document root included.
+fn instance_pointers(document: &Value) -> Vec<(String, &Value)> {
+    fn descend<'a>(value: &'a Value, pointer: String, found: &mut Vec<(String, &'a Value)>) {
+        match value {
+            Value::Object(members) => {
+                for (name, child) in members {
+                    descend(child, format!("{pointer}/{name}"), found);
+                }
+            }
+            Value::Array(items) => {
+                for (index, item) in items.iter().enumerate() {
+                    descend(item, format!("{pointer}/{index}"), found);
+                }
+            }
+            _ => {}
+        }
+        found.push((pointer, value));
+    }
+
+    let mut found = Vec::new();
+    descend(document, String::new(), &mut found);
+    found
+}
+
+fn render_pointer(pointer: &str) -> &str {
+    if pointer.is_empty() {
+        "the document root"
+    } else {
+        pointer
+    }
 }
 
 fn json_report_cases() -> Vec<FeatureCase> {
