@@ -21,10 +21,11 @@ pub enum OutputFormat {
     Json,
 }
 
-/// Broad failure category. The numeric mapping is part of this crate's documented contract:
+/// The broad kind of failure, deliberately coarser than a [`Cause`]'s code so that related
+/// causes share one exit code. The numeric mapping is part of this crate's documented contract:
 /// CI and `just` recipes branch on the process exit code, not on message text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Category {
+pub enum FailureCategory {
     /// Invalid command line. Produced by the argument parser, not by command logic.
     Usage,
     /// The internal source schema is unusable as input: malformed JSON, or annotations in
@@ -38,24 +39,24 @@ pub enum Category {
     Internal,
 }
 
-impl Category {
+impl FailureCategory {
     pub fn exit_code(self) -> i32 {
         match self {
-            Category::Internal => 1,
-            Category::Usage => 2,
-            Category::Input => 3,
-            Category::Filesystem => 4,
-            Category::Conflict => 5,
+            FailureCategory::Internal => 1,
+            FailureCategory::Usage => 2,
+            FailureCategory::Input => 3,
+            FailureCategory::Filesystem => 4,
+            FailureCategory::Conflict => 5,
         }
     }
 
     fn as_str(self) -> &'static str {
         match self {
-            Category::Usage => "usage",
-            Category::Input => "input",
-            Category::Filesystem => "filesystem",
-            Category::Conflict => "conflict",
-            Category::Internal => "internal",
+            FailureCategory::Usage => "usage",
+            FailureCategory::Input => "input",
+            FailureCategory::Filesystem => "filesystem",
+            FailureCategory::Conflict => "conflict",
+            FailureCategory::Internal => "internal",
         }
     }
 }
@@ -157,7 +158,7 @@ impl Cause {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandError {
     pub code: &'static str,
-    pub category: Category,
+    pub category: FailureCategory,
     pub message: String,
     /// Concrete next action. `None` marks the failure as not user-recoverable.
     pub recovery: Option<String>,
@@ -383,7 +384,7 @@ mod tests {
             file_changes: Vec::new(),
             body: ReportBody::Failure(CommandError {
                 code: "PUBLIC_SCHEMA_OUT_OF_DATE",
-                category: Category::Conflict,
+                category: FailureCategory::Conflict,
                 message: "1 public schema is out of date.".to_owned(),
                 recovery: Some("run `just schema-artifacts-gen`".to_owned()),
                 causes: vec![cause()],
@@ -411,10 +412,10 @@ mod tests {
     fn exit_code_matches_category() {
         assert_eq!(success_report().exit_code(), 0);
         assert_eq!(failure_report().exit_code(), 5);
-        assert_eq!(Category::Usage.exit_code(), 2);
-        assert_eq!(Category::Input.exit_code(), 3);
-        assert_eq!(Category::Filesystem.exit_code(), 4);
-        assert_eq!(Category::Internal.exit_code(), 1);
+        assert_eq!(FailureCategory::Usage.exit_code(), 2);
+        assert_eq!(FailureCategory::Input.exit_code(), 3);
+        assert_eq!(FailureCategory::Filesystem.exit_code(), 4);
+        assert_eq!(FailureCategory::Internal.exit_code(), 1);
     }
 
     #[test]

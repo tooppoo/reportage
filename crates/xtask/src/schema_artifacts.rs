@@ -21,7 +21,7 @@ use serde_json::json;
 
 use crate::json::{self, JsonValue};
 use crate::output::{
-    Category, Cause, CommandError, FileAction, FileChange, FileState, Report, ReportBody,
+    Cause, CommandError, FailureCategory, FileAction, FileChange, FileState, Report, ReportBody,
 };
 
 /// Reserved object member name carrying snapshot normalization metadata.
@@ -270,7 +270,7 @@ fn prepare_all(root: &Path) -> Result<Vec<(&'static SchemaContract, String)>, Co
     if !unreadable.is_empty() {
         return Err(CommandError {
             code: "SOURCE_SCHEMA_UNREADABLE",
-            category: Category::Filesystem,
+            category: FailureCategory::Filesystem,
             message: format!(
                 "{} could not be read.",
                 pluralize(unreadable.len(), "internal source schema")
@@ -286,7 +286,7 @@ fn prepare_all(root: &Path) -> Result<Vec<(&'static SchemaContract, String)>, Co
     if !not_utf8.is_empty() {
         return Err(CommandError {
             code: "SOURCE_SCHEMA_NOT_UTF8",
-            category: Category::Input,
+            category: FailureCategory::Input,
             message: format!(
                 "{} {} not valid UTF-8.",
                 pluralize(not_utf8.len(), "internal source schema"),
@@ -302,7 +302,7 @@ fn prepare_all(root: &Path) -> Result<Vec<(&'static SchemaContract, String)>, Co
     if !malformed.is_empty() {
         return Err(CommandError {
             code: "SOURCE_SCHEMA_MALFORMED",
-            category: Category::Input,
+            category: FailureCategory::Input,
             message: format!(
                 "{} {} not valid JSON.",
                 pluralize(malformed.len(), "internal source schema"),
@@ -319,7 +319,7 @@ fn prepare_all(root: &Path) -> Result<Vec<(&'static SchemaContract, String)>, Co
     if !annotations.is_empty() {
         return Err(CommandError {
             code: "SNAPSHOT_ANNOTATION_LOCATION_INVALID",
-            category: Category::Input,
+            category: FailureCategory::Input,
             message: format!(
                 "{} {} not match the allowlist.",
                 pluralize(
@@ -500,7 +500,7 @@ pub fn check(root: &Path) -> Report {
         Vec::new(),
         CommandError {
             code: "PUBLIC_SCHEMA_OUT_OF_DATE",
-            category: Category::Conflict,
+            category: FailureCategory::Conflict,
             message: format!(
                 "{} {} out of date.",
                 pluralize(causes.len(), "public schema"),
@@ -592,7 +592,7 @@ fn annotation_cause(contract: &'static SchemaContract, violation: AnnotationViol
 fn read_failure(contract: &'static SchemaContract, error: io::Error) -> CommandError {
     CommandError {
         code: "PUBLIC_SCHEMA_UNREADABLE",
-        category: Category::Filesystem,
+        category: FailureCategory::Filesystem,
         message: "A public schema could not be read.".to_owned(),
         recovery: Some(
             "Check that the public schema is a readable regular file, then rerun the command."
@@ -609,7 +609,7 @@ fn read_failure(contract: &'static SchemaContract, error: io::Error) -> CommandE
 fn write_failure(contract: &'static SchemaContract, message: String) -> CommandError {
     CommandError {
         code: "PUBLIC_SCHEMA_WRITE_FAILED",
-        category: Category::Filesystem,
+        category: FailureCategory::Filesystem,
         message: "A public schema could not be updated.".to_owned(),
         recovery: Some(
             "Check the file permissions on the public schema and its directory, inspect any change already reported, then rerun the command."

@@ -4,7 +4,7 @@
 //! gate, so logic added here has to be exercised.
 //!
 //! Exit codes are the tool's automation contract and are defined by
-//! [`xtask::output::Category`]: 0 success, 1 internal, 2 usage, 3 input, 4 filesystem,
+//! [`xtask::output::FailureCategory`]: 0 success, 1 internal, 2 usage, 3 input, 4 filesystem,
 //! 5 conflict. Usage errors come from clap, which already exits with 2.
 
 use std::io::Write;
