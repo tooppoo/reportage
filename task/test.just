@@ -43,3 +43,8 @@ run-result-fixtures-check:
 [group('check')]
 references-index-check:
   cargo nextest run --locked -p reportage-cli --test references_index
+
+# run the JSON contract schema document validity and schema feature coverage tests
+[group('check')]
+json-contract-schemas-check:
+  cargo nextest run --locked -p reportage-cli --test json_contract_schemas

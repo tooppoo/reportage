@@ -1,18 +1,28 @@
-//! Representative-fixture conformance for `reportage run --format=json` (issue #89).
-//!
-//! Mirrors `crates/reportage-core/tests/semantic_specs.rs`'s approach to "schema validation":
-//! each fixture's JSON output is deserialised into typed Rust structs marked
-//! `#[serde(deny_unknown_fields)]`, rather than run through an external JSON Schema validator.
-//! See `spec/output/json-report/schema.json` for the authoritative external contract these
-//! structs are a CI-enforced subset of (only the `exit` / `stdoutContains` expectation kinds
-//! these six fixtures exercise are modelled here; the schema itself covers all thirteen kinds).
-//! That file is generated: edit `spec/output/json-report/schema.internal.json` and run
-//! `just schema-artifacts-gen`.
+//! Representative-fixture conformance for `reportage run --format=json` (issues #89, #192).
 //!
 //! Fixtures live in `tests/fixtures/json_report/*.repor`, one per representative scenario
 //! required by issue #89. Each has a companion `<name>.snapshot.json` with volatile fields
 //! (`artifactRoot`, `tool.version`) normalised out, refreshed via `UPDATE_JSON_REPORT_SNAPSHOTS`,
 //! mirroring `syntax_conformance.rs`'s `UPDATE_AST_SNAPSHOTS` convention.
+//!
+//! Each fixture's output is checked by three separate suites here, because they establish three
+//! different things and can fail independently:
+//!
+//! 1. **Schema conformance** — the output satisfies the authoritative JSON Schema at
+//!    `spec/output/json-report/schema.json`, checked with the `jsonschema` crate.
+//! 2. **Typed Rust consumer compatibility** — this repository's own consumers can deserialize the
+//!    output. These structs model only the `exit` / `stdoutContains` expectation kinds these six
+//!    fixtures exercise; the full contract is the schema's responsibility, not theirs.
+//! 3. **Semantic and integrity invariants** — properties JSON Schema cannot state, such as
+//!    `diagnosticRef` resolving within the document.
+//!
+//! Typed deserialization is deliberately *not* called schema validation: it enforces neither the
+//! schema's `const`, `pattern`, `minimum`, nor its conditional requirements, and the set of
+//! instances it accepts is not the set the schema accepts. See
+//! docs/adr/20260728T092956Z_json-contract-validation-policy.md.
+//!
+//! `spec/output/json-report/schema.json` is generated: edit
+//! `spec/output/json-report/schema.internal.json` and run `just schema-artifacts-gen`.
 
 // Serde-populated struct fields are not "used" in the conventional sense; their value comes
 // from deserialisation rather than direct assignment. Mirrors semantic_specs.rs.
@@ -26,8 +36,18 @@ use assert_fs::prelude::*;
 use serde::Deserialize;
 use serde_json::Value;
 
+#[path = "support/invariants.rs"]
+mod invariants;
+#[path = "support/json_schema.rs"]
+mod json_schema;
+
+use json_schema::JSON_REPORT;
+
 // ---------------------------------------------------------------------------
-// Typed representation of the `--format=json` document (schema validation)
+// Typed representation of the `--format=json` document
+//
+// The Rust shape this repository's consumers read the document through, not a restatement of the
+// schema: see the module doc comment for what it does and does not enforce.
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
@@ -205,7 +225,8 @@ enum TextExpectedSource {
 }
 
 /// Only the `exit` and `stdoutContains` kinds these six fixtures exercise. The full 12-kind
-/// contract is `spec/output/json-report/schema.json`'s responsibility, not this test's.
+/// contract is `spec/output/json-report/schema.json`'s responsibility, enforced by
+/// `every_fixture_output_conforms_to_the_json_report_schema` rather than by this enum.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
 enum Expectation {
@@ -370,11 +391,32 @@ fn all_required_representative_scenarios_are_present() {
 }
 
 // ---------------------------------------------------------------------------
-// Schema validation
+// JSON Schema conformance
 // ---------------------------------------------------------------------------
 
 #[test]
-fn every_fixture_produces_schema_valid_json() {
+fn every_fixture_output_conforms_to_the_json_report_schema() {
+    let paths = fixture_paths();
+    assert!(
+        !paths.is_empty(),
+        "expected at least one json_report fixture"
+    );
+
+    for path in paths {
+        let (json, _exit_code, _dir) = run_json(&path);
+        JSON_REPORT.assert_conforms(
+            &json,
+            &format!("the --format=json output of {}", path.display()),
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Typed Rust consumer compatibility
+// ---------------------------------------------------------------------------
+
+#[test]
+fn every_fixture_output_deserializes_into_the_typed_consumer_model() {
     let paths = fixture_paths();
     assert!(
         !paths.is_empty(),
@@ -386,13 +428,55 @@ fn every_fixture_produces_schema_valid_json() {
         let text = serde_json::to_string(&json).unwrap();
         let doc: JsonReportDocument = serde_json::from_str(&text).unwrap_or_else(|e| {
             panic!(
-                "fixture {} produced JSON that does not conform to the typed schema: {e}\n{text}",
+                "fixture {} produced JSON the typed Rust consumer model cannot deserialize: {e}\n{text}",
                 path.display()
             )
         });
         for diagnostic in &doc.diagnostics {
             assert_location_shape_is_valid(&diagnostic.location);
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Semantic and integrity invariants
+//
+// Properties of a valid document that JSON Schema cannot state, kept as their own tests so a
+// domain violation never reads as a contract violation or the other way around.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn every_diagnostic_ref_resolves_to_a_diagnostic_in_the_same_document() {
+    for path in fixture_paths() {
+        let (json, _exit_code, _dir) = run_json(&path);
+        invariants::assert_diagnostic_refs_resolve(&json, &path.display().to_string());
+    }
+}
+
+#[test]
+fn no_logical_composition_child_carries_its_own_diagnostic_ref() {
+    for path in fixture_paths() {
+        let (json, _exit_code, _dir) = run_json(&path);
+        invariants::assert_logical_children_have_no_diagnostic_ref(
+            &json,
+            &path.display().to_string(),
+        );
+    }
+}
+
+#[test]
+fn the_summary_agrees_with_the_concrete_results_it_counts() {
+    for path in fixture_paths() {
+        let (json, _exit_code, _dir) = run_json(&path);
+        invariants::assert_summary_agrees_with_results(&json, &path.display().to_string());
+    }
+}
+
+#[test]
+fn every_test_entry_names_a_source_file_that_exists() {
+    for path in fixture_paths() {
+        let (json, _exit_code, dir) = run_json(&path);
+        invariants::assert_test_paths_exist(&json, dir.path(), &path.display().to_string());
     }
 }
 
@@ -411,6 +495,16 @@ fn snapshots_for_json_report_fixtures_are_current() {
     let update_snapshots = update_snapshots_enabled();
     for path in paths {
         let (json, _exit_code, _dir) = run_json(&path);
+
+        // Contract validation precedes normalization. Normalization rewrites volatile fields to
+        // make a document comparable; it is not a repair step, and a snapshot recorded from a
+        // document that never satisfied the schema would pin a contract violation as expected
+        // output.
+        JSON_REPORT.assert_conforms(
+            &json,
+            &format!("the --format=json output of {}", path.display()),
+        );
+
         let normalized = normalize_for_snapshot(json);
         let actual = format_snapshot(&normalized);
 

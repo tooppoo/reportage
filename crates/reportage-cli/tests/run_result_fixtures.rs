@@ -1,17 +1,18 @@
-//! Representative-fixture conformance for the artifact `result.json` manifest (issue #102).
-//!
-//! Mirrors `json_report_fixtures.rs`'s approach to "schema validation": each fixture run's `result.json` is deserialised into typed Rust structs marked `#[serde(deny_unknown_fields)]`, rather than run through an external JSON Schema validator.
-//! See `spec/artifacts/run-result/schema.json` for the authoritative contract. That file is generated: edit `spec/artifacts/run-result/schema.internal.json` and run `just schema-artifacts-gen`.
-//!
-//! Unlike `json_report_fixtures.rs` (whose structs deliberately model only the expectation kinds its fixtures exercise), the structs here model the *full* stable contract the schema defines — every expectation kind, observation enum, and diagnostic shape — because `result.json` is the canonical manifest of a run (see issue #102's requirement that typed validation covers the whole stable contract, not just fixture-exercised shapes).
+//! Representative-fixture conformance for the artifact `result.json` manifest (issues #102, #192).
 //!
 //! Fixtures live in `tests/fixtures/run_result/*.repor`.
 //! Each has a companion `<name>.snapshot.json` with the volatile field (`tool.version`) normalised out, refreshed via `UPDATE_RUN_RESULT_SNAPSHOTS`, mirroring `json_report_fixtures.rs`'s convention.
 //!
-//! This suite also verifies:
+//! Each fixture run's `result.json` is checked by four separate suites here, because they establish four different things and can fail independently:
 //!
-//! - evidence integrity: every `artifactRef` in `result.json` names an existing file inside the bundle whose byte size and SHA-256 digest match the manifest;
-//! - projection parity: for the same run, the `--format=json` stdout document agrees with `result.json` on the parity items required by issue #102, and is exactly the canonical document minus the defined projection differences.
+//! 1. **Schema conformance** — the manifest satisfies the authoritative JSON Schema at `spec/artifacts/run-result/schema.json`, checked with the `jsonschema` crate.
+//! 2. **Typed Rust consumer compatibility** — this repository's own consumers can deserialize the manifest. Unlike `json_report_fixtures.rs` (whose structs deliberately model only the expectation kinds its fixtures exercise), the structs here model the *full* stable contract the schema defines, because `result.json` is the canonical manifest of a run: a shape no fixture produces must still be visible in review (issue #102).
+//! 3. **Semantic and integrity invariants** — properties JSON Schema cannot state: evidence files existing with the byte size and SHA-256 digest the manifest records, `diagnosticRef` resolving within the document, summary counts agreeing with the results they count.
+//! 4. **Projection parity** — for the same run, the `--format=json` stdout document agrees with `result.json` on the parity items required by issue #102, and is exactly the canonical document minus the defined projection differences.
+//!
+//! Typed deserialization is deliberately *not* called schema validation: modelling the full contract is a consumer-side requirement, and even a full model enforces neither the schema's `const`, `pattern`, `minimum`, nor its conditional requirements. See docs/adr/20260728T092956Z_json-contract-validation-policy.md.
+//!
+//! `spec/artifacts/run-result/schema.json` is generated: edit `spec/artifacts/run-result/schema.internal.json` and run `just schema-artifacts-gen`.
 
 // Serde-populated struct fields are not "used" in the conventional sense; their value comes from deserialisation rather than direct assignment.
 // Mirrors json_report_fixtures.rs.
@@ -26,11 +27,20 @@ use reportage_core::run_result::sha256_hex;
 use serde::Deserialize;
 use serde_json::Value;
 
+#[path = "support/invariants.rs"]
+mod invariants;
+#[path = "support/json_schema.rs"]
+mod json_schema;
+
+use json_schema::RUN_RESULT;
+
 // ---------------------------------------------------------------------------
-// Typed representation of the artifact result document (schema validation)
+// Typed representation of the artifact result document
 //
-// One struct/enum per shape in spec/artifacts/run-result/schema.internal.json, the hand-edited
-// source of the generated public spec/artifacts/run-result/schema.json, in the same order.
+// The Rust shape this repository's consumers read the manifest through, not a restatement of the
+// schema: see the module doc comment for what it does and does not enforce. One struct/enum per
+// shape in spec/artifacts/run-result/schema.internal.json, the hand-edited source of the generated
+// public spec/artifacts/run-result/schema.json, in the same order.
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
@@ -496,95 +506,16 @@ enum Expectation {
     },
 }
 
-impl Expectation {
-    /// Enforces the schema's conditional requirements that `deny_unknown_fields` alone cannot express: `observed: compared` requires the comparison fields, and `outcome: mismatch` requires `mismatch`.
-    /// Recurses into logical children, which must also never carry their own `diagnosticRef` (diagnostic attribution is composition-level only).
-    fn assert_conditional_invariants(&self, is_logical_child: bool) {
-        if is_logical_child {
-            let diagnostic_ref = match self {
-                Expectation::Exit { diagnostic_ref, .. }
-                | Expectation::StdoutContains { diagnostic_ref, .. }
-                | Expectation::StderrContains { diagnostic_ref, .. }
-                | Expectation::StdoutEmpty { diagnostic_ref, .. }
-                | Expectation::StderrEmpty { diagnostic_ref, .. }
-                | Expectation::FileExists { diagnostic_ref, .. }
-                | Expectation::FileContains { diagnostic_ref, .. }
-                | Expectation::FileContentsEquals { diagnostic_ref, .. }
-                | Expectation::FileTextEquals { diagnostic_ref, .. }
-                | Expectation::StdoutContentsEquals { diagnostic_ref, .. }
-                | Expectation::StderrContentsEquals { diagnostic_ref, .. }
-                | Expectation::StdoutTextEquals { diagnostic_ref, .. }
-                | Expectation::StderrTextEquals { diagnostic_ref, .. }
-                | Expectation::DirExists { diagnostic_ref, .. }
-                | Expectation::DirContains { diagnostic_ref, .. }
-                | Expectation::Logical { diagnostic_ref, .. } => diagnostic_ref,
-            };
-            assert!(
-                diagnostic_ref.is_none(),
-                "a logical composition's child must never carry its own diagnosticRef: {self:?}"
-            );
-        }
-
-        match self {
-            Expectation::FileContentsEquals {
-                observed,
-                outcome,
-                actual_size_bytes,
-                expected_size_bytes,
-                mismatch,
-                ..
-            }
-            | Expectation::FileTextEquals {
-                observed,
-                outcome,
-                actual_size_bytes,
-                expected_size_bytes,
-                mismatch,
-                ..
-            } => {
-                if *observed == ContentsEqualsObserved::Compared {
-                    assert!(
-                        outcome.is_some()
-                            && actual_size_bytes.is_some()
-                            && expected_size_bytes.is_some(),
-                        "observed: compared requires outcome/actualSizeBytes/expectedSizeBytes: {self:?}"
-                    );
-                }
-                if *outcome == Some(Outcome::Mismatch) {
-                    assert!(
-                        mismatch.is_some(),
-                        "outcome: mismatch requires a mismatch object: {self:?}"
-                    );
-                }
-            }
-            Expectation::StdoutContentsEquals {
-                outcome, mismatch, ..
-            }
-            | Expectation::StderrContentsEquals {
-                outcome, mismatch, ..
-            }
-            | Expectation::StdoutTextEquals {
-                outcome, mismatch, ..
-            }
-            | Expectation::StderrTextEquals {
-                outcome, mismatch, ..
-            } => {
-                if *outcome == Outcome::Mismatch {
-                    assert!(
-                        mismatch.is_some(),
-                        "outcome: mismatch requires a mismatch object: {self:?}"
-                    );
-                }
-            }
-            Expectation::Logical { children, .. } => {
-                for child in children {
-                    child.assert_conditional_invariants(true);
-                }
-            }
-            _ => {}
-        }
-    }
-}
+// The schema's conditional requirements — `observed: compared` requiring the comparison fields,
+// `outcome: mismatch` requiring `mismatch` — used to be re-asserted here because
+// `deny_unknown_fields` cannot express them. They are now enforced where they are declared, by
+// validating the manifest against the schema's `if`/`then` keywords, and exercised directly by
+// `json_contract_schemas.rs`. Restating them in Rust would give two places to update and one of
+// them no way to notice it had fallen behind.
+//
+// The one requirement that survives here is not a schema constraint at all: a logical
+// composition's child must never carry its own `diagnosticRef`. That is a domain invariant, and it
+// lives with the other invariants in `support/invariants.rs`.
 
 // ---------------------------------------------------------------------------
 // Fixture / CLI helpers
@@ -718,11 +649,33 @@ fn all_required_representative_scenarios_are_present() {
 }
 
 // ---------------------------------------------------------------------------
-// Schema validation (typed deserialization over the full stable contract)
+// JSON Schema conformance
 // ---------------------------------------------------------------------------
 
 #[test]
-fn every_fixture_run_writes_a_schema_valid_result_json() {
+fn every_fixture_result_json_conforms_to_the_run_result_schema() {
+    let paths = fixture_paths();
+    assert!(
+        !paths.is_empty(),
+        "expected at least one run_result fixture"
+    );
+
+    for path in paths {
+        let (run_dir, _stdout, _exit_code, _dir) = run_fixture(&path, false);
+        let json = read_result_json(&run_dir);
+        RUN_RESULT.assert_conforms(
+            &json,
+            &format!("the result.json of fixture {}", path.display()),
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Typed Rust consumer compatibility (over the full stable contract)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn every_fixture_result_json_deserializes_into_the_typed_consumer_model() {
     let paths = fixture_paths();
     assert!(
         !paths.is_empty(),
@@ -735,18 +688,65 @@ fn every_fixture_run_writes_a_schema_valid_result_json() {
         let text = serde_json::to_string(&json).unwrap();
         let doc: RunResultDocument = serde_json::from_str(&text).unwrap_or_else(|e| {
             panic!(
-                "fixture {} produced a result.json that does not conform to the typed schema: {e}\n{text}",
+                "fixture {} produced a result.json the typed Rust consumer model cannot deserialize: {e}\n{text}",
                 path.display()
             )
         });
         for diagnostic in &doc.diagnostics {
             assert_location_shape_is_valid(&diagnostic.location);
         }
-        for test in &doc.tests {
-            for assertion in &test.assertions {
-                assertion.expectation.assert_conditional_invariants(false);
-            }
-        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Semantic and integrity invariants
+//
+// Properties of a valid manifest that JSON Schema cannot state, kept as their own tests so a
+// domain violation never reads as a contract violation or the other way around.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn every_diagnostic_ref_resolves_to_a_diagnostic_in_the_same_document() {
+    for path in fixture_paths() {
+        let (run_dir, _stdout, _exit_code, _dir) = run_fixture(&path, false);
+        invariants::assert_diagnostic_refs_resolve(
+            &read_result_json(&run_dir),
+            &path.display().to_string(),
+        );
+    }
+}
+
+#[test]
+fn no_logical_composition_child_carries_its_own_diagnostic_ref() {
+    for path in fixture_paths() {
+        let (run_dir, _stdout, _exit_code, _dir) = run_fixture(&path, false);
+        invariants::assert_logical_children_have_no_diagnostic_ref(
+            &read_result_json(&run_dir),
+            &path.display().to_string(),
+        );
+    }
+}
+
+#[test]
+fn the_summary_agrees_with_the_concrete_results_it_counts() {
+    for path in fixture_paths() {
+        let (run_dir, _stdout, _exit_code, _dir) = run_fixture(&path, false);
+        invariants::assert_summary_agrees_with_results(
+            &read_result_json(&run_dir),
+            &path.display().to_string(),
+        );
+    }
+}
+
+#[test]
+fn every_test_entry_names_a_source_file_that_exists() {
+    for path in fixture_paths() {
+        let (run_dir, _stdout, _exit_code, dir) = run_fixture(&path, false);
+        invariants::assert_test_paths_exist(
+            &read_result_json(&run_dir),
+            dir.path(),
+            &path.display().to_string(),
+        );
     }
 }
 
@@ -819,7 +819,18 @@ fn snapshots_for_run_result_fixtures_are_current() {
     let update_snapshots = update_snapshots_enabled();
     for path in paths {
         let (run_dir, _stdout, _exit_code, _dir) = run_fixture(&path, false);
-        let normalized = normalize_for_snapshot(read_result_json(&run_dir));
+        let json = read_result_json(&run_dir);
+
+        // Contract validation precedes normalization. Normalization rewrites volatile fields to
+        // make a document comparable; it is not a repair step, and a snapshot recorded from a
+        // document that never satisfied the schema would pin a contract violation as expected
+        // output.
+        RUN_RESULT.assert_conforms(
+            &json,
+            &format!("the result.json of fixture {}", path.display()),
+        );
+
+        let normalized = normalize_for_snapshot(json);
         let actual = format_snapshot(&normalized);
 
         let snapshot_path = snapshot_path_for_fixture(&path);

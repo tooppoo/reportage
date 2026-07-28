@@ -13,8 +13,12 @@ get-version:
   @sh scripts/get-version.sh
 
 # run all check actions
+#
+# schema-artifacts-check runs before test: the JSON contract suites validate producer output
+# against the committed public schemas, and a stale one would report conformance against an
+# artifact that no longer reflects its internal source.
 [group('check')]
-check: examples-shim::go-build examples-shim::rust-build examples-shim::js-install test lint fmt build semantic-docs-check semantic-specs-check semantic-rule-coverage-check ai-docs-check schema-artifacts-check
+check: examples-shim::go-build examples-shim::rust-build examples-shim::js-install schema-artifacts-check test lint fmt build semantic-docs-check semantic-specs-check semantic-rule-coverage-check ai-docs-check
   just find-hardcode-path -n
 
 # build as debug
