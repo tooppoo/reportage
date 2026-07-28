@@ -801,48 +801,49 @@ fn every_keyword_the_schemas_use_maps_to_a_covered_feature() {
     }
 }
 
-/// Per-site coverage is generated from the base document, so a definition the base document never
-/// builds silently gets none. This is what keeps the two in step.
+/// Per-site coverage is generated from the base document, so a closed object the base document
+/// never builds silently gets none. This is what keeps the two in step.
 ///
-/// A definition is matched to an instance by its `kind` discriminator; definitions without one are
-/// reached through the properties that hold them and are covered as long as the shapes above are.
+/// The check is a mutation test rather than an inventory: for every `additionalProperties: false`
+/// in a contract, the schema is recompiled with that one keyword removed, and some case instance
+/// must notice. An instance that was rejected only because of that keyword becomes valid; if none
+/// does, nothing in the suite is watching that particular closed object.
+///
+/// Stated this way it holds for every closed object however the schema reaches it — a named
+/// definition, an inline `oneOf` branch, an object nested inside one — rather than for whichever
+/// subset a structural heuristic happens to enumerate. `TextExpectedSource` has gained a branch
+/// twice; a third would fail here until it is instantiated.
 #[test]
-fn every_closed_definition_with_a_kind_is_instantiated_by_the_base_document() {
-    for (contract, _) in contract_cases() {
-        let document = contract.document(SchemaVariant::InternalSource);
-        let base = match contract.name() {
-            "json-report" => json_report_document(),
-            _ => run_result_document(),
-        };
-        let built: BTreeSet<String> = instance_pointers(&base)
-            .into_iter()
-            .filter_map(|(_, node)| node.get("kind")?.as_str().map(str::to_owned))
+fn every_closed_object_in_the_schemas_has_a_case_that_notices_it_opening() {
+    for (contract, cases) in contract_cases() {
+        let rejected: Vec<&Value> = cases
+            .iter()
+            .filter(|case| !case.valid)
+            .map(|case| &case.instance)
             .collect();
 
-        let definitions = document["$defs"]
-            .as_object()
-            .expect("a contract schema has $defs");
-        for (name, definition) in definitions {
-            if definition.get("additionalProperties") != Some(&json!(false)) {
-                continue;
+        for variant in SchemaVariant::ALL {
+            let document = contract.document(variant);
+            for (keyword, pointer) in schema_keywords(document) {
+                if keyword != "additionalProperties"
+                    || document.pointer(&pointer) != Some(&json!(false))
+                {
+                    continue;
+                }
+
+                let opened = remove(document, &pointer);
+                let validator = compile(&opened).unwrap_or_else(|error| {
+                    panic!(
+                        "{} did not compile with {pointer} removed: {error}",
+                        contract.path(variant)
+                    )
+                });
+                assert!(
+                    rejected.iter().any(|instance| validator.is_valid(instance)),
+                    "{} closes an object at {pointer}, but no case would notice it opening; add an instance of that shape to the base document so a per-site case is generated for it",
+                    contract.path(variant),
+                );
             }
-            let Some(kind) = definition.pointer("/properties/kind") else {
-                continue;
-            };
-            let kinds: Vec<String> = match (kind.get("const"), kind.get("enum")) {
-                (Some(Value::String(value)), _) => vec![value.clone()],
-                (_, Some(Value::Array(values))) => values
-                    .iter()
-                    .filter_map(|value| value.as_str().map(str::to_owned))
-                    .collect(),
-                _ => continue,
-            };
-            assert!(
-                kinds.iter().any(|kind| built.contains(kind)),
-                "{} defines the closed shape `{name}` ({kinds:?}), which the {} base document never builds, so no per-site additionalProperties or type case covers it; add an instance of it to the base document",
-                contract.path(SchemaVariant::InternalSource),
-                contract.name(),
-            );
         }
     }
 }
@@ -933,8 +934,9 @@ fn mismatch() -> Value {
 /// `declared_type_cases` generate their coverage from what this document contains, so a definition
 /// this document never builds gets no per-site case. That is why it carries every expectation kind,
 /// both diagnostic origin variants, and each `TextExpectedSource` branch, rather than only the
-/// shapes a hand-written case happens to mutate. `every_closed_definition_is_instantiated` fails if
-/// a definition is added to a contract and not built here.
+/// shapes a hand-written case happens to mutate.
+/// [`every_closed_object_in_the_schemas_has_a_case_that_notices_it_opening`] fails if a contract
+/// closes an object this document does not build.
 ///
 /// This is hand-built rather than captured from a fixture run: a case that removes a required
 /// field has to start from a document whose every field is deliberately there, and no single run
