@@ -16,8 +16,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-use jsonschema::{Retrieve, Uri, Validator};
-use serde_json::Value;
+use jsonschema::{Retrieve, Uri, ValidationError, Validator};
+use serde_json::{Value, json};
 
 /// Which of a contract's two schema artifacts a document is being checked against.
 ///
@@ -176,17 +176,22 @@ impl Contract {
     /// The order `iter_errors` yields is not part of the validator's contract, so lines are sorted
     /// to keep a failure message stable across runs.
     pub fn violations(&self, variant: SchemaVariant, instance: &Value) -> Vec<String> {
-        let mut violations: Vec<String> = self
-            .artifact(variant)
+        let artifact = self.artifact(variant);
+        let mut violations: Vec<String> = artifact
             .validator
             .iter_errors(instance)
             .map(|error| {
-                format!(
+                let mut rendered = format!(
                     "{error}\n     instance path:   {}\n     schema path:     {}\n     evaluation path: {}",
                     render_location(&error.instance_path().to_string()),
                     render_location(&error.schema_path().to_string()),
                     render_location(&error.evaluation_path().to_string()),
-                )
+                );
+                for line in artifact.discriminated_branch_detail(&error) {
+                    rendered.push_str("\n     ");
+                    rendered.push_str(&line);
+                }
+                rendered
             })
             .collect();
         violations.sort();
@@ -238,6 +243,90 @@ impl SchemaArtifact {
             document,
             validator,
         }
+    }
+
+    /// Re-validates a failed `oneOf` instance against the single branch its `kind` selects, so the
+    /// message names the constraint that actually went unsatisfied.
+    ///
+    /// A `oneOf` failure reports only that no branch matched. Both contracts dispatch expectations,
+    /// diagnostic origins, and text expectation sources through `oneOf` over `kind`-discriminated
+    /// branches, so without this a defect anywhere inside an expectation collapses to "is not valid
+    /// under any of the schemas listed in the 'oneOf' keyword" — true, and useless for locating the
+    /// defect.
+    ///
+    /// Returns nothing when the error is not a `oneOf` failure, when the instance carries no `kind`
+    /// discriminator, or when no branch or more than one branch claims that `kind`; in those cases
+    /// there is no single branch whose errors are the ones worth showing. This runs only while
+    /// building a failure message, so re-compiling the branch is not on any passing path.
+    fn discriminated_branch_detail(&self, error: &ValidationError<'_>) -> Vec<String> {
+        let schema_path = error.schema_path().to_string();
+        let Some(parent) = schema_path.strip_suffix("/oneOf") else {
+            return Vec::new();
+        };
+        let Some(branches) = self
+            .document
+            .pointer(&format!("{parent}/oneOf"))
+            .and_then(Value::as_array)
+        else {
+            return Vec::new();
+        };
+        let instance = error.instance();
+        let Some(kind) = instance.get("kind").and_then(Value::as_str) else {
+            return Vec::new();
+        };
+
+        let mut selected = branches
+            .iter()
+            .filter(|branch| self.branch_claims_kind(branch, kind));
+        let (Some(branch), None) = (selected.next(), selected.next()) else {
+            return Vec::new();
+        };
+
+        // Wrapped rather than compiled directly: a branch is normally `{"$ref": "#/$defs/..."}` and
+        // its own nested `$ref`s are document-relative, so it only resolves alongside the whole
+        // document's `$defs`.
+        let wrapper = json!({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$defs": self.document.get("$defs").cloned().unwrap_or(Value::Null),
+            "allOf": [branch],
+        });
+        let Ok(validator) = compile(&wrapper) else {
+            return Vec::new();
+        };
+
+        let mut lines = vec![format!("branch selected by kind `{kind}`:")];
+        lines.extend(validator.iter_errors(instance).map(|branch_error| {
+            format!(
+                "  {branch_error} (instance path {}, schema path {})",
+                render_location(&branch_error.instance_path().to_string()),
+                render_location(&branch_error.schema_path().to_string()),
+            )
+        }));
+        lines
+    }
+
+    /// Whether a `oneOf` branch pins `kind` to `value`, following one level of local `$ref`.
+    fn branch_claims_kind(&self, branch: &Value, value: &str) -> bool {
+        let resolved = match branch.get("$ref").and_then(Value::as_str) {
+            Some(reference) => match reference
+                .strip_prefix('#')
+                .and_then(|pointer| self.document.pointer(pointer))
+            {
+                Some(resolved) => resolved,
+                None => return false,
+            },
+            None => branch,
+        };
+
+        let Some(kind) = resolved.pointer("/properties/kind") else {
+            return false;
+        };
+        if kind.get("const").and_then(Value::as_str) == Some(value) {
+            return true;
+        }
+        kind.get("enum")
+            .and_then(Value::as_array)
+            .is_some_and(|values| values.iter().any(|candidate| candidate == value))
     }
 }
 

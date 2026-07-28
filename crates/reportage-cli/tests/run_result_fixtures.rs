@@ -718,13 +718,15 @@ fn every_diagnostic_ref_resolves_to_a_diagnostic_in_the_same_document() {
 
 #[test]
 fn no_logical_composition_child_carries_its_own_diagnostic_ref() {
+    let mut inspected = 0;
     for path in fixture_paths() {
         let (run_dir, _stdout, _exit_code, _dir) = run_fixture(&path, false);
-        invariants::assert_logical_children_have_no_diagnostic_ref(
+        inspected += invariants::assert_logical_children_have_no_diagnostic_ref(
             &read_result_json(&run_dir),
             &path.display().to_string(),
         );
     }
+    invariants::assert_failed_logical_compositions_were_inspected(inspected);
 }
 
 #[test]

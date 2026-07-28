@@ -453,16 +453,11 @@ fn every_diagnostic_ref_resolves_to_a_diagnostic_in_the_same_document() {
     }
 }
 
-#[test]
-fn no_logical_composition_child_carries_its_own_diagnostic_ref() {
-    for path in fixture_paths() {
-        let (json, _exit_code, _dir) = run_json(&path);
-        invariants::assert_logical_children_have_no_diagnostic_ref(
-            &json,
-            &path.display().to_string(),
-        );
-    }
-}
+// The "a logical composition's children never carry their own diagnosticRef" invariant is not
+// checked here. None of the six scenarios issue #89 requires produces a logical composition, so the
+// check would inspect nothing and pass whatever the renderer did. It is established on the
+// canonical manifest by `run_result_fixtures.rs`, over a fixture whose composition actually fails,
+// and carried to this document by the strict projection parity test in the same suite.
 
 #[test]
 fn the_summary_agrees_with_the_concrete_results_it_counts() {

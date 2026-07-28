@@ -27,7 +27,9 @@ See [`docs/adr/20260708T180000Z_ai-documentation-discovery-core-path.md`](../../
 
 `schema.json` defines the expected structure of the `reportage references --format=json` document and is useful for editor integration (autocomplete, inline validation).
 
-CI validation is performed by typed Rust deserialization in `crates/reportage-cli/tests/references_index.rs`, following the same approach as [`spec/output/json-report/README.md`](../json-report/README.md): the command's JSON output is deserialised into Rust structs marked `#[serde(deny_unknown_fields)]`, which rejects unknown fields and enforces required fields, without an external JSON Schema validator dependency.
+CI checking is performed by typed Rust deserialization in [`crates/reportage-cli/tests/references_index.rs`](../../../crates/reportage-cli/tests/references_index.rs): the command's JSON output is deserialised into Rust structs marked `#[serde(deny_unknown_fields)]`, which rejects unknown fields and enforces required fields.
+
+This is a consumer compatibility check, not JSON Schema validation: it enforces neither the schema's value constraints nor its combinators. The `--format=json` and artifact result contracts are additionally validated against their schemas under [`docs/adr/20260728T092956Z_json-contract-validation-policy.md`](../../../docs/adr/20260728T092956Z_json-contract-validation-policy.md); that policy deliberately left this contract out of scope, and extending it here is a separate decision.
 
 ## Validation policy
 

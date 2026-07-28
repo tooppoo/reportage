@@ -26,6 +26,12 @@ Related issue: [#192](https://github.com/tooppoo/reportage/issues/192).
 
 ## Decision
 
+### Only the superseded ADR's validation policy is replaced
+
+[`20260707T050100Z_json-output-schema-and-validation-policy.md`](20260707T050100Z_json-output-schema-and-validation-policy.md) is marked superseded by this ADR, but only its answer to "how does CI enforce the schema" changes. Its schema design decisions remain current project policy and are not restated here: the external contract's independence from `ExecutionReport`, camelCase field naming, `schemaVersion` and `additionalProperties`, document-local ids not being long-term stable identifiers, the representative fixture and snapshot policy, and the `location` / `origin` fallback.
+
+The same applies to the validation paragraph in [the artifact run result canonical manifest ADR](20260708T130500Z_artifact-run-result-canonical-manifest.md), which carries an amendment note pointing here. Nothing else it decides changes.
+
 ### JSON Schema remains the authoritative specification
 
 The schema documents under `spec/` state what the contracts are. No Rust type, test, or documentation page is a second definition of them.
@@ -92,6 +98,8 @@ Each JSON Schema keyword the contracts rely on gets valid and invalid instances 
 
 Representative fixtures cannot serve this purpose. Making a producer emit a contract violation would mean adding test-only behavior to the runtime, and a keyword can only be shown to bite by feeding it something that must fail. The instances are therefore hand-built, as edits to a valid document so that an invalid case fails for the reason it names.
 
+Which keywords need cases is derived from the schemas rather than listed by hand. Every keyword occurring in a schema position must either map to a covered feature or be recorded as structural, so adding a constraint to a contract without exercising it fails the suite. A keyword the contracts state in several definitions independently — the contents-comparison conditional appears in four — gets a case per definition, because producer fixtures only ever emit conforming instances and would not notice one of them weakening.
+
 This is also what covers the `jsonschema` crate's own Draft 2020-12 conformance for the keywords Reportage actually uses. Proving the crate's conformance in general is not Reportage's job; noticing that a keyword this repository depends on stopped being enforced is.
 
 ### `format` stays an annotation
@@ -112,7 +120,7 @@ CI guarantees, for both contracts:
 
 - each schema artifact is a valid Draft 2020-12 document, and a malformed one fails before any instance is validated;
 - every representative fixture's producer output conforms to both the internal source and the public schema, with all violations reported together and each locating itself by instance path, schema path, and evaluation path;
-- each JSON Schema keyword the contracts rely on accepts and rejects the instances it is supposed to;
+- each JSON Schema keyword the contracts rely on accepts and rejects the instances it is supposed to, at each definition that states it, and no keyword occurs in a schema without such cases;
 - typed Rust consumers can deserialize real producer output;
 - the domain invariants listed above hold.
 
@@ -162,7 +170,7 @@ Rejected. Covering an invalid case would require the runtime to be able to emit 
 
 - CI gains a dev-dependency, and with it a dependency to keep current and a compile-time cost in the `reportage-cli` test profile.
 - A contract change now touches the schema, the typed consumer model, the fixtures, the snapshots, and possibly the feature cases; the pieces are more clearly separated, but there are more of them.
-- Feature cases are hand-maintained and can drift from the schema they exercise. The coverage check catches a missing keyword, not a case that has stopped being about what it claims.
+- Feature cases are hand-maintained. The coverage check catches a keyword with no cases, and a per-definition case catches one definition weakening, but neither catches a case that still runs and has stopped being about what its description claims.
 
 ### Neutral Consequences
 

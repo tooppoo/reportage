@@ -17,6 +17,8 @@
 //!
 //! See docs/adr/20260728T092956Z_json-contract-validation-policy.md.
 
+use std::collections::BTreeSet;
+
 use serde_json::{Value, json};
 
 #[path = "support/json_schema.rs"]
@@ -119,12 +121,20 @@ fn published_schemas_only_use_fragment_only_local_references() {
 // Schema feature tests
 // ---------------------------------------------------------------------------
 
-/// A JSON Schema keyword the contracts rely on, named so a missing case is detectable.
+/// A JSON Schema keyword the contracts rely on.
+///
+/// Every keyword either maps to a variant here, which obliges the case tables to exercise it, or is
+/// listed as structural in [`keyword_feature`]. A keyword that is neither fails
+/// [`every_keyword_the_schemas_use_maps_to_a_covered_feature`], so adding one to a schema without a
+/// case is a test failure rather than a silent coverage gap.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Feature {
     Const,
+    Enum,
     Pattern,
     Minimum,
+    Type,
+    Items,
     Required,
     AdditionalProperties,
     OneOf,
@@ -133,126 +143,212 @@ enum Feature {
     ExtensionKeyword,
 }
 
-/// Every feature a case table must cover. A keyword that appears in a schema with no case here is
-/// a constraint nothing proves is enforced.
-const REQUIRED_FEATURES: &[Feature] = &[
-    Feature::Const,
-    Feature::Pattern,
-    Feature::Minimum,
-    Feature::Required,
-    Feature::AdditionalProperties,
-    Feature::OneOf,
-    Feature::Conditional,
-    Feature::NestedLocalRef,
-    Feature::ExtensionKeyword,
-];
+/// The [`Feature`] a schema keyword belongs to, or `None` when the keyword states no constraint on
+/// an instance and so has nothing to exercise.
+///
+/// Returns `Err` for a keyword this suite does not account for at all. That is the coverage-drift
+/// signal: a keyword added to a contract is either something an instance can violate, and needs
+/// cases, or it is structural, and needs to be recorded as such here.
+fn keyword_feature(keyword: &str) -> Result<Option<Feature>, ()> {
+    Ok(match keyword {
+        "const" => Some(Feature::Const),
+        "enum" => Some(Feature::Enum),
+        "pattern" => Some(Feature::Pattern),
+        "minimum" => Some(Feature::Minimum),
+        "type" => Some(Feature::Type),
+        "items" => Some(Feature::Items),
+        "required" => Some(Feature::Required),
+        "additionalProperties" => Some(Feature::AdditionalProperties),
+        "oneOf" => Some(Feature::OneOf),
+        // `allOf` appears in these schemas only as the wrapper holding `if` / `then` pairs.
+        "allOf" | "if" | "then" => Some(Feature::Conditional),
+        "$ref" => Some(Feature::NestedLocalRef),
+        "x-reportage-snapshot" => Some(Feature::ExtensionKeyword),
+
+        // Structural: identity, documentation, and the containers that hold subschemas. None of
+        // these can be violated by an instance, so there is nothing for a case to demonstrate.
+        "$schema" | "$id" | "$defs" | "title" | "description" | "properties" => None,
+
+        _ => return Err(()),
+    })
+}
 
 struct FeatureCase {
     feature: Feature,
     /// What the case demonstrates, phrased so a failure message reads as a sentence.
-    description: &'static str,
+    description: String,
     instance: Value,
     valid: bool,
 }
+
+impl FeatureCase {
+    fn new(feature: Feature, description: impl Into<String>, instance: Value, valid: bool) -> Self {
+        FeatureCase {
+            feature,
+            description: description.into(),
+            instance,
+            valid,
+        }
+    }
+}
+
+/// The expectation kinds whose definitions carry `allOf` / `if` / `then`, and whether the
+/// definition also gates on `observed`.
+///
+/// The two contracts state the same conditional in four definitions independently. Covering only
+/// one of them would leave a weakened constraint in any of the other three invisible: producer
+/// fixtures only ever emit conforming instances, so nothing else would notice.
+const CONDITIONAL_EXPECTATIONS: &[(&str, bool)] = &[
+    ("fileContentsEquals", true),
+    ("fileTextEquals", true),
+    ("stdoutContentsEquals", false),
+    ("stdoutTextEquals", false),
+];
 
 /// Builds every case for one contract from that contract's own valid base document.
 ///
 /// Cases are expressed as edits to a valid document rather than as standalone fragments, so an
 /// "invalid" case fails for exactly the reason it names instead of for an unrelated omission.
 fn feature_cases(base: Value, contract_specific: Vec<FeatureCase>) -> Vec<FeatureCase> {
+    let logical = expectation_pointer(&base, "logical");
+
     let mut cases = vec![
-        FeatureCase {
-            feature: Feature::Const,
-            description: "the declared schemaVersion is the only accepted value",
-            instance: base.clone(),
-            valid: true,
-        },
-        FeatureCase {
-            feature: Feature::Const,
-            description: "a different schemaVersion is rejected",
-            instance: set(&base, "/schemaVersion", json!(2)),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::Const,
-            description: "an origin kind outside the two declared variants is rejected",
-            instance: set(&base, "/diagnostics/0/origin/kind", json!("plugin")),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::Pattern,
-            description: "a dotted lowercase diagnostic code matches the code pattern",
-            instance: set(
+        FeatureCase::new(
+            Feature::Const,
+            "the declared schemaVersion is the only accepted value",
+            base.clone(),
+            true,
+        ),
+        FeatureCase::new(
+            Feature::Const,
+            "a different schemaVersion is rejected",
+            set(&base, "/schemaVersion", json!(2)),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::Const,
+            "an origin kind outside the two declared variants is rejected",
+            set(&base, "/diagnostics/0/origin/kind", json!("plugin")),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::Enum,
+            "another declared top-level status is accepted",
+            set(&base, "/status", json!("error")),
+            true,
+        ),
+        FeatureCase::new(
+            Feature::Enum,
+            "a top-level status outside the enumeration is rejected",
+            set(&base, "/status", json!("crashed")),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::Type,
+            "processExitCode is accepted as an integer",
+            set(&base, "/processExitCode", json!(3)),
+            true,
+        ),
+        FeatureCase::new(
+            Feature::Type,
+            "a stringified processExitCode is rejected",
+            set(&base, "/processExitCode", json!("3")),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::Items,
+            "shim event parse warnings are accepted as strings",
+            set(
+                &base,
+                "/tests/0/actions/0/shimEventParseWarnings",
+                json!(["unparsable event line"]),
+            ),
+            true,
+        ),
+        FeatureCase::new(
+            Feature::Items,
+            "a non-string shim event parse warning is rejected",
+            set(
+                &base,
+                "/tests/0/actions/0/shimEventParseWarnings",
+                json!([17]),
+            ),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::Pattern,
+            "a dotted lowercase diagnostic code matches the code pattern",
+            set(
                 &base,
                 "/diagnostics/0/code",
                 json!("step.write.target_exists"),
             ),
-            valid: true,
-        },
-        FeatureCase {
-            feature: Feature::Pattern,
-            description: "an uppercase diagnostic code is rejected",
-            instance: set(&base, "/diagnostics/0/code", json!("Parse.Syntax")),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::Pattern,
-            description: "an undotted diagnostic code is rejected",
-            instance: set(&base, "/diagnostics/0/code", json!("parse")),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::Minimum,
-            description: "a zero summary count is accepted",
-            instance: set(&base, "/summary/passed", json!(0)),
-            valid: true,
-        },
-        FeatureCase {
-            feature: Feature::Minimum,
-            description: "a negative summary count is rejected",
-            instance: set(&base, "/summary/passed", json!(-1)),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::Minimum,
-            description: "a diagnostic location line below one is rejected",
-            instance: set(&base, "/diagnostics/0/location/line", json!(0)),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::Required,
-            description: "an optional diagnostic code may be absent",
-            instance: remove(&base, "/diagnostics/0/code"),
-            valid: true,
-        },
-        FeatureCase {
-            feature: Feature::Required,
-            description: "a missing top-level tests array is rejected",
-            instance: remove(&base, "/tests"),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::Required,
-            description: "a diagnostic without the always-present location key is rejected",
-            instance: remove(&base, "/diagnostics/0/location"),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::AdditionalProperties,
-            description: "an unknown top-level field is rejected",
-            instance: set(&base, "/runDuration", json!(12)),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::AdditionalProperties,
-            description: "an unknown field inside a nested closed object is rejected",
-            instance: set(&base, "/tool/commit", json!("abc123")),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::AdditionalProperties,
-            description: "a shim invocation may carry fields the renderer does not define",
-            instance: set(
+            true,
+        ),
+        FeatureCase::new(
+            Feature::Pattern,
+            "an uppercase diagnostic code is rejected",
+            set(&base, "/diagnostics/0/code", json!("Parse.Syntax")),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::Pattern,
+            "an undotted diagnostic code is rejected",
+            set(&base, "/diagnostics/0/code", json!("parse")),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::Minimum,
+            "a zero summary count is accepted",
+            set(&base, "/summary/passed", json!(0)),
+            true,
+        ),
+        FeatureCase::new(
+            Feature::Minimum,
+            "a negative summary count is rejected",
+            set(&base, "/summary/passed", json!(-1)),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::Minimum,
+            "a diagnostic location line below one is rejected",
+            set(&base, "/diagnostics/0/location/line", json!(0)),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::Required,
+            "an optional diagnostic code may be absent",
+            remove(&base, "/diagnostics/0/code"),
+            true,
+        ),
+        FeatureCase::new(
+            Feature::Required,
+            "a missing top-level tests array is rejected",
+            remove(&base, "/tests"),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::Required,
+            "a diagnostic without the always-present location key is rejected",
+            remove(&base, "/diagnostics/0/location"),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::AdditionalProperties,
+            "an unknown top-level field is rejected",
+            set(&base, "/runDuration", json!(12)),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::AdditionalProperties,
+            "an unknown field inside a nested closed object is rejected",
+            set(&base, "/tool/commit", json!("abc123")),
+            false,
+        ),
+        FeatureCase::new(
+            Feature::AdditionalProperties,
+            "a shim invocation may carry fields the renderer does not define",
+            set(
                 &base,
                 "/tests/0/actions/0/shimInvocations",
                 json!([{
@@ -264,91 +360,60 @@ fn feature_cases(base: Value, contract_specific: Vec<FeatureCase>) -> Vec<Featur
                     "recordedAt": "later addition by the shim runtime"
                 }]),
             ),
-            valid: true,
-        },
-        FeatureCase {
-            feature: Feature::OneOf,
-            description: "the test-origin variant of a diagnostic origin is accepted",
-            instance: set(
+            true,
+        ),
+        FeatureCase::new(
+            Feature::OneOf,
+            "the test-origin variant of a diagnostic origin is accepted",
+            set(
                 &base,
                 "/diagnostics/0/origin",
                 json!({ "kind": "test", "test": "test-1" }),
             ),
-            valid: true,
-        },
-        FeatureCase {
-            feature: Feature::OneOf,
-            description: "an origin mixing both variants' fields matches neither",
-            instance: set(
+            true,
+        ),
+        FeatureCase::new(
+            Feature::OneOf,
+            "an origin mixing both variants' fields matches neither",
+            set(
                 &base,
                 "/diagnostics/0/origin",
                 json!({ "kind": "source", "source": "feature.repor", "test": "test-1" }),
             ),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::OneOf,
-            description: "an expectation whose kind is not one of the declared kinds is rejected",
-            instance: set(
+            false,
+        ),
+        FeatureCase::new(
+            Feature::OneOf,
+            "an expectation whose kind is not one of the declared kinds is rejected",
+            set(
                 &base,
-                "/tests/0/assertions/0/expectation",
+                &expectation_pointer(&base, "exit"),
                 json!({ "kind": "exitsQuietly", "status": "passed" }),
             ),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::Conditional,
-            description: "a compared contents comparison carries its comparison fields",
-            instance: base.clone(),
-            valid: true,
-        },
-        FeatureCase {
-            feature: Feature::Conditional,
-            description: "a compared contents comparison without an outcome is rejected",
-            instance: remove(&base, "/tests/0/assertions/1/expectation/outcome"),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::Conditional,
-            description: "a mismatching contents comparison without a mismatch object is rejected",
-            instance: remove(&base, "/tests/0/assertions/1/expectation/mismatch"),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::Conditional,
-            description: "a matching contents comparison needs no mismatch object",
-            instance: remove(
-                &set(
-                    &base,
-                    "/tests/0/assertions/1/expectation/outcome",
-                    json!("match"),
-                ),
-                "/tests/0/assertions/1/expectation/mismatch",
-            ),
-            valid: true,
-        },
-        FeatureCase {
-            feature: Feature::NestedLocalRef,
-            description: "a logical composition recurses into child expectations",
-            instance: base.clone(),
-            valid: true,
-        },
-        FeatureCase {
-            feature: Feature::NestedLocalRef,
-            description: "a defect inside a logical composition's child is rejected",
-            instance: set(
+            false,
+        ),
+        FeatureCase::new(
+            Feature::NestedLocalRef,
+            "a logical composition recurses into child expectations",
+            base.clone(),
+            true,
+        ),
+        FeatureCase::new(
+            Feature::NestedLocalRef,
+            "a defect inside a logical composition's child is rejected",
+            set(
                 &base,
-                "/tests/0/assertions/2/expectation/children/0/expected",
+                &format!("{logical}/children/0/expected"),
                 json!("zero"),
             ),
-            valid: false,
-        },
-        FeatureCase {
-            feature: Feature::NestedLocalRef,
-            description: "a logical composition nested inside another is rejected when its operator is not declared",
-            instance: set(
+            false,
+        ),
+        FeatureCase::new(
+            Feature::NestedLocalRef,
+            "a logical composition nested inside another is rejected when its operator is not declared",
+            set(
                 &base,
-                "/tests/0/assertions/2/expectation/children/0",
+                &format!("{logical}/children/0"),
                 json!({
                     "kind": "logical",
                     "status": "passed",
@@ -356,9 +421,65 @@ fn feature_cases(base: Value, contract_specific: Vec<FeatureCase>) -> Vec<Featur
                     "children": []
                 }),
             ),
-            valid: false,
-        },
+            false,
+        ),
     ];
+
+    for (kind, gates_on_observed) in CONDITIONAL_EXPECTATIONS {
+        let expectation = expectation_pointer(&base, kind);
+        cases.push(FeatureCase::new(
+            Feature::Conditional,
+            format!("a mismatching {kind} carries its mismatch object"),
+            base.clone(),
+            true,
+        ));
+        cases.push(FeatureCase::new(
+            Feature::Conditional,
+            format!("a mismatching {kind} without a mismatch object is rejected"),
+            remove(&base, &format!("{expectation}/mismatch")),
+            false,
+        ));
+        cases.push(FeatureCase::new(
+            Feature::Conditional,
+            format!("a matching {kind} needs no mismatch object"),
+            remove(
+                &set(&base, &format!("{expectation}/outcome"), json!("match")),
+                &format!("{expectation}/mismatch"),
+            ),
+            true,
+        ));
+
+        if !gates_on_observed {
+            continue;
+        }
+        cases.push(FeatureCase::new(
+            Feature::Conditional,
+            format!("a compared {kind} without an outcome is rejected"),
+            remove(&base, &format!("{expectation}/outcome")),
+            false,
+        ));
+        // The `if` guarding the mismatch requirement has to test that `outcome` is present, not
+        // only that it is not `mismatch`: `properties` matches vacuously on an absent member, so an
+        // unguarded conditional would require `mismatch` on every observation that never got as far
+        // as a comparison. `tests/fixtures/run_result/contents_equals.repor` covers the same branch
+        // from the producer side.
+        cases.push(FeatureCase::new(
+            Feature::Conditional,
+            format!("an unread {kind} carries neither an outcome nor a mismatch object"),
+            remove(
+                &remove(
+                    &set(
+                        &base,
+                        &format!("{expectation}/observed"),
+                        json!("actualMissing"),
+                    ),
+                    &format!("{expectation}/outcome"),
+                ),
+                &format!("{expectation}/mismatch"),
+            ),
+            true,
+        ));
+    }
 
     cases.extend(contract_specific);
     cases
@@ -369,47 +490,47 @@ fn json_report_cases() -> Vec<FeatureCase> {
     feature_cases(
         base.clone(),
         vec![
-            FeatureCase {
-                feature: Feature::ExtensionKeyword,
-                // `artifactRoot` and `tool.version` are the two locations the internal source
-                // schema annotates. A snapshot placeholder is what the normalization harness
-                // substitutes there, so it has to stay an ordinary accepted string.
-                description: "both snapshot-annotated locations accept their placeholders",
-                instance: set(
+            // `artifactRoot` and `tool.version` are the two locations the internal source schema
+            // annotates. A snapshot placeholder is what the normalization harness substitutes
+            // there, so it has to stay an ordinary accepted string.
+            FeatureCase::new(
+                Feature::ExtensionKeyword,
+                "both snapshot-annotated locations accept their placeholders",
+                set(
                     &set(&base, "/artifactRoot", json!("<ARTIFACT_ROOT>")),
                     "/tool/version",
                     json!("<VERSION>"),
                 ),
-                valid: true,
-            },
-            FeatureCase {
-                feature: Feature::ExtensionKeyword,
-                description: "an annotated location still enforces its declared type",
-                instance: set(&base, "/artifactRoot", json!(7)),
-                valid: false,
-            },
-            FeatureCase {
-                feature: Feature::Required,
-                description: "the stdout document's artifactRoot is required",
-                instance: remove(&base, "/artifactRoot"),
-                valid: false,
-            },
-            FeatureCase {
-                feature: Feature::AdditionalProperties,
-                description: "the artifact-only noop field is not part of the stdout document",
-                instance: set(&base, "/noop", json!(false)),
-                valid: false,
-            },
-            FeatureCase {
-                feature: Feature::AdditionalProperties,
-                description: "the artifact-only evidence digest is not part of the stdout document",
-                instance: set(
+                true,
+            ),
+            FeatureCase::new(
+                Feature::ExtensionKeyword,
+                "an annotated location still enforces its declared type",
+                set(&base, "/artifactRoot", json!(7)),
+                false,
+            ),
+            FeatureCase::new(
+                Feature::Required,
+                "the stdout document's artifactRoot is required",
+                remove(&base, "/artifactRoot"),
+                false,
+            ),
+            FeatureCase::new(
+                Feature::AdditionalProperties,
+                "the artifact-only noop field is not part of the stdout document",
+                set(&base, "/noop", json!(false)),
+                false,
+            ),
+            FeatureCase::new(
+                Feature::AdditionalProperties,
+                "the artifact-only evidence digest is not part of the stdout document",
+                set(
                     &base,
                     "/tests/0/actions/0/stdout/sha256",
                     json!(EMPTY_SHA256),
                 ),
-                valid: false,
-            },
+                false,
+            ),
         ],
     )
 }
@@ -419,56 +540,60 @@ fn run_result_cases() -> Vec<FeatureCase> {
     feature_cases(
         base.clone(),
         vec![
-            FeatureCase {
-                feature: Feature::ExtensionKeyword,
-                description: "the snapshot-annotated tool version accepts its placeholder",
-                instance: set(&base, "/tool/version", json!("<VERSION>")),
-                valid: true,
-            },
-            FeatureCase {
-                feature: Feature::ExtensionKeyword,
-                description: "an annotated location still enforces its declared type",
-                instance: set(&base, "/tool/version", json!(7)),
-                valid: false,
-            },
-            FeatureCase {
-                feature: Feature::Required,
-                description: "the canonical manifest's noop field is required",
-                instance: remove(&base, "/noop"),
-                valid: false,
-            },
-            FeatureCase {
-                feature: Feature::Required,
-                description: "an evidence reference without its digest is rejected",
-                instance: remove(&base, "/tests/0/actions/0/stdout/sha256"),
-                valid: false,
-            },
-            FeatureCase {
-                feature: Feature::Pattern,
-                description: "an evidence digest that is not lowercase hex is rejected",
-                instance: set(
+            FeatureCase::new(
+                Feature::ExtensionKeyword,
+                "the snapshot-annotated tool version accepts its placeholder",
+                set(&base, "/tool/version", json!("<VERSION>")),
+                true,
+            ),
+            FeatureCase::new(
+                Feature::ExtensionKeyword,
+                "an annotated location still enforces its declared type",
+                set(&base, "/tool/version", json!(7)),
+                false,
+            ),
+            FeatureCase::new(
+                Feature::Required,
+                "the canonical manifest's noop field is required",
+                remove(&base, "/noop"),
+                false,
+            ),
+            FeatureCase::new(
+                Feature::Required,
+                "an evidence reference without its digest is rejected",
+                remove(&base, "/tests/0/actions/0/stdout/sha256"),
+                false,
+            ),
+            FeatureCase::new(
+                Feature::Pattern,
+                "an evidence digest that is not lowercase hex is rejected",
+                set(
                     &base,
                     "/tests/0/actions/0/stdout/sha256",
                     json!(EMPTY_SHA256.to_uppercase()),
                 ),
-                valid: false,
-            },
-            FeatureCase {
-                feature: Feature::AdditionalProperties,
-                description: "the stdout-only artifactRoot is not part of the canonical manifest",
-                instance: set(&base, "/artifactRoot", json!(".reportage/runs/run-1")),
-                valid: false,
-            },
+                false,
+            ),
+            FeatureCase::new(
+                Feature::AdditionalProperties,
+                "the stdout-only artifactRoot is not part of the canonical manifest",
+                set(&base, "/artifactRoot", json!(".reportage/runs/run-1")),
+                false,
+            ),
         ],
     )
 }
 
+fn contract_cases() -> [(&'static Contract, Vec<FeatureCase>); 2] {
+    [
+        (&JSON_REPORT, json_report_cases()),
+        (&RUN_RESULT, run_result_cases()),
+    ]
+}
+
 #[test]
 fn schema_feature_cases_are_accepted_or_rejected_as_declared() {
-    for (contract, cases) in [
-        (&*JSON_REPORT, json_report_cases()),
-        (&*RUN_RESULT, run_result_cases()),
-    ] {
+    for (contract, cases) in contract_cases() {
         for case in &cases {
             assert_case(contract, SchemaVariant::InternalSource, case);
         }
@@ -481,10 +606,7 @@ fn schema_feature_cases_are_accepted_or_rejected_as_declared() {
 /// keyword was load-bearing after all.
 #[test]
 fn internal_and_public_schemas_agree_on_every_feature_case() {
-    for (contract, cases) in [
-        (&*JSON_REPORT, json_report_cases()),
-        (&*RUN_RESULT, run_result_cases()),
-    ] {
+    for (contract, cases) in contract_cases() {
         for case in &cases {
             let internal = contract.is_valid(SchemaVariant::InternalSource, &case.instance);
             let public = contract.is_valid(SchemaVariant::Public, &case.instance);
@@ -503,26 +625,60 @@ fn internal_and_public_schemas_agree_on_every_feature_case() {
     }
 }
 
+/// Coverage is checked against the schemas rather than against a hand-written list of features, so
+/// that adding a keyword to a contract without adding cases for it fails here.
 #[test]
-fn every_required_schema_feature_has_a_valid_and_an_invalid_case() {
-    for (contract, cases) in [
-        (&*JSON_REPORT, json_report_cases()),
-        (&*RUN_RESULT, run_result_cases()),
-    ] {
-        for feature in REQUIRED_FEATURES {
-            let covered: Vec<bool> = cases
-                .iter()
-                .filter(|case| case.feature == *feature)
-                .map(|case| case.valid)
-                .collect();
-            assert!(
-                covered.contains(&true) && covered.contains(&false),
-                "the {} contract needs both a valid and an invalid case for {feature:?}, got {covered:?}",
-                contract.name(),
-            );
+fn every_keyword_the_schemas_use_maps_to_a_covered_feature() {
+    for (contract, cases) in contract_cases() {
+        let covered: BTreeSet<Feature> = REQUIRED_FEATURES
+            .iter()
+            .copied()
+            .filter(|feature| {
+                let verdicts: Vec<bool> = cases
+                    .iter()
+                    .filter(|case| case.feature == *feature)
+                    .map(|case| case.valid)
+                    .collect();
+                verdicts.contains(&true) && verdicts.contains(&false)
+            })
+            .collect();
+
+        for variant in SchemaVariant::ALL {
+            for (keyword, pointer) in schema_keywords(contract.document(variant)) {
+                let Ok(feature) = keyword_feature(&keyword) else {
+                    panic!(
+                        "{} uses the keyword `{keyword}` at {pointer}, which this suite does not account for; map it to a Feature and add cases, or record it as structural in keyword_feature",
+                        contract.path(variant),
+                    );
+                };
+                let Some(feature) = feature else { continue };
+                assert!(
+                    covered.contains(&feature),
+                    "{} uses `{keyword}` at {pointer}, but the {} contract has no valid and invalid case pair for {feature:?}",
+                    contract.path(variant),
+                    contract.name(),
+                );
+            }
         }
     }
 }
+
+/// Every [`Feature`], so the coverage check above compares against a stable set rather than against
+/// whatever the case tables happen to contain.
+const REQUIRED_FEATURES: &[Feature] = &[
+    Feature::Const,
+    Feature::Enum,
+    Feature::Pattern,
+    Feature::Minimum,
+    Feature::Type,
+    Feature::Items,
+    Feature::Required,
+    Feature::AdditionalProperties,
+    Feature::OneOf,
+    Feature::Conditional,
+    Feature::NestedLocalRef,
+    Feature::ExtensionKeyword,
+];
 
 fn assert_case(contract: &Contract, variant: SchemaVariant, case: &FeatureCase) {
     let violations = contract.violations(variant, &case.instance);
@@ -553,6 +709,21 @@ fn verdict(valid: bool) -> &'static str {
     if valid { "valid" } else { "invalid" }
 }
 
+/// JSON Pointer of the first assertion expectation in `document` with the given `kind`.
+///
+/// Cases address expectations by kind rather than by index so that adding an assertion to a base
+/// document cannot silently repoint an existing case at a different shape.
+fn expectation_pointer(document: &Value, kind: &str) -> String {
+    let assertions = document["tests"][0]["assertions"]
+        .as_array()
+        .expect("the base document's first test has assertions");
+    let index = assertions
+        .iter()
+        .position(|assertion| assertion["expectation"]["kind"] == kind)
+        .unwrap_or_else(|| panic!("the base document has no `{kind}` expectation"));
+    format!("/tests/0/assertions/{index}/expectation")
+}
+
 // ---------------------------------------------------------------------------
 // Base documents
 // ---------------------------------------------------------------------------
@@ -560,6 +731,17 @@ fn verdict(valid: bool) -> &'static str {
 /// SHA-256 of the empty byte string, used wherever a case needs a well-formed digest whose value
 /// is not what the case is about.
 const EMPTY_SHA256: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+/// A bounded first-difference report, the shape every conditional-bearing comparison requires once
+/// its outcome is `mismatch`.
+fn mismatch() -> Value {
+    json!({
+        "firstDiffOffset": 0,
+        "firstDiffLine": 1,
+        "actualContext": "hello\\n",
+        "expectedContext": "HELLO"
+    })
+}
 
 /// A valid artifact `result.json`, exercising the shapes the feature cases mutate: a diagnostic
 /// with a code and a location, an evidence reference, a conditional contents comparison, and a
@@ -641,12 +823,7 @@ fn run_result_document() -> Value {
                             "outcome": "mismatch",
                             "actualSizeBytes": 6,
                             "expectedSizeBytes": 5,
-                            "mismatch": {
-                                "firstDiffOffset": 0,
-                                "firstDiffLine": 1,
-                                "actualContext": "hello\\n",
-                                "expectedContext": "HELLO"
-                            }
+                            "mismatch": mismatch()
                         },
                         "diagnosticRef": "diagnostic-1"
                     },
@@ -675,6 +852,55 @@ fn run_result_document() -> Value {
                                 }
                             ]
                         }
+                    },
+                    {
+                        "id": "assertion-4",
+                        "status": "failed",
+                        "checkpoint": "action-1",
+                        "expectation": {
+                            "kind": "fileTextEquals",
+                            "status": "failed",
+                            "path": "out.txt",
+                            "expectedSource": { "kind": "quoted", "value": "HELLO" },
+                            "observed": "compared",
+                            "outcome": "mismatch",
+                            "actualSizeBytes": 6,
+                            "expectedSizeBytes": 5,
+                            "mismatch": mismatch()
+                        },
+                        "diagnosticRef": "diagnostic-1"
+                    },
+                    {
+                        "id": "assertion-5",
+                        "status": "failed",
+                        "checkpoint": "action-1",
+                        "expectation": {
+                            "kind": "stdoutContentsEquals",
+                            "status": "failed",
+                            "expectedSource": { "kind": "workspace", "path": "expected.txt" },
+                            "actualRef": "test-1/action-1/stdout.bin",
+                            "outcome": "mismatch",
+                            "actualSizeBytes": 6,
+                            "expectedSizeBytes": 5,
+                            "mismatch": mismatch()
+                        },
+                        "diagnosticRef": "diagnostic-1"
+                    },
+                    {
+                        "id": "assertion-6",
+                        "status": "failed",
+                        "checkpoint": "action-1",
+                        "expectation": {
+                            "kind": "stdoutTextEquals",
+                            "status": "failed",
+                            "expectedSource": { "kind": "quoted", "value": "HELLO" },
+                            "actualRef": "test-1/action-1/stdout.bin",
+                            "outcome": "mismatch",
+                            "actualSizeBytes": 6,
+                            "expectedSizeBytes": 5,
+                            "mismatch": mismatch()
+                        },
+                        "diagnosticRef": "diagnostic-1"
                     }
                 ]
             }
@@ -780,6 +1006,72 @@ fn split_pointer(pointer: &str) -> (&str, &str) {
 // ---------------------------------------------------------------------------
 // Schema document traversal
 // ---------------------------------------------------------------------------
+
+/// Every keyword occurring in a schema position in `document`, paired with its JSON Pointer.
+///
+/// Descent is keyword-directed rather than blind: only the values of the keywords below are
+/// schemas. A blind walk would read instance data — `$defs` definition names, `properties` member
+/// names, the contents of a `const` or an `enum` — as if it were schema vocabulary, and report
+/// keywords the contracts never use.
+fn schema_keywords(document: &Value) -> Vec<(String, String)> {
+    /// Keywords whose value is a single subschema.
+    const SUBSCHEMA: &[&str] = &[
+        "items",
+        "not",
+        "if",
+        "then",
+        "else",
+        "additionalProperties",
+        "propertyNames",
+        "contains",
+        "unevaluatedItems",
+        "unevaluatedProperties",
+    ];
+    /// Keywords whose value is an array of subschemas.
+    const SUBSCHEMA_ARRAY: &[&str] = &["allOf", "anyOf", "oneOf", "prefixItems"];
+    /// Keywords whose value is an object whose members are subschemas.
+    const SUBSCHEMA_MAP: &[&str] = &[
+        "properties",
+        "$defs",
+        "patternProperties",
+        "dependentSchemas",
+    ];
+
+    fn descend(schema: &Value, pointer: &str, found: &mut Vec<(String, String)>) {
+        let Some(members) = schema.as_object() else {
+            return;
+        };
+        for (keyword, value) in members {
+            let keyword_pointer = format!("{pointer}/{}", escape_pointer_token(keyword));
+            found.push((keyword.clone(), keyword_pointer.clone()));
+
+            if SUBSCHEMA.contains(&keyword.as_str()) {
+                descend(value, &keyword_pointer, found);
+            } else if SUBSCHEMA_ARRAY.contains(&keyword.as_str()) {
+                for (index, item) in value.as_array().into_iter().flatten().enumerate() {
+                    descend(item, &format!("{keyword_pointer}/{index}"), found);
+                }
+            } else if SUBSCHEMA_MAP.contains(&keyword.as_str()) {
+                for (name, item) in value.as_object().into_iter().flatten() {
+                    descend(
+                        item,
+                        &format!("{keyword_pointer}/{}", escape_pointer_token(name)),
+                        found,
+                    );
+                }
+            }
+        }
+    }
+
+    let mut found = Vec::new();
+    descend(document, "", &mut found);
+    found
+}
+
+/// RFC 6901 reference token escaping, so a pointer in a failure message can be pasted back.
+fn escape_pointer_token(token: &str) -> String {
+    token.replace('~', "~0").replace('/', "~1")
+}
 
 fn collect_refs(document: &Value) -> Vec<String> {
     let mut refs = Vec::new();

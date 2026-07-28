@@ -26,12 +26,12 @@ use serde_json::Value;
 /// that emitted an id for a diagnostic it never added would produce a document that validates and
 /// still cannot be followed by a consumer.
 pub fn assert_diagnostic_refs_resolve(document: &Value, context: &str) {
-    let ids: BTreeSet<&str> = array(document, "diagnostics")
+    let ids: BTreeSet<&str> = array(document, "diagnostics", context)
         .iter()
-        .map(|diagnostic| string(diagnostic, "id"))
+        .map(|diagnostic| string(diagnostic, "id", context))
         .collect();
 
-    for (pointer, reference) in collect_diagnostic_refs(document) {
+    for (pointer, reference) in collect_diagnostic_refs(document, context) {
         assert!(
             ids.contains(reference.as_str()),
             "{context}: diagnosticRef `{reference}` at {pointer} names no diagnostic in the same document (known ids: {ids:?})"
@@ -44,10 +44,20 @@ pub fn assert_diagnostic_refs_resolve(document: &Value, context: &str) {
 /// Diagnostic attribution is composition-level: only the composition node that failed produces a
 /// diagnostic, so a child carrying one would attribute the same failure twice. The schema declares
 /// `diagnosticRef` on every expectation kind and has no way to forbid it in this one position.
-pub fn assert_logical_children_have_no_diagnostic_ref(document: &Value, context: &str) {
-    for (pointer, expectation) in collect_expectations(document) {
+///
+/// Returns how many failed compositions were inspected. Only a failed composition has a diagnostic
+/// to misattribute, so a caller that never sees one has not tested anything; see
+/// [`assert_failed_logical_compositions_were_inspected`].
+#[must_use]
+pub fn assert_logical_children_have_no_diagnostic_ref(document: &Value, context: &str) -> usize {
+    let mut failed_compositions = 0;
+
+    for (pointer, expectation) in collect_expectations(document, context) {
         if expectation.get("kind").and_then(Value::as_str) != Some("logical") {
             continue;
+        }
+        if expectation.get("status").and_then(Value::as_str) == Some("failed") {
+            failed_compositions += 1;
         }
         let children = expectation
             .get("children")
@@ -62,6 +72,22 @@ pub fn assert_logical_children_have_no_diagnostic_ref(document: &Value, context:
             );
         }
     }
+
+    failed_compositions
+}
+
+/// Guards [`assert_logical_children_have_no_diagnostic_ref`] against passing vacuously.
+///
+/// The invariant is unobservable in a run where no logical composition failed: with no diagnostic
+/// to attribute, no child could carry one however the renderer behaved. A fixture set that stops
+/// producing a failing composition would silently turn the check into a no-op, so the absence of
+/// one is itself a failure. Mirrors `evidence_files_match_their_manifest_references`'s guard
+/// against an accidentally empty loop.
+pub fn assert_failed_logical_compositions_were_inspected(inspected: usize) {
+    assert!(
+        inspected > 0,
+        "no fixture produced a failed logical composition, so the diagnosticRef attribution invariant was not exercised; add a fixture whose `all` / `any` / `not` composition fails"
+    );
 }
 
 /// The `summary` counts must agree with the concrete results in the same document.
@@ -71,18 +97,18 @@ pub fn assert_logical_children_have_no_diagnostic_ref(document: &Value, context:
 /// with no test entry to compare against. The status relations below are what pin it from the
 /// other side.
 pub fn assert_summary_agrees_with_results(document: &Value, context: &str) {
-    let tests = array(document, "tests");
+    let tests = array(document, "tests", context);
     let summary = document
         .get("summary")
         .unwrap_or_else(|| panic!("{context}: the document has no summary"));
 
     let actions: u64 = tests
         .iter()
-        .map(|test| array(test, "actions").len() as u64)
+        .map(|test| array(test, "actions", context).len() as u64)
         .sum();
     let assertions: u64 = tests
         .iter()
-        .map(|test| array(test, "assertions").len() as u64)
+        .map(|test| array(test, "assertions", context).len() as u64)
         .sum();
     let scripts = tests
         .iter()
@@ -91,42 +117,42 @@ pub fn assert_summary_agrees_with_results(document: &Value, context: &str) {
         .len() as u64;
 
     assert_eq!(
-        count(summary, "actions"),
+        count(summary, "actions", context),
         actions,
         "{context}: summary.actions"
     );
     assert_eq!(
-        count(summary, "assertions"),
+        count(summary, "assertions", context),
         assertions,
         "{context}: summary.assertions"
     );
     assert_eq!(
-        count(summary, "scripts"),
+        count(summary, "scripts", context),
         scripts,
         "{context}: summary.scripts"
     );
     assert_eq!(
-        count(summary, "passed"),
+        count(summary, "passed", context),
         tests_with_status(tests, "passed"),
         "{context}: summary.passed"
     );
     assert_eq!(
-        count(summary, "failed"),
+        count(summary, "failed", context),
         tests_with_status(tests, "failed"),
         "{context}: summary.failed"
     );
     assert!(
-        count(summary, "errors") >= tests_with_status(tests, "error"),
+        count(summary, "errors", context) >= tests_with_status(tests, "error"),
         "{context}: summary.errors must count at least every error-status test"
     );
 
     // The top-level status is defined as error > failed > passed over these same counts, so it is
     // derivable from them; a document where it is not means one of the two was computed from
     // something else.
-    let status = string(document, "status");
-    let expected_status = if count(summary, "errors") > 0 {
+    let status = string(document, "status", context);
+    let expected_status = if count(summary, "errors", context) > 0 {
         "error"
-    } else if count(summary, "failed") > 0 {
+    } else if count(summary, "failed", context) > 0 {
         "failed"
     } else {
         "passed"
@@ -142,7 +168,7 @@ pub fn assert_summary_agrees_with_results(document: &Value, context: &str) {
 /// Paths are recorded relative to the working directory the run was started from, so `workspace`
 /// is that directory.
 pub fn assert_test_paths_exist(document: &Value, workspace: &Path, context: &str) {
-    for test in array(document, "tests") {
+    for test in array(document, "tests", context) {
         let Some(path) = test.get("path").and_then(Value::as_str) else {
             continue;
         };
@@ -163,11 +189,11 @@ pub fn assert_test_paths_exist(document: &Value, workspace: &Path, context: &str
 ///
 /// Both the assertion node and its expectation tree may carry one, so this walks the assertion
 /// objects and every expectation nested under them rather than a fixed set of locations.
-fn collect_diagnostic_refs(document: &Value) -> Vec<(String, String)> {
+fn collect_diagnostic_refs(document: &Value, context: &str) -> Vec<(String, String)> {
     let mut refs = Vec::new();
 
-    for (test_index, test) in array(document, "tests").iter().enumerate() {
-        for (assertion_index, assertion) in array(test, "assertions").iter().enumerate() {
+    for (test_index, test) in array(document, "tests", context).iter().enumerate() {
+        for (assertion_index, assertion) in array(test, "assertions", context).iter().enumerate() {
             let pointer = format!("/tests/{test_index}/assertions/{assertion_index}");
             if let Some(reference) = assertion.get("diagnosticRef").and_then(Value::as_str) {
                 refs.push((pointer.clone(), reference.to_owned()));
@@ -202,11 +228,11 @@ fn collect_refs_in_expectation(
 }
 
 /// Every expectation node in the document, including the ones nested inside logical compositions.
-fn collect_expectations(document: &Value) -> Vec<(String, &Value)> {
+fn collect_expectations<'a>(document: &'a Value, context: &str) -> Vec<(String, &'a Value)> {
     let mut expectations = Vec::new();
 
-    for (test_index, test) in array(document, "tests").iter().enumerate() {
-        for (assertion_index, assertion) in array(test, "assertions").iter().enumerate() {
+    for (test_index, test) in array(document, "tests", context).iter().enumerate() {
+        for (assertion_index, assertion) in array(test, "assertions", context).iter().enumerate() {
             if let Some(expectation) = assertion.get("expectation") {
                 collect_nested_expectations(
                     expectation,
@@ -233,25 +259,28 @@ fn collect_nested_expectations<'a>(
     expectations.push((pointer, expectation));
 }
 
-fn array<'a>(value: &'a Value, key: &str) -> &'a Vec<Value> {
+// Each helper takes `context` for the same reason every assertion message above does: these tests
+// loop over every fixture, so a malformed document has to say which fixture produced it.
+
+fn array<'a>(value: &'a Value, key: &str, context: &str) -> &'a Vec<Value> {
     value
         .get(key)
         .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("`{key}` must be an array"))
+        .unwrap_or_else(|| panic!("{context}: `{key}` must be an array"))
 }
 
-fn string<'a>(value: &'a Value, key: &str) -> &'a str {
+fn string<'a>(value: &'a Value, key: &str, context: &str) -> &'a str {
     value
         .get(key)
         .and_then(Value::as_str)
-        .unwrap_or_else(|| panic!("`{key}` must be a string"))
+        .unwrap_or_else(|| panic!("{context}: `{key}` must be a string"))
 }
 
-fn count(summary: &Value, key: &str) -> u64 {
+fn count(summary: &Value, key: &str, context: &str) -> u64 {
     summary
         .get(key)
         .and_then(Value::as_u64)
-        .unwrap_or_else(|| panic!("summary.{key} must be a non-negative integer"))
+        .unwrap_or_else(|| panic!("{context}: summary.{key} must be a non-negative integer"))
 }
 
 fn tests_with_status(tests: &[Value], status: &str) -> u64 {

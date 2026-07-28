@@ -1,14 +1,26 @@
 {
-  "diagnostics": [],
+  "diagnostics": [
+    {
+      "category": "assertion",
+      "id": "diagnostic-1",
+      "location": null,
+      "message": "'all' composition did not hold",
+      "origin": {
+        "kind": "test",
+        "test": "test-2"
+      },
+      "severity": "failure"
+    }
+  ],
   "noop": false,
-  "processExitCode": 0,
+  "processExitCode": 1,
   "schemaVersion": 1,
-  "status": "passed",
+  "status": "failed",
   "summary": {
-    "actions": 3,
-    "assertions": 13,
+    "actions": 4,
+    "assertions": 14,
     "errors": 0,
-    "failed": 0,
+    "failed": 1,
     "passed": 1,
     "scripts": 1
   },
@@ -284,6 +296,62 @@
       "name": "exercises file, dir, text, empty, and logical expectation shapes",
       "path": "expectation_kinds.repor",
       "status": "passed"
+    },
+    {
+      "actions": [
+        {
+          "command": "printf 'hello\\n'",
+          "exitCode": 0,
+          "id": "action-1",
+          "stderr": {
+            "artifactRef": "test-2/action-1/stderr.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-2/action-1/stdout.bin",
+            "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+            "sizeBytes": 6
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "checkpoint": "action-1",
+          "diagnosticRef": "diagnostic-1",
+          "expectation": {
+            "children": [
+              {
+                "actual": 0,
+                "expected": 0,
+                "kind": "exit",
+                "status": "passed"
+              },
+              {
+                "actualRef": "test-2/action-1/stdout.bin",
+                "actualSizeBytes": 6,
+                "expected": "absent",
+                "expectedSource": {
+                  "kind": "quoted",
+                  "value": "absent"
+                },
+                "kind": "stdoutContains",
+                "status": "failed"
+              }
+            ],
+            "diagnosticRef": "diagnostic-1",
+            "kind": "logical",
+            "operator": "all",
+            "status": "failed"
+          },
+          "id": "assertion-1",
+          "status": "failed"
+        }
+      ],
+      "id": "test-2",
+      "name": "a failing logical composition is attributed a diagnostic only at the composition",
+      "path": "expectation_kinds.repor",
+      "status": "failed"
     }
   ],
   "tool": {

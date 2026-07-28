@@ -11,6 +11,18 @@
         "test": "test-2"
       },
       "severity": "failure"
+    },
+    {
+      "category": "assertion",
+      "code": "assertion.file.contents_equals.actual_missing",
+      "id": "diagnostic-2",
+      "location": null,
+      "message": "file \"missing.txt\" does not exist",
+      "origin": {
+        "kind": "test",
+        "test": "test-3"
+      },
+      "severity": "failure"
     }
   ],
   "noop": false,
@@ -18,10 +30,10 @@
   "schemaVersion": 1,
   "status": "failed",
   "summary": {
-    "actions": 2,
-    "assertions": 3,
+    "actions": 3,
+    "assertions": 4,
     "errors": 0,
-    "failed": 1,
+    "failed": 2,
     "passed": 1,
     "scripts": 1
   },
@@ -133,6 +145,48 @@
       ],
       "id": "test-2",
       "name": "contents_equals records a bounded mismatch",
+      "path": "contents_equals.repor",
+      "status": "failed"
+    },
+    {
+      "actions": [
+        {
+          "command": "true",
+          "exitCode": 0,
+          "id": "action-1",
+          "stderr": {
+            "artifactRef": "test-3/action-1/stderr.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-3/action-1/stdout.bin",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sizeBytes": 0
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "checkpoint": "action-1",
+          "diagnosticRef": "diagnostic-2",
+          "expectation": {
+            "diagnosticRef": "diagnostic-2",
+            "expectedSource": {
+              "kind": "workspace",
+              "path": "expected.txt"
+            },
+            "kind": "fileContentsEquals",
+            "observed": "actualMissing",
+            "path": "missing.txt",
+            "status": "failed"
+          },
+          "id": "assertion-1",
+          "status": "failed"
+        }
+      ],
+      "id": "test-3",
+      "name": "contents_equals records an unread actual side",
       "path": "contents_equals.repor",
       "status": "failed"
     }
