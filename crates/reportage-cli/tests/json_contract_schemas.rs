@@ -17,6 +17,11 @@
 //!
 //! See docs/adr/20260728T092956Z_json-contract-validation-policy.md.
 
+// The base document instantiates every closed shape both contracts define, which nests deeper than
+// `json!` unrolls by default. Raised rather than split into assembled fragments: a document that is
+// checked against a schema as a whole is easier to read against that schema as one literal.
+#![recursion_limit = "512"]
+
 use std::collections::BTreeSet;
 
 use serde_json::{Value, json};
@@ -796,6 +801,52 @@ fn every_keyword_the_schemas_use_maps_to_a_covered_feature() {
     }
 }
 
+/// Per-site coverage is generated from the base document, so a definition the base document never
+/// builds silently gets none. This is what keeps the two in step.
+///
+/// A definition is matched to an instance by its `kind` discriminator; definitions without one are
+/// reached through the properties that hold them and are covered as long as the shapes above are.
+#[test]
+fn every_closed_definition_with_a_kind_is_instantiated_by_the_base_document() {
+    for (contract, _) in contract_cases() {
+        let document = contract.document(SchemaVariant::InternalSource);
+        let base = match contract.name() {
+            "json-report" => json_report_document(),
+            _ => run_result_document(),
+        };
+        let built: BTreeSet<String> = instance_pointers(&base)
+            .into_iter()
+            .filter_map(|(_, node)| node.get("kind")?.as_str().map(str::to_owned))
+            .collect();
+
+        let definitions = document["$defs"]
+            .as_object()
+            .expect("a contract schema has $defs");
+        for (name, definition) in definitions {
+            if definition.get("additionalProperties") != Some(&json!(false)) {
+                continue;
+            }
+            let Some(kind) = definition.pointer("/properties/kind") else {
+                continue;
+            };
+            let kinds: Vec<String> = match (kind.get("const"), kind.get("enum")) {
+                (Some(Value::String(value)), _) => vec![value.clone()],
+                (_, Some(Value::Array(values))) => values
+                    .iter()
+                    .filter_map(|value| value.as_str().map(str::to_owned))
+                    .collect(),
+                _ => continue,
+            };
+            assert!(
+                kinds.iter().any(|kind| built.contains(kind)),
+                "{} defines the closed shape `{name}` ({kinds:?}), which the {} base document never builds, so no per-site additionalProperties or type case covers it; add an instance of it to the base document",
+                contract.path(SchemaVariant::InternalSource),
+                contract.name(),
+            );
+        }
+    }
+}
+
 /// Every [`Feature`], so the coverage check above compares against a stable set rather than against
 /// whatever the case tables happen to contain.
 const REQUIRED_FEATURES: &[Feature] = &[
@@ -876,12 +927,18 @@ fn mismatch() -> Value {
     })
 }
 
-/// A valid artifact `result.json`, exercising the shapes the feature cases mutate: a diagnostic
-/// with a code and a location, an evidence reference, a conditional contents comparison, and a
-/// logical composition whose children recurse through the expectation `$ref`.
+/// A valid artifact `result.json` instantiating every closed shape the contracts define.
+///
+/// Completeness matters here beyond the cases written by hand: `closed_object_cases` and
+/// `declared_type_cases` generate their coverage from what this document contains, so a definition
+/// this document never builds gets no per-site case. That is why it carries every expectation kind,
+/// both diagnostic origin variants, and each `TextExpectedSource` branch, rather than only the
+/// shapes a hand-written case happens to mutate. `every_closed_definition_is_instantiated` fails if
+/// a definition is added to a contract and not built here.
 ///
 /// This is hand-built rather than captured from a fixture run: a case that removes a required
-/// field has to start from a document whose every field is deliberately there.
+/// field has to start from a document whose every field is deliberately there, and no single run
+/// produces every shape.
 fn run_result_document() -> Value {
     json!({
         "schemaVersion": 1,
@@ -906,6 +963,17 @@ fn run_result_document() -> Value {
                 "origin": { "kind": "source", "source": "feature.repor" },
                 "location": { "line": 3, "column": 5 },
                 "code": "parse.syntax"
+            },
+            {
+                "id": "diagnostic-2",
+                "category": "assertion",
+                "severity": "failure",
+                "message": "stdout does not contain the expected text",
+                // The test-origin branch of Origin, instantiated so the generated cases reach its
+                // closed shape; the source branch above is the one the hand-written cases mutate.
+                "origin": { "kind": "test", "test": "test-1" },
+                "location": null,
+                "code": "assertion.stdout.contains.mismatch"
             }
         ],
         "tests": [
@@ -1034,6 +1102,102 @@ fn run_result_document() -> Value {
                             "mismatch": mismatch()
                         },
                         "diagnosticRef": "diagnostic-1"
+                    },
+                    {
+                        "id": "assertion-7",
+                        "status": "passed",
+                        "checkpoint": "action-1",
+                        "expectation": {
+                            "kind": "fileExists",
+                            "status": "passed",
+                            "path": "out.txt",
+                            "observed": "regularFile"
+                        }
+                    },
+                    {
+                        "id": "assertion-8",
+                        "status": "passed",
+                        "checkpoint": "action-1",
+                        "expectation": {
+                            "kind": "fileContains",
+                            "status": "passed",
+                            "path": "out.txt",
+                            "expected": "hello",
+                            // The binding branch of TextExpectedSource. Instantiated here so the
+                            // generated cases reach its closed shape.
+                            "expectedSource": {
+                                "kind": "binding",
+                                "name": "greeting",
+                                "actionIndex": 0,
+                                "stream": "stdout",
+                                "captureMode": "exact"
+                            },
+                            "observed": "found"
+                        }
+                    },
+                    {
+                        "id": "assertion-9",
+                        "status": "passed",
+                        "checkpoint": "action-1",
+                        "expectation": {
+                            "kind": "stdoutEmpty",
+                            "status": "passed",
+                            "actualRef": "test-1/action-1/stdout.bin",
+                            "actualSizeBytes": 0
+                        }
+                    },
+                    {
+                        "id": "assertion-10",
+                        "status": "passed",
+                        "checkpoint": "action-1",
+                        "expectation": {
+                            "kind": "dirExists",
+                            "status": "passed",
+                            "path": "out",
+                            "observed": "directory"
+                        }
+                    },
+                    {
+                        "id": "assertion-11",
+                        "status": "passed",
+                        "checkpoint": "action-1",
+                        "expectation": {
+                            "kind": "dirContains",
+                            "status": "passed",
+                            "path": "out",
+                            "expectedEntry": "data.txt",
+                            "observed": "found"
+                        }
+                    },
+                    {
+                        "id": "assertion-12",
+                        "status": "passed",
+                        "checkpoint": "action-1",
+                        "expectation": {
+                            "kind": "stderrContains",
+                            "status": "passed",
+                            "expected": "hello world",
+                            // The interpolated branch of TextExpectedSource, and the only place a
+                            // binding reference item appears.
+                            "expectedSource": {
+                                "kind": "interpolated",
+                                "form": "string",
+                                "line": 4,
+                                "column": 12,
+                                "references": [
+                                    {
+                                        "name": "greeting",
+                                        "line": 4,
+                                        "column": 20,
+                                        "actionIndex": 0,
+                                        "stream": "stdout",
+                                        "captureMode": "line"
+                                    }
+                                ]
+                            },
+                            "actualRef": "test-1/action-1/stderr.bin",
+                            "actualSizeBytes": 11
+                        }
                     }
                 ]
             }
