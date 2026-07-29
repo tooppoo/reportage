@@ -929,7 +929,11 @@
           }
         },
         {
+          "description": "outcome is only present once the actual side was read (observed: compared). Without the `required` guard, `properties` would match vacuously when outcome is absent and `mismatch` would become unconditionally required, rejecting every non-compared observation.",
           "if": {
+            "required": [
+              "outcome"
+            ],
             "properties": {
               "outcome": {
                 "const": "mismatch"
@@ -1021,7 +1025,11 @@
           }
         },
         {
+          "description": "outcome is only present once the actual side was read (observed: compared). Without the `required` guard, `properties` would match vacuously when outcome is absent and `mismatch` would become unconditionally required, rejecting every non-compared observation.",
           "if": {
+            "required": [
+              "outcome"
+            ],
             "properties": {
               "outcome": {
                 "const": "mismatch"

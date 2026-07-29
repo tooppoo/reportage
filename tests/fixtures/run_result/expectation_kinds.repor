@@ -37,3 +37,13 @@ case "exercises file, dir, text, empty, and logical expectation shapes" {
     }
   }
 }
+
+case "a failing logical composition is attributed a diagnostic only at the composition" {
+  $ printf 'hello\n'
+  assert {
+    all {
+      exit 0
+      stdout contains "absent"
+    }
+  }
+}

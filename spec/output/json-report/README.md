@@ -18,13 +18,18 @@ The two documents are identical apart from the `x-reportage-snapshot` snapshot n
 
 ### Validation
 
-CI validation is performed by typed Rust deserialization in `crates/reportage-cli/tests/json_report_fixtures.rs`, following the same approach as `spec/language/semantics/schema.json` / `crates/reportage-core/tests/semantic_specs.rs`: each fixture's JSON output is deserialised into Rust structs marked `#[serde(deny_unknown_fields)]`, which rejects unknown fields and enforces required fields and enum constraints, without an external JSON Schema validator dependency.
+CI validates each representative fixture's output against this schema with the [`jsonschema`](https://docs.rs/jsonschema/) crate, inside `cargo nextest`. Both the internal source schema and the generated public schema are checked, and must agree.
+
+Two further suites check properties the schema does not state: [`crates/reportage-cli/tests/json_report_fixtures.rs`](../../../crates/reportage-cli/tests/json_report_fixtures.rs) deserialises the output into typed Rust structs as a consumer compatibility test, and checks document-local invariants such as `diagnosticRef` resolution. [`crates/reportage-cli/tests/json_contract_schemas.rs`](../../../crates/reportage-cli/tests/json_contract_schemas.rs) validates the schema documents themselves and exercises each JSON Schema keyword the contract relies on against hand-built valid and invalid instances.
+
+Typed deserialization is not schema validation: it enforces neither `const`, `pattern`, `minimum`, nor conditional requirements. See [`docs/adr/20260728T092956Z_json-contract-validation-policy.md`](../../../docs/adr/20260728T092956Z_json-contract-validation-policy.md) for what CI does and does not guarantee.
 
 ## Decision records
 
 - [`docs/adr/20260707T045900Z_json-output-as-structured-execution-report.md`](../../../docs/adr/20260707T045900Z_json-output-as-structured-execution-report.md) — JSON output as a structured execution report, not a human-output derivative; the diagnostic/failure model.
 - [`docs/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md`](../../../docs/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md) — CLI stdout vs. captured stdout/stderr; artifact reference policy; `processExitCode`.
-- [`docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md`](../../../docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md) — schema/validation/fixture policy; `location`/`origin` fallback.
+- [`docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md`](../../../docs/adr/20260707T050100Z_json-output-schema-and-validation-policy.md) — schema/fixture policy; `location`/`origin` fallback. Its validation policy is superseded.
+- [`docs/adr/20260728T092956Z_json-contract-validation-policy.md`](../../../docs/adr/20260728T092956Z_json-contract-validation-policy.md) — how this contract is validated in CI, and the boundary between schema validation, consumer compatibility, and domain invariants.
 
 ## Representative fixtures
 

@@ -138,7 +138,10 @@ Run the focused contract recipe when its output surface changes:
 just json-report-fixtures-check
 just run-result-fixtures-check
 just references-index-check
+just json-contract-schemas-check
 ```
+
+Run `just json-contract-schemas-check` whenever a `schema.internal.json` changes: it owns schema document validity and the JSON Schema keyword coverage the fixture suites cannot provide.
 
 Choose only the focused recipes relevant to the change, then finish with `just check`.
 Do not invoke obsolete `just test-fixtures-valid` or `just test-fixtures-invalid` aliases; the current repository has no such recipes.

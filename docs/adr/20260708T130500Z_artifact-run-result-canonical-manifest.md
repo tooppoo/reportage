@@ -53,6 +53,8 @@ CI validation is typed Rust deserialization with `#[serde(deny_unknown_fields)]`
 
 Unlike the #89 typed structs (deliberately a fixture-exercised subset of that schema), the artifact result structs model the full stable contract the schema defines — every expectation kind, observation enum, and diagnostic shape — because the manifest is canonical: a schema/validation gap on a rarely-exercised shape must be visible in review even when no fixture happens to produce it.
 
+> The validation policy this section follows was later replaced by [`20260728T092956Z_json-contract-validation-policy.md`](20260728T092956Z_json-contract-validation-policy.md). The manifest is now validated against its schema with the `jsonschema` crate, and the typed structs above are retained as a consumer compatibility test. Everything else this section decides is unchanged.
+
 Representative fixtures live in `tests/fixtures/run_result/` (passed, assertion_failure, parse_error, semantic_error, runtime_error, partial_execution_after_runtime_error, expectation_kinds, noop), each with a normalized snapshot refreshed via `UPDATE_RUN_RESULT_SNAPSHOTS=1`. Evidence integrity (referenced file exists, sizeBytes and sha256 match) is verified per fixture run.
 
 ### Breaking change to the pre-existing artifact contract

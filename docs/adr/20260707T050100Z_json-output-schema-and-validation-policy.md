@@ -1,7 +1,9 @@
 # JSON Output Schema and Validation Policy
 
-- Status: Accepted
+- Status: Superseded by [20260728T092956Z_json-contract-validation-policy.md](20260728T092956Z_json-contract-validation-policy.md)
 - Created: 2026-07-07T05:01:00Z
+
+Only this ADR's validation policy was superseded. The schema's own decisions recorded below — the external contract's independence from `ExecutionReport`, camelCase naming, `schemaVersion`, `additionalProperties`, document-local ids, and the `location` / `origin` fallback — remain current. [The JSON contract validation policy](20260728T092956Z_json-contract-validation-policy.md) replaces the decision that typed Rust deserialization is how this repository enforces the schema, because typed deserialization does not check what the schema states.
 
 ## Context
 

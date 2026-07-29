@@ -32,9 +32,11 @@ The two documents are identical apart from the `x-reportage-snapshot` snapshot n
 
 ### Validation
 
-CI validation is performed by typed Rust deserialization in `crates/reportage-cli/tests/run_result_fixtures.rs`, following the same approach as `spec/output/json-report/schema.json` / `crates/reportage-cli/tests/json_report_fixtures.rs`: each fixture run's `result.json` is deserialised into Rust structs marked `#[serde(deny_unknown_fields)]`, which rejects unknown fields and enforces required fields and enum constraints, without an external JSON Schema validator dependency.
+CI validates each representative fixture run's `result.json` against this schema with the [`jsonschema`](https://docs.rs/jsonschema/) crate, inside `cargo nextest`. Both the internal source schema and the generated public schema are checked, and must agree.
 
-Because `result.json` is the canonical manifest, the typed validation structs model the full stable contract this schema defines — every expectation kind, observation enum, and diagnostic shape — not only the shapes the representative fixtures happen to exercise.
+Two further suites check properties the schema does not state: [`crates/reportage-cli/tests/run_result_fixtures.rs`](../../../crates/reportage-cli/tests/run_result_fixtures.rs) deserialises the manifest into typed Rust structs as a consumer compatibility test, and checks evidence integrity, document-local invariants, and projection parity. [`crates/reportage-cli/tests/json_contract_schemas.rs`](../../../crates/reportage-cli/tests/json_contract_schemas.rs) validates the schema documents themselves and exercises each JSON Schema keyword the contract relies on against hand-built valid and invalid instances.
+
+Because `result.json` is the canonical manifest, the typed consumer structs model the full stable contract this schema defines — every expectation kind, observation enum, and diagnostic shape — not only the shapes the representative fixtures happen to exercise. That is a requirement on the Rust consumer model; contract coverage itself comes from the schema validator. See [`docs/adr/20260728T092956Z_json-contract-validation-policy.md`](../../../docs/adr/20260728T092956Z_json-contract-validation-policy.md) for what CI does and does not guarantee.
 
 ## Representative fixtures
 
@@ -46,8 +48,8 @@ Because `result.json` is the canonical manifest, the typed validation structs mo
 - `semantic_error` — a script-domain rule is violated at evaluation time;
 - `runtime_error` — a runtime infrastructure failure before any action ran;
 - `partial_execution_after_runtime_error` — evidence recorded before a later runtime error survives;
-- `expectation_kinds` — exercises file/dir/text-equals/empty/logical expectation shapes beyond the exit/stdoutContains kinds the scenarios above use;
-- `contents_equals` — exercises `fileContentsEquals` / `stdoutContentsEquals` with a workspace expected source, including a bounded `mismatch` object;
+- `expectation_kinds` — exercises file/dir/text-equals/empty/logical expectation shapes beyond the exit/stdoutContains kinds the scenarios above use, including a failing logical composition, which is the only shape in which a composition carries a `diagnosticRef` and its children must not;
+- `contents_equals` — exercises `fileContentsEquals` / `stdoutContentsEquals` with a workspace expected source, including a bounded `mismatch` object and an `observed` value other than `compared`, where no comparison outcome exists to record;
 - `noop` — valid zero-case input recorded as `noop: true` with empty `tests` and a zeroed summary.
 
 The first six scenarios mirror `tests/fixtures/json_report/`'s required scenario set, so projection parity can be checked over the same run shapes. Each fixture has a companion `<name>.snapshot.json` normalized-output snapshot (`tool.version` replaced by a placeholder), refreshed via `UPDATE_RUN_RESULT_SNAPSHOTS=1`. See `crates/reportage-cli/tests/run_result_fixtures.rs`.
@@ -58,6 +60,7 @@ The pre-#102 artifact `result.json` (snake_case, inline base64 stream envelopes,
 
 ## Decision records
 
-- [`docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md`](../../../docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md) — artifact bundle as canonical record; `result.json` as canonical manifest; `--format=json` as stdout-safe projection; evidence reference policy; validation policy.
+- [`docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md`](../../../docs/adr/20260708T130500Z_artifact-run-result-canonical-manifest.md) — artifact bundle as canonical record; `result.json` as canonical manifest; `--format=json` as stdout-safe projection; evidence reference policy.
+- [`docs/adr/20260728T092956Z_json-contract-validation-policy.md`](../../../docs/adr/20260728T092956Z_json-contract-validation-policy.md) — how this contract is validated in CI, and the boundary between schema validation, consumer compatibility, and domain invariants.
 - [`docs/adr/20260707T045900Z_json-output-as-structured-execution-report.md`](../../../docs/adr/20260707T045900Z_json-output-as-structured-execution-report.md) — the diagnostic/failure model both contracts share.
 - [`docs/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md`](../../../docs/adr/20260707T050000Z_json-stdout-and-captured-output-artifact-contract.md) — CLI stdout vs. captured stdout/stderr; artifact reference policy.

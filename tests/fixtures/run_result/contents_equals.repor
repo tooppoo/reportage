@@ -21,3 +21,13 @@ case "contents_equals records a bounded mismatch" {
     stdout contents_equals <"expected.txt">
   }
 }
+
+case "contents_equals records an unread actual side" {
+  write <"expected.txt"> ```
+    hello
+    ```
+  $ true
+  assert {
+    file <"missing.txt"> contents_equals <"expected.txt">
+  }
+}

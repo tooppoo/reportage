@@ -4,10 +4,13 @@
 //! Two deliberately separate concerns, mirroring the split documented in
 //! `spec/output/references-index/README.md`:
 //!
-//! - **Schema validation**: the stdout document is deserialised into typed Rust structs marked
-//!   `#[serde(deny_unknown_fields)]`, the same CI-enforcement approach as
-//!   `json_report_fixtures.rs`. `spec/output/references-index/schema.json` is the authoritative
-//!   external contract these structs mirror.
+//! - **Typed Rust consumer compatibility**: the stdout document is deserialised into typed Rust
+//!   structs marked `#[serde(deny_unknown_fields)]`.
+//!   `spec/output/references-index/schema.json` is the authoritative external contract these
+//!   structs mirror, and this check does not validate the document against it: serde enforces
+//!   neither the schema's value constraints nor its combinators. This contract has not yet adopted
+//!   docs/adr/20260728T092956Z_json-contract-validation-policy.md, which is what put the other two
+//!   JSON contracts under a real JSON Schema validator; extending it here is a separate decision.
 //! - **Repository consistency**: every `documents[].path` must exist in this repository. This
 //!   is a property of the repository state, not of the output structure, so it is a separate
 //!   test with a distinct failure message rather than a schema constraint.
