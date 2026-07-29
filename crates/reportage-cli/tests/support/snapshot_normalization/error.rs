@@ -38,6 +38,8 @@ pub enum PreparationErrorKind {
     DynamicReference,
     /// A reference schema object carries members besides `$ref`.
     ReferenceSibling,
+    /// A reached schema node describes a tuple-prefixed array, which `items` alone cannot.
+    TupleItems,
     /// Following the reference would re-enter a definition that is already being expanded.
     ReferenceCycle,
     /// An `x-reportage-snapshot` annotation does not match the annotation contract.
@@ -47,7 +49,10 @@ pub enum PreparationErrorKind {
 impl PreparationErrorKind {
     /// Every classification, so a test can show that each one is reachable rather than that the
     /// ones it happened to think of are.
-    pub const ALL: [PreparationErrorKind; 10] = [
+    ///
+    /// Declaration order, checked as such: a new variant must be added to the enum and appended
+    /// here at the same position, or the inventory would silently stop being complete.
+    pub const ALL: [PreparationErrorKind; 11] = [
         PreparationErrorKind::NonStringReference,
         PreparationErrorKind::UnsupportedReferenceForm,
         PreparationErrorKind::InvalidReferenceContainer,
@@ -56,6 +61,7 @@ impl PreparationErrorKind {
         PreparationErrorKind::NestedIdentifier,
         PreparationErrorKind::DynamicReference,
         PreparationErrorKind::ReferenceSibling,
+        PreparationErrorKind::TupleItems,
         PreparationErrorKind::ReferenceCycle,
         PreparationErrorKind::InvalidAnnotation,
     ];
@@ -70,6 +76,7 @@ impl PreparationErrorKind {
             PreparationErrorKind::NestedIdentifier => "nested $id",
             PreparationErrorKind::DynamicReference => "dynamic reference",
             PreparationErrorKind::ReferenceSibling => "$ref sibling",
+            PreparationErrorKind::TupleItems => "tuple items",
             PreparationErrorKind::ReferenceCycle => "reference cycle",
             PreparationErrorKind::InvalidAnnotation => "invalid annotation",
         }

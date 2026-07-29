@@ -20,8 +20,8 @@ mod snapshot_normalization;
 
 use json_schema::{JSON_REPORT, RUN_RESULT, SchemaVariant};
 use snapshot_normalization::{
-    InstanceSegment, NormalizationPlan, Operation, PreparationError, PreparationErrorKind,
-    SchemaLocation, prepare, resolve,
+    ANNOTATION_KEYWORD, InstanceSegment, NormalizationPlan, Operation, PreparationError,
+    PreparationErrorKind, SchemaLocation, prepare, resolve,
 };
 
 // ---------------------------------------------------------------------------
@@ -227,17 +227,27 @@ fn one_definition_reused_across_locations_yields_one_instruction_per_location() 
 fn escaped_and_unicode_definition_names_resolve() {
     // `/` and `~` cannot appear raw in a JSON Pointer token, so a definition named with either is
     // only reachable through its escape; a non-ASCII name needs no encoding at all.
+    //
+    // `~01` is the case that pins the decoding order: decoding `~0` first would read the `~` it
+    // produces as the start of another escape and resolve to the definition named `/` instead of
+    // the one named `~1`. That wrong name is also defined, so a mis-decode normalizes the wrong
+    // field rather than failing as unresolved. `~0~1` covers a name holding both characters.
     let schema = json!({
         "type": "object",
         "properties": {
             "slashed": { "$ref": "#/$defs/with~1slash" },
             "tilde": { "$ref": "#/$defs/with~0tilde" },
+            "escaped_tilde_one": { "$ref": "#/$defs/~01" },
+            "escaped_both": { "$ref": "#/$defs/~0~1" },
             "unicode": { "$ref": "#/$defs/バージョン" },
             "empty": { "$ref": "#/$defs/" }
         },
         "$defs": {
             "with/slash": annotated("<SLASH>"),
             "with~tilde": annotated("<TILDE>"),
+            "~1": annotated("<TILDE_ONE>"),
+            "/": annotated("<WRONG_TILDE_ONE>"),
+            "~/": annotated("<TILDE_SLASH>"),
             "バージョン": annotated("<UNICODE>"),
             "": annotated("<EMPTY>")
         }
@@ -247,6 +257,8 @@ fn escaped_and_unicode_definition_names_resolve() {
         normalized(&prepared(&schema)),
         vec![
             ("/empty".to_string(), "<EMPTY>".to_string()),
+            ("/escaped_both".to_string(), "<TILDE_SLASH>".to_string()),
+            ("/escaped_tilde_one".to_string(), "<TILDE_ONE>".to_string()),
             ("/slashed".to_string(), "<SLASH>".to_string()),
             ("/tilde".to_string(), "<TILDE>".to_string()),
             ("/unicode".to_string(), "<UNICODE>".to_string()),
@@ -256,18 +268,24 @@ fn escaped_and_unicode_definition_names_resolve() {
 
 #[test]
 fn an_escaped_definition_name_is_reported_re_encoded() {
-    // The source location has to be a pointer into the document, so a name containing `/` must be
-    // written back in escaped form rather than concatenated raw.
-    let schema = json!({
-        "type": "object",
-        "properties": { "slashed": { "$ref": "#/$defs/with~1slash" } },
-        "$defs": { "with/slash": annotated("<SLASH>") }
-    });
+    // The source location has to be a pointer into the document, so a name containing `/` or `~`
+    // must be written back escaped rather than concatenated raw. Cycle identity compares these
+    // locations, so an unescaped one would also make two different definitions look like one.
+    for (reference, name, pointer) in [
+        ("#/$defs/with~1slash", "with/slash", "/$defs/with~1slash"),
+        ("#/$defs/~0~1", "~/", "/$defs/~0~1"),
+    ] {
+        let schema = json!({
+            "type": "object",
+            "properties": { "escaped": { "$ref": reference } },
+            "$defs": object([(name, annotated("<PLACEHOLDER>"))])
+        });
 
-    assert_eq!(
-        prepared(&schema).instructions()[0].source().as_pointer(),
-        "/$defs/with~1slash"
-    );
+        assert_eq!(
+            prepared(&schema).instructions()[0].source().as_pointer(),
+            pointer
+        );
+    }
 }
 
 #[test]
@@ -344,6 +362,28 @@ fn definitions_no_supported_reference_reaches_are_not_inspected() {
     assert_eq!(
         normalized(&prepared(&schema)),
         vec![("/tool/version".to_string(), "<VERSION>".to_string())]
+    );
+}
+
+#[test]
+fn a_position_that_holds_no_schema_is_skipped_rather_than_rejected() {
+    // The same value is an error when a reference resolves to it and merely skipped when traversal
+    // descends into it. A reference must be checked, because it is how a definition can be named at
+    // all; a keyword holding a non-schema is a malformed document, which contract validation
+    // decides (issue #192) and normalization does not restate.
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "text": "not a schema",
+            "tuple": { "type": "array", "items": [{ "type": "string" }] },
+            "tool": { "$ref": "#/$defs/Tool" }
+        },
+        "$defs": { "Tool": { "type": "object", "properties": { "version": annotated("<V>") } } }
+    });
+
+    assert_eq!(
+        normalized(&prepared(&schema)),
+        vec![("/tool/version".to_string(), "<V>".to_string())]
     );
 }
 
@@ -433,11 +473,14 @@ fn a_reference_to_a_missing_definition_is_rejected() {
         "$defs": { "Tool": { "type": "object" } }
     });
 
-    for schema in [without_defs, without_member] {
+    for (schema, reference) in [
+        (without_defs, "#/$defs/Tool"),
+        (without_member, "#/$defs/Missing"),
+    ] {
         let error = rejected(&schema);
         assert_eq!(error.kind(), PreparationErrorKind::UnresolvedReference);
         assert_eq!(error.location().as_pointer(), REFERENCE_LOCATION);
-        assert!(error.value().is_some());
+        assert_eq!(error.value(), Some(&json!(reference)));
     }
 }
 
@@ -557,16 +600,71 @@ fn a_reference_object_with_any_other_member_is_rejected() {
 #[test]
 fn the_document_root_may_not_carry_an_identifier_beside_a_reference() {
     // The root `$id` allowance is about where a document declares its own identity, not an
-    // exemption from the sibling rule.
+    // exemption from the sibling rule. `$defs` is left out so `$id` is the only sibling there is,
+    // which is what makes the diagnostic naming `$id` mean the rule did not exempt it.
     let schema = json!({
         "$id": "https://example.com/schema.json",
-        "$ref": "#/$defs/Root",
-        "$defs": { "Root": { "type": "object" } }
+        "$ref": "#/$defs/Root"
     });
 
     let error = rejected(&schema);
     assert_eq!(error.kind(), PreparationErrorKind::ReferenceSibling);
     assert_eq!(error.location().as_pointer(), "/$ref");
+    assert!(
+        error.to_string().contains("$id"),
+        "the diagnostic must name `$id` as the sibling that was found: {error}"
+    );
+}
+
+#[test]
+fn a_sibling_is_reported_as_a_sibling_rather_than_as_the_keyword_it_is() {
+    // Rule order is a contract, not an incidental: in a reference object the other members have no
+    // agreed meaning here, so `$id` and `$dynamicRef` beside `$ref` are sibling defects. Reporting
+    // either as a nested `$id` or a dynamic reference would name a repair that does not apply.
+    for keyword in ["$id", "$dynamicRef"] {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "x": object([
+                    ("$ref", json!("#/$defs/Tool")),
+                    (keyword, json!("https://example.com/tool.json")),
+                ])
+            },
+            "$defs": { "Tool": { "type": "object" } }
+        });
+
+        let error = rejected(&schema);
+        assert_eq!(
+            error.kind(),
+            PreparationErrorKind::ReferenceSibling,
+            "`{keyword}` beside `$ref` is a sibling defect: {error}"
+        );
+        assert_eq!(error.location().as_pointer(), REFERENCE_LOCATION);
+    }
+}
+
+#[test]
+fn a_tuple_prefixed_array_is_rejected() {
+    // `items` is traversed as describing every element. With `prefixItems` present it describes
+    // only the elements after the prefix, so an annotation below it would be collected for
+    // positions it does not describe. Required by the normalization foundation ADR.
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "pair": {
+                "type": "array",
+                "prefixItems": [{ "type": "string" }],
+                "items": annotated("<REST>")
+            }
+        }
+    });
+
+    let error = rejected(&schema);
+    assert_eq!(error.kind(), PreparationErrorKind::TupleItems);
+    assert_eq!(
+        error.location().as_pointer(),
+        "/properties/pair/prefixItems"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -654,6 +752,35 @@ fn indirect_cycles_are_rejected() {
             "the chain is ordered outermost first"
         );
     }
+}
+
+#[test]
+fn a_cycle_that_starts_below_the_outermost_expansion_reports_where_it_starts() {
+    // `A` is expanded on the way in but is not part of the loop: the cycle is `B` -> `C` -> `B`.
+    // The reported start is the target that was re-entered, not simply the first active expansion.
+    let schema = json!({
+        "type": "object",
+        "properties": { "a": { "$ref": "#/$defs/A" } },
+        "$defs": {
+            "A": { "properties": { "b": { "$ref": "#/$defs/B" } } },
+            "B": { "properties": { "c": { "$ref": "#/$defs/C" } } },
+            "C": { "properties": { "b": { "$ref": "#/$defs/B" } } }
+        }
+    });
+
+    let error = rejected(&schema);
+    let cycle = error.cycle_detail().expect("a cycle error carries detail");
+    assert_eq!(error.location().as_pointer(), "/$defs/C/properties/b/$ref");
+    assert_eq!(cycle.start().as_pointer(), "/$defs/B");
+    assert_eq!(
+        cycle
+            .chain()
+            .iter()
+            .map(|step| step.target().as_pointer())
+            .collect::<Vec<_>>(),
+        ["/$defs/A", "/$defs/B", "/$defs/C"],
+        "the chain must hold the whole active expansion, including the part before the cycle"
+    );
 }
 
 #[test]
@@ -794,6 +921,10 @@ fn every_defect_class_is_reported_under_its_own_classification() {
             }),
         ),
         (
+            PreparationErrorKind::TupleItems,
+            json!({ "properties": { "x": { "prefixItems": [true], "items": true } } }),
+        ),
+        (
             PreparationErrorKind::ReferenceCycle,
             json!({
                 "properties": { "x": { "$ref": "#/$defs/Loop" } },
@@ -820,6 +951,18 @@ fn every_defect_class_is_reported_under_its_own_classification() {
         assert!(
             covered.contains(&kind),
             "no case produces the `{kind}` classification, so nothing shows it is reachable"
+        );
+    }
+}
+
+#[test]
+fn the_classification_inventory_lists_every_variant_once_in_declaration_order() {
+    // Without this, a classification left out of `ALL` would make the coverage loop above pass by
+    // not asking about it. Mirrors `DiagnosticCode::ALL`'s guard in reportage-core.
+    for (index, kind) in PreparationErrorKind::ALL.iter().enumerate() {
+        assert_eq!(
+            *kind as usize, index,
+            "PreparationErrorKind::ALL is out of sync at index {index} ({kind})"
         );
     }
 }
@@ -936,4 +1079,69 @@ fn the_maintained_contract_schemas_prepare_to_the_annotations_they_carry() {
              an annotation moved, update this expectation together with the snapshot policy"
         );
     }
+}
+
+#[test]
+fn every_annotation_in_the_maintained_contract_schemas_is_reachable() {
+    // An annotation the traversal cannot reach — under `oneOf`, under `patternProperties`, or in an
+    // unreferenced definition — is ignored by design, and for an arbitrary schema that is the
+    // decided behavior. For these two documents it would be a defect: the annotation would look
+    // applied while the volatile value stayed in the snapshot, with nothing saying why. Nothing
+    // else notices, because `just schema-artifacts-check` checks where annotations are, not whether
+    // normalization gets to them.
+    for contract in [&*JSON_REPORT, &*RUN_RESULT] {
+        let path = contract.path(SchemaVariant::InternalSource);
+        let document = contract.document(SchemaVariant::InternalSource);
+        let plan = prepare(document).unwrap_or_else(|error| {
+            panic!("the internal source schema {path} must prepare: {error}")
+        });
+
+        let reached: Vec<String> = plan
+            .instructions()
+            .iter()
+            .map(|instruction| instruction.source().child(ANNOTATION_KEYWORD).as_pointer())
+            .collect();
+        let present = annotation_pointers(document);
+        assert!(
+            !present.is_empty(),
+            "{path} is expected to carry annotations; if they moved, this test no longer proves anything"
+        );
+        for pointer in present {
+            assert!(
+                reached.contains(&pointer),
+                "{path} carries an annotation at {pointer} that normalization traversal never reaches"
+            );
+        }
+    }
+}
+
+/// Every `x-reportage-snapshot` member in `document`, as RFC 6901 pointers.
+///
+/// Deliberately a whole-document walk rather than the traversal under test: it has to see the
+/// annotations the traversal would miss.
+fn annotation_pointers(document: &Value) -> Vec<String> {
+    fn walk(value: &Value, pointer: String, found: &mut Vec<String>) {
+        match value {
+            Value::Object(members) => {
+                for (name, member) in members {
+                    let child = format!("{pointer}/{}", name.replace('~', "~0").replace('/', "~1"));
+                    if name == ANNOTATION_KEYWORD {
+                        found.push(child);
+                    } else {
+                        walk(member, child, found);
+                    }
+                }
+            }
+            Value::Array(elements) => {
+                for (index, element) in elements.iter().enumerate() {
+                    walk(element, format!("{pointer}/{index}"), found);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut found = Vec::new();
+    walk(document, String::new(), &mut found);
+    found
 }

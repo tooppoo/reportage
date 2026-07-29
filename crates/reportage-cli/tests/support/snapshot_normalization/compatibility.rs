@@ -22,6 +22,7 @@ use super::reference::REFERENCE_KEYWORD;
 
 const IDENTIFIER_KEYWORD: &str = "$id";
 const DYNAMIC_KEYWORDS: [&str; 2] = ["$dynamicRef", "$dynamicAnchor"];
+const PREFIX_ITEMS_KEYWORD: &str = "prefixItems";
 
 /// A schema object normalization traversal has reached.
 pub struct ReachedNode<'a> {
@@ -39,13 +40,19 @@ type Rule = fn(&ReachedNode<'_>) -> Result<(), PreparationError>;
 
 /// The rules, in the order they run.
 ///
-/// `reference_sibling` runs first because the remaining rules read the node's other members as
+/// `reference_sibling` runs first because every later rule reads the node's other members as
 /// schema keywords, and in a reference object those members are exactly what is unsupported: a
-/// `$ref` sibling has no agreed meaning here, so reporting it as a nested `$id` or a dynamic
-/// reference would name the wrong defect. `nested_identifier` runs before `dynamic_reference`
-/// because `$id` changes the base URI every other reference-shaped keyword below it resolves
-/// against, so it invalidates the frame the dynamic keywords would be interpreted in.
-const RULES: [Rule; 3] = [reference_sibling, nested_identifier, dynamic_reference];
+/// `$ref` sibling has no agreed meaning here, so reporting it as a nested `$id`, a dynamic
+/// reference, or a tuple array would name the wrong defect. `nested_identifier` runs before
+/// `dynamic_reference` because `$id` changes the base URI every other reference-shaped keyword
+/// below it resolves against, so it invalidates the frame the dynamic keywords would be
+/// interpreted in. `tuple_items` is independent of the other two and runs last.
+const RULES: [Rule; 4] = [
+    reference_sibling,
+    nested_identifier,
+    dynamic_reference,
+    tuple_items,
+];
 
 pub fn check(node: &ReachedNode<'_>) -> Result<(), PreparationError> {
     RULES.iter().try_for_each(|rule| rule(node))
@@ -124,4 +131,23 @@ fn dynamic_reference(node: &ReachedNode<'_>) -> Result<(), PreparationError> {
         .with_value(value));
     }
     Ok(())
+}
+
+/// `prefixItems` is rejected where traversal reaches it.
+///
+/// The traversal treats `items` as describing every element of the array. With `prefixItems`
+/// present, Draft 2020-12 applies `items` only to elements after the tuple prefix, so an annotation
+/// below `items` would be collected for positions it does not describe. Required by
+/// docs/adr/20260723T160117Z_json-schema-driven-snapshot-normalization-foundation.md, which also
+/// asks that supporting tuples later be this rule's removal plus a dedicated collector.
+fn tuple_items(node: &ReachedNode<'_>) -> Result<(), PreparationError> {
+    let Some(prefix_items) = node.members.get(PREFIX_ITEMS_KEYWORD) else {
+        return Ok(());
+    };
+    Err(PreparationError::new(
+        PreparationErrorKind::TupleItems,
+        node.location.child(PREFIX_ITEMS_KEYWORD),
+        "`prefixItems` makes `items` apply only after the tuple prefix, so this array is not homogeneous",
+    )
+    .with_value(prefix_items))
 }

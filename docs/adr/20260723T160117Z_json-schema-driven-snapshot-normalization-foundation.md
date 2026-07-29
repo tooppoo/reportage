@@ -108,7 +108,7 @@ The following forms must fail during schema preparation:
 - reference cycles; and
 - a `$ref` with sibling schema keywords in the same schema object.
 
-Annotations must be placed in the referenced schema rather than beside `$ref`. The resolver, cycle detection, diagnostics, and representative tests are the responsibility of #193.
+Annotations must be placed in the referenced schema rather than beside `$ref`. The resolver, cycle detection, diagnostics, and representative tests are the responsibility of #193, decided in [the static local reference resolution ADR](20260729T182026Z_static-local-reference-resolution-for-snapshot-normalization.md).
 
 ### Use one typed annotation shape
 
@@ -223,7 +223,7 @@ The existing `serde_json::to_string_pretty` plus trailing newline behavior may b
 This decision does not define:
 
 - raw JSON contract validation or the relationship between typed Rust models and JSON Schema validation; see #192;
-- the implementation details of static local `$ref`; see #193;
+- the implementation details of static local `$ref`; see #193 and [the static local reference resolution ADR](20260729T182026Z_static-local-reference-resolution-for-snapshot-normalization.md);
 - general JSON Schema validation or evaluation;
 - user-supplied JSON Schema support;
 - normalization support for the initially ignored keywords;

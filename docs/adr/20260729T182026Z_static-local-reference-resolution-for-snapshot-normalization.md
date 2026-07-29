@@ -39,6 +39,12 @@ Definition names are not restricted beyond this. A name may be empty, contain no
 
 `true` and `false` are schemas, so they are valid targets. Neither can carry annotations or subschemas, so reaching one produces no instruction and the instance positions it describes keep their observed values. Whether any instance can satisfy `false` is a validation question and belongs to contract validation (issue #192); the normalizer does not re-check it.
 
+### Check a reference target's type, but skip a keyword position that holds no schema
+
+The type check above applies to what a reference resolves to. A value reached by descending into `properties` or `items` that is neither an object nor a boolean is skipped instead: it produces no instruction and no error.
+
+The asymmetry is deliberate. A reference is the mechanism by which a definition is named, so what a reference names must be checked or the traversal would walk arbitrary JSON as though it were a schema. A keyword holding a non-schema is simply a malformed schema document, which contract validation decides; restating that verdict here would make normalization a second, partial validity check that has to agree with the first.
+
 ### Inspect only what normalization traversal reaches
 
 Reference resolution, cycle detection, and the compatibility rules apply to schema nodes normalization traversal actually reaches: the root schema, object `properties`, homogeneous array `items`, and the targets of supported references.
@@ -74,6 +80,8 @@ The resolver maps a document and a `$ref` value to a target schema and its locat
 Following a reference must not change the instance location: the referring schema and the referenced schema describe the same instance positions, and only descending into `properties` or `items` extends the location. Because the same definition is normally reached from several instance locations, any cache of instance-location-dependent results inside the resolver would be wrong for every reuse but the first.
 
 Each unsupported form is likewise an independent compatibility rule over one reached node, so supporting a form later means removing one rule and adding one collector.
+
+Because this change introduces the traversal, it also implements the `prefixItems` rejection [the foundation ADR](20260723T160117Z_json-schema-driven-snapshot-normalization-foundation.md) requires, as one more such rule. Without it the traversal would treat `items` as describing every element of a tuple-prefixed array and collect instructions for positions that schema does not describe.
 
 ### Classify schema preparation failures
 
