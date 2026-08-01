@@ -36,17 +36,9 @@ mod location;
 mod plan;
 mod reference;
 
-use serde_json::Value;
-
 pub use annotation::{ANNOTATION_KEYWORD, Operation, SnapshotAnnotation};
+pub use collector::prepare;
 pub use error::{PreparationError, PreparationErrorKind, ReferenceCycle, ReferenceStep};
 pub use location::{InstanceLocation, InstanceSegment, SchemaLocation};
 pub use plan::{NormalizationInstruction, NormalizationPlan};
 pub use reference::{DEFINITIONS_KEYWORD, REFERENCE_KEYWORD, ResolvedReference, resolve};
-
-/// Compiles `schema` into the normalization plan its annotations describe.
-///
-/// Fails on the first defect found in the part of the schema normalization traversal reaches.
-pub fn prepare(schema: &Value) -> Result<NormalizationPlan, PreparationError> {
-    collector::Collector::new(schema).collect()
-}

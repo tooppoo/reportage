@@ -1,8 +1,9 @@
 //! Normalization traversal: walks the schema once and collects the instructions it reaches.
 //!
-//! The collector owns everything the resolver deliberately does not know — where in the instance
-//! the current schema node applies, which references are currently being expanded, and what has
-//! been collected so far.
+//! [`prepare`] is this module's whole interface, and the entry point of schema preparation. The
+//! traversal owns everything the resolver deliberately does not know — where in the instance the
+//! current schema node applies, which references are currently being expanded, and what has been
+//! collected so far.
 //!
 //! The traversal subset is the root schema, object `properties`, homogeneous array `items`, and
 //! supported static local `$ref`. Everything else is left alone; values under an unsupported
@@ -21,7 +22,26 @@ use super::reference::{self, REFERENCE_KEYWORD};
 const PROPERTIES_KEYWORD: &str = "properties";
 const ITEMS_KEYWORD: &str = "items";
 
-pub struct Collector<'a> {
+/// Compiles `schema` into the normalization plan its annotations describe.
+///
+/// Fails on the first defect found in the part of the schema normalization traversal reaches.
+pub fn prepare(schema: &Value) -> Result<NormalizationPlan, PreparationError> {
+    let mut collector = Collector {
+        root: schema,
+        instructions: Vec::new(),
+        active: Vec::new(),
+    };
+    collector.visit(schema, SchemaLocation::root(), InstanceLocation::root())?;
+    Ok(NormalizationPlan::new(collector.instructions))
+}
+
+/// The state one run of the traversal carries.
+///
+/// Not an object with a lifecycle: [`prepare`] is the only way to run a traversal, and it builds
+/// this, walks once, and drops it. It is a struct because `visit` recurses and every level needs
+/// the same document, the collected instructions, and the expansion stack; the alternative is
+/// threading three parameters through every recursive call.
+struct Collector<'a> {
     root: &'a Value,
     instructions: Vec<NormalizationInstruction>,
     /// The references currently being expanded, outermost first.
@@ -34,20 +54,6 @@ pub struct Collector<'a> {
 }
 
 impl<'a> Collector<'a> {
-    pub fn new(root: &'a Value) -> Collector<'a> {
-        Collector {
-            root,
-            instructions: Vec::new(),
-            active: Vec::new(),
-        }
-    }
-
-    pub fn collect(mut self) -> Result<NormalizationPlan, PreparationError> {
-        let root = self.root;
-        self.visit(root, SchemaLocation::root(), InstanceLocation::root())?;
-        Ok(NormalizationPlan::new(self.instructions))
-    }
-
     /// Visits one schema node, which describes the instance positions `instance` selects.
     fn visit(
         &mut self,
