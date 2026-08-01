@@ -48,3 +48,8 @@ references-index-check:
 [group('check')]
 json-contract-schemas-check:
   cargo nextest run --locked -p reportage-cli --test json_contract_schemas
+
+# run the snapshot normalization schema preparation tests
+[group('check')]
+snapshot-normalization-check:
+  cargo nextest run --locked -p reportage-cli --test snapshot_normalization
