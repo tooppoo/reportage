@@ -44,6 +44,19 @@ pub struct SnapshotAnnotation {
 }
 
 impl SnapshotAnnotation {
+    /// The annotation a schema node carrying `operation` and `value` would parse to.
+    ///
+    /// Schema preparation only ever obtains one through [`parse`]. This exists so that instruction
+    /// merge can be exercised over instructions the initial traversal subset cannot produce, which
+    /// is the only way to state its policy before the keywords that reach one land (issues #163,
+    /// #164, #165).
+    pub fn new(operation: Operation, value: impl Into<String>) -> SnapshotAnnotation {
+        SnapshotAnnotation {
+            operation,
+            value: value.into(),
+        }
+    }
+
     pub fn operation(&self) -> Operation {
         self.operation
     }

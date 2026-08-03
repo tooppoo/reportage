@@ -12,7 +12,7 @@ use std::fmt;
 
 use serde_json::Value;
 
-use super::location::SchemaLocation;
+use super::location::{InstanceLocation, SchemaLocation};
 
 /// What kind of schema defect was found.
 ///
@@ -44,6 +44,8 @@ pub enum PreparationErrorKind {
     ReferenceCycle,
     /// An `x-reportage-snapshot` annotation does not match the annotation contract.
     InvalidAnnotation,
+    /// Instructions reaching the same instance positions disagree about what to write there.
+    ConflictingInstructions,
 }
 
 impl PreparationErrorKind {
@@ -52,7 +54,7 @@ impl PreparationErrorKind {
     ///
     /// Declaration order, checked as such: a new variant must be added to the enum and appended
     /// here at the same position, or the inventory would silently stop being complete.
-    pub const ALL: [PreparationErrorKind; 11] = [
+    pub const ALL: [PreparationErrorKind; 12] = [
         PreparationErrorKind::NonStringReference,
         PreparationErrorKind::UnsupportedReferenceForm,
         PreparationErrorKind::InvalidReferenceContainer,
@@ -64,6 +66,7 @@ impl PreparationErrorKind {
         PreparationErrorKind::TupleItems,
         PreparationErrorKind::ReferenceCycle,
         PreparationErrorKind::InvalidAnnotation,
+        PreparationErrorKind::ConflictingInstructions,
     ];
 
     pub fn label(self) -> &'static str {
@@ -79,6 +82,7 @@ impl PreparationErrorKind {
             PreparationErrorKind::TupleItems => "tuple items",
             PreparationErrorKind::ReferenceCycle => "reference cycle",
             PreparationErrorKind::InvalidAnnotation => "invalid annotation",
+            PreparationErrorKind::ConflictingInstructions => "conflicting instructions",
         }
     }
 }
@@ -136,6 +140,33 @@ impl ReferenceCycle {
     }
 }
 
+/// What an instruction conflict diagnostic needs beyond the classification and location.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InstructionConflict {
+    target: InstanceLocation,
+    sources: Vec<SchemaLocation>,
+}
+
+impl InstructionConflict {
+    /// The instance positions every conflicting instruction applies to.
+    pub fn target(&self) -> &InstanceLocation {
+        &self.target
+    }
+
+    /// Every annotated schema node that reached [`InstructionConflict::target`], once each and in
+    /// pointer order.
+    ///
+    /// All of them are kept, and none is singled out as the offender, because the repair is a
+    /// choice between annotations that are each defensible alone: naming one would send the reader
+    /// to a schema location that is not, by itself, wrong. Both the order and the deduplication are
+    /// about what the reader has to act on: this is the set of places the conflict can be resolved,
+    /// so one schema node reached twice is one edit site, and which of them the collection order met
+    /// first is not part of the answer.
+    pub fn sources(&self) -> &[SchemaLocation] {
+        &self.sources
+    }
+}
+
 /// A schema defect found during schema preparation.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreparationError {
@@ -143,9 +174,11 @@ pub struct PreparationError {
     location: SchemaLocation,
     value: Option<Value>,
     detail: String,
-    /// Boxed because exactly one of the ten classifications carries it, and every `Result` in
-    /// schema preparation is as large as this error.
+    /// The two details that belong to one classification each. Both are boxed because every
+    /// `Result` in schema preparation is as large as this error, which the other ten
+    /// classifications would otherwise pay for.
     cycle: Option<Box<ReferenceCycle>>,
+    conflict: Option<Box<InstructionConflict>>,
 }
 
 impl PreparationError {
@@ -160,6 +193,7 @@ impl PreparationError {
             value: None,
             detail: detail.into(),
             cycle: None,
+            conflict: None,
         }
     }
 
@@ -182,6 +216,35 @@ impl PreparationError {
                 "following this reference would re-enter a definition that is already being expanded",
             ),
             cycle: Some(Box::new(ReferenceCycle { chain, start })),
+            conflict: None,
+        }
+    }
+
+    /// Reports that the instructions reaching `target` do not all ask for the same rewrite.
+    ///
+    /// `sources` are put in order and deduplicated here rather than by the caller, so that the
+    /// guarantee [`InstructionConflict::sources`] states is kept by the one place that can keep it,
+    /// and so that the location this error reports — which has to be a single node — is a function
+    /// of the contributing annotations rather than of the order they were collected in.
+    pub(super) fn conflict(
+        target: InstanceLocation,
+        mut sources: Vec<SchemaLocation>,
+    ) -> PreparationError {
+        sources.sort_by_key(SchemaLocation::as_pointer);
+        sources.dedup();
+        let first = sources
+            .first()
+            .cloned()
+            .expect("a conflict is between instructions, each of which has a source");
+        PreparationError {
+            kind: PreparationErrorKind::ConflictingInstructions,
+            location: first,
+            value: None,
+            detail: String::from(
+                "annotations reaching the same instance positions must agree on the operation and the value",
+            ),
+            cycle: None,
+            conflict: Some(Box::new(InstructionConflict { target, sources })),
         }
     }
 
@@ -190,6 +253,9 @@ impl PreparationError {
     }
 
     /// The schema location of the offending keyword. For a cycle this is the `$ref` that closed it.
+    /// For a conflict, where no contributing annotation is the offender on its own, it is the one
+    /// with the smallest pointer, so that the reported location does not depend on collection
+    /// order; [`PreparationError::conflict_detail`] carries the rest.
     pub fn location(&self) -> &SchemaLocation {
         &self.location
     }
@@ -202,6 +268,12 @@ impl PreparationError {
     /// The cycle detail, present exactly for [`PreparationErrorKind::ReferenceCycle`].
     pub fn cycle_detail(&self) -> Option<&ReferenceCycle> {
         self.cycle.as_deref()
+    }
+
+    /// The conflict detail, present exactly for
+    /// [`PreparationErrorKind::ConflictingInstructions`].
+    pub fn conflict_detail(&self) -> Option<&InstructionConflict> {
+        self.conflict.as_deref()
     }
 }
 
@@ -224,6 +296,12 @@ impl fmt::Display for PreparationError {
                     step.reference(),
                     step.target()
                 )?;
+            }
+        }
+        if let Some(conflict) = &self.conflict {
+            write!(formatter, "\n  normalizing: {}", conflict.target())?;
+            for source in conflict.sources() {
+                write!(formatter, "\n  requested by: {source}")?;
             }
         }
         Ok(())

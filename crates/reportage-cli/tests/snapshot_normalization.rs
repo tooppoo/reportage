@@ -1,15 +1,20 @@
-//! Schema preparation for JSON snapshot normalization, with static local `$ref` (issue #193).
+//! Schema preparation for JSON snapshot normalization: static local `$ref` (issue #193) and
+//! instruction merge (issue #114).
 //!
-//! Two kinds of case appear here, and they establish different things:
+//! Three kinds of case appear here, and they establish different things:
 //!
 //! - hand-built schemas, which are how a rejected form can be exercised at all. The maintained
 //!   contract schemas are deliberately inside the supported profile, so nothing they contain
 //!   demonstrates that an unsupported reference, a cycle, or a nested `$id` is caught;
+//! - hand-built instructions, which are how the merge can be exercised at all. The initial
+//!   traversal subset gives each instance location exactly one schema path, so no schema — inside
+//!   the supported profile or not — produces two instructions for one location;
 //! - the maintained contract schemas themselves, which are what the harness will actually prepare
-//!   (issue #114) and are therefore the only cases that show the supported profile is wide enough
-//!   for the documents it exists for.
+//!   and are therefore the only cases that show the supported profile is wide enough for the
+//!   documents it exists for.
 //!
-//! See docs/adr/20260729T182026Z_static-local-reference-resolution-for-snapshot-normalization.md.
+//! See docs/adr/20260723T160117Z_json-schema-driven-snapshot-normalization-foundation.md and
+//! docs/adr/20260729T182026Z_static-local-reference-resolution-for-snapshot-normalization.md.
 
 use serde_json::{Value, json};
 
@@ -20,8 +25,9 @@ mod snapshot_normalization;
 
 use json_schema::{JSON_REPORT, RUN_RESULT, SchemaVariant};
 use snapshot_normalization::{
-    ANNOTATION_KEYWORD, InstanceSegment, NormalizationPlan, Operation, PreparationError,
-    PreparationErrorKind, SchemaLocation, prepare, resolve,
+    ANNOTATION_KEYWORD, InstanceLocation, InstanceSegment, NormalizationInstruction,
+    NormalizationPlan, Operation, PreparationError, PreparationErrorKind, SchemaLocation,
+    SnapshotAnnotation, prepare, resolve,
 };
 
 // ---------------------------------------------------------------------------
@@ -868,6 +874,237 @@ fn a_malformed_annotation_in_a_referenced_definition_is_rejected() {
 }
 
 // ---------------------------------------------------------------------------
+// Instruction merge
+//
+// Over instructions rather than schemas: see the module doc comment for why no document reaches
+// this policy yet, and issues #163, #164, and #165 for the keywords that will.
+// ---------------------------------------------------------------------------
+
+/// An instance location built from property names alone.
+fn instance_target(properties: &[&str]) -> InstanceLocation {
+    properties
+        .iter()
+        .fold(InstanceLocation::root(), |location, name| {
+            location.property(*name)
+        })
+}
+
+fn schema_source(tokens: &[&str]) -> SchemaLocation {
+    tokens
+        .iter()
+        .fold(SchemaLocation::root(), |location, token| {
+            location.child(*token)
+        })
+}
+
+fn instruction(target: &[&str], placeholder: &str, source: &[&str]) -> NormalizationInstruction {
+    NormalizationInstruction::new(
+        instance_target(target),
+        &SnapshotAnnotation::new(Operation::Replace, placeholder),
+        schema_source(source),
+    )
+}
+
+/// An instruction for `/artifactRoot` that conflicts with nothing, then three for `/tool/version`,
+/// two of which agree.
+///
+/// The third `/tool/version` annotation is included so that a diagnostic naming only the
+/// disagreeing pair is visibly wrong: every annotation asking for this location is a candidate for
+/// the edit that resolves the conflict. The unrelated instruction comes first so that a conflict is
+/// found after a location that merged cleanly, and so that a diagnostic reporting the whole
+/// collection instead of the disagreeing location is visibly wrong too.
+fn conflicting_instructions() -> Vec<NormalizationInstruction> {
+    vec![
+        instruction(
+            &["artifactRoot"],
+            "<ARTIFACT_ROOT>",
+            &["properties", "artifactRoot"],
+        ),
+        instruction(
+            &["tool", "version"],
+            "<VERSION>",
+            &["$defs", "Tool", "properties", "version"],
+        ),
+        instruction(
+            &["tool", "version"],
+            "<VERSION>",
+            &["$defs", "Versioned", "properties", "version"],
+        ),
+        instruction(
+            &["tool", "version"],
+            "<TOOL_VERSION>",
+            &["properties", "tool", "properties", "version"],
+        ),
+    ]
+}
+
+fn compiled(instructions: Vec<NormalizationInstruction>) -> NormalizationPlan {
+    NormalizationPlan::compile(instructions)
+        .unwrap_or_else(|error| panic!("instruction merge must succeed: {error}"))
+}
+
+fn conflict_error(instructions: Vec<NormalizationInstruction>) -> PreparationError {
+    match NormalizationPlan::compile(instructions) {
+        Ok(plan) => panic!(
+            "instruction merge must fail, but it produced {} instruction(s)",
+            plan.instructions().len()
+        ),
+        Err(error) => error,
+    }
+}
+
+fn pointers(locations: &[SchemaLocation]) -> Vec<String> {
+    locations.iter().map(SchemaLocation::as_pointer).collect()
+}
+
+#[test]
+fn instructions_that_agree_about_one_instance_location_are_applied_once() {
+    let plan = compiled(vec![
+        instruction(
+            &["tool", "version"],
+            "<VERSION>",
+            &["$defs", "Tool", "properties", "version"],
+        ),
+        instruction(
+            &["tool", "version"],
+            "<VERSION>",
+            &["$defs", "Versioned", "properties", "version"],
+        ),
+    ]);
+
+    assert_eq!(
+        normalized(&plan),
+        vec![("/tool/version".to_string(), "<VERSION>".to_string())],
+        "the same request written twice must not become two rewrites of one value"
+    );
+    assert_eq!(
+        plan.instructions()[0].source().as_pointer(),
+        "/$defs/Tool/properties/version",
+        "the surviving instruction keeps the first source; the requests are identical, so any of \
+         them would be as true"
+    );
+}
+
+#[test]
+fn instructions_for_different_instance_locations_are_all_kept() {
+    let plan = compiled(vec![
+        instruction(&["artifactRoot"], "<ARTIFACT_ROOT>", &["properties", "x"]),
+        instruction(&["tool", "version"], "<VERSION>", &["properties", "y"]),
+    ]);
+
+    assert_eq!(
+        normalized(&plan),
+        vec![
+            ("/artifactRoot".to_string(), "<ARTIFACT_ROOT>".to_string()),
+            ("/tool/version".to_string(), "<VERSION>".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn locations_that_only_render_alike_are_different_locations() {
+    // `/tests/*` is every element of `tests` and also the `*` member of `tests`, because `*` is a
+    // legal property name. Instructions are grouped by the segments, never by the rendering, or an
+    // array's elements and a property that happens to be spelled `*` would deduplicate into one
+    // rewrite — or be reported as a conflict in a schema that has none.
+    let plan = compiled(vec![
+        NormalizationInstruction::new(
+            InstanceLocation::root().property("tests").array_element(),
+            &SnapshotAnnotation::new(Operation::Replace, "<ELEMENT>"),
+            schema_source(&["properties", "tests", "items"]),
+        ),
+        NormalizationInstruction::new(
+            InstanceLocation::root().property("tests").property("*"),
+            &SnapshotAnnotation::new(Operation::Replace, "<STAR>"),
+            schema_source(&["properties", "tests", "properties", "*"]),
+        ),
+    ]);
+
+    assert_eq!(plan.instructions().len(), 2);
+    assert_eq!(
+        plan.instructions()
+            .iter()
+            .map(|instruction| instruction.value())
+            .collect::<Vec<&str>>(),
+        vec!["<ELEMENT>", "<STAR>"]
+    );
+}
+
+#[test]
+fn instructions_that_disagree_about_one_instance_location_are_rejected() {
+    let error = conflict_error(conflicting_instructions());
+
+    assert_eq!(
+        error.kind(),
+        PreparationErrorKind::ConflictingInstructions,
+        "{error}"
+    );
+    let conflict = error
+        .conflict_detail()
+        .expect("a conflict must carry what it is a conflict about");
+    assert_eq!(conflict.target().to_string(), "/tool/version");
+    assert_eq!(
+        pointers(conflict.sources()),
+        vec![
+            "/$defs/Tool/properties/version",
+            "/$defs/Versioned/properties/version",
+            "/properties/tool/properties/version",
+        ],
+        "every annotation reaching the location must be reported, including those that agreed"
+    );
+}
+
+#[test]
+fn a_conflict_names_each_contributing_annotation_once() {
+    // One definition reached by two paths produces two instructions with one source, so the same
+    // pointer arrives twice. The sources are the places the conflict can be resolved, and that
+    // definition is one edit site however many paths lead to it.
+    let error = conflict_error(vec![
+        instruction(
+            &["tool", "version"],
+            "<VERSION>",
+            &["$defs", "Tool", "properties", "version"],
+        ),
+        instruction(
+            &["tool", "version"],
+            "<VERSION>",
+            &["$defs", "Tool", "properties", "version"],
+        ),
+        instruction(
+            &["tool", "version"],
+            "<TOOL_VERSION>",
+            &["properties", "tool", "properties", "version"],
+        ),
+    ]);
+
+    assert_eq!(
+        pointers(
+            error
+                .conflict_detail()
+                .expect("a conflict must carry what it is a conflict about")
+                .sources()
+        ),
+        vec![
+            "/$defs/Tool/properties/version",
+            "/properties/tool/properties/version",
+        ]
+    );
+}
+
+#[test]
+fn a_conflict_is_reported_the_same_way_whichever_order_the_instructions_arrive_in() {
+    // Schema member order and traversal order are not a precedence rule, so they must not change
+    // the diagnostic either.
+    let mut reversed = conflicting_instructions();
+    reversed.reverse();
+
+    let forward = conflict_error(conflicting_instructions());
+    let backward = conflict_error(reversed);
+
+    assert_eq!(forward, backward);
+}
+
+// ---------------------------------------------------------------------------
 // Diagnostics
 // ---------------------------------------------------------------------------
 
@@ -946,13 +1183,53 @@ fn every_defect_class_is_reported_under_its_own_classification() {
         );
     }
 
-    let covered: Vec<PreparationErrorKind> = cases.iter().map(|(kind, _)| *kind).collect();
+    // Every classification above is reached from a schema. A conflict is not reachable that way,
+    // for the reason the module doc comment gives, so it is raised from the merge directly rather
+    // than left out of the inventory the loop below checks.
+    let conflict = conflict_error(conflicting_instructions());
+    assert!(
+        conflict
+            .to_string()
+            .contains(PreparationErrorKind::ConflictingInstructions.label()),
+        "a rendered diagnostic must name its classification: {conflict}"
+    );
+
+    let covered: Vec<PreparationErrorKind> = cases
+        .iter()
+        .map(|(kind, _)| *kind)
+        .chain([conflict.kind()])
+        .collect();
     for kind in PreparationErrorKind::ALL {
         assert!(
             covered.contains(&kind),
             "no case produces the `{kind}` classification, so nothing shows it is reachable"
         );
     }
+}
+
+#[test]
+fn a_conflict_renders_the_whole_message_a_reader_is_shown() {
+    // Pinned as one message rather than as fragments, because that is what it is read as: schema
+    // preparation has no CLI surface, so a conflict reaches a maintainer as the panic message of a
+    // failing test. Assertions over the parts stay green when the parts stop composing — when the
+    // location disappears from the first line, or the sources run together with nothing to say what
+    // they are.
+    //
+    // The classification, the instance location, and the sources are also asserted as values
+    // elsewhere in this file, which is what a caller may act on. This one is about the reading.
+    let expected = [
+        "conflicting instructions: annotations reaching the same instance positions must agree on the operation and the value (at /$defs/Tool/properties/version)",
+        "  normalizing: /tool/version",
+        "  requested by: /$defs/Tool/properties/version",
+        "  requested by: /$defs/Versioned/properties/version",
+        "  requested by: /properties/tool/properties/version",
+    ]
+    .join("\n");
+
+    assert_eq!(
+        conflict_error(conflicting_instructions()).to_string(),
+        expected
+    );
 }
 
 #[test]

@@ -21,7 +21,7 @@
 //! - [`reference`] maps a `$ref` to the schema it denotes, and knows nothing else;
 //! - [`compatibility`] holds one independent rule per unsupported form;
 //! - [`collector`] walks the schema, tracking instance location and active expansions; and
-//! - [`plan`] is what preparation hands to instance processing.
+//! - [`plan`] merges what the walk collected, and is what preparation hands to instance processing.
 
 // A support module is compiled into each test target that includes it, and every target uses only
 // the part of it that target is about. Unused items and unused re-exports are therefore the normal
@@ -38,7 +38,9 @@ mod reference;
 
 pub use annotation::{ANNOTATION_KEYWORD, Operation, SnapshotAnnotation};
 pub use collector::prepare;
-pub use error::{PreparationError, PreparationErrorKind, ReferenceCycle, ReferenceStep};
+pub use error::{
+    InstructionConflict, PreparationError, PreparationErrorKind, ReferenceCycle, ReferenceStep,
+};
 pub use location::{InstanceLocation, InstanceSegment, SchemaLocation};
 pub use plan::{NormalizationInstruction, NormalizationPlan};
 pub use reference::{DEFINITIONS_KEYWORD, REFERENCE_KEYWORD, ResolvedReference, resolve};
