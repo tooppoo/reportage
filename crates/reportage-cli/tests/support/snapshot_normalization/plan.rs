@@ -13,9 +13,12 @@ use super::location::{InstanceLocation, SchemaLocation};
 
 /// Every normalization instruction one schema document produces, at most one per instance location.
 ///
-/// Instructions are kept in the order the traversal reached them. That order carries no meaning
-/// beyond readability — the surviving targets are distinct, so no instruction can affect what
-/// another one sees.
+/// Instructions are kept in the order the traversal reached them, and instance processing applies
+/// them in that order to one document. Distinct targets are not by themselves independent — one can
+/// be an ancestor of another — but the order still cannot change whether normalization succeeds: a
+/// replacement writes a scalar, so any instruction reaching through a replaced position fails its
+/// next step, and an ancestor that could not be replaced was a container, which fails too. What
+/// order does decide is which of several failures is the one reported.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NormalizationPlan {
     instructions: Vec<NormalizationInstruction>,
