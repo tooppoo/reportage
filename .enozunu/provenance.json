@@ -12,7 +12,7 @@
           "value": "main"
         },
         "path": "common/skills/documentation-writing",
-        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
+        "resolved_revision": "96896b8ac00c17ca42dfe226fc87933bc2353839"
       },
       "target_ai": "claude",
       "target_path": ".claude/skills/documentation-writing"
@@ -28,7 +28,7 @@
           "value": "main"
         },
         "path": "common/skills/subagent-review-loop",
-        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
+        "resolved_revision": "96896b8ac00c17ca42dfe226fc87933bc2353839"
       },
       "target_ai": "claude",
       "target_path": ".claude/skills/subagent-review-loop"
@@ -44,7 +44,7 @@
           "value": "main"
         },
         "path": "common/skills/code-comment",
-        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
+        "resolved_revision": "96896b8ac00c17ca42dfe226fc87933bc2353839"
       },
       "target_ai": "claude",
       "target_path": ".claude/skills/code-comment"
@@ -60,7 +60,7 @@
           "value": "main"
         },
         "path": "common/skills/cli-output-design",
-        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
+        "resolved_revision": "96896b8ac00c17ca42dfe226fc87933bc2353839"
       },
       "target_ai": "claude",
       "target_path": ".claude/skills/cli-output-design"
@@ -99,6 +99,22 @@
       "target_path": ".claude/skills/reportage"
     },
     {
+      "source_name": "review-sized-implementation",
+      "kind": "skill",
+      "source": {
+        "type": "git",
+        "url": "https://github.com/tooppoo/catalog-agent-tools",
+        "selector": {
+          "type": "branch",
+          "value": "main"
+        },
+        "path": "common/skills/review-sized-implementation",
+        "resolved_revision": "96896b8ac00c17ca42dfe226fc87933bc2353839"
+      },
+      "target_ai": "claude",
+      "target_path": ".claude/skills/review-sized-implementation"
+    },
+    {
       "source_name": "documentation-writing",
       "kind": "skill",
       "source": {
@@ -109,7 +125,7 @@
           "value": "main"
         },
         "path": "common/skills/documentation-writing",
-        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
+        "resolved_revision": "96896b8ac00c17ca42dfe226fc87933bc2353839"
       },
       "target_ai": "codex",
       "target_path": ".agents/skills/documentation-writing"
@@ -125,7 +141,7 @@
           "value": "main"
         },
         "path": "common/skills/subagent-review-loop",
-        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
+        "resolved_revision": "96896b8ac00c17ca42dfe226fc87933bc2353839"
       },
       "target_ai": "codex",
       "target_path": ".agents/skills/subagent-review-loop"
@@ -141,7 +157,7 @@
           "value": "main"
         },
         "path": "common/skills/code-comment",
-        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
+        "resolved_revision": "96896b8ac00c17ca42dfe226fc87933bc2353839"
       },
       "target_ai": "codex",
       "target_path": ".agents/skills/code-comment"
@@ -157,7 +173,7 @@
           "value": "main"
         },
         "path": "common/skills/cli-output-design",
-        "resolved_revision": "a23446fe66747d5f79194dcb566a9a8c69380507"
+        "resolved_revision": "96896b8ac00c17ca42dfe226fc87933bc2353839"
       },
       "target_ai": "codex",
       "target_path": ".agents/skills/cli-output-design"
@@ -194,6 +210,22 @@
       },
       "target_ai": "codex",
       "target_path": ".agents/skills/reportage"
+    },
+    {
+      "source_name": "review-sized-implementation",
+      "kind": "skill",
+      "source": {
+        "type": "git",
+        "url": "https://github.com/tooppoo/catalog-agent-tools",
+        "selector": {
+          "type": "branch",
+          "value": "main"
+        },
+        "path": "common/skills/review-sized-implementation",
+        "resolved_revision": "96896b8ac00c17ca42dfe226fc87933bc2353839"
+      },
+      "target_ai": "codex",
+      "target_path": ".agents/skills/review-sized-implementation"
     }
   ]
 }

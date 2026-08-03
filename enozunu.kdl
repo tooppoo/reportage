@@ -34,6 +34,14 @@ enozunu config-version=1 {
         }
       }
 
+      skill "review-sized-implementation" {
+        git {
+          url "https://github.com/tooppoo/catalog-agent-tools"
+          branch "main"
+          path "common/skills/review-sized-implementation"
+        }
+      }
+
       skill "reportage-behavior-change" {
         local {
           path "ai/skills/reportage-behavior-change"
@@ -61,7 +69,8 @@ enozunu config-version=1 {
         "cli-output-design" \
         "reportage-syntax-change" \
         "reportage-behavior-change" \
-        "reportage"
+        "reportage" \
+        "review-sized-implementation"
     }
     codex {
       use-skills "documentation-writing" \
@@ -70,7 +79,8 @@ enozunu config-version=1 {
         "cli-output-design" \
         "reportage-syntax-change" \
         "reportage-behavior-change" \
-        "reportage"
+        "reportage" \
+        "review-sized-implementation"
     }
   }
 }
