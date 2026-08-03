@@ -1052,13 +1052,6 @@ fn instructions_that_disagree_about_one_instance_location_are_rejected() {
         ],
         "every annotation reaching the location must be reported, including those that agreed"
     );
-    for source in pointers(conflict.sources()) {
-        assert!(
-            error.to_string().contains(&source),
-            "a rendered diagnostic must name {source}, which is one of the places the conflict can \
-             be resolved: {error}"
-        );
-    }
 }
 
 #[test]
@@ -1212,6 +1205,31 @@ fn every_defect_class_is_reported_under_its_own_classification() {
             "no case produces the `{kind}` classification, so nothing shows it is reachable"
         );
     }
+}
+
+#[test]
+fn a_conflict_renders_the_whole_message_a_reader_is_shown() {
+    // Pinned as one message rather than as fragments, because that is what it is read as: schema
+    // preparation has no CLI surface, so a conflict reaches a maintainer as the panic message of a
+    // failing test. Assertions over the parts stay green when the parts stop composing — when the
+    // location disappears from the first line, or the sources run together with nothing to say what
+    // they are.
+    //
+    // The classification, the instance location, and the sources are also asserted as values
+    // elsewhere in this file, which is what a caller may act on. This one is about the reading.
+    let expected = [
+        "conflicting instructions: annotations reaching the same instance positions must agree on the operation and the value (at /$defs/Tool/properties/version)",
+        "  normalizing: /tool/version",
+        "  requested by: /$defs/Tool/properties/version",
+        "  requested by: /$defs/Versioned/properties/version",
+        "  requested by: /properties/tool/properties/version",
+    ]
+    .join("\n");
+
+    assert_eq!(
+        conflict_error(conflicting_instructions()).to_string(),
+        expected
+    );
 }
 
 #[test]
