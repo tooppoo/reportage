@@ -24,7 +24,9 @@ const ITEMS_KEYWORD: &str = "items";
 
 /// Compiles `schema` into the normalization plan its annotations describe.
 ///
-/// Fails on the first defect found in the part of the schema normalization traversal reaches.
+/// Fails on the first defect found in the part of the schema normalization traversal reaches, or —
+/// once the walk has seen every annotation, which is what makes the question answerable — on
+/// instructions that disagree about an instance location.
 pub fn prepare(schema: &Value) -> Result<NormalizationPlan, PreparationError> {
     let mut collector = Collector {
         root: schema,
@@ -32,7 +34,7 @@ pub fn prepare(schema: &Value) -> Result<NormalizationPlan, PreparationError> {
         active: Vec::new(),
     };
     collector.visit(schema, SchemaLocation::root(), InstanceLocation::root())?;
-    Ok(NormalizationPlan::new(collector.instructions))
+    NormalizationPlan::compile(collector.instructions)
 }
 
 /// The state one run of the traversal carries.
