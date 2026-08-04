@@ -1,10 +1,13 @@
-//! The two location kinds snapshot normalization talks about: where something sits in the schema
-//! document, and which part of an instance an instruction applies to.
+//! The location kinds snapshot normalization talks about: where something sits in the schema
+//! document, which part of an instance an instruction applies to, and where in one concrete
+//! document the application of an instruction actually got to.
 //!
 //! They are separate types because they answer different questions and must not be interchanged.
 //! A schema location always denotes exactly one node of one document and is therefore an RFC 6901
 //! JSON Pointer. An instance location denotes a *set* of instance positions, because an annotation
-//! under `items` applies to every element of the array, so it is not a pointer at all.
+//! under `items` applies to every element of the array, so it is not a pointer at all. An instance
+//! pointer is one position of one document, which is what a diagnostic about a document has to
+//! name.
 
 use std::fmt;
 
@@ -112,7 +115,7 @@ impl InstanceLocation {
 impl fmt::Display for InstanceLocation {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.segments.is_empty() {
-            return formatter.write_str("<instance root>");
+            return formatter.write_str(INSTANCE_ROOT_MARKER);
         }
         for segment in &self.segments {
             match segment {
@@ -125,6 +128,84 @@ impl fmt::Display for InstanceLocation {
         Ok(())
     }
 }
+
+/// One step of an instance pointer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum InstanceToken {
+    Property(String),
+    /// The array index the walk took, which an [`InstanceSegment::ArrayElement`] never names.
+    Index(usize),
+}
+
+/// One position of one instance document, as an RFC 6901 JSON Pointer.
+///
+/// This is what an instruction's [`InstanceLocation`] becomes once a document is walked: the array
+/// segments that stood for "every element" are the indices actually visited. A diagnostic about a
+/// document needs this and not the pattern, because "an element of `/tests` has the wrong shape"
+/// does not say which one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InstancePointer {
+    tokens: Vec<InstanceToken>,
+}
+
+impl InstancePointer {
+    pub fn root() -> InstancePointer {
+        InstancePointer { tokens: Vec::new() }
+    }
+
+    pub fn property(&self, name: impl Into<String>) -> InstancePointer {
+        self.extended(InstanceToken::Property(name.into()))
+    }
+
+    pub fn index(&self, index: usize) -> InstancePointer {
+        self.extended(InstanceToken::Index(index))
+    }
+
+    pub fn tokens(&self) -> &[InstanceToken] {
+        &self.tokens
+    }
+
+    pub fn is_document_root(&self) -> bool {
+        self.tokens.is_empty()
+    }
+
+    /// The RFC 6901 pointer text. The whole document is the empty string, as the RFC specifies.
+    pub fn as_pointer(&self) -> String {
+        self.tokens
+            .iter()
+            .map(|token| match token {
+                InstanceToken::Property(name) => format!("/{}", encode_pointer_token(name)),
+                InstanceToken::Index(index) => format!("/{index}"),
+            })
+            .collect()
+    }
+
+    fn extended(&self, token: InstanceToken) -> InstancePointer {
+        let mut tokens = self.tokens.clone();
+        tokens.push(token);
+        InstancePointer { tokens }
+    }
+}
+
+/// Renders the whole document as a visible marker instead of as nothing at all, so a diagnostic
+/// about the document does not read as a diagnostic with its location missing.
+/// [`InstancePointer::as_pointer`] is the machine-facing form.
+///
+/// The marker is [`InstanceLocation`]'s and deliberately not [`SchemaLocation`]'s: an application
+/// diagnostic prints an instance position and a schema position side by side, and one name for both
+/// roots would undo the reason it carries both.
+impl fmt::Display for InstancePointer {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_document_root() {
+            formatter.write_str(INSTANCE_ROOT_MARKER)
+        } else {
+            formatter.write_str(&self.as_pointer())
+        }
+    }
+}
+
+/// How both instance location kinds render the whole document.
+const INSTANCE_ROOT_MARKER: &str = "<instance root>";
 
 /// Escapes a raw member name into an RFC 6901 reference token.
 ///
