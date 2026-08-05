@@ -17,6 +17,7 @@ For the exact behavior contracts these decisions produced, see [the reference se
 - [Rust integration tests](testing/rust-integration-tests.md): the execution basis, structural output, and boundary conditions verified in [`crates/reportage-cli/tests/`](../../crates/reportage-cli/tests/).
 - [Rust unit / focused tests](testing/rust-unit-tests.md): the internal models verified directly in `reportage-core`.
 - [Syntax conformance fixtures](testing/syntax-conformance.md): the known-valid and known-invalid `.repor` fixtures and their AST snapshots.
+- [Snapshot normalization](testing/snapshot-normalization.md): how JSON snapshot suites stabilize intentionally volatile output, and why the contract schemas rather than the suites decide which values are stabilized.
 
 ## Planned and undecided work
 
