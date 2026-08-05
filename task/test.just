@@ -7,9 +7,9 @@ test:
 
   cargo llvm-cov --locked --all-features --workspace --no-report nextest
 
-  # Every alternative in both exclusions below is a whole repository-relative path, anchored at both
-  # ends. They are regexes matched against absolute paths, so an alternative that stops short of that
-  # can also match a directory the build sits under rather than a file in it: a bare `model` matched
+  # Every alternative in both exclusions below is a whole repository-relative path suffix (starting with
+  # `/crates/...`) and anchored at the end with `$`. These regexes are matched against absolute paths,
+  # so an alternative that stops short of the full path can also match a directory the build sits under: a bare `model` matched
   # a git worktree named `…-model-guard` and excluded the entire workspace. Nothing says so — llvm-cov
   # prints a table of `-` and exits 1 with no message — so the failure reads as the thresholds being
   # missed while every test passes.
