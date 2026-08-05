@@ -215,6 +215,176 @@ fn every_fixture_result_json_deserializes_into_the_typed_consumer_model() {
     }
 }
 
+/// The `result.json` of `fixture`, asserted to be one the typed consumer model accepts.
+///
+/// Asserted through the entry point rather than through [`typed_consumer_model_rejects`], so that a
+/// fixture that stopped deserializing is reported with serde's own error rather than as a bare
+/// boolean — and so that a rejection either test below reports is attributable to the mutation it
+/// applied rather than to something the fixture never satisfied.
+fn accepted_result_json(fixture: &Path) -> Value {
+    let (run_dir, _stdout, _exit_code, _dir) = run_fixture(fixture, false);
+    let document = read_result_json(&run_dir);
+    typed_consumer_model::assert_deserializes(&document, &fixture.display().to_string());
+    document
+}
+
+/// Whether the typed consumer model rejects `document`.
+///
+/// `catch_unwind` rather than `#[should_panic]` because every departure below has to be rejected and
+/// `#[should_panic]` would be satisfied by the first one that was. No panic hook is installed to
+/// quiet the expected panics: the hook is process-wide, and this target's other tests run as threads
+/// in that same process under `cargo test`, so silencing it would silence their failures too.
+fn typed_consumer_model_rejects(document: &Value) -> bool {
+    std::panic::catch_unwind(|| {
+        typed_consumer_model::assert_deserializes(document, "a deliberately departing document")
+    })
+    .is_err()
+}
+
+/// Departures from the contract the typed consumer model has to notice, as mutations of a document
+/// it accepts.
+///
+/// One per property the model has because it was written to have it, rather than because a derive
+/// gives it away: a field required by being declared non-`Option`, `location` having to be present
+/// at all, and its value having to be `null` or a `Location`. The last two are the same field, and
+/// deliberately so: `location: Value` keeps "missing key" and "present but null" apart, so the
+/// `Option<Location>` that would collapse them is caught by removing the key, while deleting the
+/// walk over `diagnostics` is caught only by giving the key a value that is neither.
+///
+/// Closed shapes are not listed here. They are covered by
+/// [`the_typed_consumer_model_notices_any_closed_shape_opening`], which reaches them by sweeping the
+/// fixtures' own documents rather than by naming the few a table would.
+const REJECTED_DEPARTURES: &[(&str, fn(&mut Value))] = &[
+    ("the required `noop` field removed", |document| {
+        document.as_object_mut().unwrap().remove("noop").unwrap();
+    }),
+    ("the always-present `location` key removed", |document| {
+        document["diagnostics"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("location")
+            .unwrap();
+    }),
+    (
+        "a diagnostic `location` that is neither null nor a Location",
+        |document| {
+            document["diagnostics"][0]["location"] = Value::String("somewhere".to_string());
+        },
+    ),
+];
+
+/// Guards the suite above against becoming vacuous.
+///
+/// It only ever feeds the model real producer output, so making a required field `Option` or
+/// deleting the walk over `diagnostics` would leave it green while it checked nothing.
+#[test]
+fn the_typed_consumer_model_rejects_a_document_that_departs_from_the_contract() {
+    // One fixture is enough for these three, and it is chosen for shape rather than for its
+    // scenario: a diagnostic for the last two to apply to, and a null `location` on it, so that
+    // accepting this document is what establishes "present but null" while the departure below
+    // establishes "missing". Keeping those two halves in one document is the whole reason `location`
+    // is typed as an open `Value`. This is the smallest fixture that qualifies.
+    let accepted = accepted_result_json(&fixture_dir().join("runtime_error.repor"));
+
+    for (departure, apply) in REJECTED_DEPARTURES {
+        let mut departing = accepted.clone();
+        apply(&mut departing);
+        assert_ne!(
+            departing, accepted,
+            "the mutation for {departure} left the document unchanged, so it cannot be rejected for it"
+        );
+        assert!(
+            typed_consumer_model_rejects(&departing),
+            "the typed consumer model accepted a result.json with {departure}; it no longer enforces what this suite reports it does"
+        );
+    }
+}
+
+/// Guards every shape the model declares closed, by opening each one in turn.
+///
+/// `deny_unknown_fields` is stated at fifteen sites in the model, four of them internally tagged
+/// enums whose serde code path differs from a struct's. Naming a couple in [`REJECTED_DEPARTURES`]
+/// would show the attribute still works somewhere, not that any particular shape still carries it —
+/// the same one-case-for-many-definitions gap `json_contract_schemas.rs` covers by generation on the
+/// schema side.
+///
+/// The sweep runs over every fixture rather than over one, because a shape no fixture instantiates
+/// is a shape this test does not reach: `Location`, `ExpectedSource`, `ContentsMismatch`, and
+/// `InterpolatedBindingReference` appear in no single fixture's document together with the rest.
+/// The requirement is therefore on the fixture set as a whole, which
+/// `all_required_representative_scenarios_are_present` is what pins.
+///
+/// Every object the fixtures' documents contain maps to a shape the model declares closed, so this
+/// needs no exemption list. The model's one open field, `shimInvocations`, is a `Vec<Value>` that no
+/// fixture currently populates; a contract shape that is genuinely open would fail here, which is
+/// the right way to find out that it has to be accounted for.
+#[test]
+fn the_typed_consumer_model_notices_any_closed_shape_opening() {
+    let mut opened = 0usize;
+    for path in fixture_paths() {
+        let accepted = accepted_result_json(&path);
+        let context = path.display();
+
+        for pointer in object_pointers(&accepted) {
+            let mut document = accepted.clone();
+            document
+                .pointer_mut(&pointer)
+                .expect("a pointer collected from this document must resolve in its clone")
+                .as_object_mut()
+                .expect("a pointer collected at an object must still address an object")
+                .insert("unexpectedField".to_string(), Value::Bool(true));
+            assert!(
+                typed_consumer_model_rejects(&document),
+                "fixture {context}: the typed consumer model accepted an undefined member at {}; the shape there is no longer closed",
+                render_pointer(&pointer)
+            );
+            opened += 1;
+        }
+    }
+
+    assert!(
+        opened > 0,
+        "no object was opened, so this test checked nothing"
+    );
+}
+
+/// JSON pointers of every object in `document`, the document itself included as the empty pointer.
+///
+/// Keys are not escaped because every member name this contract defines is a camelCase identifier.
+/// `json_contract_schemas.rs` carries the schema-side twin of this walk and of [`render_pointer`];
+/// they are separate because that one visits every value rather than only objects, so a convention
+/// changed in one belongs in the other.
+fn object_pointers(document: &Value) -> Vec<String> {
+    fn collect(value: &Value, pointer: String, found: &mut Vec<String>) {
+        match value {
+            Value::Object(members) => {
+                found.push(pointer.clone());
+                for (key, member) in members {
+                    collect(member, format!("{pointer}/{key}"), found);
+                }
+            }
+            Value::Array(elements) => {
+                for (index, element) in elements.iter().enumerate() {
+                    collect(element, format!("{pointer}/{index}"), found);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut found = Vec::new();
+    collect(document, String::new(), &mut found);
+    found
+}
+
+fn render_pointer(pointer: &str) -> &str {
+    if pointer.is_empty() {
+        "the document root"
+    } else {
+        pointer
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Semantic and integrity invariants
 //
