@@ -964,7 +964,9 @@ fn dir_contains_observation_str(observation: DirContainsObservation) -> &'static
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::result::{AssertionBlockResult, FileError, RuntimeError, ScriptError, StepOrigin};
+    use crate::result::{
+        AssertionBlockResult, FileError, RuntimeError, ScriptError, StepOrigin, StepPhase,
+    };
     use std::path::PathBuf;
 
     fn passing_action() -> ActionResult {
@@ -993,7 +995,7 @@ mod tests {
             status: CaseStatus::Pass,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                origin: StepOrigin::case(1),
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
@@ -1074,7 +1076,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                origin: StepOrigin::case(1),
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
@@ -1162,7 +1164,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                origin: StepOrigin::case(1),
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
@@ -1202,7 +1204,7 @@ mod tests {
             status: CaseStatus::ScriptError(ScriptError {
                 message: "uses a process expectation but no action has run yet".to_string(),
                 diagnostic_code: Some(DiagnosticCode::SemanticExpectationRequiresAction),
-                origin: Some(StepOrigin::case(0)),
+                origin: Some(StepOrigin::new(StepPhase::Case, 0)),
             }),
             actions: vec![],
             assertion_blocks: vec![],
@@ -1230,7 +1232,7 @@ mod tests {
             status: CaseStatus::RuntimeError(RuntimeError {
                 message: "write step at step 2 failed: target path already exists".to_string(),
                 diagnostic_code: Some(DiagnosticCode::StepWriteTargetExists),
-                origin: Some(StepOrigin::case(1)),
+                origin: Some(StepOrigin::new(StepPhase::Case, 1)),
             }),
             actions: vec![],
             assertion_blocks: vec![],
@@ -1296,7 +1298,7 @@ mod tests {
             status: CaseStatus::Pass,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                origin: StepOrigin::case(1),
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::Logical {
@@ -1348,7 +1350,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                origin: StepOrigin::case(1),
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::Logical {
@@ -1402,7 +1404,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                origin: StepOrigin::case(1),
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::Exit {
@@ -1434,7 +1436,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![],
             assertion_blocks: vec![AssertionBlockResult {
-                origin: StepOrigin::case(0),
+                origin: StepOrigin::new(StepPhase::Case, 0),
                 checkpoint_action_index: None,
                 expectations: vec![
                     ExpectationResult {
@@ -1493,7 +1495,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![],
             assertion_blocks: vec![AssertionBlockResult {
-                origin: StepOrigin::case(0),
+                origin: StepOrigin::new(StepPhase::Case, 0),
                 checkpoint_action_index: None,
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::FileTextEquals {
@@ -1533,7 +1535,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                origin: StepOrigin::case(1),
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![
                     ExpectationResult {
@@ -1606,7 +1608,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![],
             assertion_blocks: vec![AssertionBlockResult {
-                origin: StepOrigin::case(0),
+                origin: StepOrigin::new(StepPhase::Case, 0),
                 checkpoint_action_index: None,
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::FileTextEquals {
@@ -1637,7 +1639,7 @@ mod tests {
             actions: vec![passing_action(), passing_action()],
             assertion_blocks: vec![
                 AssertionBlockResult {
-                    origin: StepOrigin::case(1),
+                    origin: StepOrigin::new(StepPhase::Case, 1),
                     checkpoint_action_index: Some(0),
                     expectations: vec![ExpectationResult {
                         kind: ExpectationKind::Exit {
@@ -1648,7 +1650,7 @@ mod tests {
                     }],
                 },
                 AssertionBlockResult {
-                    origin: StepOrigin::case(3),
+                    origin: StepOrigin::new(StepPhase::Case, 3),
                     checkpoint_action_index: Some(1),
                     expectations: vec![ExpectationResult {
                         kind: ExpectationKind::Exit {

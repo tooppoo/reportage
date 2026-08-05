@@ -443,6 +443,10 @@ pub enum StepPhase {
 /// action, assertion block, binding, and write alike — so it indexes directly
 /// into that phase's own step list. Human-readable output may present it as a
 /// 1-based step number; internal consumers must not renumber it.
+///
+/// Unrelated to the `origin` field of a JSON diagnostic (see
+/// `run_result::case_json`), which identifies the source file or test a
+/// diagnostic belongs to rather than a position within a step list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StepOrigin {
     pub phase: StepPhase,
@@ -450,12 +454,8 @@ pub struct StepOrigin {
 }
 
 impl StepOrigin {
-    /// A step in a case body.
-    pub fn case(step_index: usize) -> Self {
-        Self {
-            phase: StepPhase::Case,
-            step_index,
-        }
+    pub fn new(phase: StepPhase, step_index: usize) -> Self {
+        Self { phase, step_index }
     }
 }
 

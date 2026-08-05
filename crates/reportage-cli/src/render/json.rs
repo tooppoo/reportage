@@ -101,7 +101,7 @@ mod tests {
     use super::*;
     use reportage_core::result::{
         ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind,
-        ExpectationResult, StepOrigin, TextValueProvenance,
+        ExpectationResult, StepOrigin, StepPhase, TextValueProvenance,
     };
     use std::path::PathBuf;
 
@@ -123,7 +123,7 @@ mod tests {
             status: CaseStatus::Pass,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                origin: StepOrigin::case(1),
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {

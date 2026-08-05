@@ -192,8 +192,41 @@ fn an_assertion_block_origin_counts_every_case_body_step_kind() {
         .collect();
     assert_eq!(
         origins,
-        vec![StepOrigin::case(2), StepOrigin::case(3)],
+        vec![
+            StepOrigin::new(StepPhase::Case, 2),
+            StepOrigin::new(StepPhase::Case, 3)
+        ],
         "case body blocks carry StepPhase::Case and their own step position"
+    );
+}
+
+#[test]
+fn a_script_error_is_attributed_to_the_step_that_raised_it() {
+    // The process expectation sits at step 1, after a write. A `ScriptError`
+    // must name that step, not the case as a whole and not the first step.
+    let script = make_script(vec![Case {
+        name: "process expectation before any action".to_string(),
+        steps: vec![write_step("a.txt", "x"), assert_exit(0)],
+    }]);
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    let CaseStatus::ScriptError(script_error) = &result.cases[0].status else {
+        panic!(
+            "expected CaseStatus::ScriptError, got {:?}",
+            result.cases[0].status
+        );
+    };
+    assert_eq!(
+        script_error.diagnostic_code,
+        Some(DiagnosticCode::SemanticExpectationRequiresAction)
+    );
+    assert_eq!(
+        script_error.origin,
+        Some(StepOrigin::new(StepPhase::Case, 1))
     );
 }
 
@@ -278,11 +311,12 @@ fn before_each_replays_into_every_concrete_case_workspace() {
 }
 
 #[test]
-fn before_each_write_failure_is_runtime_error_without_case_step_index() {
+fn before_each_write_failure_is_runtime_error_without_a_step_origin() {
     // Two `before_each` writes to the same path: the second violates the
-    // create-only overwrite policy. The failure belongs to the
-    // module-level block, not to any case body step, so `step_index` is
-    // absent and the message carries the position inside `before_each`.
+    // create-only overwrite policy. The failure belongs to the module-level
+    // block, not to any case body step, so it carries no `origin` and the
+    // message carries the position inside `before_each` instead. Reporting it
+    // as a `StepPhase::BeforeEach` origin is deferred.
     let before_each = BeforeEach::new(vec![
         SideEffectingStep::WriteFile(WriteFileStep {
             path: WorkspacePath::parse("a.txt").unwrap(),
@@ -344,7 +378,10 @@ fn before_each_write_failure_is_runtime_error_without_case_step_index() {
     let CaseStatus::RuntimeError(runtime_error) = &result.cases[0].status else {
         panic!("expected CaseStatus::RuntimeError");
     };
-    assert_eq!(runtime_error.origin, Some(StepOrigin::case(1)));
+    assert_eq!(
+        runtime_error.origin,
+        Some(StepOrigin::new(StepPhase::Case, 1))
+    );
     assert_eq!(
         runtime_error.diagnostic_code,
         Some(DiagnosticCode::StepWriteTargetExists)
