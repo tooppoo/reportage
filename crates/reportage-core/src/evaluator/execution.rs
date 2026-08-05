@@ -138,6 +138,26 @@ enum StepSequenceOutcome {
     AssertionFailed,
 }
 
+/// A failure that ends a case before its remaining steps run.
+///
+/// Narrower than [`CaseStatus`] on purpose: a step can only ever abort a case
+/// with a script error or a runtime error, so `Pass` / `Fail` stay
+/// unrepresentable on the abort path rather than relying on every future
+/// return site to pick the right variant.
+enum StepAbort {
+    Script(ScriptError),
+    Runtime(RuntimeError),
+}
+
+impl From<StepAbort> for CaseStatus {
+    fn from(abort: StepAbort) -> Self {
+        match abort {
+            StepAbort::Script(error) => CaseStatus::ScriptError(error),
+            StepAbort::Runtime(error) => CaseStatus::RuntimeError(error),
+        }
+    }
+}
+
 /// A case that ends before any step runs, and so has no evidence to report.
 fn abort_before_execution(case_name: &str, source_path: &Path, status: CaseStatus) -> CaseResult {
     CaseResult {
@@ -250,9 +270,10 @@ fn evaluate_case(
     ));
 
     // `before_each` setup replays inside this concrete case's own workspace,
-    // before the case body's first step runs — so the initial checkpoint's
-    // workspace evidence already contains every file it wrote, and the case
-    // body's first assertion block can observe them. A failure is a runtime
+    // before the case body's first step runs. The initial checkpoint carries
+    // that workspace's root rather than a snapshot of it, so the case body's
+    // first assertion block observes every file written here no matter when
+    // the checkpoint value itself was constructed. A failure is a runtime
     // step error attributed to the module-level block, not to any case body
     // step, hence `step_index: None`; the 1-based position inside
     // `before_each` is carried in the message instead.
@@ -288,7 +309,7 @@ fn evaluate_case(
     let status = match execute_steps(&case.steps, &mut execution, &ctx) {
         Ok(StepSequenceOutcome::Completed) => CaseStatus::Pass,
         Ok(StepSequenceOutcome::AssertionFailed) => CaseStatus::Fail,
-        Err(terminal_status) => terminal_status,
+        Err(abort) => abort.into(),
     };
 
     execution.finish(&case.name, source_path, status)
@@ -297,9 +318,9 @@ fn evaluate_case(
 /// Executes `steps` in source order, updating `execution` as each step
 /// produces evidence.
 ///
-/// `Err` carries the terminal [`CaseStatus`] of a case that cannot continue —
-/// a script error or a runtime error. The evidence gathered before that point
-/// stays in `execution`, so the caller reports it either way.
+/// `Err` carries the [`StepAbort`] of a case that cannot continue. The evidence
+/// gathered before that point stays in `execution`, so the caller reports it
+/// either way.
 ///
 /// Steps are never reordered into phases, and an assertion block failure stops
 /// the sequence before the next step.
@@ -308,7 +329,7 @@ fn execute_steps(
     steps: &[Step],
     execution: &mut CaseExecution,
     ctx: &StepContext<'_>,
-) -> Result<StepSequenceOutcome, CaseStatus> {
+) -> Result<StepSequenceOutcome, StepAbort> {
     let case_name = ctx.case_name;
 
     for (step_idx, step) in steps.iter().enumerate() {
@@ -324,7 +345,7 @@ fn execute_steps(
                         execution.actions.push(result);
                     }
                     Err(e) => {
-                        return Err(CaseStatus::RuntimeError(RuntimeError {
+                        return Err(StepAbort::Runtime(RuntimeError {
                             message: e.message,
                             diagnostic_code: None,
                             step_index: Some(step_idx),
@@ -343,7 +364,7 @@ fn execute_steps(
                 {
                     Ok(resolved) => resolved.into_value(),
                     Err(error) => {
-                        return Err(CaseStatus::RuntimeError(RuntimeError {
+                        return Err(StepAbort::Runtime(RuntimeError {
                             message: format!(
                                 "case '{}': write step at step {} could not resolve its content: {}",
                                 case_name,
@@ -358,7 +379,7 @@ fn execute_steps(
                 match ctx.workspace.write_file(&write_step.path, content.as_str()) {
                     Ok(()) => execution.side_effects_executed += 1,
                     Err(e) => {
-                        return Err(CaseStatus::RuntimeError(RuntimeError {
+                        return Err(StepAbort::Runtime(RuntimeError {
                             message: format!(
                                 "case '{}': write step at step {} failed: {e}",
                                 case_name,
@@ -384,7 +405,7 @@ fn execute_steps(
                 let captured = match capture_text(bytes, declaration.source) {
                     Ok(value) => value,
                     Err((message, diagnostic_code)) => {
-                        return Err(CaseStatus::RuntimeError(RuntimeError {
+                        return Err(StepAbort::Runtime(RuntimeError {
                             message: format!(
                                 "case '{}': binding '{}' at step {} failed: {message}",
                                 case_name,
@@ -425,7 +446,7 @@ fn execute_steps(
                     if expectation.required_evidence().needs_action_result()
                         && execution.checkpoint.last_action.is_none()
                     {
-                        return Err(CaseStatus::ScriptError(ScriptError {
+                        return Err(StepAbort::Script(ScriptError {
                             message: format!(
                                 "case '{}': assertion block at step {} uses a process expectation \
                                  (exit, stdout, stderr) but no '$' action has run yet; \
@@ -451,7 +472,7 @@ fn execute_steps(
                     // docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md, and
                     // docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
                     if let Err(semantic_err) = validate_expectation_paths(expectation) {
-                        return Err(CaseStatus::ScriptError(ScriptError {
+                        return Err(StepAbort::Script(ScriptError {
                             message: format!(
                                 "case '{}': assertion block at step {} has an invalid \
                                  expectation: {semantic_err}",
@@ -484,7 +505,7 @@ fn execute_steps(
                 {
                     Ok(results) => results,
                     Err(err) => {
-                        return Err(CaseStatus::ScriptError(ScriptError {
+                        return Err(StepAbort::Script(ScriptError {
                             message: format!(
                                 "case '{}': assertion block at step {} has an unresolvable \
                                  contents_equals expected value: {}",
