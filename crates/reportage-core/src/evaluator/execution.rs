@@ -13,7 +13,7 @@ use crate::model::{
 };
 use crate::result::{
     ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExecutionReport, ExpectationResult,
-    RuntimeError, ScriptError,
+    RuntimeError, ScriptError, StepOrigin,
 };
 use crate::shim::CommandRegistry;
 use crate::text_value::{ResolveTextValue, TextResolutionContext};
@@ -198,7 +198,7 @@ fn evaluate_case(
                     case.name
                 ),
                 diagnostic_code: Some(DiagnosticCode::ParseMissingAssertionBlock),
-                step_index: None,
+                origin: None,
             }),
         );
     }
@@ -217,7 +217,7 @@ fn evaluate_case(
                         case.name
                     ),
                     diagnostic_code: None,
-                    step_index: None,
+                    origin: None,
                 }),
             );
         }
@@ -239,7 +239,7 @@ fn evaluate_case(
                         case.name
                     ),
                     diagnostic_code: None,
-                    step_index: None,
+                    origin: None,
                 }),
             );
         }
@@ -275,8 +275,9 @@ fn evaluate_case(
     // first assertion block observes every file written here no matter when
     // the checkpoint value itself was constructed. A failure is a runtime
     // step error attributed to the module-level block, not to any case body
-    // step, hence `step_index: None`; the 1-based position inside
-    // `before_each` is carried in the message instead.
+    // step, hence `origin: None`; the 1-based position inside `before_each` is
+    // carried in the message instead. Reporting it as a `StepPhase::BeforeEach`
+    // origin is deferred with the rest of the `before_each` step surface.
     // See docs/reference/execution-model.md — Execution order and `before_each`.
     if let Some(before_each) = before_each {
         for (setup_idx, step) in before_each.steps().iter().enumerate() {
@@ -298,7 +299,7 @@ fn evaluate_case(
                                 setup_idx + 1,
                             ),
                             diagnostic_code: Some(e.code()),
-                            step_index: None,
+                            origin: None,
                         }),
                     );
                 }
@@ -348,7 +349,7 @@ fn execute_steps(
                         return Err(StepAbort::Runtime(RuntimeError {
                             message: e.message,
                             diagnostic_code: None,
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::case(step_idx)),
                         }));
                     }
                 }
@@ -372,7 +373,7 @@ fn execute_steps(
                                 error.message,
                             ),
                             diagnostic_code: Some(error.diagnostic_code),
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::case(step_idx)),
                         }));
                     }
                 };
@@ -386,7 +387,7 @@ fn execute_steps(
                                 step_idx + 1,
                             ),
                             diagnostic_code: Some(e.code()),
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::case(step_idx)),
                         }));
                     }
                 }
@@ -413,7 +414,7 @@ fn execute_steps(
                                 step_idx + 1,
                             ),
                             diagnostic_code: Some(diagnostic_code),
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::case(step_idx)),
                         }));
                     }
                 };
@@ -457,7 +458,7 @@ fn execute_steps(
                             diagnostic_code: Some(
                                 DiagnosticCode::SemanticExpectationRequiresAction,
                             ),
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::case(step_idx)),
                         }));
                     }
 
@@ -480,7 +481,7 @@ fn execute_steps(
                                 step_idx + 1,
                             ),
                             diagnostic_code: Some(semantic_err.code()),
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::case(step_idx)),
                         }));
                     }
                 }
@@ -514,13 +515,13 @@ fn execute_steps(
                                 err.message,
                             ),
                             diagnostic_code: Some(err.diagnostic_code),
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::case(step_idx)),
                         }));
                     }
                 };
 
                 let block_result = AssertionBlockResult {
-                    step_index: step_idx,
+                    origin: StepOrigin::case(step_idx),
                     expectations: expectation_results,
                     checkpoint_action_index: execution.actions.len().checked_sub(1),
                 };

@@ -165,6 +165,39 @@ fn assertion_block_failure_stops_subsequent_action() {
 }
 
 #[test]
+fn an_assertion_block_origin_counts_every_case_body_step_kind() {
+    // The block is preceded by a write and an action, so a step index that
+    // counted only assertion blocks — or only actions — would report 0 instead
+    // of 2. Every step kind is counted, phase-local and 0-based.
+    let script = make_script(vec![Case {
+        name: "mixed step kinds".to_string(),
+        steps: vec![
+            write_step("a.txt", "x"),
+            action("true"),
+            assert_exit(0),
+            assert_file_exists_step("a.txt"),
+        ],
+    }]);
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    assert!(matches!(result.cases[0].status, CaseStatus::Pass));
+    let origins: Vec<StepOrigin> = result.cases[0]
+        .assertion_blocks
+        .iter()
+        .map(|block| block.origin)
+        .collect();
+    assert_eq!(
+        origins,
+        vec![StepOrigin::case(2), StepOrigin::case(3)],
+        "case body blocks carry StepPhase::Case and their own step position"
+    );
+}
+
+#[test]
 fn an_aborting_case_still_reports_the_evidence_gathered_before_the_abort() {
     // The second write violates the create-only policy, aborting the case after
     // an action and a passing assertion block have already produced evidence.
@@ -285,7 +318,7 @@ fn before_each_write_failure_is_runtime_error_without_case_step_index() {
         "message must name the failing before_each step: {}",
         runtime_error.message
     );
-    assert_eq!(runtime_error.step_index, None);
+    assert_eq!(runtime_error.origin, None);
     assert_eq!(
         runtime_error.diagnostic_code,
         Some(DiagnosticCode::StepWriteTargetExists)
@@ -311,7 +344,7 @@ fn before_each_write_failure_is_runtime_error_without_case_step_index() {
     let CaseStatus::RuntimeError(runtime_error) = &result.cases[0].status else {
         panic!("expected CaseStatus::RuntimeError");
     };
-    assert_eq!(runtime_error.step_index, Some(1));
+    assert_eq!(runtime_error.origin, Some(StepOrigin::case(1)));
     assert_eq!(
         runtime_error.diagnostic_code,
         Some(DiagnosticCode::StepWriteTargetExists)

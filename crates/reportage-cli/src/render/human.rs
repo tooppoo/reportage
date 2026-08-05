@@ -80,7 +80,7 @@ fn print_results(result: &ExecutionReport) {
         for block in &case.assertion_blocks {
             for expectation in &block.expectations {
                 if !expectation.passed {
-                    print_failed_expectation(block.step_index, expectation);
+                    print_failed_expectation(block.origin.step_index, expectation);
                 }
             }
         }
