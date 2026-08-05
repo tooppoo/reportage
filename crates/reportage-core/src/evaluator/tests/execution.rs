@@ -165,6 +165,39 @@ fn assertion_block_failure_stops_subsequent_action() {
 }
 
 #[test]
+fn an_aborting_case_still_reports_the_evidence_gathered_before_the_abort() {
+    // The second write violates the create-only policy, aborting the case after
+    // an action and a passing assertion block have already produced evidence.
+    // An aborted case reports that evidence exactly as a completed one does:
+    // the artifact's per-case actions/assertions and the run summary counts
+    // must not silently drop steps that did run.
+    let script = make_script(vec![Case {
+        name: "aborts after evidence".to_string(),
+        steps: vec![
+            action("true"),
+            assert_exit(0),
+            write_step("a.txt", "first"),
+            write_step("a.txt", "second"),
+            assert_file_exists_step("a.txt"),
+        ],
+    }]);
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    assert!(matches!(
+        result.cases[0].status,
+        CaseStatus::RuntimeError(_)
+    ));
+    assert_eq!(result.cases[0].actions.len(), 1);
+    assert_eq!(result.cases[0].assertion_blocks.len(), 1);
+    assert!(!result.cases[0].assertion_blocks[0].has_failures());
+    assert_eq!(result.cases[0].side_effects_executed, 1);
+}
+
+#[test]
 fn before_each_file_is_visible_at_initial_checkpoint_and_counted() {
     let script = Script {
         before_each: Some(before_each_writing("seed.txt", "seed\n")),
