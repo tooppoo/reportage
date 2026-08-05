@@ -1,7 +1,11 @@
 //! Representative-fixture conformance for the artifact `result.json` manifest (issues #102, #192).
 //!
 //! Fixtures live in `tests/fixtures/run_result/*.repor`.
-//! Each has a companion `<name>.snapshot.json` with the volatile field (`tool.version`) normalised out, refreshed via `UPDATE_RUN_RESULT_SNAPSHOTS`, mirroring `json_report_fixtures.rs`'s convention.
+//! Each has a companion `<name>.snapshot.json` with the values the schema annotates as volatile normalised out, refreshed via `UPDATE_RUN_RESULT_SNAPSHOTS`, mirroring `json_report_fixtures.rs`'s convention.
+//!
+//! Which values are normalised out is not decided here: they are the ones `spec/artifacts/run-result/schema.internal.json` annotates with `x-reportage-snapshot`, so adding a volatile field to the contract means annotating it beside its definition rather than editing an instance path into this file.
+//! Snapshots are then written by the shared deterministic formatter, so their object key order is a property of the harness rather than of whichever map `serde_json` was built with.
+//! Both stages are `support/snapshot_normalization/`, shared with `json_report_fixtures.rs`; that the schema decides what is normalised, and that preparation is separate from application, is docs/adr/20260723T160117Z_json-schema-driven-snapshot-normalization-foundation.md.
 //!
 //! Each fixture run's `result.json` is checked by four separate suites here, because they establish four different things and can fail independently:
 //!
@@ -19,6 +23,7 @@
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use assert_cmd::Command;
 use assert_fs::TempDir;
@@ -31,8 +36,11 @@ use serde_json::Value;
 mod invariants;
 #[path = "support/json_schema.rs"]
 mod json_schema;
+#[path = "support/snapshot_normalization/mod.rs"]
+mod snapshot_normalization;
 
-use json_schema::RUN_RESULT;
+use json_schema::{RUN_RESULT, SchemaVariant};
+use snapshot_normalization::{NormalizationPlan, apply, format_snapshot, prepare};
 
 // ---------------------------------------------------------------------------
 // Typed representation of the artifact result document
@@ -597,18 +605,18 @@ fn read_result_json(run_dir: &Path) -> Value {
         .unwrap_or_else(|e| panic!("{} is not valid JSON: {e}", path.display()))
 }
 
-/// Replaces the volatile field (`tool.version`) with a fixed placeholder before snapshotting.
-/// Unlike the `--format=json` snapshots there is no `artifactRoot` to normalise: the artifact document resolves references against its own directory, and evidence digests/sizes are deterministic for these fixtures.
-fn normalize_for_snapshot(mut doc: Value) -> Value {
-    doc["tool"]["version"] = Value::String("<VERSION>".to_string());
-    doc
-}
-
-fn format_snapshot(doc: &Value) -> String {
-    let mut json = serde_json::to_string_pretty(doc).expect("snapshot serialization must succeed");
-    json.push('\n');
-    json
-}
+/// The plan compiled from this contract's annotations, prepared once for every fixture.
+///
+/// Preparation is per schema and application is per document, so a defect in the annotations is reported against the schema once rather than rediscovered against whichever fixture reached it.
+/// A failure here is a schema preparation error, distinct from the application error a fixture document can cause below and from a snapshot mismatch.
+///
+/// The plan holds one instruction where the `--format=json` one holds two: the artifact document has no `artifactRoot` to normalise, because it resolves references against its own directory, and evidence digests and sizes are deterministic for these fixtures.
+static SNAPSHOT_PLAN: LazyLock<NormalizationPlan> = LazyLock::new(|| {
+    let path = RUN_RESULT.path(SchemaVariant::InternalSource);
+    prepare(RUN_RESULT.document(SchemaVariant::InternalSource)).unwrap_or_else(|error| {
+        panic!("{path} could not be prepared for snapshot normalization: {error}")
+    })
+});
 
 // ---------------------------------------------------------------------------
 // Completeness
@@ -811,6 +819,25 @@ fn evidence_files_match_their_manifest_references() {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn normalization_replaces_the_volatile_value_the_schema_annotates() {
+    // Asserted on a normalized document and not only through the snapshots, because a snapshot refreshed while normalization was doing nothing would record the observed value and keep passing against itself for as long as the tool version did not change.
+    let path = fixture_dir().join("passed.repor");
+    let (run_dir, _stdout, _exit_code, _dir) = run_fixture(&path, false);
+    let json = read_result_json(&run_dir);
+    let observed_version = json["tool"]["version"].clone();
+    let normalized = apply(&SNAPSHOT_PLAN, json).expect("the passed fixture must normalize");
+
+    // The placeholder has to be something the run did not already emit, or the equality below would hold whether or not normalization did anything.
+    assert_ne!(observed_version, "<VERSION>");
+
+    assert_eq!(normalized["tool"]["version"], "<VERSION>");
+    assert_eq!(
+        normalized["tool"]["name"], "reportage",
+        "a value no annotation names keeps what was observed"
+    );
+}
+
+#[test]
 fn snapshots_for_run_result_fixtures_are_current() {
     let paths = fixture_paths();
     assert!(
@@ -832,7 +859,12 @@ fn snapshots_for_run_result_fixtures_are_current() {
             &format!("the result.json of fixture {}", path.display()),
         );
 
-        let normalized = normalize_for_snapshot(json);
+        let normalized = apply(&SNAPSHOT_PLAN, json).unwrap_or_else(|error| {
+            panic!(
+                "the result.json of fixture {} could not be normalized: {error}",
+                path.display()
+            )
+        });
         let actual = format_snapshot(&normalized);
 
         let snapshot_path = snapshot_path_for_fixture(&path);
