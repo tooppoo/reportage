@@ -499,13 +499,15 @@ fn normalization_replaces_the_volatile_values_the_schema_annotates() {
     // passing against itself for as long as the tool version did not change.
     let path = fixture_dir().join("passed.repor");
     let (json, _exit_code, _dir) = run_json(&path);
-    let observed_version = json["tool"]["version"].to_string();
+    let observed_root = json["artifactRoot"].clone();
+    let observed_version = json["tool"]["version"].clone();
     let normalized = apply(&SNAPSHOT_PLAN, json).expect("the passed fixture must normalize");
 
-    assert_ne!(
-        observed_version, "\"<VERSION>\"",
-        "the fixture must produce a real version, or replacing it would prove nothing"
-    );
+    // Every placeholder has to be something the run did not already emit, or the equalities below
+    // would hold whether or not normalization did anything.
+    assert_ne!(observed_root, "<ARTIFACT_ROOT>");
+    assert_ne!(observed_version, "<VERSION>");
+
     assert_eq!(normalized["artifactRoot"], "<ARTIFACT_ROOT>");
     assert_eq!(normalized["tool"]["version"], "<VERSION>");
     assert_eq!(
