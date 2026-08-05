@@ -20,23 +20,43 @@ A consequence worth knowing before proposing a test for it is that normalization
 
 It is also not a general JSON Schema implementation, it never processes user-supplied schemas, and its output is not required to satisfy the schema it was normalized against.
 
-## Stages
+## Model
 
-A snapshot suite runs four stages in a fixed order.
+Three things, and one boundary between them.
+
+- An **annotation** states that one field of a contract is volatile, and what to write in its place. It lives in the schema, beside the field it is about.
+- A **plan** is what a schema's annotations compile to: instructions, each naming the instance positions to rewrite, the literal to write there, and the annotation it came from. It is immutable and says nothing about any particular document.
+- A **document** is one producer output. A plan applied to it yields a normalized document, which is then written as snapshot text.
+
+The boundary is the plan.
+Everything the schema has to say is decided before any document exists, and nothing downstream reads the schema again.
 
 ```text
-contract validation  -> the document satisfies its published schema
-schema preparation   -> annotations become an immutable normalization plan
-instance processing  -> the plan rewrites the volatile values of one document
-formatting           -> the result is written as the text the snapshot is compared against
+  once per contract                     once per document
+  -----------------                     -----------------
+
+  schema.internal.json                  producer output
+    x-reportage-snapshot                     |
+            |                                | contract validation
+            | preparation                    v
+            v                             normalization   <- reads the plan,
+     normalization plan  ------------------>  |               never the schema
+       target pattern                         | formatting
+       replacement value                      v
+       source location                     snapshot text
 ```
+
+The four labelled transitions are the stages, and they run in that order.
+The boundary is what the rest of this document is mostly about: it decides where each failure can be detected, what a diagnostic is able to name, and how much work a suite of fixtures repeats.
+
+## Why the stages are separate
 
 Contract validation comes first because normalization is not a repair step.
 A snapshot recorded from a document that never satisfied its schema would pin a contract violation as expected output.
 Validation is a separate concern with its own policy; see [the JSON contract validation ADR](../../adr/20260728T092956Z_json-contract-validation-policy.md).
 
-Preparation is separate from instance processing so a defect in the annotations is found once, against the schema, instead of being rediscovered against whichever fixture happened to reach it.
-A plan is prepared once per schema and reused for every fixture of a suite; instance processing borrows it and never re-reads the schema.
+Preparation is separate from processing so a defect in the annotations is found once, against the schema, instead of being rediscovered against whichever fixture happened to reach it.
+It also makes the per-fixture cost the cost of one walk over one document: a plan is prepared once per schema and reused for every fixture of a suite.
 
 Formatting is separate from normalization so a snapshot diff can be read as a changed value or a changed layout, not as both at once.
 
@@ -55,25 +75,19 @@ Neither substitutes for the other, and the procedure below updates both.
 
 ## Will an annotation take effect?
 
-Preparation walks the schema from the root and processes only the nodes it reaches.
-An annotation on a node the walk never arrives at is ignored, silently and by design, and the value keeps whatever the run produced.
+An annotation means something only if preparation reaches the node carrying it, and the walk is deliberately narrow: it follows object `properties`, homogeneous array `items`, and a static local `$ref` into `$defs`, and nothing else.
 
-The walk descends through object `properties`, homogeneous array `items`, and static local `$ref` into `$defs`.
-It does not descend through any other schema-bearing keyword — `oneOf`, `allOf`, `anyOf`, `patternProperties`, schema-form `additionalProperties`, `not`, `if`/`then`/`else`, and the rest.
-Extending it is tracked by [#163](https://github.com/tooppoo/reportage/issues/163), [#164](https://github.com/tooppoo/reportage/issues/164), and [#165](https://github.com/tooppoo/reportage/issues/165).
+Every other schema-bearing keyword is a wall.
+An annotation reachable only through one is inert — no rewrite, no diagnostic, and the observed value stays in the snapshot — as is one in a `$defs` entry no supported reference reaches, down to a malformed annotation there never being inspected at all.
+Widening the walk is tracked by [#163](https://github.com/tooppoo/reportage/issues/163), [#164](https://github.com/tooppoo/reportage/issues/164), and [#165](https://github.com/tooppoo/reportage/issues/165); the foundation ADR lists what is currently outside it and argues why leaving those values visible is preferable to guessing at them.
 
-So, in practice:
+Inertness is a decided behavior for an arbitrary schema, but for the two maintained contract schemas it would be a defect: the annotation would look applied while the volatile value stayed in the snapshot.
+`every_annotation_in_the_maintained_contract_schemas_is_reachable` fails on one.
 
-- an annotation reached only through an unsupported keyword has no effect, and nothing reports it;
-- an annotation in a `$defs` entry no supported `$ref` reaches has no effect, and nothing reports it;
-- a malformed annotation in either of those places is not inspected at all, so it is not a preparation error either.
-
-For the two maintained contract schemas being unreachable would be a defect rather than a decision, which is why `every_annotation_in_the_maintained_contract_schemas_is_reachable` walks the whole document and fails on any annotation the traversal cannot reach.
-
-Being ignored is not the only way an annotation can fail to take effect, and it is the milder one.
-Some forms are rejected rather than skipped when the walk reaches them: `prefixItems`, a nested `$id`, `$dynamicRef` or `$dynamicAnchor`, a `$ref` carrying sibling keywords, and a reference that is unsupported, unresolvable, or cyclic.
-Any of these anywhere in a reached subtree fails preparation for the whole schema, and therefore fails every suite that normalizes with it — including for an edit that had nothing to do with normalization, such as giving a traversed array a tuple prefix.
-The foundation ADR lists the profile these rules enforce.
+Inertness is also the milder failure.
+Some forms are rejected outright when the walk reaches them, because continuing past them would mean guessing — `prefixItems` is the one an unrelated edit is most likely to introduce, since it makes `items` describe only the elements after the tuple prefix rather than all of them.
+A rejection fails preparation for the whole schema, and therefore every suite that normalizes with it, whether or not the offending subtree had anything to do with an annotation.
+The foundation ADR lists the forms this profile refuses.
 
 ## Failure categories
 
@@ -98,21 +112,20 @@ With only one of them a reader cannot tell whether the document or the annotatio
 
 These go beyond what the foundation ADR fixed, and are recorded here rather than as new ADRs because each stays inside the boundaries that ADR already drew.
 
-### A conflict names every contributing annotation
+### Instructions that reach one location must agree
 
-No annotation that reached the location is singled out as the offender, because resolving a conflict is a choice between annotations that are each defensible alone.
-All of them are reported, once each and in pointer order, and the reported schema location is the smallest pointer among them so it does not depend on the order instructions were collected in.
+Several annotations can name the same instance positions.
+Asking for the same rewrite is one request written more than once, so one instruction survives, carrying the first source the traversal reached — the requests are indistinguishable, so any of them would be as true.
+Asking for different rewrites is a defect rather than a precedence question: nothing about schema member order or traversal order is allowed to decide which annotation wins.
+
+A conflict therefore names every annotation that reached the location instead of singling one out, because each is defensible alone and the repair is a choice between them.
+They are reported once each and in pointer order, and the location the diagnostic leads with is the smallest of them, so what a reader is shown does not depend on how the instructions happened to be collected.
 One schema node reached by two paths is one edit site and appears once.
 
-### A document with several conflicting locations reports one of them
+### A schema with several conflicts reports one of them
 
-The first in collection order, the way the traversal stops at the first defect it reaches.
-That is a reporting choice and not a precedence one: schema member order and traversal order never decide which annotation wins, because disagreement is an error rather than a question of priority.
-
-### Agreeing instructions keep the first source reached
-
-Where several annotations ask for the same rewrite at the same location, one instruction survives and carries the first source the traversal reached.
-The requests are identical, so any of them would be as true.
+The first in collection order, the way the walk stops at the first defect it reaches.
+Which one that is does depend on collection order, but that is a choice about reporting and not about precedence — no annotation ever wins a conflict.
 
 ### Application fails on the first instruction it cannot apply
 
