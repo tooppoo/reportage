@@ -72,6 +72,84 @@ pub(super) fn evaluate_with(
     }
 }
 
+/// The evidence one concrete case has accumulated so far, threaded through
+/// every step it executes.
+///
+/// Held as one value rather than as separate locals because every exit path —
+/// pass, assertion failure, script error, runtime error — must report the same
+/// accumulated evidence: a step that aborts the case must not drop the actions
+/// and assertion blocks that already ran.
+struct CaseExecution {
+    /// The evidence context the next assertion block verifies: the initial
+    /// checkpoint until a `$` action replaces it.
+    checkpoint: Checkpoint,
+    actions: Vec<ActionResult>,
+    bindings: HashMap<String, Binding>,
+    assertion_blocks: Vec<AssertionBlockResult>,
+    /// Successful `write` (and future side-effecting) step count, independent
+    /// of `actions`. See `RunSummary::steps_executed`.
+    side_effects_executed: usize,
+}
+
+impl CaseExecution {
+    fn new(checkpoint: Checkpoint) -> Self {
+        Self {
+            checkpoint,
+            actions: Vec::new(),
+            bindings: HashMap::new(),
+            assertion_blocks: Vec::new(),
+            side_effects_executed: 0,
+        }
+    }
+
+    /// Ends the case with `status`, reporting the evidence gathered so far.
+    fn finish(self, case_name: &str, source_path: &Path, status: CaseStatus) -> CaseResult {
+        CaseResult {
+            name: case_name.to_string(),
+            source_path: Some(source_path.to_path_buf()),
+            status,
+            actions: self.actions,
+            assertion_blocks: self.assertion_blocks,
+            side_effects_executed: self.side_effects_executed,
+        }
+    }
+}
+
+/// The case-local inputs that stay fixed for every step of one concrete case.
+struct StepContext<'a> {
+    /// Used only to build diagnostic messages, which name the failing case.
+    case_name: &'a str,
+    /// This concrete case's isolated workspace: the root every `$` action runs
+    /// in and every `write` step and workspace expectation resolves against.
+    workspace: &'a Workspace,
+    /// The environment `$` actions run under, with this case's own shim `bin`
+    /// directory already prepended. See [`build_case_execution_environment`].
+    env: &'a ExecutionEnvironment,
+    /// Directory containing the `*.repor` file this case was loaded from.
+    /// See `Checkpoint::repor_dir`.
+    repor_dir: &'a Path,
+}
+
+/// How a step sequence ended when no step aborted the case.
+enum StepSequenceOutcome {
+    /// Every step ran.
+    Completed,
+    /// An assertion block failed, so the remaining steps were skipped.
+    AssertionFailed,
+}
+
+/// A case that ends before any step runs, and so has no evidence to report.
+fn abort_before_execution(case_name: &str, source_path: &Path, status: CaseStatus) -> CaseResult {
+    CaseResult {
+        name: case_name.to_string(),
+        source_path: Some(source_path.to_path_buf()),
+        status,
+        actions: vec![],
+        assertion_blocks: vec![],
+        side_effects_executed: 0,
+    }
+}
+
 fn evaluate_case(
     case: &Case,
     before_each: Option<&BeforeEach>,
@@ -91,10 +169,10 @@ fn evaluate_case(
         .iter()
         .any(|s| matches!(s, Step::AssertionBlock(_)));
     if !has_assertion_block {
-        return CaseResult {
-            name: case.name.clone(),
-            source_path: Some(source_path.to_path_buf()),
-            status: CaseStatus::ScriptError(ScriptError {
+        return abort_before_execution(
+            &case.name,
+            source_path,
+            CaseStatus::ScriptError(ScriptError {
                 message: format!(
                     "case '{}' has no assertion block; every case requires at least one assert {{ ... }} block",
                     case.name
@@ -102,10 +180,7 @@ fn evaluate_case(
                 diagnostic_code: Some(DiagnosticCode::ParseMissingAssertionBlock),
                 step_index: None,
             }),
-            actions: vec![],
-            assertion_blocks: vec![],
-            side_effects_executed: 0,
-        };
+        );
     }
 
     // Each concrete case gets its own isolated workspace, destroyed when
@@ -113,10 +188,10 @@ fn evaluate_case(
     let workspace = match create_workspace() {
         Ok(w) => w,
         Err(e) => {
-            return CaseResult {
-                name: case.name.clone(),
-                source_path: Some(source_path.to_path_buf()),
-                status: CaseStatus::RuntimeError(RuntimeError {
+            return abort_before_execution(
+                &case.name,
+                source_path,
+                CaseStatus::RuntimeError(RuntimeError {
                     message: format!(
                         "case '{}': failed to create isolated case workspace: {e}",
                         case.name
@@ -124,10 +199,7 @@ fn evaluate_case(
                     diagnostic_code: None,
                     step_index: None,
                 }),
-                actions: vec![],
-                assertion_blocks: vec![],
-                side_effects_executed: 0,
-            };
+            );
         }
     };
 
@@ -138,10 +210,10 @@ fn evaluate_case(
     let case_env = match build_environment(env, commands, workspace.root()) {
         Ok(case_env) => case_env,
         Err(e) => {
-            return CaseResult {
-                name: case.name.clone(),
-                source_path: Some(source_path.to_path_buf()),
-                status: CaseStatus::RuntimeError(RuntimeError {
+            return abort_before_execution(
+                &case.name,
+                source_path,
+                CaseStatus::RuntimeError(RuntimeError {
                     message: format!(
                         "case '{}': failed to set up registered command shims: {e}",
                         case.name
@@ -149,19 +221,10 @@ fn evaluate_case(
                     diagnostic_code: None,
                     step_index: None,
                 }),
-                actions: vec![],
-                assertion_blocks: vec![],
-                side_effects_executed: 0,
-            };
+            );
         }
     };
 
-    let mut action_results: Vec<ActionResult> = Vec::new();
-    let mut bindings: HashMap<String, Binding> = HashMap::new();
-    let mut assertion_block_results: Vec<AssertionBlockResult> = Vec::new();
-    // Successful `write` (and future side-effecting) step count, independent
-    // of `action_results`. See `RunSummary::steps_executed`.
-    let mut side_effects_executed: usize = 0;
     // The directory containing the referencing `*.repor` file, used to resolve a
     // `contents_equals` expected `FixtureReference` relative to it.
     //
@@ -174,8 +237,20 @@ fn evaluate_case(
         Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
         _ => PathBuf::from("."),
     };
+
+    let ctx = StepContext {
+        case_name: &case.name,
+        workspace: &workspace,
+        env: &case_env,
+        repor_dir: &repor_dir,
+    };
+    let mut execution = CaseExecution::new(Checkpoint::initial(
+        workspace.root().to_path_buf(),
+        repor_dir.clone(),
+    ));
+
     // `before_each` setup replays inside this concrete case's own workspace,
-    // before the initial checkpoint below is established — so the checkpoint's
+    // before the case body's first step runs — so the initial checkpoint's
     // workspace evidence already contains every file it wrote, and the case
     // body's first assertion block can observe them. A failure is a runtime
     // step error attributed to the module-level block, not to any case body
@@ -190,12 +265,12 @@ fn evaluate_case(
                 .binding_free_text_value()
                 .expect("before_each rejects every binding reference at parse time");
             match workspace.write_file(&write_step.path, content.as_str()) {
-                Ok(()) => side_effects_executed += 1,
+                Ok(()) => execution.side_effects_executed += 1,
                 Err(e) => {
-                    return CaseResult {
-                        name: case.name.clone(),
-                        source_path: Some(source_path.to_path_buf()),
-                        status: CaseStatus::RuntimeError(RuntimeError {
+                    return execution.finish(
+                        &case.name,
+                        source_path,
+                        CaseStatus::RuntimeError(RuntimeError {
                             message: format!(
                                 "case '{}': before_each write step {} failed: {e}",
                                 case.name,
@@ -204,114 +279,101 @@ fn evaluate_case(
                             diagnostic_code: Some(e.code()),
                             step_index: None,
                         }),
-                        actions: action_results,
-                        assertion_blocks: assertion_block_results,
-                        side_effects_executed,
-                    };
+                    );
                 }
             }
         }
     }
 
-    // Steps are processed in source order.
-    // Assertion block failure stops execution before the next action.
-    // See docs/reference/semantics.md — Assertion block and the checkpoint-based assertion ADR.
-    let mut checkpoint = Checkpoint::initial(workspace.root().to_path_buf(), repor_dir.clone());
-    let mut case_failed = false;
+    let status = match execute_steps(&case.steps, &mut execution, &ctx) {
+        Ok(StepSequenceOutcome::Completed) => CaseStatus::Pass,
+        Ok(StepSequenceOutcome::AssertionFailed) => CaseStatus::Fail,
+        Err(terminal_status) => terminal_status,
+    };
 
-    for (step_idx, step) in case.steps.iter().enumerate() {
+    execution.finish(&case.name, source_path, status)
+}
+
+/// Executes `steps` in source order, updating `execution` as each step
+/// produces evidence.
+///
+/// `Err` carries the terminal [`CaseStatus`] of a case that cannot continue —
+/// a script error or a runtime error. The evidence gathered before that point
+/// stays in `execution`, so the caller reports it either way.
+///
+/// Steps are never reordered into phases, and an assertion block failure stops
+/// the sequence before the next step.
+/// See docs/reference/semantics.md — Assertion block and the checkpoint-based assertion ADR.
+fn execute_steps(
+    steps: &[Step],
+    execution: &mut CaseExecution,
+    ctx: &StepContext<'_>,
+) -> Result<StepSequenceOutcome, CaseStatus> {
+    let case_name = ctx.case_name;
+
+    for (step_idx, step) in steps.iter().enumerate() {
         match step {
             Step::Action(action) => {
-                if case_failed {
-                    // Do not proceed to next action after a block failure.
-                    break;
-                }
-                match execute_action(&action.command, &case_env, workspace.root()) {
+                match execute_action(&action.command, ctx.env, ctx.workspace.root()) {
                     Ok(result) => {
-                        checkpoint = Checkpoint::after_action(
+                        execution.checkpoint = Checkpoint::after_action(
                             result.clone(),
-                            workspace.root().to_path_buf(),
-                            repor_dir.clone(),
+                            ctx.workspace.root().to_path_buf(),
+                            ctx.repor_dir.to_path_buf(),
                         );
-                        action_results.push(result);
+                        execution.actions.push(result);
                     }
                     Err(e) => {
-                        return CaseResult {
-                            name: case.name.clone(),
-                            source_path: Some(source_path.to_path_buf()),
-                            status: CaseStatus::RuntimeError(RuntimeError {
-                                message: e.message,
-                                diagnostic_code: None,
-                                step_index: Some(step_idx),
-                            }),
-                            actions: action_results,
-                            assertion_blocks: assertion_block_results,
-                            side_effects_executed,
-                        };
+                        return Err(CaseStatus::RuntimeError(RuntimeError {
+                            message: e.message,
+                            diagnostic_code: None,
+                            step_index: Some(step_idx),
+                        }));
                     }
                 }
             }
 
             Step::SideEffect(SideEffectingStep::WriteFile(write_step)) => {
-                if case_failed {
-                    break;
-                }
                 // The same resolver every text matcher uses: a raw literal, a
                 // direct binding reference, and an interpolated literal all
                 // reach `write_file` as one resolved `TextValue`.
                 let content = match write_step
                     .content
-                    .resolve_text_value(&TextResolutionContext::new(&bindings))
+                    .resolve_text_value(&TextResolutionContext::new(&execution.bindings))
                 {
                     Ok(resolved) => resolved.into_value(),
                     Err(error) => {
-                        return CaseResult {
-                            name: case.name.clone(),
-                            source_path: Some(source_path.to_path_buf()),
-                            status: CaseStatus::RuntimeError(RuntimeError {
-                                message: format!(
-                                    "case '{}': write step at step {} could not resolve its content: {}",
-                                    case.name,
-                                    step_idx + 1,
-                                    error.message,
-                                ),
-                                diagnostic_code: Some(error.diagnostic_code),
-                                step_index: Some(step_idx),
-                            }),
-                            actions: action_results,
-                            assertion_blocks: assertion_block_results,
-                            side_effects_executed,
-                        };
+                        return Err(CaseStatus::RuntimeError(RuntimeError {
+                            message: format!(
+                                "case '{}': write step at step {} could not resolve its content: {}",
+                                case_name,
+                                step_idx + 1,
+                                error.message,
+                            ),
+                            diagnostic_code: Some(error.diagnostic_code),
+                            step_index: Some(step_idx),
+                        }));
                     }
                 };
-                match workspace.write_file(&write_step.path, content.as_str()) {
-                    Ok(()) => side_effects_executed += 1,
+                match ctx.workspace.write_file(&write_step.path, content.as_str()) {
+                    Ok(()) => execution.side_effects_executed += 1,
                     Err(e) => {
-                        return CaseResult {
-                            name: case.name.clone(),
-                            source_path: Some(source_path.to_path_buf()),
-                            status: CaseStatus::RuntimeError(RuntimeError {
-                                message: format!(
-                                    "case '{}': write step at step {} failed: {e}",
-                                    case.name,
-                                    step_idx + 1,
-                                ),
-                                diagnostic_code: Some(e.code()),
-                                step_index: Some(step_idx),
-                            }),
-                            actions: action_results,
-                            assertion_blocks: assertion_block_results,
-                            side_effects_executed,
-                        };
+                        return Err(CaseStatus::RuntimeError(RuntimeError {
+                            message: format!(
+                                "case '{}': write step at step {} failed: {e}",
+                                case_name,
+                                step_idx + 1,
+                            ),
+                            diagnostic_code: Some(e.code()),
+                            step_index: Some(step_idx),
+                        }));
                     }
                 }
             }
 
             Step::Binding(declaration) => {
-                if case_failed {
-                    break;
-                }
-                let action = checkpoint
+                let action = execution
+                    .checkpoint
                     .last_action
                     .as_ref()
                     .expect("binding capture is validated to follow an action");
@@ -322,23 +384,16 @@ fn evaluate_case(
                 let captured = match capture_text(bytes, declaration.source) {
                     Ok(value) => value,
                     Err((message, diagnostic_code)) => {
-                        return CaseResult {
-                            name: case.name.clone(),
-                            source_path: Some(source_path.to_path_buf()),
-                            status: CaseStatus::RuntimeError(RuntimeError {
-                                message: format!(
-                                    "case '{}': binding '{}' at step {} failed: {message}",
-                                    case.name,
-                                    declaration.name,
-                                    step_idx + 1,
-                                ),
-                                diagnostic_code: Some(diagnostic_code),
-                                step_index: Some(step_idx),
-                            }),
-                            actions: action_results,
-                            assertion_blocks: assertion_block_results,
-                            side_effects_executed,
-                        };
+                        return Err(CaseStatus::RuntimeError(RuntimeError {
+                            message: format!(
+                                "case '{}': binding '{}' at step {} failed: {message}",
+                                case_name,
+                                declaration.name,
+                                step_idx + 1,
+                            ),
+                            diagnostic_code: Some(diagnostic_code),
+                            step_index: Some(step_idx),
+                        }));
                     }
                 };
                 let capture_mode = match declaration.source {
@@ -349,14 +404,14 @@ fn evaluate_case(
                         CaptureMode::Line
                     }
                 };
-                bindings.insert(
+                execution.bindings.insert(
                     declaration.name.clone(),
                     Binding {
                         name: declaration.name.clone(),
                         value: BoundValue::Text(captured),
                         declaration_span: declaration.declaration_span,
                         source: BindingSource {
-                            action_index: action_results.len() - 1,
+                            action_index: execution.actions.len() - 1,
                             stream: declaration.source.stream(),
                             capture_mode,
                         },
@@ -365,35 +420,24 @@ fn evaluate_case(
             }
 
             Step::AssertionBlock(block) => {
-                if case_failed {
-                    break;
-                }
-
                 // Check that all expectations have the evidence they require.
                 for expectation in block.expectations() {
                     if expectation.required_evidence().needs_action_result()
-                        && checkpoint.last_action.is_none()
+                        && execution.checkpoint.last_action.is_none()
                     {
-                        return CaseResult {
-                            name: case.name.clone(),
-                            source_path: Some(source_path.to_path_buf()),
-                            status: CaseStatus::ScriptError(ScriptError {
-                                message: format!(
-                                    "case '{}': assertion block at step {} uses a process expectation \
-                                     (exit, stdout, stderr) but no '$' action has run yet; \
-                                     the initial checkpoint has no last action result",
-                                    case.name,
-                                    step_idx + 1,
-                                ),
-                                diagnostic_code: Some(
-                                    DiagnosticCode::SemanticExpectationRequiresAction,
-                                ),
-                                step_index: Some(step_idx),
-                            }),
-                            actions: action_results,
-                            assertion_blocks: assertion_block_results,
-                            side_effects_executed,
-                        };
+                        return Err(CaseStatus::ScriptError(ScriptError {
+                            message: format!(
+                                "case '{}': assertion block at step {} uses a process expectation \
+                                 (exit, stdout, stderr) but no '$' action has run yet; \
+                                 the initial checkpoint has no last action result",
+                                case_name,
+                                step_idx + 1,
+                            ),
+                            diagnostic_code: Some(
+                                DiagnosticCode::SemanticExpectationRequiresAction,
+                            ),
+                            step_index: Some(step_idx),
+                        }));
                     }
 
                     // A file assertion path, a dir assertion subject path, and (for `dir`
@@ -407,23 +451,16 @@ fn evaluate_case(
                     // docs/adr/20260704T112155Z_subject-first-file-assertion-syntax.md, and
                     // docs/adr/20260706T000000Z_subject-first-directory-assertion-syntax.md.
                     if let Err(semantic_err) = validate_expectation_paths(expectation) {
-                        return CaseResult {
-                            name: case.name.clone(),
-                            source_path: Some(source_path.to_path_buf()),
-                            status: CaseStatus::ScriptError(ScriptError {
-                                message: format!(
-                                    "case '{}': assertion block at step {} has an invalid \
-                                     expectation: {semantic_err}",
-                                    case.name,
-                                    step_idx + 1,
-                                ),
-                                diagnostic_code: Some(semantic_err.code()),
-                                step_index: Some(step_idx),
-                            }),
-                            actions: action_results,
-                            assertion_blocks: assertion_block_results,
-                            side_effects_executed,
-                        };
+                        return Err(CaseStatus::ScriptError(ScriptError {
+                            message: format!(
+                                "case '{}': assertion block at step {} has an invalid \
+                                 expectation: {semantic_err}",
+                                case_name,
+                                step_idx + 1,
+                            ),
+                            diagnostic_code: Some(semantic_err.code()),
+                            step_index: Some(step_idx),
+                        }));
                     }
                 }
 
@@ -436,59 +473,47 @@ fn evaluate_case(
                 let expectation_results: Vec<ExpectationResult> = match block
                     .expectations()
                     .iter()
-                    .map(|exp| evaluate_expectation_with_bindings(exp, &checkpoint, &bindings))
+                    .map(|exp| {
+                        evaluate_expectation_with_bindings(
+                            exp,
+                            &execution.checkpoint,
+                            &execution.bindings,
+                        )
+                    })
                     .collect()
                 {
                     Ok(results) => results,
                     Err(err) => {
-                        return CaseResult {
-                            name: case.name.clone(),
-                            source_path: Some(source_path.to_path_buf()),
-                            status: CaseStatus::ScriptError(ScriptError {
-                                message: format!(
-                                    "case '{}': assertion block at step {} has an unresolvable \
-                                     contents_equals expected value: {}",
-                                    case.name,
-                                    step_idx + 1,
-                                    err.message,
-                                ),
-                                diagnostic_code: Some(err.diagnostic_code),
-                                step_index: Some(step_idx),
-                            }),
-                            actions: action_results,
-                            assertion_blocks: assertion_block_results,
-                            side_effects_executed,
-                        };
+                        return Err(CaseStatus::ScriptError(ScriptError {
+                            message: format!(
+                                "case '{}': assertion block at step {} has an unresolvable \
+                                 contents_equals expected value: {}",
+                                case_name,
+                                step_idx + 1,
+                                err.message,
+                            ),
+                            diagnostic_code: Some(err.diagnostic_code),
+                            step_index: Some(step_idx),
+                        }));
                     }
                 };
 
                 let block_result = AssertionBlockResult {
                     step_index: step_idx,
                     expectations: expectation_results,
-                    checkpoint_action_index: action_results.len().checked_sub(1),
+                    checkpoint_action_index: execution.actions.len().checked_sub(1),
                 };
+                let failed = block_result.has_failures();
+                execution.assertion_blocks.push(block_result);
 
-                if block_result.has_failures() {
-                    case_failed = true;
+                if failed {
+                    return Ok(StepSequenceOutcome::AssertionFailed);
                 }
-
-                assertion_block_results.push(block_result);
             }
         }
     }
 
-    CaseResult {
-        name: case.name.clone(),
-        source_path: Some(source_path.to_path_buf()),
-        status: if case_failed {
-            CaseStatus::Fail
-        } else {
-            CaseStatus::Pass
-        },
-        actions: action_results,
-        assertion_blocks: assertion_block_results,
-        side_effects_executed,
-    }
+    Ok(StepSequenceOutcome::Completed)
 }
 
 fn capture_text(
