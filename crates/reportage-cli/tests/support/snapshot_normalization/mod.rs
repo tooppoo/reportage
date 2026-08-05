@@ -4,8 +4,9 @@
 //! — before a JSON document is compared with its snapshot. The policy lives in the schema, as
 //! `x-reportage-snapshot` annotations beside the fields they apply to. Schema preparation compiles
 //! those annotations into a normalization plan — instructions naming the instance positions to
-//! rewrite — and instance processing applies one plan to each document. Moving the existing
-//! snapshot suites onto it is the rest of issue #114.
+//! rewrite — instance processing applies one plan to each document, and formatting writes the
+//! result as the text a snapshot is compared against. Moving the existing snapshot suites onto it
+//! is the rest of issue #114.
 //!
 //! This is a harness-internal facility. It is not a general JSON Schema implementation, it never
 //! processes user-supplied schemas, and nothing about `reportage run` depends on it.
@@ -22,8 +23,8 @@
 //! - [`compatibility`] holds one independent rule per unsupported form;
 //! - [`collector`] walks the schema, tracking instance location and active expansions;
 //! - [`plan`] merges what the walk collected, and is what preparation hands to instance processing;
-//!   and
-//! - [`application`] walks a document with a plan, and is the only part that sees an instance.
+//! - [`application`] walks a document with a plan, and is the only part that sees an instance; and
+//! - [`formatting`] spells a document out, and decides nothing about what it contains.
 
 // A support module is compiled into each test target that includes it, and every target uses only
 // the part of it that target is about. Unused items and unused re-exports are therefore the normal
@@ -35,6 +36,7 @@ mod application;
 mod collector;
 mod compatibility;
 mod error;
+mod formatting;
 mod location;
 mod plan;
 mod reference;
@@ -45,6 +47,7 @@ pub use collector::prepare;
 pub use error::{
     InstructionConflict, PreparationError, PreparationErrorKind, ReferenceCycle, ReferenceStep,
 };
+pub use formatting::format_snapshot;
 pub use location::{
     InstanceLocation, InstancePointer, InstanceSegment, InstanceToken, SchemaLocation,
 };
