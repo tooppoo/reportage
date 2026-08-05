@@ -31,22 +31,30 @@ Three things, and one boundary between them.
 The boundary is the plan.
 Everything the schema has to say is decided before any document exists, and nothing downstream reads the schema again.
 
-```text
-  once per contract                     once per document
-  -----------------                     -----------------
+```mermaid
+flowchart LR
+  subgraph per_contract["once per contract"]
+    direction TB
+    schema["schema.internal.json<br/>x-reportage-snapshot"]
+    plan["normalization plan<br/>target pattern<br/>replacement value<br/>source location"]
+    schema -->|preparation| plan
+  end
 
-  schema.internal.json                  producer output
-    x-reportage-snapshot                     |
-            |                                | contract validation
-            | preparation                    v
-            v                             normalization   <- reads the plan,
-     normalization plan  ------------------>  |               never the schema
-       target pattern                         | formatting
-       replacement value                      v
-       source location                     snapshot text
+  subgraph per_document["once per document"]
+    direction TB
+    produced["producer output"]
+    validated["validated document"]
+    normalized["normalized document"]
+    snapshot["snapshot text"]
+    produced -->|"contract validation"| validated
+    validated -->|normalization| normalized
+    normalized -->|formatting| snapshot
+  end
+
+  plan -.->|"applied here, and the schema is not read again"| normalized
 ```
 
-The four labelled transitions are the stages, and they run in that order.
+Preparation, contract validation, normalization, and formatting are the stages, and the arrows are the order they run in.
 The boundary is what the rest of this document is mostly about: it decides where each failure can be detected, what a diagnostic is able to name, and how much work a suite of fixtures repeats.
 
 ## Why the stages are separate
