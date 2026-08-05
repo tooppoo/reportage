@@ -9,7 +9,8 @@ The rule of thumb is that user-visible CLI behavior belongs in `.repor` self-tes
 - [Self-testing](self-testing.md): the `.repor` self-testing layer. Covers what self-testing verifies, the command-resolution model it depends on, and how `e2e/` and `examples/` relate to each other.
 - [Rust integration tests](rust-integration-tests.md): the Rust integration test layer in [`crates/reportage-cli/tests/`](../../../crates/reportage-cli/tests/). Covers self-testing bootstrap, PATH shim resolution, coverage/subprocess routing, artifact JSON structure, and diagnostic/exit-code mapping.
 - [Rust unit / focused tests](rust-unit-tests.md): the Rust unit / focused test layer inside `crates/reportage-core/src/` and `crates/reportage-core/tests/`. Covers the parser, AST, semantic evaluator, expectation evaluator, diagnostic construction, and artifact model.
-- [Syntax conformance fixtures](syntax-conformance.md): the known-valid and known-invalid `.repor` fixtures under `tests/fixtures/syntax/` and how their AST snapshots are updated.
+- [Syntax conformance fixtures](syntax-conformance.md): the known-valid and known-invalid `.repor` fixtures under [`tests/fixtures/syntax/`](../../../tests/fixtures/syntax/) and how their AST snapshots are updated.
+- [Snapshot normalization](snapshot-normalization.md): how the JSON snapshot suites stabilize intentionally volatile output before comparison, driven by schema annotations. Read this before adding a volatile field to a JSON contract, or before proposing a test for normalization itself.
 
 ## How the layers relate
 
