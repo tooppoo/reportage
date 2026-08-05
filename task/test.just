@@ -6,13 +6,21 @@ test:
   set -eu
 
   cargo llvm-cov --locked --all-features --workspace --no-report nextest
-  cargo llvm-cov report --codecov --output-path cov.json --ignore-filename-regex "cli/src/main"
+
+  # Every alternative in both exclusions below is a whole repository-relative path, anchored at both
+  # ends. They are regexes matched against absolute paths, so an alternative that stops short of that
+  # can also match a directory the build sits under rather than a file in it: a bare `model` matched
+  # a git worktree named `…-model-guard` and excluded the entire workspace. Nothing says so — llvm-cov
+  # prints a table of `-` and exits 1 with no message — so the failure reads as the thresholds being
+  # missed while every test passes.
+  cargo llvm-cov report --codecov --output-path cov.json \
+    --ignore-filename-regex "/crates/reportage-cli/src/main\.rs$"
   cargo llvm-cov report \
     --fail-under-functions 80 \
     --fail-under-lines 80 \
     --fail-under-file-lines 80 \
     --fail-under-regions 80 \
-    --ignore-filename-regex "cli/src/main|src/bin/gen_semantic_docs|src/bin/gen_ai_reading_order|model"
+    --ignore-filename-regex "/crates/reportage-cli/src/main\.rs$|/crates/reportage-core/src/bin/gen_semantic_docs\.rs$|/crates/reportage-cli/src/bin/gen_ai_reading_order\.rs$|/crates/reportage-core/src/model\.rs$"
 
 # run all formatting checks
 [group('check')]
