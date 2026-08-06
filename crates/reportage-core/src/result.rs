@@ -422,14 +422,51 @@ impl ExpectationResult {
     }
 }
 
+/// Which source block a step belongs to.
+///
+/// A step index alone cannot locate a step, because `before_each` and a case
+/// body are separate source blocks that each number their steps from zero. The
+/// phase is what makes a [`StepOrigin`] unambiguous.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StepPhase {
+    /// The module-level `before_each` block, replayed inside each concrete
+    /// case. Not produced yet: `before_each` currently holds write steps that
+    /// report no per-step origin.
+    BeforeEach,
+    /// The case body.
+    Case,
+}
+
+/// Where a step-attributed result or diagnostic occurred.
+///
+/// `step_index` is phase-local and 0-based, and counts every step kind —
+/// action, assertion block, binding, and write alike — so it indexes directly
+/// into that phase's own step list. Human-readable output may present it as a
+/// 1-based step number; internal consumers must not renumber it.
+///
+/// Unrelated to the `origin` field of a JSON diagnostic (see
+/// `run_result::case_json`), which identifies the source file or test a
+/// diagnostic belongs to rather than a position within a step list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StepOrigin {
+    pub phase: StepPhase,
+    pub step_index: usize,
+}
+
+impl StepOrigin {
+    pub fn new(phase: StepPhase, step_index: usize) -> Self {
+        Self { phase, step_index }
+    }
+}
+
 /// The result of evaluating one assertion block.
 ///
 /// All expectations within the block are evaluated; `has_failures` reflects whether any of them failed.
 /// See docs/reference/semantics.md — Assertion block.
 #[derive(Debug)]
 pub struct AssertionBlockResult {
-    /// Index of this assertion block's step within the case body.
-    pub step_index: usize,
+    /// Which step of which phase this assertion block is.
+    pub origin: StepOrigin,
     pub expectations: Vec<ExpectationResult>,
     /// Index into the case's `actions` of the checkpoint this block evaluated process
     /// expectations against, i.e. how many `$` actions had run by this point minus one.
@@ -463,7 +500,7 @@ pub enum CaseStatus {
 /// Covers both parse-domain problems detected at evaluation time (e.g. a missing
 /// assertion block, which reuses `DiagnosticCode::ParseMissingAssertionBlock`) and
 /// semantic errors (e.g. a path policy violation, or a process expectation used
-/// before any action has run). `diagnostic_code` and `step_index` let callers
+/// before any action has run). `diagnostic_code` and `origin` let callers
 /// (CLI rendering, the `--format=json` renderer) surface the failure structurally
 /// instead of parsing it back out of `message`.
 #[derive(Debug)]
@@ -471,16 +508,16 @@ pub struct ScriptError {
     pub message: String,
     /// The stable diagnostic code for this failure, when one is defined.
     pub diagnostic_code: Option<DiagnosticCode>,
-    /// The case-body step index this failure occurred at, when applicable.
+    /// The step this failure occurred at, when applicable.
     /// `None` for case-level problems not tied to one step (e.g. a missing assertion block).
-    pub step_index: Option<usize>,
+    pub origin: Option<StepOrigin>,
 }
 
 /// Structured detail for a [`CaseStatus::RuntimeError`].
 ///
 /// A runtime error can originate from a side-effecting step with its own stable
 /// diagnostic code (e.g. `step.write.target_exists`); `diagnostic_code` and
-/// `step_index` let callers (CLI rendering, the `result.json` artifact) surface
+/// `origin` let callers (CLI rendering, the `result.json` artifact) surface
 /// that structurally instead of parsing it back out of `message`.
 #[derive(Debug)]
 pub struct RuntimeError {
@@ -489,8 +526,8 @@ pub struct RuntimeError {
     /// `None` for infrastructure failures that predate a diagnostic code
     /// (e.g. shell spawn failure, workspace creation failure).
     pub diagnostic_code: Option<DiagnosticCode>,
-    /// The case-body step index this failure occurred at, when applicable.
-    pub step_index: Option<usize>,
+    /// The step this failure occurred at, when applicable.
+    pub origin: Option<StepOrigin>,
 }
 
 /// The full result of one concrete case.

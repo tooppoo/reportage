@@ -165,6 +165,72 @@ fn assertion_block_failure_stops_subsequent_action() {
 }
 
 #[test]
+fn an_assertion_block_origin_counts_every_case_body_step_kind() {
+    // The block is preceded by a write and an action, so a step index that
+    // counted only assertion blocks — or only actions — would report 0 instead
+    // of 2. Every step kind is counted, phase-local and 0-based.
+    let script = make_script(vec![Case {
+        name: "mixed step kinds".to_string(),
+        steps: vec![
+            write_step("a.txt", "x"),
+            action("true"),
+            assert_exit(0),
+            assert_file_exists_step("a.txt"),
+        ],
+    }]);
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    assert!(matches!(result.cases[0].status, CaseStatus::Pass));
+    let origins: Vec<StepOrigin> = result.cases[0]
+        .assertion_blocks
+        .iter()
+        .map(|block| block.origin)
+        .collect();
+    assert_eq!(
+        origins,
+        vec![
+            StepOrigin::new(StepPhase::Case, 2),
+            StepOrigin::new(StepPhase::Case, 3)
+        ],
+        "case body blocks carry StepPhase::Case and their own step position"
+    );
+}
+
+#[test]
+fn a_script_error_is_attributed_to_the_step_that_raised_it() {
+    // The process expectation sits at step 1, after a write. A `ScriptError`
+    // must name that step, not the case as a whole and not the first step.
+    let script = make_script(vec![Case {
+        name: "process expectation before any action".to_string(),
+        steps: vec![write_step("a.txt", "x"), assert_exit(0)],
+    }]);
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    let CaseStatus::ScriptError(script_error) = &result.cases[0].status else {
+        panic!(
+            "expected CaseStatus::ScriptError, got {:?}",
+            result.cases[0].status
+        );
+    };
+    assert_eq!(
+        script_error.diagnostic_code,
+        Some(DiagnosticCode::SemanticExpectationRequiresAction)
+    );
+    assert_eq!(
+        script_error.origin,
+        Some(StepOrigin::new(StepPhase::Case, 1))
+    );
+}
+
+#[test]
 fn an_aborting_case_still_reports_the_evidence_gathered_before_the_abort() {
     // The second write violates the create-only policy, aborting the case after
     // an action and a passing assertion block have already produced evidence.
@@ -245,11 +311,12 @@ fn before_each_replays_into_every_concrete_case_workspace() {
 }
 
 #[test]
-fn before_each_write_failure_is_runtime_error_without_case_step_index() {
+fn before_each_write_failure_is_runtime_error_without_a_step_origin() {
     // Two `before_each` writes to the same path: the second violates the
-    // create-only overwrite policy. The failure belongs to the
-    // module-level block, not to any case body step, so `step_index` is
-    // absent and the message carries the position inside `before_each`.
+    // create-only overwrite policy. The failure belongs to the module-level
+    // block, not to any case body step, so it carries no `origin` and the
+    // message carries the position inside `before_each` instead. Reporting it
+    // as a `StepPhase::BeforeEach` origin is deferred.
     let before_each = BeforeEach::new(vec![
         SideEffectingStep::WriteFile(WriteFileStep {
             path: WorkspacePath::parse("a.txt").unwrap(),
@@ -285,7 +352,7 @@ fn before_each_write_failure_is_runtime_error_without_case_step_index() {
         "message must name the failing before_each step: {}",
         runtime_error.message
     );
-    assert_eq!(runtime_error.step_index, None);
+    assert_eq!(runtime_error.origin, None);
     assert_eq!(
         runtime_error.diagnostic_code,
         Some(DiagnosticCode::StepWriteTargetExists)
@@ -311,7 +378,10 @@ fn before_each_write_failure_is_runtime_error_without_case_step_index() {
     let CaseStatus::RuntimeError(runtime_error) = &result.cases[0].status else {
         panic!("expected CaseStatus::RuntimeError");
     };
-    assert_eq!(runtime_error.step_index, Some(1));
+    assert_eq!(
+        runtime_error.origin,
+        Some(StepOrigin::new(StepPhase::Case, 1))
+    );
     assert_eq!(
         runtime_error.diagnostic_code,
         Some(DiagnosticCode::StepWriteTargetExists)

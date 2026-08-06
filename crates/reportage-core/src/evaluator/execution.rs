@@ -13,7 +13,7 @@ use crate::model::{
 };
 use crate::result::{
     ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExecutionReport, ExpectationResult,
-    RuntimeError, ScriptError,
+    RuntimeError, ScriptError, StepOrigin, StepPhase,
 };
 use crate::shim::CommandRegistry;
 use crate::text_value::{ResolveTextValue, TextResolutionContext};
@@ -115,8 +115,12 @@ impl CaseExecution {
     }
 }
 
-/// The case-local inputs that stay fixed for every step of one concrete case.
+/// The case-local inputs that stay fixed for every step of one step sequence.
 struct StepContext<'a> {
+    /// Which source block the steps being executed come from. Held here rather
+    /// than decided at each origin-producing site, so one sequence cannot
+    /// attribute its steps to two phases.
+    phase: StepPhase,
     /// Used only to build diagnostic messages, which name the failing case.
     case_name: &'a str,
     /// This concrete case's isolated workspace: the root every `$` action runs
@@ -198,7 +202,7 @@ fn evaluate_case(
                     case.name
                 ),
                 diagnostic_code: Some(DiagnosticCode::ParseMissingAssertionBlock),
-                step_index: None,
+                origin: None,
             }),
         );
     }
@@ -217,7 +221,7 @@ fn evaluate_case(
                         case.name
                     ),
                     diagnostic_code: None,
-                    step_index: None,
+                    origin: None,
                 }),
             );
         }
@@ -239,7 +243,7 @@ fn evaluate_case(
                         case.name
                     ),
                     diagnostic_code: None,
-                    step_index: None,
+                    origin: None,
                 }),
             );
         }
@@ -259,6 +263,7 @@ fn evaluate_case(
     };
 
     let ctx = StepContext {
+        phase: StepPhase::Case,
         case_name: &case.name,
         workspace: &workspace,
         env: &case_env,
@@ -275,8 +280,9 @@ fn evaluate_case(
     // first assertion block observes every file written here no matter when
     // the checkpoint value itself was constructed. A failure is a runtime
     // step error attributed to the module-level block, not to any case body
-    // step, hence `step_index: None`; the 1-based position inside
-    // `before_each` is carried in the message instead.
+    // step, hence `origin: None`; the 1-based position inside `before_each` is
+    // carried in the message instead. Reporting it as a `StepPhase::BeforeEach`
+    // origin is deferred with the rest of the `before_each` step surface.
     // See docs/reference/execution-model.md — Execution order and `before_each`.
     if let Some(before_each) = before_each {
         for (setup_idx, step) in before_each.steps().iter().enumerate() {
@@ -298,7 +304,7 @@ fn evaluate_case(
                                 setup_idx + 1,
                             ),
                             diagnostic_code: Some(e.code()),
-                            step_index: None,
+                            origin: None,
                         }),
                     );
                 }
@@ -348,7 +354,7 @@ fn execute_steps(
                         return Err(StepAbort::Runtime(RuntimeError {
                             message: e.message,
                             diagnostic_code: None,
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::new(ctx.phase, step_idx)),
                         }));
                     }
                 }
@@ -372,7 +378,7 @@ fn execute_steps(
                                 error.message,
                             ),
                             diagnostic_code: Some(error.diagnostic_code),
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::new(ctx.phase, step_idx)),
                         }));
                     }
                 };
@@ -386,7 +392,7 @@ fn execute_steps(
                                 step_idx + 1,
                             ),
                             diagnostic_code: Some(e.code()),
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::new(ctx.phase, step_idx)),
                         }));
                     }
                 }
@@ -413,7 +419,7 @@ fn execute_steps(
                                 step_idx + 1,
                             ),
                             diagnostic_code: Some(diagnostic_code),
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::new(ctx.phase, step_idx)),
                         }));
                     }
                 };
@@ -457,7 +463,7 @@ fn execute_steps(
                             diagnostic_code: Some(
                                 DiagnosticCode::SemanticExpectationRequiresAction,
                             ),
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::new(ctx.phase, step_idx)),
                         }));
                     }
 
@@ -480,7 +486,7 @@ fn execute_steps(
                                 step_idx + 1,
                             ),
                             diagnostic_code: Some(semantic_err.code()),
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::new(ctx.phase, step_idx)),
                         }));
                     }
                 }
@@ -514,13 +520,13 @@ fn execute_steps(
                                 err.message,
                             ),
                             diagnostic_code: Some(err.diagnostic_code),
-                            step_index: Some(step_idx),
+                            origin: Some(StepOrigin::new(ctx.phase, step_idx)),
                         }));
                     }
                 };
 
                 let block_result = AssertionBlockResult {
-                    step_index: step_idx,
+                    origin: StepOrigin::new(ctx.phase, step_idx),
                     expectations: expectation_results,
                     checkpoint_action_index: execution.actions.len().checked_sub(1),
                 };
