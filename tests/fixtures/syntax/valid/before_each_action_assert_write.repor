@@ -1,0 +1,21 @@
+# `before_each` accepts the same `$` action, `assert` block, and `write` step
+# a case body accepts, kept in source order. The setup action's own result is
+# verified inside `before_each`; the case body verifies what the case exists
+# to verify.
+before_each {
+  $ mkdir -p fixtures
+  assert {
+    exit 0
+    dir <"fixtures"> exists
+  }
+
+  write <"fixtures/seed.txt"> "seed\n"
+}
+
+case "reads a file the setup action's directory holds" {
+  $ cat fixtures/seed.txt
+  assert {
+    exit 0
+    stdout contains "seed"
+  }
+}

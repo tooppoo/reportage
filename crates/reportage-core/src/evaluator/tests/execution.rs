@@ -311,6 +311,145 @@ fn before_each_replays_into_every_concrete_case_workspace() {
 }
 
 #[test]
+fn before_each_runs_actions_and_assertions_in_source_order() {
+    // A setup action, the assertion that verifies it, and a write that depends
+    // on it. The case body then observes the workspace the setup produced.
+    let before_each = BeforeEach::new(vec![
+        action("mkdir -p fixtures"),
+        assert_exit(0),
+        write_step("fixtures/seed.txt", "seed\n"),
+    ])
+    .unwrap();
+    let script = Script {
+        before_each: Some(before_each),
+        cases: vec![Case {
+            name: "sees the setup result".to_string(),
+            steps: vec![assert_file_exists_step("fixtures/seed.txt")],
+        }],
+    };
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    assert!(
+        matches!(result.cases[0].status, CaseStatus::Pass),
+        "{:?}",
+        result.cases[0].status
+    );
+    assert_eq!(result.cases[0].actions.len(), 1);
+    assert_eq!(result.cases[0].side_effects_executed, 1);
+    // The setup assertion is reported with the rest of the case's evidence.
+    assert_eq!(
+        result.cases[0]
+            .assertion_blocks
+            .iter()
+            .map(|block| block.origin)
+            .collect::<Vec<_>>(),
+        vec![
+            StepOrigin::new(StepPhase::BeforeEach, 1),
+            StepOrigin::new(StepPhase::Case, 0),
+        ]
+    );
+}
+
+#[test]
+fn the_body_entry_checkpoint_keeps_workspace_state_and_drops_process_evidence() {
+    // The case body's first assertion sees the file the setup action created,
+    // but a process expectation there has no action of its own to describe:
+    // the last setup action's exit code must not answer for the case body.
+    // `BeforeEach` is not `Clone`, so each script builds its own.
+    let setup =
+        || BeforeEach::new(vec![action("echo setup > from-setup.txt"), assert_exit(0)]).unwrap();
+    let workspace_first = Script {
+        before_each: Some(setup()),
+        cases: vec![Case {
+            name: "observes the setup action's workspace effect".to_string(),
+            steps: vec![assert_file_exists_step("from-setup.txt")],
+        }],
+    };
+    let result = evaluate(
+        &workspace_first,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    assert!(
+        matches!(result.cases[0].status, CaseStatus::Pass),
+        "{:?}",
+        result.cases[0].status
+    );
+
+    let process_first = Script {
+        before_each: Some(setup()),
+        cases: vec![Case {
+            name: "cannot reach the setup action's exit code".to_string(),
+            steps: vec![assert_exit(0)],
+        }],
+    };
+    let result = evaluate(
+        &process_first,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    let CaseStatus::ScriptError(script_error) = &result.cases[0].status else {
+        panic!(
+            "expected CaseStatus::ScriptError, got {:?}",
+            result.cases[0].status
+        );
+    };
+    assert_eq!(
+        script_error.diagnostic_code,
+        Some(DiagnosticCode::SemanticExpectationRequiresAction)
+    );
+    assert_eq!(
+        script_error.origin,
+        Some(StepOrigin::new(StepPhase::Case, 0))
+    );
+}
+
+#[test]
+fn a_before_each_assertion_failure_fails_only_its_own_concrete_case() {
+    // `false` makes the setup assertion fail for both cases. Each concrete
+    // case fails on its own; neither runs its body, and the first failure does
+    // not stop the second case from being set up and reported.
+    let before_each = BeforeEach::new(vec![action("false"), assert_exit(0)]).unwrap();
+    let script = Script {
+        before_each: Some(before_each),
+        cases: vec![
+            Case {
+                name: "first".to_string(),
+                steps: vec![action("touch body-ran.txt"), assert_exit(0)],
+            },
+            Case {
+                name: "second".to_string(),
+                steps: vec![action("touch body-ran.txt"), assert_exit(0)],
+            },
+        ],
+    };
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    assert_eq!(result.cases.len(), 2);
+    for case in &result.cases {
+        assert!(matches!(case.status, CaseStatus::Fail), "{:?}", case.status);
+        // Only the setup action ran: the case body never started.
+        assert_eq!(case.actions.len(), 1);
+        assert_eq!(case.assertion_blocks.len(), 1);
+        assert_eq!(
+            case.assertion_blocks[0].origin,
+            StepOrigin::new(StepPhase::BeforeEach, 1)
+        );
+    }
+    assert_eq!(result.exit_code(), 1);
+}
+
+#[test]
 fn before_each_write_failure_is_attributed_to_the_before_each_phase() {
     // Two `before_each` writes to the same path: the second violates the
     // create-only overwrite policy. The failure belongs to the concrete case

@@ -365,7 +365,7 @@ write <"expected/stdout.txt"> ```
   ```
 ```
 
-`write` is a **side-effecting step**: unlike an action or an assertion block, it changes workspace state directly rather than executing an action or verifying a checkpoint. It is one of three step kinds a `case` body may contain — action (`$ ...`), assertion block (`assert { ... }`), and side-effecting step (`write ...`) — evaluated in source order, exactly like actions and assertion blocks. It is also the only step kind a module-level `before_each` block may contain (see [Execution model](execution-model.md#before_each)).
+`write` is a **side-effecting step**: unlike an action or an assertion block, it changes workspace state directly rather than executing an action or verifying a checkpoint. It is one of three step kinds a `case` body may contain — action (`$ ...`), assertion block (`assert { ... }`), and side-effecting step (`write ...`) — evaluated in source order, exactly like actions and assertion blocks. A module-level `before_each` block holds the same step kinds (see [Execution model](execution-model.md#before_each)).
 
 Semantics:
 

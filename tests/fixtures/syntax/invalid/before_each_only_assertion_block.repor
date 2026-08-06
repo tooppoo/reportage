@@ -1,0 +1,14 @@
+# A `before_each` assertion verifies setup, so it does not satisfy a case
+# body's own requirement to contain at least one `assert` block
+# (parse.missing_assertion_block). Without this rule a case that verifies
+# nothing about its own subject would be accepted.
+before_each {
+  write <"seed.txt"> "seed\n"
+  assert {
+    file <"seed.txt"> exists
+  }
+}
+
+case "verifies nothing of its own" {
+  $ cat seed.txt
+}

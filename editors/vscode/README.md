@@ -59,7 +59,7 @@ From [examples/document_file.repor](examples/document_file.repor).
 
 ### Before each
 
-`before_each` — Module-level case-local setup replayed into each concrete case workspace (write steps only)
+`before_each` — Module-level case-local setup replayed into each concrete case workspace (same steps as a case body)
 
 <details>
 <summary>Example</summary>

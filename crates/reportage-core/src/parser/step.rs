@@ -22,11 +22,10 @@ pub(super) const WRITE_CONTENT_POSITION: TextValuePosition =
 /// Parses a `before_each_block` pair into the [`BeforeEach`] model.
 ///
 /// `BeforeEach` holds the same [`Step`] as a case body, so which steps
-/// `before_each` accepts is decided here rather than by its step type: the
-/// grammar accepts the full case-body step surface (see the
-/// `before_each_block` rule), and each step still banned is rejected with a
-/// diagnostic naming the ban and the allowed alternative, at the offending
-/// step's line.
+/// `before_each` accepts is decided here rather than by its step type. An
+/// action step and an assertion block parse exactly as they do in a case body;
+/// a `let` binding, and a binding reference inside `write` content, are still
+/// rejected with a diagnostic naming the ban, at the offending step's line.
 pub(super) fn parse_before_each_block(
     pair: pest::iterators::Pair<Rule>,
 ) -> Result<BeforeEach, ParseError> {
@@ -35,16 +34,8 @@ pub(super) fn parse_before_each_block(
     let mut steps: Vec<Step> = Vec::new();
     for pair in pair.into_inner() {
         match pair.as_rule() {
-            Rule::action_step => {
-                return Err(ParseError::BeforeEachActionStep {
-                    line: pair.line_col().0,
-                });
-            }
-            Rule::assertion_block => {
-                return Err(ParseError::BeforeEachAssertionBlock {
-                    line: pair.line_col().0,
-                });
-            }
+            Rule::action_step => steps.push(parse_action_step(pair)?),
+            Rule::assertion_block => steps.push(parse_assertion_block(pair)?),
             Rule::write_step_string | Rule::write_step_heredoc => {
                 let line = pair.line_col().0;
                 let step = parse_write_step(pair)?;

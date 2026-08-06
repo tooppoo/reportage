@@ -468,12 +468,17 @@ pub struct AssertionBlockResult {
     /// Which step of which phase this assertion block is.
     pub origin: StepOrigin,
     pub expectations: Vec<ExpectationResult>,
-    /// Index into the case's `actions` of the checkpoint this block evaluated process
-    /// expectations against, i.e. how many `$` actions had run by this point minus one.
-    /// `None` means the block ran at the initial checkpoint (no action has run yet), which
-    /// is only possible when the block has no process expectations (`exit`/`stdout`/`stderr`)
-    /// — see `evaluate_case`'s "assertion block ... uses a process expectation ... but no '$'
-    /// action has run yet" check.
+    /// Index into the case's `actions` of the action-updated checkpoint this block
+    /// evaluated process expectations against.
+    ///
+    /// `None` means the block ran at the phase-entry checkpoint of its own
+    /// [`StepOrigin::phase`] — the setup-entry checkpoint for `before_each`, the
+    /// body-entry checkpoint for a case body — which has no last action result. A
+    /// case body's first assertion reports `None` even when `before_each` already
+    /// ran actions, because the body-entry checkpoint does not carry their process
+    /// evidence. `None` is only reachable when the block has no process expectation
+    /// (`exit`/`stdout`/`stderr`) — see `execute_steps`'s "uses a process expectation
+    /// ... but no '$' action has run yet" check.
     pub checkpoint_action_index: Option<usize>,
 }
 

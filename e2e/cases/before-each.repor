@@ -1,6 +1,6 @@
-# `before_each` case-local setup (#70): setup files are visible at the
-# initial checkpoint, replay into every concrete case's isolated workspace,
-# and only `write` steps are allowed in the block.
+# `before_each` case-local setup (#70, #227): setup runs inside each concrete
+# case's own workspace before its body, using the same `$` action, `assert`
+# block, and `write` step a case body uses.
 
 case "before_each files are visible to the case body's first assertion block" {
   write <"inner.repor"> ```
@@ -127,11 +127,66 @@ case "before_each after a case is a parse error" {
   }
 }
 
-case "an action step inside before_each is a parse error" {
+case "before_each runs an action, verifies it, and writes from its result" {
   write <"inner.repor"> ```
     before_each {
-      write <"seed.txt"> "seed\n"
       $ mkdir -p fixtures
+      assert {
+        exit 0
+        dir <"fixtures"> exists
+      }
+
+      write <"fixtures/seed.txt"> "seed\n"
+    }
+
+    case "reads what the setup produced" {
+      $ cat fixtures/seed.txt
+      assert {
+        exit 0
+        stdout contains "seed"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+case "a case body's first workspace assertion observes a before_each action" {
+  write <"inner.repor"> ```
+    before_each {
+      $ echo setup > from-setup.txt
+      assert {
+        exit 0
+      }
+    }
+
+    case "sees the setup action's workspace effect before acting" {
+      assert {
+        file <"from-setup.txt"> contains "setup"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+case "a process expectation before before_each's first action is a script error" {
+  write <"inner.repor"> ```
+    before_each {
+      assert {
+        exit 0
+      }
+      $ true
     }
 
     case "never runs" {
@@ -146,12 +201,63 @@ case "an action step inside before_each is a parse error" {
 
   assert {
     exit 2
-    stderr contains "parse.before_each.action_step"
-    stderr contains "run setup commands in each case body instead"
+    stderr contains "semantic.expectation.requires_action"
+    stderr contains "before_each assertion block at step 1"
   }
 }
 
-case "an assertion block inside before_each is a parse error" {
+case "a case body's first process expectation cannot read the setup action" {
+  write <"inner.repor"> ```
+    before_each {
+      $ echo setup
+      assert {
+        exit 0
+      }
+    }
+
+    case "asks for an exit code it never produced" {
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.expectation.requires_action"
+  }
+}
+
+case "a failing before_each assertion fails its case without running the body" {
+  write <"inner.repor"> ```
+    before_each {
+      $ false
+      assert {
+        exit 0
+      }
+    }
+
+    case "never runs its body" {
+      $ touch body-ran.txt
+      assert {
+        file <"body-ran.txt"> exists
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 1
+    stdout contains "FAIL"
+    stderr contains "before_each assertion block at step 2"
+    stderr contains "assertion.exit.equals.mismatch"
+  }
+}
+
+case "a before_each assertion does not satisfy a case body's assertion requirement" {
   write <"inner.repor"> ```
     before_each {
       write <"seed.txt"> "seed\n"
@@ -160,11 +266,8 @@ case "an assertion block inside before_each is a parse error" {
       }
     }
 
-    case "never runs" {
-      $ true
-      assert {
-        exit 0
-      }
+    case "verifies nothing of its own" {
+      $ cat seed.txt
     }
     ```
 
@@ -172,7 +275,7 @@ case "an assertion block inside before_each is a parse error" {
 
   assert {
     exit 2
-    stderr contains "parse.before_each.assertion_block"
+    stderr contains "parse.missing_assertion_block"
   }
 }
 
@@ -241,5 +344,29 @@ case "a case body write to a before_each path is a runtime step error" {
   assert {
     exit 3
     stderr contains "step.write.target_exists"
+  }
+}
+
+case "a case body's first assertion reports the initial checkpoint in JSON" {
+  write <"inner.repor"> ```
+    before_each {
+      $ echo setup > from-setup.txt
+      assert {
+        exit 0
+      }
+    }
+
+    case "asserts on the workspace before acting" {
+      assert {
+        file <"from-setup.txt"> exists
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 0
+    stdout contains "\"checkpoint\": \"initial\""
   }
 }

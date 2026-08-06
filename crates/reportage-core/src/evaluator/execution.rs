@@ -294,17 +294,15 @@ fn evaluate_case(
     // their `StepPhase`, not by a separate execution path.
     // See docs/reference/execution-model.md — Execution order and `before_each`.
     if let Some(before_each) = before_each {
-        // Matched exhaustively rather than testing only for `Err`: a setup
-        // assertion failure has to end the case, and the parser's `assert` ban
-        // is the only reason that outcome cannot occur yet. Dropping the `Ok`
-        // payload by pattern would let a later unit lift the ban and silently
-        // report `Pass` for a case whose setup assertion failed.
         match execute_steps(
             before_each.steps(),
             &mut execution,
             &step_context(StepPhase::BeforeEach),
         ) {
             Ok(StepSequenceOutcome::Completed) => {}
+            // A setup assertion failure ends the case without running its body:
+            // the case never reached the behavior it exists to verify, so there
+            // is nothing to report beyond the setup that did not hold.
             Ok(StepSequenceOutcome::AssertionFailed) => {
                 return execution.finish(&case.name, source_path, CaseStatus::Fail);
             }
@@ -312,6 +310,16 @@ fn evaluate_case(
                 return execution.finish(&case.name, source_path, abort.into());
             }
         }
+
+        // The body-entry checkpoint. Workspace state carries over — it is the
+        // live workspace directory, which is the point of running setup — but
+        // the last setup action's process evidence does not. A case body's
+        // first `exit` / `stdout` / `stderr` must describe something that case
+        // body did, never a command the module-level setup happened to end
+        // with; a setup action's own result is verified inside `before_each`.
+        // See docs/reference/execution-model.md — Checkpoint lifecycle.
+        execution.checkpoint =
+            Checkpoint::initial(workspace.root().to_path_buf(), repor_dir.clone());
     }
 
     let status = match execute_steps(&case.steps, &mut execution, &step_context(StepPhase::Case)) {
@@ -543,7 +551,16 @@ fn execute_steps(
                 let block_result = AssertionBlockResult {
                     origin: StepOrigin::new(ctx.phase, step_idx),
                     expectations: expectation_results,
-                    checkpoint_action_index: execution.actions.len().checked_sub(1),
+                    // Derived from the checkpoint this block actually evaluated
+                    // against, not from how many actions the concrete case has
+                    // run. Those differ at a phase-entry checkpoint: a case body
+                    // assertion placed before the body's first action must not
+                    // reference the last `before_each` action.
+                    checkpoint_action_index: execution
+                        .checkpoint
+                        .last_action
+                        .as_ref()
+                        .map(|_| execution.actions.len() - 1),
                 };
                 let failed = block_result.has_failures();
                 execution.assertion_blocks.push(block_result);
