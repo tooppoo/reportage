@@ -184,10 +184,12 @@ impl TextValueExpression {
     /// The expression's `TextValue` when it needs no binding environment to
     /// resolve, and `None` when it does.
     ///
-    /// Only callers that legitimately have no binding environment (a
-    /// `before_each` write step, whose binding scope is statically empty) may
-    /// use this; everything else resolves through
-    /// [`crate::text_value::ResolveTextValue`].
+    /// A parse-time helper with no runtime caller: every evaluation path
+    /// resolves through [`crate::text_value::ResolveTextValue`] against the
+    /// bindings in scope, so that a raw literal, a direct reference, and an
+    /// interpolated literal share one resolution. Use this only where there is
+    /// genuinely no binding environment to resolve against — asserting on a
+    /// parsed expression's literal text, for instance.
     pub fn binding_free_text_value(&self) -> Option<TextValue> {
         match self {
             Self::Raw(literal) => Some(literal.to_text_value()),

@@ -293,14 +293,25 @@ fn evaluate_case(
     // this concrete case, and its steps are told apart from case body steps by
     // their `StepPhase`, not by a separate execution path.
     // See docs/reference/execution-model.md — Execution order and `before_each`.
-    if let Some(before_each) = before_each
-        && let Err(abort) = execute_steps(
+    if let Some(before_each) = before_each {
+        // Matched exhaustively rather than testing only for `Err`: a setup
+        // assertion failure has to end the case, and the parser's `assert` ban
+        // is the only reason that outcome cannot occur yet. Dropping the `Ok`
+        // payload by pattern would let a later unit lift the ban and silently
+        // report `Pass` for a case whose setup assertion failed.
+        match execute_steps(
             before_each.steps(),
             &mut execution,
             &step_context(StepPhase::BeforeEach),
-        )
-    {
-        return execution.finish(&case.name, source_path, abort.into());
+        ) {
+            Ok(StepSequenceOutcome::Completed) => {}
+            Ok(StepSequenceOutcome::AssertionFailed) => {
+                return execution.finish(&case.name, source_path, CaseStatus::Fail);
+            }
+            Err(abort) => {
+                return execution.finish(&case.name, source_path, abort.into());
+            }
+        }
     }
 
     let status = match execute_steps(&case.steps, &mut execution, &step_context(StepPhase::Case)) {
@@ -393,6 +404,12 @@ fn execute_steps(
             }
 
             Step::Binding(declaration) => {
+                // Two separate guarantees, one per phase: `validate_bindings`
+                // rejects a case body `let` with no preceding action, and the
+                // parser's `let` ban keeps `before_each` from reaching here at
+                // all. A unit that lifts that ban must give `before_each` the
+                // equivalent validation, or this `expect` — and the
+                // `actions.len() - 1` below — become panics.
                 let action = execution
                     .checkpoint
                     .last_action
