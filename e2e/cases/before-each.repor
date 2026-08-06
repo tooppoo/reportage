@@ -207,6 +207,30 @@ case "a before_each binding is usable in before_each and in the case body" {
   }
 }
 
+case "a failing before_each binding is a runtime error naming the block" {
+  write <"inner.repor"> ```
+    before_each {
+      $ printf 'one\ntwo\n'
+      let value <- stdout_line
+    }
+
+    case "never runs its body" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 3
+    stderr contains "before_each binding 'value' at step 2"
+    stderr contains "step.binding.not_single_line"
+  }
+}
+
 case "a case body let cannot capture a before_each action's output" {
   write <"inner.repor"> ```
     before_each {

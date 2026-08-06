@@ -198,7 +198,7 @@ fn binding_capture_requires_a_preceding_action() {
 }
 
 #[test]
-fn invalid_binding_identifier_and_before_each_binding_are_rejected() {
+fn invalid_binding_identifier_is_rejected() {
     let invalid = "case \"x\" {\n  $ true\n  let 1value <- stdout\n  assert { exit 0 }\n}\n";
     let error = parse(invalid).unwrap_err();
     assert_eq!(

@@ -815,9 +815,11 @@ fn invalid_syntax_fixtures_are_rejected() {
                 assert_eq!(err.code().as_str(), "parse.document_case.orphan");
             }
             // `before_each` placement and body rules: at most one block, before
-            // the first case, at least one step. Which steps the body accepts
-            // is covered by the valid fixtures and by the binding ban's own
-            // semantic-invalid fixture. See #70, #227, and the before_each ADRs.
+            // the first case, at least one step. `before_each` accepts every
+            // case body step kind, so the body's own rules are the binding
+            // scope ones, covered by the `before_each_*` and
+            // `case_body_binding_*` semantic-invalid fixtures below.
+            // See #70, #227, and the before_each ADRs.
             "before_each_duplicate" => {
                 assert!(matches!(err, ParseError::DuplicateBeforeEach { .. }));
                 assert_eq!(err.code().as_str(), "parse.before_each.duplicate");
@@ -915,6 +917,10 @@ fn semantic_invalid_binding_fixtures_parse_grammar_but_fail_construction_validat
         (
             "before_each_reference_to_case_body_binding",
             "semantic.binding.undefined",
+        ),
+        (
+            "before_each_use_before_declaration",
+            "semantic.binding.use_before_declaration",
         ),
         (
             "binding_declaration_invalid_identifier",

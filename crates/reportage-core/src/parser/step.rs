@@ -13,9 +13,9 @@ use crate::model::{
 use std::collections::HashSet;
 
 /// The `write` step's content position: the same `TextValueExpression` model,
-/// grammar, and parser in a case body and in `before_each`. `before_each` has
-/// no binding scope of its own, so it validates the parsed expression against
-/// an empty scope rather than taking a raw-text-only input type.
+/// grammar, and parser in a case body and in `before_each`. The two differ only
+/// in the binding scope their references are validated against, which
+/// [`validate_bindings`] applies per phase.
 pub(super) const WRITE_CONTENT_POSITION: TextValuePosition =
     TextValuePosition::new("`write` step content", TextSurface::InlineAndHeredoc);
 
@@ -308,10 +308,9 @@ fn parse_action_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseErr
     Ok(Step::Action(ActionStep { command }))
 }
 
-// Returns the [`SideEffectingStep`] itself rather than a [`Step`], because a
-// `write` step is legal in two containers with different step models: a case
-// body (which wraps it in `Step::SideEffect`) and a `before_each` body (which
-// holds `SideEffectingStep`s only).
+// Returns the [`SideEffectingStep`] itself rather than a [`Step`], so the
+// `SideEffectingStep`-specific write-step parsers below stay reachable without
+// unwrapping a `Step`. Both callers wrap the result in `Step::SideEffect`.
 fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<SideEffectingStep, ParseError> {
     match pair.as_rule() {
         Rule::write_step_string => parse_write_step_string(pair),

@@ -411,6 +411,74 @@ fn the_body_entry_checkpoint_keeps_workspace_state_and_drops_process_evidence() 
 }
 
 #[test]
+fn a_before_each_binding_names_the_setup_action_it_captured_from() {
+    // Provenance uses the concrete case's own action numbering across both
+    // phases, so a binding declared in `before_each` points at the setup action
+    // (index 0) even though the case body ran an action of its own afterwards.
+    let before_each = BeforeEach::new(vec![
+        action("printf 'from-setup'"),
+        Step::Binding(BindingDeclaration {
+            name: "captured".to_string(),
+            source: RuntimeEvidenceSource::StdoutExact,
+            declaration_span: LocatedSpan {
+                start: 0,
+                end: 0,
+                line: 1,
+                column: 1,
+            },
+        }),
+    ])
+    .unwrap();
+    let script = Script {
+        before_each: Some(before_each),
+        cases: vec![Case {
+            name: "uses the setup binding".to_string(),
+            steps: vec![
+                action("printf 'from-body'"),
+                Step::AssertionBlock(
+                    AssertionBlock::new(vec![Expectation::Stdout(OutputExpectation {
+                        matcher: OutputMatcher::TextEquals(TextValueExpression::Binding(
+                            BindingReference {
+                                name: "captured".to_string(),
+                                reference_span: LocatedSpan {
+                                    start: 0,
+                                    end: 0,
+                                    line: 1,
+                                    column: 1,
+                                },
+                            },
+                        )),
+                    })])
+                    .unwrap(),
+                ),
+            ],
+        }],
+    };
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    // The case body's own output differs from the captured setup output, so the
+    // expectation fails — what matters here is the provenance it reports.
+    assert!(matches!(result.cases[0].status, CaseStatus::Fail));
+    assert_eq!(result.cases[0].actions.len(), 2);
+    let ExpectationKind::StdoutTextEquals {
+        expected_source: TextValueProvenance::Binding { name, source },
+        ..
+    } = &result.cases[0].assertion_blocks[0].expectations[0].kind
+    else {
+        panic!(
+            "expected a binding-sourced stdout text_equals, got {:?}",
+            result.cases[0].assertion_blocks[0].expectations[0].kind
+        );
+    };
+    assert_eq!(name, "captured");
+    assert_eq!(source.action_index, 0, "names the before_each action");
+}
+
+#[test]
 fn a_before_each_assertion_failure_fails_only_its_own_concrete_case() {
     // `false` makes the setup assertion fail for both cases. Each concrete
     // case fails on its own; neither runs its body, and the first failure does

@@ -193,6 +193,7 @@ v0 rules:
 - `before_each` is optional.
 - At most one `before_each` block is allowed per module (`parse.before_each.duplicate`).
 - `before_each` must appear before any `case` block, and must not separate a `document case` block from its target case (`parse.before_each.after_case`).
+  - Placement is validated positionally, as the source is read. A misplaced `before_each` whose bindings a preceding case already references therefore reports that reference's scope diagnostic (`semantic.binding.undefined`) rather than the placement error, because the case is validated before the block is reached.
 - `before_each` is not shared state; it is replayed inside each concrete case workspace.
 - Workspace state `before_each` produces — files it writes, and files its actions create — exists before the case body's first step, and is workspace evidence at the case body's initial checkpoint (see "Initial checkpoint" below).
 - A `before_each` step that fails at runtime is a runtime step error for that concrete case; the case body does not run.

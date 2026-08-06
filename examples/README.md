@@ -966,7 +966,7 @@ case "dir contains an entry" {
 Source: examples/before-each.repor
 
 A `before_each` block seeds every case's isolated workspace with the same files, so each case starts from an identical, explicit state.
-It holds the same steps a case body holds — `$` actions, `assert` blocks, and `write` steps — and, like a `document file` block, it appears at most once, before the first case.
+It holds the same steps a case body holds — `$` actions, `assert` blocks, `let` bindings, and `write` steps — and, like a `document file` block, it appears at most once, before the first case.
 
 <a id="case-6-1-1-the-seeded-files-are-present-before-any-action"></a>
 #### the seeded files are present before any action
