@@ -126,18 +126,6 @@ pub enum ParseError {
     BeforeEachAfterCase {
         line: usize,
     },
-    /// A `before_each` body contains a `$` action step. Actions are banned
-    /// there regardless of the command; setup commands belong in each case
-    /// body. See the `before_each` ADR.
-    BeforeEachActionStep {
-        line: usize,
-    },
-    /// A `before_each` body contains an `assert` block. Setup results are
-    /// verified at the start of each case body instead; see the `before_each`
-    /// ADR and the deferred-topics record.
-    BeforeEachAssertionBlock {
-        line: usize,
-    },
     /// A `before_each` block contains no steps.
     EmptyBeforeEach {
         line: usize,
@@ -308,17 +296,9 @@ impl std::fmt::Display for ParseError {
                 f,
                 "parse error at line {line}: `before_each` must appear before all `document case` blocks and cases"
             ),
-            ParseError::BeforeEachActionStep { line } => write!(
-                f,
-                "parse error at line {line}: `before_each` must not contain a `$` action step; run setup commands in each case body instead"
-            ),
-            ParseError::BeforeEachAssertionBlock { line } => write!(
-                f,
-                "parse error at line {line}: `before_each` must not contain an `assert` block; verify setup results at the start of each case body instead"
-            ),
             ParseError::EmptyBeforeEach { line } => write!(
                 f,
-                "parse error at line {line}: `before_each` block must contain at least one `write` step"
+                "parse error at line {line}: `before_each` block must contain at least one step"
             ),
             ParseError::BeforeEachBindingStep { line } => write!(
                 f,
@@ -428,10 +408,6 @@ impl ParseError {
             ParseError::OrphanDocumentCase { .. } => DiagnosticCode::ParseDocumentCaseOrphan,
             ParseError::DuplicateBeforeEach { .. } => DiagnosticCode::ParseBeforeEachDuplicate,
             ParseError::BeforeEachAfterCase { .. } => DiagnosticCode::ParseBeforeEachAfterCase,
-            ParseError::BeforeEachActionStep { .. } => DiagnosticCode::ParseBeforeEachActionStep,
-            ParseError::BeforeEachAssertionBlock { .. } => {
-                DiagnosticCode::ParseBeforeEachAssertionBlock
-            }
             ParseError::EmptyBeforeEach { .. } => DiagnosticCode::ParseBeforeEachEmpty,
             ParseError::BeforeEachBindingStep { .. } => {
                 DiagnosticCode::SemanticBindingBeforeEachForbidden
@@ -580,8 +556,6 @@ impl ParseError {
             | ParseError::OrphanDocumentCase { line }
             | ParseError::DuplicateBeforeEach { line }
             | ParseError::BeforeEachAfterCase { line }
-            | ParseError::BeforeEachActionStep { line }
-            | ParseError::BeforeEachAssertionBlock { line }
             | ParseError::EmptyBeforeEach { line }
             | ParseError::BeforeEachBindingStep { line } => (
                 Some(DiagnosticLocation {

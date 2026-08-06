@@ -9,7 +9,7 @@ use reportage_core::result::{
     CaseStatus, ContentsEqualsComparison, ContentsEqualsExpectedSource, ContentsEqualsObservation,
     ContentsEqualsOutcome, DirContainsObservation, DirExistsObservation, ExecutionReport,
     ExpectationKind, ExpectationResult, FileContentObservation, FileErrorKind,
-    FileExistsObservation, TextValueProvenance,
+    FileExistsObservation, StepOrigin, StepPhase, TextValueProvenance,
 };
 
 use super::OutputRenderer;
@@ -80,7 +80,7 @@ fn print_results(result: &ExecutionReport) {
         for block in &case.assertion_blocks {
             for expectation in &block.expectations {
                 if !expectation.passed {
-                    print_failed_expectation(block.origin.step_index, expectation);
+                    print_failed_expectation(&step_label(block.origin), expectation);
                 }
             }
         }
@@ -108,26 +108,41 @@ fn print_results(result: &ExecutionReport) {
     }
 }
 
+/// Names the assertion block a failure came from, as the prefix of every line
+/// describing it.
+///
+/// A case running `before_each` has two independently numbered step lists, so
+/// the step number alone is ambiguous: `before_each` step 1 and case body step
+/// 1 are different steps of the same concrete case. The phase disambiguates
+/// them. A case body label stays exactly what it was before `before_each` held
+/// assertions, so existing output and expectations on it are unchanged.
+///
+/// Step numbers are 1-based here; `StepOrigin::step_index` is 0-based.
+fn step_label(origin: StepOrigin) -> String {
+    let step = origin.step_index + 1;
+    match origin.phase {
+        StepPhase::BeforeEach => format!("before_each assertion block at step {step}"),
+        StepPhase::Case => format!("assertion block at step {step}"),
+    }
+}
+
 /// Prints why one failed top-level expectation within an assertion block did not hold.
 ///
 /// Recurses into a `not` / `all` / `any` composition's children, printing every child's own detail rather than filtering by the child's own pass/fail state.
 /// This matters for `not`: when a `not` block fails, that means its (grouped) contents *held* — none of its children individually failed — so filtering for failed children would print nothing and lose the information needed to explain the negation's failure.
 /// Always recursing into every child, described in its own held/did-not-hold terms, keeps `all` / `any` failures explainable too, without needing a separate per-operator rule for which children are "responsible".
-fn print_failed_expectation(step_index: usize, expectation: &ExpectationResult) {
-    print_expectation_detail(step_index, expectation);
+fn print_failed_expectation(block: &str, expectation: &ExpectationResult) {
+    print_expectation_detail(block, expectation);
     if let Some(code) = expectation.failure_diagnostic_code() {
         eprintln!("    diagnostic code: {}", code.as_str());
     }
 }
 
-fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) {
+fn print_expectation_detail(block: &str, expectation: &ExpectationResult) {
     let held = expectation.passed;
     match &expectation.kind {
         ExpectationKind::Exit { expected, actual } => {
-            eprintln!(
-                "  assertion block at step {}: expected exit {expected}, got {actual}",
-                step_index + 1,
-            );
+            eprintln!("  {block}: expected exit {expected}, got {actual}",);
         }
         ExpectationKind::StdoutContains {
             expected_source,
@@ -135,8 +150,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
         } => {
             let verb = if held { "contains" } else { "does not contain" };
             eprintln!(
-                "  assertion block at step {}: stdout {verb} {}",
-                step_index + 1,
+                "  {block}: stdout {verb} {}",
                 format_text_equals_source(expected_source),
             );
             // Lossy decode is display-only here; the canonical actual value stays raw bytes.
@@ -148,8 +162,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
         } => {
             let verb = if held { "contains" } else { "does not contain" };
             eprintln!(
-                "  assertion block at step {}: stderr {verb} {}",
-                step_index + 1,
+                "  {block}: stderr {verb} {}",
                 format_text_equals_source(expected_source),
             );
             eprintln!("    actual stderr: {:?}", String::from_utf8_lossy(actual));
@@ -160,10 +173,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
             } else {
                 "was expected to be empty"
             };
-            eprintln!(
-                "  assertion block at step {}: stdout {phrase}",
-                step_index + 1,
-            );
+            eprintln!("  {block}: stdout {phrase}",);
             eprintln!("    actual stdout: {:?}", String::from_utf8_lossy(actual));
         }
         ExpectationKind::StderrEmpty { actual } => {
@@ -172,10 +182,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
             } else {
                 "was expected to be empty"
             };
-            eprintln!(
-                "  assertion block at step {}: stderr {phrase}",
-                step_index + 1,
-            );
+            eprintln!("  {block}: stderr {phrase}",);
             eprintln!("    actual stderr: {:?}", String::from_utf8_lossy(actual));
         }
         ExpectationKind::FileExists { path, observation } => {
@@ -186,11 +193,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
                     "it is not a regular file (e.g. a directory)"
                 }
             };
-            eprintln!(
-                "  assertion block at step {}: file {:?} — {reason}",
-                step_index + 1,
-                path,
-            );
+            eprintln!("  {block}: file {:?} — {reason}", path,);
         }
         ExpectationKind::FileContains {
             path,
@@ -210,11 +213,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
                 FileContentObservation::Unreadable => "it could not be read".to_string(),
                 FileContentObservation::NotUtf8 => "its content is not valid UTF-8".to_string(),
             };
-            eprintln!(
-                "  assertion block at step {}: file {:?} — {reason}",
-                step_index + 1,
-                path,
-            );
+            eprintln!("  {block}: file {:?} — {reason}", path,);
         }
         ExpectationKind::FileContentsEquals {
             path,
@@ -224,25 +223,22 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
             let source_display = format_expected_source(expected_source);
             match observation {
                 ContentsEqualsObservation::Compared(comparison) => print_byte_comparison_detail(
-                    step_index,
+                    block,
                     &format!("file {path:?}"),
                     "contents_equals",
                     &source_display,
                     comparison,
                 ),
                 ContentsEqualsObservation::ActualMissing => eprintln!(
-                    "  assertion block at step {}: file {:?} contents_equals {source_display} — it does not exist",
-                    step_index + 1,
+                    "  {block}: file {:?} contents_equals {source_display} — it does not exist",
                     path,
                 ),
                 ContentsEqualsObservation::ActualNotRegularFile => eprintln!(
-                    "  assertion block at step {}: file {:?} contents_equals {source_display} — it is not a regular file (e.g. a directory)",
-                    step_index + 1,
+                    "  {block}: file {:?} contents_equals {source_display} — it is not a regular file (e.g. a directory)",
                     path,
                 ),
                 ContentsEqualsObservation::ActualUnreadable => eprintln!(
-                    "  assertion block at step {}: file {:?} contents_equals {source_display} — it could not be read",
-                    step_index + 1,
+                    "  {block}: file {:?} contents_equals {source_display} — it could not be read",
                     path,
                 ),
             }
@@ -255,25 +251,22 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
             let source_display = format_text_equals_source(expected_source);
             match observation {
                 ContentsEqualsObservation::Compared(comparison) => print_byte_comparison_detail(
-                    step_index,
+                    block,
                     &format!("file {path:?}"),
                     "text_equals",
                     &source_display,
                     comparison,
                 ),
                 ContentsEqualsObservation::ActualMissing => eprintln!(
-                    "  assertion block at step {}: file {:?} text_equals {source_display} — it does not exist",
-                    step_index + 1,
+                    "  {block}: file {:?} text_equals {source_display} — it does not exist",
                     path,
                 ),
                 ContentsEqualsObservation::ActualNotRegularFile => eprintln!(
-                    "  assertion block at step {}: file {:?} text_equals {source_display} — it is not a regular file (e.g. a directory)",
-                    step_index + 1,
+                    "  {block}: file {:?} text_equals {source_display} — it is not a regular file (e.g. a directory)",
                     path,
                 ),
                 ContentsEqualsObservation::ActualUnreadable => eprintln!(
-                    "  assertion block at step {}: file {:?} text_equals {source_display} — it could not be read",
-                    step_index + 1,
+                    "  {block}: file {:?} text_equals {source_display} — it could not be read",
                     path,
                 ),
             }
@@ -282,7 +275,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
             expected_source,
             comparison,
         } => print_byte_comparison_detail(
-            step_index,
+            block,
             "stdout",
             "contents_equals",
             &format_expected_source(expected_source),
@@ -292,7 +285,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
             expected_source,
             comparison,
         } => print_byte_comparison_detail(
-            step_index,
+            block,
             "stderr",
             "contents_equals",
             &format_expected_source(expected_source),
@@ -302,7 +295,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
             expected_source,
             comparison,
         } => print_byte_comparison_detail(
-            step_index,
+            block,
             "stdout",
             "text_equals",
             &format_text_equals_source(expected_source),
@@ -312,7 +305,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
             expected_source,
             comparison,
         } => print_byte_comparison_detail(
-            step_index,
+            block,
             "stderr",
             "text_equals",
             &format_text_equals_source(expected_source),
@@ -326,11 +319,7 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
                     "it is not a directory (e.g. a regular file)"
                 }
             };
-            eprintln!(
-                "  assertion block at step {}: dir {:?} — {reason}",
-                step_index + 1,
-                path,
-            );
+            eprintln!("  {block}: dir {:?} — {reason}", path,);
         }
         ExpectationKind::DirContains {
             path,
@@ -350,21 +339,13 @@ fn print_expectation_detail(step_index: usize, expectation: &ExpectationResult) 
                 }
                 DirContainsObservation::SubjectUnreadable => "it could not be read".to_string(),
             };
-            eprintln!(
-                "  assertion block at step {}: dir {:?} — {reason}",
-                step_index + 1,
-                path,
-            );
+            eprintln!("  {block}: dir {:?} — {reason}", path,);
         }
         ExpectationKind::Logical { operator, children } => {
             let status = if held { "held" } else { "did not hold" };
-            eprintln!(
-                "  assertion block at step {}: '{}' block {status}",
-                step_index + 1,
-                operator.keyword(),
-            );
+            eprintln!("  {block}: '{}' block {status}", operator.keyword(),);
             for child in children {
-                print_failed_expectation(step_index, child);
+                print_failed_expectation(block, child);
             }
         }
     }
@@ -411,7 +392,7 @@ fn format_text_equals_source(source: &TextValueProvenance) -> String {
 /// source (`contents_equals` or `text_equals`), so the subject description matches what the
 /// author wrote. See `reportage_core::contents_diagnostic` and docs/reference/semantic-diagnostics.md.
 fn print_byte_comparison_detail(
-    step_index: usize,
+    block: &str,
     subject: &str,
     operator: &str,
     source_display: &str,
@@ -419,17 +400,11 @@ fn print_byte_comparison_detail(
 ) {
     match &comparison.outcome {
         ContentsEqualsOutcome::Match => {
-            eprintln!(
-                "  assertion block at step {}: {subject} {operator} {source_display} — bytes match",
-                step_index + 1,
-            );
+            eprintln!("  {block}: {subject} {operator} {source_display} — bytes match",);
         }
         ContentsEqualsOutcome::Mismatch(mismatch) => {
             let ctx = mismatch_context(&comparison.actual, &comparison.expected, mismatch);
-            eprintln!(
-                "  assertion block at step {}: {subject} {operator} {source_display} — bytes differ",
-                step_index + 1,
-            );
+            eprintln!("  {block}: {subject} {operator} {source_display} — bytes differ",);
             eprintln!(
                 "    actual length: {}, expected length: {}",
                 mismatch.actual_len, mismatch.expected_len,

@@ -1,6 +1,6 @@
 # `before_each` Is Write-Only Case-Local Setup
 
-- Status: Accepted
+- Status: Superseded by [20260806T090000Z_before-each-case-local-setup-phase.md](20260806T090000Z_before-each-case-local-setup-phase.md)
 - Created: 2026-07-23T12:00:00Z
 
 ## Context

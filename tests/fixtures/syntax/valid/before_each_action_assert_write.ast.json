@@ -1,0 +1,68 @@
+{
+  "before_each": {
+    "steps": [
+      {
+        "kind": "action",
+        "command": "mkdir -p fixtures"
+      },
+      {
+        "kind": "assertion_block",
+        "expectations": [
+          {
+            "kind": "exit",
+            "expected": 0
+          },
+          {
+            "kind": "dir",
+            "path": "fixtures",
+            "matcher": {
+              "kind": "exists"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "write_file",
+        "path": "fixtures/seed.txt",
+        "content": {
+          "kind": "quoted",
+          "value": "seed\n"
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "reads a file the setup action's directory holds",
+      "span": {
+        "start": 379,
+        "end": 517
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "cat fixtures/seed.txt"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            },
+            {
+              "kind": "stdout",
+              "matcher": {
+                "kind": "contains",
+                "value": {
+                  "kind": "quoted",
+                  "value": "seed"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

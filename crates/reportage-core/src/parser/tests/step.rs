@@ -306,24 +306,25 @@ fn before_each_after_pending_document_case_is_rejected() {
 }
 
 #[test]
-fn action_step_in_before_each_is_rejected() {
-    let src = format!("before_each {{\n  $ mkdir -p fixtures\n}}\n\n{PASSING_CASE}");
-    let err = parse(&src).unwrap_err();
-    assert!(matches!(err, ParseError::BeforeEachActionStep { line: 2 }));
-    assert_eq!(err.code().as_str(), "parse.before_each.action_step");
-}
-
-#[test]
-fn assertion_block_in_before_each_is_rejected() {
+fn before_each_keeps_action_assert_and_write_steps_in_source_order() {
+    // The same three step kinds a case body accepts, parsed into the same
+    // `Step` values and left in the order they were written.
     let src = format!(
-        "before_each {{\n  write <\"seed.txt\"> \"seed\\n\"\n  assert {{ file <\"seed.txt\"> exists }}\n}}\n\n{PASSING_CASE}"
+        "before_each {{\n  $ mkdir -p fixtures\n  assert {{ dir <\"fixtures\"> exists }}\n  write <\"seed.txt\"> \"seed\\n\"\n}}\n\n{PASSING_CASE}"
     );
-    let err = parse(&src).unwrap_err();
-    assert!(matches!(
-        err,
-        ParseError::BeforeEachAssertionBlock { line: 3 }
-    ));
-    assert_eq!(err.code().as_str(), "parse.before_each.assertion_block");
+    let script = parse_script(&src).unwrap();
+    let before_each = script.before_each.expect("before_each must be parsed");
+    let steps = before_each.steps();
+    assert_eq!(steps.len(), 3);
+    let Step::Action(action) = &steps[0] else {
+        panic!("first before_each step must be an action");
+    };
+    assert_eq!(action.command, "mkdir -p fixtures");
+    assert!(matches!(steps[1], Step::AssertionBlock(_)));
+    let Step::SideEffect(SideEffectingStep::WriteFile(write)) = &steps[2] else {
+        panic!("third before_each step must be a write step");
+    };
+    assert_eq!(write.path.as_str(), "seed.txt");
 }
 
 #[test]
