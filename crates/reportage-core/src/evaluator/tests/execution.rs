@@ -411,44 +411,28 @@ fn the_body_entry_checkpoint_keeps_workspace_state_and_drops_process_evidence() 
 }
 
 #[test]
-fn a_before_each_binding_names_the_setup_action_it_captured_from() {
-    // Provenance uses the concrete case's own action numbering across both
-    // phases, so a binding declared in `before_each` points at the setup action
-    // (index 0) even though the case body ran an action of its own afterwards.
+fn binding_provenance_numbers_actions_across_the_whole_concrete_case() {
+    // Provenance uses the concrete case's own action numbering, not a
+    // phase-relative counter: the `before_each` binding names action 0 and the
+    // case body binding names action 1. Index 0 alone would not tell the two
+    // numbering schemes apart, so both are asserted.
     let before_each = BeforeEach::new(vec![
         action("printf 'from-setup'"),
-        Step::Binding(BindingDeclaration {
-            name: "captured".to_string(),
-            source: RuntimeEvidenceSource::StdoutExact,
-            declaration_span: LocatedSpan {
-                start: 0,
-                end: 0,
-                line: 1,
-                column: 1,
-            },
-        }),
+        binding_step("captured"),
     ])
     .unwrap();
     let script = Script {
         before_each: Some(before_each),
         cases: vec![Case {
-            name: "uses the setup binding".to_string(),
+            name: "uses both bindings".to_string(),
             steps: vec![
                 action("printf 'from-body'"),
+                binding_step("from_body"),
                 Step::AssertionBlock(
-                    AssertionBlock::new(vec![Expectation::Stdout(OutputExpectation {
-                        matcher: OutputMatcher::TextEquals(TextValueExpression::Binding(
-                            BindingReference {
-                                name: "captured".to_string(),
-                                reference_span: LocatedSpan {
-                                    start: 0,
-                                    end: 0,
-                                    line: 1,
-                                    column: 1,
-                                },
-                            },
-                        )),
-                    })])
+                    AssertionBlock::new(vec![
+                        stdout_text_equals_binding("captured"),
+                        stdout_text_equals_binding("from_body"),
+                    ])
                     .unwrap(),
                 ),
             ],
@@ -460,22 +444,38 @@ fn a_before_each_binding_names_the_setup_action_it_captured_from() {
         Path::new("test.repor"),
         &default_commands(),
     );
-    // The case body's own output differs from the captured setup output, so the
-    // expectation fails — what matters here is the provenance it reports.
+    // The setup output differs from the body output, so the first expectation
+    // fails and the second passes — what matters here is the provenance each
+    // one reports.
     assert!(matches!(result.cases[0].status, CaseStatus::Fail));
     assert_eq!(result.cases[0].actions.len(), 2);
+    let expectations = &result.cases[0].assertion_blocks[0].expectations;
+    assert_eq!(
+        binding_provenance(&expectations[0]),
+        ("captured".to_string(), 0),
+        "a before_each binding names the setup action"
+    );
+    assert_eq!(
+        binding_provenance(&expectations[1]),
+        ("from_body".to_string(), 1),
+        "a case body binding names the case body action"
+    );
+}
+
+/// The binding name and provenance action index a `stdout text_equals &name`
+/// expectation reports.
+fn binding_provenance(expectation: &ExpectationResult) -> (String, usize) {
     let ExpectationKind::StdoutTextEquals {
         expected_source: TextValueProvenance::Binding { name, source },
         ..
-    } = &result.cases[0].assertion_blocks[0].expectations[0].kind
+    } = &expectation.kind
     else {
         panic!(
             "expected a binding-sourced stdout text_equals, got {:?}",
-            result.cases[0].assertion_blocks[0].expectations[0].kind
+            expectation.kind
         );
     };
-    assert_eq!(name, "captured");
-    assert_eq!(source.action_index, 0, "names the before_each action");
+    (name.clone(), source.action_index)
 }
 
 #[test]
