@@ -160,11 +160,7 @@ fn assert_file_text_equals_heredoc(actual_path: &str, expected_text: &str) -> St
 }
 
 fn before_each_writing(path: &str, content: &str) -> BeforeEach {
-    BeforeEach::new(vec![SideEffectingStep::WriteFile(WriteFileStep {
-        path: WorkspacePath::parse(path).unwrap(),
-        content: TextValueExpression::Raw(TextLiteral::Quoted(content.to_string())),
-    })])
-    .unwrap()
+    BeforeEach::new(vec![write_step(path, content)]).unwrap()
 }
 
 fn assert_file_exists_step(path: &str) -> Step {

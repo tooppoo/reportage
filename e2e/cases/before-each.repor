@@ -197,6 +197,31 @@ case "an empty before_each block is a parse error" {
   }
 }
 
+case "a failing before_each step names the block and its step position" {
+  write <"inner.repor"> ```
+    before_each {
+      write <"a.txt"> "first\n"
+      write <"a.txt"> "second\n"
+    }
+
+    case "never runs its body" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 3
+    stderr contains "before_each write step at step 2"
+    stderr contains "step.write.target_exists"
+    stderr contains "never runs its body"
+  }
+}
+
 case "a case body write to a before_each path is a runtime step error" {
   write <"inner.repor"> ```
     before_each {

@@ -110,10 +110,9 @@ impl<'a> From<&'a SourceFile> for SnapshotScript<'a> {
     }
 }
 
-/// Mirrors `model::BeforeEach`. Steps reuse `SnapshotStep`, so the snapshot
-/// shows the same `write_file` step shape as a case body — but only that
-/// shape can ever appear here, because the model holds `SideEffectingStep`s
-/// only.
+/// Mirrors `model::BeforeEach`. Steps reuse `SnapshotStep` because the model
+/// holds the same `Step` as a case body, so any step the parser accepts here
+/// snapshots in exactly the shape it has in a case body.
 #[derive(Serialize)]
 struct SnapshotBeforeEach<'a> {
     steps: Vec<SnapshotStep<'a>>,

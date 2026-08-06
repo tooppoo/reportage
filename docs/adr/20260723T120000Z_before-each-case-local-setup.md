@@ -3,6 +3,8 @@
 - Status: Accepted
 - Created: 2026-07-23T12:00:00Z
 
+> **Amendment (#227)**: `before_each` now holds the same `Step` as a case body and runs through the same executor, so the write-only rule is enforced by the parser (`parse.before_each.action_step` / `.assertion_block` / `.binding_step`) rather than by the block's step type, and a setup failure carries a `before_each`-phase step origin rather than only a message. The write-only decision itself is unchanged here; #227 supersedes it in a separate ADR.
+
 ## Context
 
 Reportage's semantics give every concrete case an isolated workspace (see [ADR: Adopt `write` Step, Fenced Raw Text Block, and Real Per-Case Workspace Isolation](20260704T183546Z_write-step-and-per-case-workspace-isolation.md)). When several cases in one module need the same input fixture, config file, or expected file, each case body has to repeat the same `write` steps.

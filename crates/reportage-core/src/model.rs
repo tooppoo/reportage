@@ -20,16 +20,20 @@ pub struct Script {
 /// inside each concrete case's isolated workspace, after the workspace is
 /// created and before the case body's first step.
 ///
-/// Holds [`SideEffectingStep`]s only, so an action step or assertion block
-/// is unrepresentable here by construction — the write-only policy is
-/// structural, not a validation pass a future caller could forget to run.
-/// `before_each` is never shared state: each concrete case replays these
-/// steps against its own fresh workspace.
+/// Holds the same [`Step`] as a case body, in source order, so setup and case
+/// body share one step model and one executor. Which steps `before_each`
+/// actually accepts is a parser rule rather than a property of this type: the
+/// alternative — a narrower step type per block kind — makes every step added
+/// to a case body a second, independent decision about `before_each`, and
+/// forces two execution paths for identical semantics.
+///
+/// `before_each` is never shared state: each concrete case replays these steps
+/// against its own fresh workspace.
 /// See docs/reference/execution-model.md — `before_each`, and the
 /// accompanying ADR.
 #[derive(Debug)]
 pub struct BeforeEach {
-    steps: Vec<SideEffectingStep>,
+    steps: Vec<Step>,
 }
 
 /// Error returned when constructing a `BeforeEach` with invalid content.
@@ -46,14 +50,14 @@ pub enum BeforeEachError {
 
 impl BeforeEach {
     /// Construct a `BeforeEach`, rejecting an empty step list.
-    pub fn new(steps: Vec<SideEffectingStep>) -> Result<Self, BeforeEachError> {
+    pub fn new(steps: Vec<Step>) -> Result<Self, BeforeEachError> {
         if steps.is_empty() {
             return Err(BeforeEachError::Empty);
         }
         Ok(Self { steps })
     }
 
-    pub fn steps(&self) -> &[SideEffectingStep] {
+    pub fn steps(&self) -> &[Step] {
         &self.steps
     }
 }

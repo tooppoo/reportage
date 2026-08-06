@@ -19,18 +19,20 @@ use std::collections::HashSet;
 pub(super) const WRITE_CONTENT_POSITION: TextValuePosition =
     TextValuePosition::new("`write` step content", TextSurface::InlineAndHeredoc);
 
-/// Parses a `before_each_block` pair into the write-only [`BeforeEach`] model.
+/// Parses a `before_each_block` pair into the [`BeforeEach`] model.
 ///
-/// The grammar deliberately accepts the full case-body step surface here (see
-/// the `before_each_block` rule), so the write-only policy is enforced in this
-/// function: an action step or assertion block is rejected with a diagnostic
-/// naming the ban and the allowed alternative, at the offending step's line.
+/// `BeforeEach` holds the same [`Step`] as a case body, so which steps
+/// `before_each` accepts is decided here rather than by its step type: the
+/// grammar accepts the full case-body step surface (see the
+/// `before_each_block` rule), and each step still banned is rejected with a
+/// diagnostic naming the ban and the allowed alternative, at the offending
+/// step's line.
 pub(super) fn parse_before_each_block(
     pair: pest::iterators::Pair<Rule>,
 ) -> Result<BeforeEach, ParseError> {
     let line = pair.line_col().0;
 
-    let mut steps: Vec<SideEffectingStep> = Vec::new();
+    let mut steps: Vec<Step> = Vec::new();
     for pair in pair.into_inner() {
         match pair.as_rule() {
             Rule::action_step => {
@@ -54,7 +56,7 @@ pub(super) fn parse_before_each_block(
                 if !write.content.binding_references().is_empty() {
                     return Err(ParseError::BeforeEachBindingStep { line });
                 }
-                steps.push(step);
+                steps.push(Step::SideEffect(step));
             }
             Rule::binding_step => {
                 return Err(ParseError::BeforeEachBindingStep {
