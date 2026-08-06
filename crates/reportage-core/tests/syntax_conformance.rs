@@ -909,10 +909,22 @@ fn semantic_invalid_binding_fixtures_parse_grammar_but_fail_construction_validat
     // leading digit, and only parser construction rejects it.
     let expected = [
         (
+            "before_each_binding_requires_action",
+            "semantic.binding.requires_action",
+        ),
+        (
+            "before_each_reference_to_case_body_binding",
+            "semantic.binding.undefined",
+        ),
+        (
             "binding_declaration_invalid_identifier",
             "semantic.binding.invalid_identifier",
         ),
         ("binding_duplicate", "semantic.binding.duplicate"),
+        (
+            "binding_redeclared_in_case_body",
+            "semantic.binding.duplicate",
+        ),
         (
             "binding_reference_invalid_identifier",
             "semantic.binding.invalid_identifier",
@@ -923,8 +935,8 @@ fn semantic_invalid_binding_fixtures_parse_grammar_but_fail_construction_validat
             "semantic.binding.use_before_declaration",
         ),
         (
-            "interpolated_text_in_before_each",
-            "semantic.binding.before_each_forbidden",
+            "case_body_binding_requires_case_body_action",
+            "semantic.binding.requires_action",
         ),
         (
             "interpolated_text_invalid_identifier",

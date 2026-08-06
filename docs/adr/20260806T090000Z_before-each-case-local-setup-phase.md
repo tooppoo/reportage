@@ -23,7 +23,7 @@ The earlier ADR deferred assertions inside `before_each` on three open questions
 
 `before_each` must hold the same step model as a case body, in source order. A step kind added to a case body should become available in `before_each` without a second decision; an exception must be justified by a reason specific to that step kind.
 
-`$` action steps, `assert` blocks, and `write` steps are accepted. `let` runtime evidence bindings, and binding references inside `write` content, are rejected for now — not because a binding is unsuited to setup, but because the binding scope that spans the two phases is a separate decision, recorded when it is made.
+`$` action steps, `assert` blocks, and `write` steps are accepted. `let` runtime evidence bindings, and binding references inside `write` content, are rejected for now — not because a binding is unsuited to setup, but because the binding scope that spans the two phases is a separate decision, recorded when it is made. It is made in [ADR: Runtime Evidence Binding Scope Across `before_each` and the Case Body](20260806T140000Z_before-each-binding-scope.md).
 
 Which steps `before_each` accepts is therefore a parser rule, not a property of its step type. This gives up the structural guarantee the superseded ADR valued, in exchange for one step model and one executor across both phases.
 
@@ -120,4 +120,4 @@ Rejected: a case would then pass its structural check without asserting anything
 ### Neutral Consequences
 
 - Removes the `parse.before_each.action_step` and `parse.before_each.assertion_block` diagnostic codes. Per [Diagnostic Codes](../reference/diagnostics.md), v0 does not commit to a strict semver policy for codes; this ADR is the record of their removal.
-- `let` inside `before_each` remains rejected (`semantic.binding.before_each_forbidden`) until the cross-phase binding scope is decided.
+- `let` inside `before_each` remains rejected (`semantic.binding.before_each_forbidden`) until the cross-phase binding scope is decided. See [ADR: Runtime Evidence Binding Scope Across `before_each` and the Case Body](20260806T140000Z_before-each-binding-scope.md).

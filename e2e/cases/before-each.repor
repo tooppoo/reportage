@@ -180,6 +180,82 @@ case "a case body's first workspace assertion observes a before_each action" {
   }
 }
 
+case "a before_each binding is usable in before_each and in the case body" {
+  write <"inner.repor"> `````
+    before_each {
+      $ pwd
+      let workspace <- stdout_line
+
+      write <"fake-gitconfig"> &```
+        [url "file://&{workspace}/gist-repo"]
+          insteadOf = https://gist.github.com/example.git
+        ```
+    }
+
+    case "reads the setup binding from its own body" {
+      assert {
+        file <"fake-gitconfig"> contains &"file://&{workspace}/gist-repo"
+      }
+    }
+    `````
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+case "a case body let cannot capture a before_each action's output" {
+  write <"inner.repor"> ```
+    before_each {
+      $ printf 'setup\n'
+      assert {
+        exit 0
+      }
+    }
+
+    case "asks for output it never produced" {
+      let value <- stdout_line
+      assert {
+        file <"nothing.txt"> exists
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.binding.requires_action"
+  }
+}
+
+case "a case body must not redeclare a before_each binding" {
+  write <"inner.repor"> ```
+    before_each {
+      $ pwd
+      let workspace <- stdout_line
+    }
+
+    case "redeclares the setup binding" {
+      $ pwd
+      let workspace <- stdout_line
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.binding.duplicate"
+  }
+}
+
 case "a process expectation before before_each's first action is a script error" {
   write <"inner.repor"> ```
     before_each {

@@ -130,9 +130,6 @@ pub enum ParseError {
     EmptyBeforeEach {
         line: usize,
     },
-    BeforeEachBindingStep {
-        line: usize,
-    },
     InvalidBindingIdentifier {
         name: String,
         span: LocatedSpan,
@@ -300,10 +297,6 @@ impl std::fmt::Display for ParseError {
                 f,
                 "parse error at line {line}: `before_each` block must contain at least one step"
             ),
-            ParseError::BeforeEachBindingStep { line } => write!(
-                f,
-                "parse error at line {line}: `before_each` must not contain bindings or binding references"
-            ),
             ParseError::InvalidBindingIdentifier { name, span } => write!(
                 f,
                 "parse error at line {line}: binding identifier '{name}' must match [A-Za-z_][A-Za-z0-9_]*",
@@ -409,9 +402,6 @@ impl ParseError {
             ParseError::DuplicateBeforeEach { .. } => DiagnosticCode::ParseBeforeEachDuplicate,
             ParseError::BeforeEachAfterCase { .. } => DiagnosticCode::ParseBeforeEachAfterCase,
             ParseError::EmptyBeforeEach { .. } => DiagnosticCode::ParseBeforeEachEmpty,
-            ParseError::BeforeEachBindingStep { .. } => {
-                DiagnosticCode::SemanticBindingBeforeEachForbidden
-            }
             ParseError::InvalidBindingIdentifier { .. } => {
                 DiagnosticCode::SemanticBindingInvalidIdentifier
             }
@@ -556,8 +546,7 @@ impl ParseError {
             | ParseError::OrphanDocumentCase { line }
             | ParseError::DuplicateBeforeEach { line }
             | ParseError::BeforeEachAfterCase { line }
-            | ParseError::EmptyBeforeEach { line }
-            | ParseError::BeforeEachBindingStep { line } => (
+            | ParseError::EmptyBeforeEach { line } => (
                 Some(DiagnosticLocation {
                     line: *line,
                     column: None,

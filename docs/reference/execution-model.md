@@ -202,8 +202,15 @@ v0 rules:
 Allowed steps:
 
 - `before_each` contains the same steps a case body contains, in source order, and must contain at least one (`parse.before_each.empty`).
-- `$` action steps and `assert` blocks are accepted, and behave exactly as they do in a case body. An action only updates the checkpoint, so verify a setup action's result with an `assert` block inside `before_each`.
-- `let` runtime evidence bindings are rejected (`semantic.binding.before_each_forbidden`), as is a binding reference inside a `before_each` `write` step's content.
+- `$` action steps, `assert` blocks, `let` runtime evidence bindings, and `write` steps are accepted, and behave exactly as they do in a case body. An action only updates the checkpoint, so verify a setup action's result with an `assert` block inside `before_each`.
+
+Runtime evidence binding scope:
+
+- A binding declared in `before_each` is in scope for the rest of `before_each` and for the whole case body that follows.
+- A binding declared in a case body is not in scope for `before_each`, which already ran: a `before_each` reference to such a name is `semantic.binding.undefined`, not a use-before-declaration.
+- A case body must not redeclare a `before_each` binding name (`semantic.binding.duplicate`). There is no shadowing.
+- A binding's provenance names the action it captured from, whichever phase that action is in.
+- `let` requires a preceding action **in its own phase**. The body-entry checkpoint drops the last setup action's process evidence, so a case body `let` placed before the body's first action is `semantic.binding.requires_action` even when `before_each` ran actions.
 
 Checkpoint lifecycle:
 
@@ -214,7 +221,7 @@ Assertion requirement:
 
 - A `before_each` assertion verifies setup, and does not satisfy a case body's own requirement to contain at least one `assert` block (`parse.missing_assertion_block`). A case whose only assertion lives in the shared setup verifies nothing about its own subject.
 
-See [ADR: `before_each` Is a Case-Local Setup Phase](../adr/20260806T090000Z_before-each-case-local-setup-phase.md) for the rationale.
+See [ADR: `before_each` Is a Case-Local Setup Phase](../adr/20260806T090000Z_before-each-case-local-setup-phase.md) and [ADR: Runtime Evidence Binding Scope Across `before_each` and the Case Body](../adr/20260806T140000Z_before-each-binding-scope.md) for the rationale.
 
 Variant-specific setup should usually live in the parameterized `case`, not in `before_each`. This keeps `before_each` independent of case-local parameter context.
 

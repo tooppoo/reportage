@@ -186,7 +186,6 @@ pub enum DiagnosticCode {
     ParseBeforeEachAfterCase,
     /// A `before_each` block contains no steps.
     ParseBeforeEachEmpty,
-    SemanticBindingBeforeEachForbidden,
     SemanticBindingInvalidIdentifier,
     SemanticBindingDuplicate,
     SemanticBindingUndefined,
@@ -273,7 +272,6 @@ impl DiagnosticCode {
         Self::ParseBeforeEachDuplicate,
         Self::ParseBeforeEachAfterCase,
         Self::ParseBeforeEachEmpty,
-        Self::SemanticBindingBeforeEachForbidden,
         Self::SemanticBindingInvalidIdentifier,
         Self::SemanticBindingDuplicate,
         Self::SemanticBindingUndefined,
@@ -397,7 +395,6 @@ impl DiagnosticCode {
             Self::ParseBeforeEachDuplicate => "parse.before_each.duplicate",
             Self::ParseBeforeEachAfterCase => "parse.before_each.after_case",
             Self::ParseBeforeEachEmpty => "parse.before_each.empty",
-            Self::SemanticBindingBeforeEachForbidden => "semantic.binding.before_each_forbidden",
             Self::SemanticBindingInvalidIdentifier => "semantic.binding.invalid_identifier",
             Self::SemanticBindingDuplicate => "semantic.binding.duplicate",
             Self::SemanticBindingUndefined => "semantic.binding.undefined",

@@ -12,7 +12,7 @@ use pest::Parser;
 use pest_derive::Parser;
 
 use self::document::{parse_document_case_block, parse_document_file_block};
-use self::step::{parse_before_each_block, parse_case_block};
+use self::step::{BindingScope, parse_before_each_block, parse_case_block};
 use crate::model::BeforeEach;
 use crate::source::{
     CaseDocumentation, FileDocumentation, SourceCase, SourceFile, SourceSpan, SourceText,
@@ -111,11 +111,11 @@ pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
                 let documentation = pending_case_documentation
                     .take()
                     .map(|(documentation, _)| documentation);
-                cases.push(SourceCase::new(
-                    documentation,
-                    parse_case_block(pair)?,
-                    span,
-                ));
+                // Every case body starts from the same scope: whatever
+                // `before_each` left declared. `before_each` is required to
+                // precede the first case, so it is fully parsed by now.
+                let case = parse_case_block(pair, &BindingScope::after(before_each.as_ref()))?;
+                cases.push(SourceCase::new(documentation, case, span));
             }
             // SOI, EOI, and silent blank/comment lines carry no content.
             _ => {}

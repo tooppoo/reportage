@@ -266,13 +266,13 @@ case "an empty binding name is a script error" {
   }
 }
 
-case "a binding reference inside a before_each write is a script error" {
+case "a before_each write cannot reference a case body binding" {
   write <"inner.repor"> ```
     before_each {
       write <"seed.txt"> &"&{revision}"
     }
 
-    case "before_each has no binding scope" {
+    case "before_each cannot see a case body binding" {
       $ printf 'abc123\n'
       let revision <- stdout_line
       assert {
@@ -285,7 +285,7 @@ case "a binding reference inside a before_each write is a script error" {
 
   assert {
     exit 2
-    stderr contains "semantic.binding.before_each_forbidden"
+    stderr contains "semantic.binding.undefined"
   }
 }
 

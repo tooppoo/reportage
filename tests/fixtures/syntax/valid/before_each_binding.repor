@@ -1,0 +1,17 @@
+# A `before_each` binding is declared from a setup action's output, used later
+# in the same block, and stays in scope for the whole case body.
+before_each {
+  $ pwd
+  let workspace <- stdout_line
+
+  write <"fake-gitconfig"> &```
+    [url "file://&{workspace}/gist-repo"]
+      insteadOf = https://gist.github.com/example.git
+    ```
+}
+
+case "reads the setup binding from the case body" {
+  assert {
+    file <"fake-gitconfig"> contains &"file://&{workspace}/gist-repo"
+  }
+}
