@@ -180,6 +180,32 @@ case "a case body's first workspace assertion observes a before_each action" {
   }
 }
 
+case "a process expectation before before_each's first action is a script error" {
+  write <"inner.repor"> ```
+    before_each {
+      assert {
+        exit 0
+      }
+      $ true
+    }
+
+    case "never runs" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "semantic.expectation.requires_action"
+    stderr contains "before_each assertion block at step 1"
+  }
+}
+
 case "a case body's first process expectation cannot read the setup action" {
   write <"inner.repor"> ```
     before_each {
@@ -318,5 +344,29 @@ case "a case body write to a before_each path is a runtime step error" {
   assert {
     exit 3
     stderr contains "step.write.target_exists"
+  }
+}
+
+case "a case body's first assertion reports the initial checkpoint in JSON" {
+  write <"inner.repor"> ```
+    before_each {
+      $ echo setup > from-setup.txt
+      assert {
+        exit 0
+      }
+    }
+
+    case "asserts on the workspace before acting" {
+      assert {
+        file <"from-setup.txt"> exists
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 0
+    stdout contains "\"checkpoint\": \"initial\""
   }
 }

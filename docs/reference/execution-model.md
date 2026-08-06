@@ -342,16 +342,25 @@ Checkpoints are maintained by the runner as it processes case body steps.
 
 ## Initial checkpoint
 
-The initial checkpoint is established after the case workspace is created, `before_each` has run, and before the first step of the case body executes.
+An initial checkpoint is established at the start of each step sequence a concrete case runs, before that sequence's first step executes. It has:
 
-The initial checkpoint has:
-
-- workspace state (the current case workspace, including any files written by `before_each`);
+- workspace state (the current case workspace);
 - no last action result.
 
-Workspace expectations (`dir <"path"> exists`, `file <"path"> exists`, etc.) are valid at the initial checkpoint.
+Workspace expectations (`dir <"path"> exists`, `file <"path"> exists`, etc.) are valid at an initial checkpoint.
 
-Process expectations (`exit`, `stdout`, `stderr`) require a last action result. Using a process expectation in an assertion block at the initial checkpoint is a **script error**.
+Process expectations (`exit`, `stdout`, `stderr`) require a last action result. Using a process expectation in an assertion block at an initial checkpoint is a **script error**.
+
+A concrete case that runs `before_each` therefore has two initial checkpoints:
+
+- the **setup-entry checkpoint**, established after the case workspace is created and before `before_each`'s first step;
+- the **body-entry checkpoint**, established after `before_each` completes and before the case body's first step.
+
+The body-entry checkpoint carries the workspace state `before_each` produced — files its `write` steps wrote, and files its actions created — but not the last setup action's result. A case body's first `exit` / `stdout` / `stderr` describes something that case body did, never whichever command the shared setup happened to end with.
+
+An assertion evaluated at either checkpoint reports `checkpoint: "initial"` in [JSON output](../../spec/output/json-report/schema.json) and the [run result artifact](../../spec/artifacts/run-result/schema.json). The two are told apart by which block the assertion is written in.
+
+A concrete case with no `before_each` has one initial checkpoint, the body-entry one.
 
 ## Action-updated checkpoint
 

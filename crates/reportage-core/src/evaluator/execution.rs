@@ -551,7 +551,16 @@ fn execute_steps(
                 let block_result = AssertionBlockResult {
                     origin: StepOrigin::new(ctx.phase, step_idx),
                     expectations: expectation_results,
-                    checkpoint_action_index: execution.actions.len().checked_sub(1),
+                    // Derived from the checkpoint this block actually evaluated
+                    // against, not from how many actions the concrete case has
+                    // run. Those differ at a phase-entry checkpoint: a case body
+                    // assertion placed before the body's first action must not
+                    // reference the last `before_each` action.
+                    checkpoint_action_index: execution
+                        .checkpoint
+                        .last_action
+                        .as_ref()
+                        .map(|_| execution.actions.len() - 1),
                 };
                 let failed = block_result.has_failures();
                 execution.assertion_blocks.push(block_result);

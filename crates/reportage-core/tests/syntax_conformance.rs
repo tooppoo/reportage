@@ -682,7 +682,10 @@ fn invalid_syntax_fixtures_are_rejected() {
         };
 
         match fixture_stem(&path) {
-            "empty_action" | "whitespace_only_action" => {
+            // `before_each_empty_action` too: a `before_each` step is parsed by
+            // the same parser a case body step uses, so it reports the same
+            // step-level diagnostic rather than a bare syntax error.
+            "empty_action" | "whitespace_only_action" | "before_each_empty_action" => {
                 assert!(matches!(err, ParseError::EmptyAction { .. }));
                 assert_eq!(err.code().as_str(), "parse.empty_action");
             }

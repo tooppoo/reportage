@@ -1,0 +1,14 @@
+# A step inside `before_each` is parsed by the same parser a case body step
+# uses, so its own step-level diagnostic still applies: an action with no
+# command is `parse.empty_action` here exactly as it is in a case body, not a
+# bare syntax error.
+before_each {
+  $
+}
+
+case "never runs" {
+  $ true
+  assert {
+    exit 0
+  }
+}

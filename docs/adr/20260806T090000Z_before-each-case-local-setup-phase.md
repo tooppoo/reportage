@@ -37,7 +37,9 @@ Guaranteeing setup determinism remains a non-goal.
 
 ### Actions and assertions are permitted together
 
-An action must not be permitted without an assertion block. A `$` step only updates the checkpoint; a non-zero exit is not by itself a failure. Setup that can run a command but cannot verify it fails silently and surfaces later as a confusing case body failure.
+Actions must not be permitted in `before_each` unless assertion blocks are permitted alongside them. This constrains the language design, not each individual `before_each` body: a block containing an action but no assertion is accepted, exactly as a case body's action needs no assertion immediately after it.
+
+The reason the two travel together is that a `$` step only updates the checkpoint; a non-zero exit is not by itself a failure. Setup that can run a command but cannot verify it fails silently and surfaces later as a confusing case body failure.
 
 ### A setup failure belongs to the concrete case being set up
 
