@@ -311,21 +311,14 @@ fn before_each_replays_into_every_concrete_case_workspace() {
 }
 
 #[test]
-fn before_each_write_failure_is_runtime_error_without_a_step_origin() {
+fn before_each_write_failure_is_attributed_to_the_before_each_phase() {
     // Two `before_each` writes to the same path: the second violates the
-    // create-only overwrite policy. The failure belongs to the module-level
-    // block, not to any case body step, so it carries no `origin` and the
-    // message carries the position inside `before_each` instead. Reporting it
-    // as a `StepPhase::BeforeEach` origin is deferred.
+    // create-only overwrite policy. The failure belongs to the concrete case
+    // that was running the setup, and its origin names the `before_each`
+    // phase and the failing step's position within that block.
     let before_each = BeforeEach::new(vec![
-        SideEffectingStep::WriteFile(WriteFileStep {
-            path: WorkspacePath::parse("a.txt").unwrap(),
-            content: TextValueExpression::Raw(TextLiteral::Quoted("first".to_string())),
-        }),
-        SideEffectingStep::WriteFile(WriteFileStep {
-            path: WorkspacePath::parse("a.txt").unwrap(),
-            content: TextValueExpression::Raw(TextLiteral::Quoted("second".to_string())),
-        }),
+        write_step("a.txt", "first"),
+        write_step("a.txt", "second"),
     ])
     .unwrap();
     let script = Script {
@@ -348,11 +341,16 @@ fn before_each_write_failure_is_runtime_error_without_a_step_origin() {
         );
     };
     assert!(
-        runtime_error.message.contains("before_each write step 2"),
+        runtime_error
+            .message
+            .contains("before_each write step at step 2"),
         "message must name the failing before_each step: {}",
         runtime_error.message
     );
-    assert_eq!(runtime_error.origin, None);
+    assert_eq!(
+        runtime_error.origin,
+        Some(StepOrigin::new(StepPhase::BeforeEach, 1))
+    );
     assert_eq!(
         runtime_error.diagnostic_code,
         Some(DiagnosticCode::StepWriteTargetExists)

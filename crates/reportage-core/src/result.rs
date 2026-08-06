@@ -430,8 +430,8 @@ impl ExpectationResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StepPhase {
     /// The module-level `before_each` block, replayed inside each concrete
-    /// case. Not produced yet: `before_each` currently holds write steps that
-    /// report no per-step origin.
+    /// case. Its `step_index` is local to that block, so it restarts at zero
+    /// independently of the case body it precedes.
     BeforeEach,
     /// The case body.
     Case,

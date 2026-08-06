@@ -61,7 +61,7 @@ case "never runs its body" {
         json["diagnostics"][0]["message"]
             .as_str()
             .unwrap()
-            .contains("before_each write step 2"),
+            .contains("before_each write step at step 2"),
         "diagnostic message must name the failing before_each step: {}",
         json["diagnostics"][0]["message"]
     );

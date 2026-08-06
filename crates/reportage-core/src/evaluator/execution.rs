@@ -134,6 +134,19 @@ struct StepContext<'a> {
     repor_dir: &'a Path,
 }
 
+impl StepContext<'_> {
+    /// The prefix a diagnostic message uses to name the block a step is in.
+    ///
+    /// Empty for a case body: those messages predate `before_each` holding
+    /// steps, and are what the existing e2e expectations and snapshots pin.
+    fn phase_prefix(&self) -> &'static str {
+        match self.phase {
+            StepPhase::BeforeEach => "before_each ",
+            StepPhase::Case => "",
+        }
+    }
+}
+
 /// How a step sequence ended when no step aborted the case.
 enum StepSequenceOutcome {
     /// Every step ran.
@@ -262,8 +275,8 @@ fn evaluate_case(
         _ => PathBuf::from("."),
     };
 
-    let ctx = StepContext {
-        phase: StepPhase::Case,
+    let step_context = |phase| StepContext {
+        phase,
         case_name: &case.name,
         workspace: &workspace,
         env: &case_env,
@@ -275,44 +288,33 @@ fn evaluate_case(
     ));
 
     // `before_each` setup replays inside this concrete case's own workspace,
-    // before the case body's first step runs. The initial checkpoint carries
-    // that workspace's root rather than a snapshot of it, so the case body's
-    // first assertion block observes every file written here no matter when
-    // the checkpoint value itself was constructed. A failure is a runtime
-    // step error attributed to the module-level block, not to any case body
-    // step, hence `origin: None`; the 1-based position inside `before_each` is
-    // carried in the message instead. Reporting it as a `StepPhase::BeforeEach`
-    // origin is deferred with the rest of the `before_each` step surface.
+    // before the case body's first step runs, through the same executor and
+    // against the same accumulating evidence. Its failures therefore belong to
+    // this concrete case, and its steps are told apart from case body steps by
+    // their `StepPhase`, not by a separate execution path.
     // See docs/reference/execution-model.md — Execution order and `before_each`.
     if let Some(before_each) = before_each {
-        for (setup_idx, step) in before_each.steps().iter().enumerate() {
-            let SideEffectingStep::WriteFile(write_step) = step;
-            let content = write_step
-                .content
-                .binding_free_text_value()
-                .expect("before_each rejects every binding reference at parse time");
-            match workspace.write_file(&write_step.path, content.as_str()) {
-                Ok(()) => execution.side_effects_executed += 1,
-                Err(e) => {
-                    return execution.finish(
-                        &case.name,
-                        source_path,
-                        CaseStatus::RuntimeError(RuntimeError {
-                            message: format!(
-                                "case '{}': before_each write step {} failed: {e}",
-                                case.name,
-                                setup_idx + 1,
-                            ),
-                            diagnostic_code: Some(e.code()),
-                            origin: None,
-                        }),
-                    );
-                }
+        // Matched exhaustively rather than testing only for `Err`: a setup
+        // assertion failure has to end the case, and the parser's `assert` ban
+        // is the only reason that outcome cannot occur yet. Dropping the `Ok`
+        // payload by pattern would let a later unit lift the ban and silently
+        // report `Pass` for a case whose setup assertion failed.
+        match execute_steps(
+            before_each.steps(),
+            &mut execution,
+            &step_context(StepPhase::BeforeEach),
+        ) {
+            Ok(StepSequenceOutcome::Completed) => {}
+            Ok(StepSequenceOutcome::AssertionFailed) => {
+                return execution.finish(&case.name, source_path, CaseStatus::Fail);
+            }
+            Err(abort) => {
+                return execution.finish(&case.name, source_path, abort.into());
             }
         }
     }
 
-    let status = match execute_steps(&case.steps, &mut execution, &ctx) {
+    let status = match execute_steps(&case.steps, &mut execution, &step_context(StepPhase::Case)) {
         Ok(StepSequenceOutcome::Completed) => CaseStatus::Pass,
         Ok(StepSequenceOutcome::AssertionFailed) => CaseStatus::Fail,
         Err(abort) => abort.into(),
@@ -337,6 +339,7 @@ fn execute_steps(
     ctx: &StepContext<'_>,
 ) -> Result<StepSequenceOutcome, StepAbort> {
     let case_name = ctx.case_name;
+    let phase = ctx.phase_prefix();
 
     for (step_idx, step) in steps.iter().enumerate() {
         match step {
@@ -372,8 +375,9 @@ fn execute_steps(
                     Err(error) => {
                         return Err(StepAbort::Runtime(RuntimeError {
                             message: format!(
-                                "case '{}': write step at step {} could not resolve its content: {}",
+                                "case '{}': {}write step at step {} could not resolve its content: {}",
                                 case_name,
+                                phase,
                                 step_idx + 1,
                                 error.message,
                             ),
@@ -387,8 +391,9 @@ fn execute_steps(
                     Err(e) => {
                         return Err(StepAbort::Runtime(RuntimeError {
                             message: format!(
-                                "case '{}': write step at step {} failed: {e}",
+                                "case '{}': {}write step at step {} failed: {e}",
                                 case_name,
+                                phase,
                                 step_idx + 1,
                             ),
                             diagnostic_code: Some(e.code()),
@@ -399,6 +404,12 @@ fn execute_steps(
             }
 
             Step::Binding(declaration) => {
+                // Two separate guarantees, one per phase: `validate_bindings`
+                // rejects a case body `let` with no preceding action, and the
+                // parser's `let` ban keeps `before_each` from reaching here at
+                // all. A unit that lifts that ban must give `before_each` the
+                // equivalent validation, or this `expect` — and the
+                // `actions.len() - 1` below — become panics.
                 let action = execution
                     .checkpoint
                     .last_action
@@ -413,8 +424,9 @@ fn execute_steps(
                     Err((message, diagnostic_code)) => {
                         return Err(StepAbort::Runtime(RuntimeError {
                             message: format!(
-                                "case '{}': binding '{}' at step {} failed: {message}",
+                                "case '{}': {}binding '{}' at step {} failed: {message}",
                                 case_name,
+                                phase,
                                 declaration.name,
                                 step_idx + 1,
                             ),
@@ -454,10 +466,11 @@ fn execute_steps(
                     {
                         return Err(StepAbort::Script(ScriptError {
                             message: format!(
-                                "case '{}': assertion block at step {} uses a process expectation \
+                                "case '{}': {}assertion block at step {} uses a process expectation \
                                  (exit, stdout, stderr) but no '$' action has run yet; \
                                  the initial checkpoint has no last action result",
                                 case_name,
+                                phase,
                                 step_idx + 1,
                             ),
                             diagnostic_code: Some(
@@ -480,9 +493,10 @@ fn execute_steps(
                     if let Err(semantic_err) = validate_expectation_paths(expectation) {
                         return Err(StepAbort::Script(ScriptError {
                             message: format!(
-                                "case '{}': assertion block at step {} has an invalid \
+                                "case '{}': {}assertion block at step {} has an invalid \
                                  expectation: {semantic_err}",
                                 case_name,
+                                phase,
                                 step_idx + 1,
                             ),
                             diagnostic_code: Some(semantic_err.code()),
@@ -513,9 +527,10 @@ fn execute_steps(
                     Err(err) => {
                         return Err(StepAbort::Script(ScriptError {
                             message: format!(
-                                "case '{}': assertion block at step {} has an unresolvable \
+                                "case '{}': {}assertion block at step {} has an unresolvable \
                                  contents_equals expected value: {}",
                                 case_name,
+                                phase,
                                 step_idx + 1,
                                 err.message,
                             ),

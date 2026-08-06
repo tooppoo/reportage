@@ -150,6 +150,8 @@ case "never runs its body" {
         .arg(script)
         .assert()
         .code(3)
-        .stderr(predicates::str::contains("before_each write step 2"))
+        .stderr(predicates::str::contains(
+            "before_each write step at step 2",
+        ))
         .stderr(predicates::str::contains("step.write.target_exists"));
 }

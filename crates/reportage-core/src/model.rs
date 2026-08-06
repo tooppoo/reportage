@@ -20,16 +20,20 @@ pub struct Script {
 /// inside each concrete case's isolated workspace, after the workspace is
 /// created and before the case body's first step.
 ///
-/// Holds [`SideEffectingStep`]s only, so an action step or assertion block
-/// is unrepresentable here by construction — the write-only policy is
-/// structural, not a validation pass a future caller could forget to run.
-/// `before_each` is never shared state: each concrete case replays these
-/// steps against its own fresh workspace.
+/// Holds the same [`Step`] as a case body, in source order, so setup and case
+/// body share one step model and one executor. Which steps `before_each`
+/// actually accepts is a parser rule rather than a property of this type: the
+/// alternative — a narrower step type per block kind — makes every step added
+/// to a case body a second, independent decision about `before_each`, and
+/// forces two execution paths for identical semantics.
+///
+/// `before_each` is never shared state: each concrete case replays these steps
+/// against its own fresh workspace.
 /// See docs/reference/execution-model.md — `before_each`, and the
 /// accompanying ADR.
 #[derive(Debug)]
 pub struct BeforeEach {
-    steps: Vec<SideEffectingStep>,
+    steps: Vec<Step>,
 }
 
 /// Error returned when constructing a `BeforeEach` with invalid content.
@@ -46,14 +50,14 @@ pub enum BeforeEachError {
 
 impl BeforeEach {
     /// Construct a `BeforeEach`, rejecting an empty step list.
-    pub fn new(steps: Vec<SideEffectingStep>) -> Result<Self, BeforeEachError> {
+    pub fn new(steps: Vec<Step>) -> Result<Self, BeforeEachError> {
         if steps.is_empty() {
             return Err(BeforeEachError::Empty);
         }
         Ok(Self { steps })
     }
 
-    pub fn steps(&self) -> &[SideEffectingStep] {
+    pub fn steps(&self) -> &[Step] {
         &self.steps
     }
 }
@@ -180,10 +184,12 @@ impl TextValueExpression {
     /// The expression's `TextValue` when it needs no binding environment to
     /// resolve, and `None` when it does.
     ///
-    /// Only callers that legitimately have no binding environment (a
-    /// `before_each` write step, whose binding scope is statically empty) may
-    /// use this; everything else resolves through
-    /// [`crate::text_value::ResolveTextValue`].
+    /// A parse-time helper with no runtime caller: every evaluation path
+    /// resolves through [`crate::text_value::ResolveTextValue`] against the
+    /// bindings in scope, so that a raw literal, a direct reference, and an
+    /// interpolated literal share one resolution. Use this only where there is
+    /// genuinely no binding environment to resolve against — asserting on a
+    /// parsed expression's literal text, for instance.
     pub fn binding_free_text_value(&self) -> Option<TextValue> {
         match self {
             Self::Raw(literal) => Some(literal.to_text_value()),

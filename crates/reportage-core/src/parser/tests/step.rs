@@ -124,13 +124,17 @@ fn parse_before_each_with_write_steps() {
     let script = parse_script(&src).unwrap();
     let before_each = script.before_each.expect("before_each must be parsed");
     assert_eq!(before_each.steps().len(), 2);
-    let SideEffectingStep::WriteFile(first) = &before_each.steps()[0];
+    let Step::SideEffect(SideEffectingStep::WriteFile(first)) = &before_each.steps()[0] else {
+        panic!("before_each write step must parse as a write step");
+    };
     assert_eq!(first.path.as_str(), "a.txt");
     assert_eq!(
         first.content,
         TextValueExpression::Raw(TextLiteral::Quoted("a\n".to_string()))
     );
-    let SideEffectingStep::WriteFile(second) = &before_each.steps()[1];
+    let Step::SideEffect(SideEffectingStep::WriteFile(second)) = &before_each.steps()[1] else {
+        panic!("before_each write step must parse as a write step");
+    };
     assert_eq!(second.path.as_str(), "b/c.txt");
     assert_eq!(
         second.content,
