@@ -1,0 +1,26 @@
+# A `before_each` action and assertion, so `step.phase` appears as
+# "before_each" on both an action and an assertion.
+#
+# The case body's first assertion is a workspace expectation, so it reports
+# `checkpoint: "initial"` even though a setup action already ran: "initial"
+# means the phase-entry checkpoint of the assertion's own phase, and the
+# body-entry checkpoint carries no process evidence.
+before_each {
+  $ echo setup > from-setup.txt
+  assert {
+    exit 0
+    file <"from-setup.txt"> contains "setup"
+  }
+}
+
+case "sees the setup workspace before acting, then acts" {
+  assert {
+    file <"from-setup.txt"> exists
+  }
+
+  $ echo body
+  assert {
+    exit 0
+    stdout contains "body"
+  }
+}

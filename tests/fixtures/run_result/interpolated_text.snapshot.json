@@ -10,12 +10,16 @@
         "kind": "test",
         "test": "test-2"
       },
-      "severity": "failure"
+      "severity": "failure",
+      "step": {
+        "index": 2,
+        "phase": "case"
+      }
     }
   ],
   "noop": false,
   "processExitCode": 1,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "failed",
   "summary": {
     "actions": 2,
@@ -41,6 +45,10 @@
             "artifactRef": "test-1/action-1/stdout.bin",
             "sha256": "5ecf8d2cc410094e8b82dd0bc178a57f3aa1e80916689beb00fe56148b1b1256",
             "sizeBytes": 7
+          },
+          "step": {
+            "index": 0,
+            "phase": "case"
           }
         }
       ],
@@ -72,7 +80,11 @@
             "status": "passed"
           },
           "id": "assertion-1",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 2,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-1",
@@ -100,7 +112,11 @@
             "status": "passed"
           },
           "id": "assertion-2",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 2,
+            "phase": "case"
+          }
         }
       ],
       "id": "test-1",
@@ -123,6 +139,10 @@
             "artifactRef": "test-2/action-1/stdout.bin",
             "sha256": "5ecf8d2cc410094e8b82dd0bc178a57f3aa1e80916689beb00fe56148b1b1256",
             "sizeBytes": 7
+          },
+          "step": {
+            "index": 0,
+            "phase": "case"
           }
         }
       ],
@@ -162,7 +182,11 @@
             "status": "failed"
           },
           "id": "assertion-1",
-          "status": "failed"
+          "status": "failed",
+          "step": {
+            "index": 2,
+            "phase": "case"
+          }
         }
       ],
       "id": "test-2",

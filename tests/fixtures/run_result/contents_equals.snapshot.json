@@ -10,7 +10,11 @@
         "kind": "test",
         "test": "test-2"
       },
-      "severity": "failure"
+      "severity": "failure",
+      "step": {
+        "index": 2,
+        "phase": "case"
+      }
     },
     {
       "category": "assertion",
@@ -22,12 +26,16 @@
         "kind": "test",
         "test": "test-3"
       },
-      "severity": "failure"
+      "severity": "failure",
+      "step": {
+        "index": 2,
+        "phase": "case"
+      }
     }
   ],
   "noop": false,
   "processExitCode": 1,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "failed",
   "summary": {
     "actions": 3,
@@ -53,6 +61,10 @@
             "artifactRef": "test-1/action-1/stdout.bin",
             "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
             "sizeBytes": 6
+          },
+          "step": {
+            "index": 2,
+            "phase": "case"
           }
         }
       ],
@@ -73,7 +85,11 @@
             "status": "passed"
           },
           "id": "assertion-1",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 3,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-1",
@@ -90,7 +106,11 @@
             "status": "passed"
           },
           "id": "assertion-2",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 3,
+            "phase": "case"
+          }
         }
       ],
       "id": "test-1",
@@ -113,6 +133,10 @@
             "artifactRef": "test-2/action-1/stdout.bin",
             "sha256": "bf8c83416f31143ee2fa5db7ebbbb54589626c4c2046a91d28545bc403e3cda6",
             "sizeBytes": 6
+          },
+          "step": {
+            "index": 1,
+            "phase": "case"
           }
         }
       ],
@@ -140,7 +164,11 @@
             "status": "failed"
           },
           "id": "assertion-1",
-          "status": "failed"
+          "status": "failed",
+          "step": {
+            "index": 2,
+            "phase": "case"
+          }
         }
       ],
       "id": "test-2",
@@ -163,6 +191,10 @@
             "artifactRef": "test-3/action-1/stdout.bin",
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "sizeBytes": 0
+          },
+          "step": {
+            "index": 1,
+            "phase": "case"
           }
         }
       ],
@@ -182,7 +214,11 @@
             "status": "failed"
           },
           "id": "assertion-1",
-          "status": "failed"
+          "status": "failed",
+          "step": {
+            "index": 2,
+            "phase": "case"
+          }
         }
       ],
       "id": "test-3",

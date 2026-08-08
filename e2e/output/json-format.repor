@@ -13,7 +13,7 @@ case "--format=json reports schemaVersion and a passed status for a passing scri
 
   assert {
     exit 0
-    stdout contains "\"schemaVersion\": 1"
+    stdout contains "\"schemaVersion\": 2"
     stdout contains "\"status\": \"passed\""
   }
 }
@@ -48,5 +48,57 @@ case "--format=json reports the assertion diagnostic code for an assertion failu
     exit 1
     stdout contains "\"category\": \"assertion\""
     stdout contains "\"code\": \"assertion.stdout.contains.mismatch\""
+  }
+}
+
+case "--format=json names the phase each action and assertion came from" {
+  write <"inner.repor"> ```
+    before_each {
+      $ echo setup
+      assert {
+        exit 0
+      }
+    }
+
+    case "acts after the setup action" {
+      $ echo body
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 0
+    stdout contains "\"phase\": \"before_each\""
+    stdout contains "\"phase\": \"case\""
+  }
+}
+
+case "--format=json attributes a failing before_each assertion to the setup phase" {
+  write <"inner.repor"> ```
+    before_each {
+      $ false
+      assert {
+        exit 0
+      }
+    }
+
+    case "never runs its body" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --format=json inner.repor
+
+  assert {
+    exit 1
+    stdout contains "\"phase\": \"before_each\""
+    stdout contains "\"category\": \"assertion\""
   }
 }

@@ -151,6 +151,7 @@ fn all_required_representative_scenarios_are_present() {
         "contents_equals",
         "text_equals",
         "interpolated_text",
+        "before_each_phase",
         "noop",
     ];
 

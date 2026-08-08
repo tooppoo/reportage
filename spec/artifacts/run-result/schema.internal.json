@@ -18,7 +18,7 @@
   "properties": {
     "schemaVersion": {
       "type": "integer",
-      "const": 1,
+      "const": 2,
       "description": "Version of this canonical artifact result contract. Distinct from the `--format=json` stdout contract's own schemaVersion and from the reportage CLI/crate version (see `tool.version`)."
     },
     "tool": {
@@ -241,6 +241,9 @@
         },
         "code": {
           "$ref": "#/$defs/DiagnosticCode"
+        },
+        "step": {
+          "$ref": "#/$defs/StepOrigin"
         }
       }
     },
@@ -361,12 +364,36 @@
         }
       }
     },
+    "StepOrigin": {
+      "description": "Which step of which block produced this entry. `phase` names the source block; `index` is 0-based and local to that block, counting every step kind (action, assertion block, binding, write). An index is meaningful only within its own phase, and is unrelated to an action's position in `actions[]`, which is numbered across the whole concrete case in execution order. On an `actions[]` or `assertions[]` entry this is always present; on a `diagnostics[]` entry it is present only when the diagnostic is attributed to a specific step, and absent for file-level diagnostics and case-level problems not tied to one step.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "index"
+      ],
+      "properties": {
+        "phase": {
+          "type": "string",
+          "enum": [
+            "before_each",
+            "case"
+          ],
+          "description": "'before_each' for the module-level setup block replayed inside this concrete case, 'case' for the case body."
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
     "Action": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "id",
         "command",
+        "step",
         "exitCode",
         "stdout",
         "stderr"
@@ -378,6 +405,9 @@
         },
         "command": {
           "type": "string"
+        },
+        "step": {
+          "$ref": "#/$defs/StepOrigin"
         },
         "exitCode": {
           "type": "integer"
@@ -408,6 +438,7 @@
       "required": [
         "id",
         "status",
+        "step",
         "checkpoint",
         "expectation"
       ],
@@ -423,9 +454,12 @@
             "failed"
           ]
         },
+        "step": {
+          "$ref": "#/$defs/StepOrigin"
+        },
         "checkpoint": {
           "type": "string",
-          "description": "'initial' or an action id (e.g. 'action-2') identifying which action's result this assertion was evaluated against."
+          "description": "'initial' or an action id (e.g. 'action-2') identifying which action's result this assertion was evaluated against. 'initial' means the phase-entry checkpoint of this assertion's own `step.phase` \u2014 the setup-entry checkpoint for 'before_each', the body-entry checkpoint for 'case' \u2014 not that no action has run in this concrete case. A case body assertion placed before the body's first action reports 'initial' even when `before_each` already ran actions, because the body-entry checkpoint does not carry their process evidence."
         },
         "expectation": {
           "$ref": "#/$defs/Expectation"

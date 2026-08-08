@@ -18,7 +18,7 @@
     }
   ],
   "processExitCode": 2,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "error",
   "summary": {
     "actions": 0,
