@@ -18,7 +18,7 @@ get-version:
 # against the committed public schemas, and a stale one would report conformance against an
 # artifact that no longer reflects its internal source.
 [group('check')]
-check: examples-shim::go-build examples-shim::rust-build examples-shim::js-install schema-artifacts-check test lint fmt build semantic-docs-check semantic-specs-check semantic-rule-coverage-check ai-docs-check
+check: examples-shim::go-build examples-shim::rust-build examples-shim::js-install schema-artifacts-check test lint fmt build semantic-docs-check semantic-specs-check semantic-rule-coverage-check ai-docs-check examples-docs-check
   just find-hardcode-path -n
 
 # build as debug
