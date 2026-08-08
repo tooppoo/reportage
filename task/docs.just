@@ -16,8 +16,8 @@ semantic-docs-gen:
 semantic-docs-check:
   #!/usr/bin/env sh
   set -eu
-  tmp=$(mktemp)
-  trap "rm -f '$tmp'" EXIT
+  tmp="$(mktemp)"
+  trap 'rm -f "$tmp"' EXIT
   cargo run --locked -p reportage-core --bin gen_semantic_docs -- "$tmp" > /dev/null
   if ! diff -q docs/reference/semantic-rules.md "$tmp" > /dev/null 2>&1; then
     echo "docs/reference/semantic-rules.md is stale. Run 'just semantic-docs-gen' to regenerate."
@@ -45,8 +45,8 @@ lang-docs-gen:
 lang-docs-check:
   #!/usr/bin/env sh
   set -eu
-  tmp=$(mktemp)
-  trap "rm -f '$tmp'" EXIT
+  tmp="$(mktemp)"
+  trap 'rm -f "$tmp"' EXIT
   bash scripts/gen-grammar-doc.sh "$tmp" > /dev/null
   if ! diff -q docs/reference/syntax.md "$tmp" > /dev/null 2>&1; then
     echo "docs/reference/syntax.md is stale. Run 'just lang-docs-gen' to regenerate."
@@ -66,8 +66,8 @@ ai-docs-gen:
 ai-docs-check:
   #!/usr/bin/env sh
   set -eu
-  tmp=$(mktemp)
-  trap "rm -f '$tmp'" EXIT
+  tmp="$(mktemp)"
+  trap 'rm -f "$tmp"' EXIT
   cargo run --locked -p reportage-cli --bin gen_ai_reading_order -- "$tmp" > /dev/null
   if ! diff -q docs/ai/reading-order.generated.md "$tmp" > /dev/null 2>&1; then
     echo "docs/ai/reading-order.generated.md is stale. Run 'just ai-docs-gen' to regenerate."

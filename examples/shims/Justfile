@@ -27,7 +27,7 @@ go-coverage-100:
   #!/usr/bin/env sh
   set -eu
   cd go
-  tmp=$(mktemp)
+  tmp="$(mktemp)"
   trap 'rm -f "$tmp"' EXIT
   go tool covdata textfmt -i=coverage/reportage/go -o="$tmp"
   report=$(go tool cover -func="$tmp")
@@ -52,7 +52,7 @@ rust-coverage-100:
   cd rust
   bin='.reportage/shims/rust/target/debug/sample'
   tools_dir="$(dirname "$(rustc --print target-libdir)")/bin"
-  tmp=$(mktemp)
+  tmp="$(mktemp)"
   trap 'rm -f "$tmp"' EXIT
   "$tools_dir/llvm-profdata" merge -sparse coverage/reportage/rust/*.profraw -o "$tmp"
   "$tools_dir/llvm-cov" report "$bin" -instr-profile="$tmp" src
