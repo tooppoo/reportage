@@ -10,6 +10,13 @@ This file records every document in this tree that is produced by a generator or
 | [`docs/reference/semantic-rules.md`](reference/semantic-rules.md) | [`crates/reportage-core/src/bin/gen_semantic_docs.rs`](../crates/reportage-core/src/bin/gen_semantic_docs.rs) (`just semantic-docs-gen`, drift-checked by `just semantic-docs-check`), from the JSON specs under [`spec/language/semantics/`](../spec/language/semantics/README.md) | The JSON specs are the source of truth for each rule's normative fields and conformance cases; the catalog is a read-only view of them. |
 | [`docs/ai/reading-order.generated.md`](ai/reading-order.generated.md) | [`crates/reportage-cli/src/bin/gen_ai_reading_order.rs`](../crates/reportage-cli/src/bin/gen_ai_reading_order.rs) (`just ai-docs-gen`, drift-checked by `just ai-docs-check`), from the `DOCUMENTS` table in [`crates/reportage-cli/src/references.rs`](../crates/reportage-cli/src/references.rs) | Generating the reading order from the same table `reportage references --format=json` reads keeps the two from drifting apart. |
 
+## Generated documents outside this tree
+
+| Path | Generator and source | Reason |
+| --- | --- | --- |
+| [`examples/README.md`](../examples/README.md) | `reportage docs` (`just examples-docs-gen`, drift-checked by `just examples-docs-check`), from [`examples/*.repor`](../examples/) | The index restates each example's `document file` / `document case` metadata and its case bodies; generating it from the executable examples keeps the published index and the scripts CI runs from diverging. |
+| [`editors/vscode/README.md`](../editors/vscode/README.md) | [`editors/vscode/scripts/generate-readme.mjs`](../editors/vscode/scripts/generate-readme.mjs) (`pnpm run generate:readme`, drift-checked by `pnpm run check:readme` in the `vscode-package` CI job), from [`editors/vscode/snippets/reportage.json`](../editors/vscode/snippets/reportage.json) | The snippet definitions are what the extension ships; documenting them by hand let the README and the rendered completion tooltip disagree. |
+
 ## Generated contract artifacts outside this tree
 
 These are not documents, but they follow the same rule: the generated file is never hand-edited.
