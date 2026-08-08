@@ -71,8 +71,12 @@
     - [the seeded files are present before any action](#case-6-1-1-the-seeded-files-are-present-before-any-action)
     - [Workspace isolation](#case-6-1-2-workspace-isolation)
     - [a later case still sees the pristine seeded state](#case-6-1-3-a-later-case-still-sees-the-pristine-seeded-state)
-  - [Writing a file with a heredoc](#file-6-2-writing-a-file-with-a-heredoc)
-    - [create file with heredoc](#case-6-2-1-create-file-with-heredoc)
+  - [before_each with commands and bindings](#file-6-2-before-each-with-commands-and-bindings)
+    - [a case body sees what the setup command created](#case-6-2-1-a-case-body-sees-what-the-setup-command-created)
+    - [a case body reads a binding the setup captured](#case-6-2-2-a-case-body-reads-a-binding-the-setup-captured)
+    - [The case body starts fresh](#case-6-2-3-the-case-body-starts-fresh)
+  - [Writing a file with a heredoc](#file-6-3-writing-a-file-with-a-heredoc)
+    - [create file with heredoc](#case-6-3-1-create-file-with-heredoc)
 
 <a id="group-1-actions"></a>
 ## Actions
@@ -1011,7 +1015,54 @@ case "a later case still sees the pristine seeded state" {
 }
 ```
 
-<a id="file-6-2-writing-a-file-with-a-heredoc"></a>
+<a id="file-6-2-before-each-with-commands-and-bindings"></a>
+### before_each with commands and bindings
+
+Source: examples/before-each-with-commands.repor
+
+Setup that a `write` cannot express — creating a directory tree, initializing a tool, reading a path that only exists at run time — belongs in `before_each` too.
+The block holds the same steps a case body holds, so it can run a `$` action, verify it with an `assert` block, capture output with `let`, and interpolate that value into a `write`.
+Every step is replayed inside each concrete case's own workspace, so a binding captured here holds that case's own value.
+
+<a id="case-6-2-1-a-case-body-sees-what-the-setup-command-created"></a>
+#### a case body sees what the setup command created
+
+```reportage
+case "a case body sees what the setup command created" {
+  assert {
+    dir <"repo/objects"> exists
+  }
+}
+```
+
+<a id="case-6-2-2-a-case-body-reads-a-binding-the-setup-captured"></a>
+#### a case body reads a binding the setup captured
+
+```reportage
+case "a case body reads a binding the setup captured" {
+  assert {
+    file <"tool.config"> contains &"root = &{workspace}/repo"
+  }
+}
+```
+
+<a id="case-6-2-3-the-case-body-starts-fresh"></a>
+#### The case body starts fresh
+
+Workspace state carries over from `before_each`, but the last setup action's result does not: the case body starts at its own initial checkpoint.
+`exit`, `stdout`, and `stderr` at the top of a case body would have no action to describe, so this case runs its own action first — and its `exit 0` is that action's, never the setup's.
+
+```reportage
+case "process expectations describe the case body's own action" {
+  $ grep "^mode = " tool.config
+  assert {
+    exit 0
+    stdout contains "mode = strict"
+  }
+}
+```
+
+<a id="file-6-3-writing-a-file-with-a-heredoc"></a>
 ### Writing a file with a heredoc
 
 Source: examples/create-file-with-heardoc.repor
@@ -1019,7 +1070,7 @@ Source: examples/create-file-with-heardoc.repor
 A `write <"path"> ...` step creates a file in the case workspace before the action runs.
 With a triple-backtick heredoc the content is written line by line and dedented relative to the closing fence, so the block can be indented to match the surrounding code without changing what is written.
 
-<a id="case-6-2-1-create-file-with-heredoc"></a>
+<a id="case-6-3-1-create-file-with-heredoc"></a>
 #### create file with heredoc
 
 ````reportage

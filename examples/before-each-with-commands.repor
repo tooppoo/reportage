@@ -1,0 +1,56 @@
+document file {
+  title "before_each with commands and bindings"
+  group "Setup"
+  order 15
+
+  description ```
+    Setup that a `write` cannot express — creating a directory tree, initializing a tool, reading a path that only exists at run time — belongs in `before_each` too.
+    The block holds the same steps a case body holds, so it can run a `$` action, verify it with an `assert` block, capture output with `let`, and interpolate that value into a `write`.
+    Every step is replayed inside each concrete case's own workspace, so a binding captured here holds that case's own value.
+    ```
+}
+
+before_each {
+  $ mkdir -p repo/objects
+  assert {
+    exit 0
+    dir <"repo/objects"> exists
+  }
+
+  $ pwd
+  let workspace <- stdout_line
+
+  write <"tool.config"> &```
+    root = &{workspace}/repo
+    mode = strict
+    ```
+}
+
+case "a case body sees what the setup command created" {
+  assert {
+    dir <"repo/objects"> exists
+  }
+}
+
+case "a case body reads a binding the setup captured" {
+  assert {
+    file <"tool.config"> contains &"root = &{workspace}/repo"
+  }
+}
+
+document case {
+  title "The case body starts fresh"
+
+  description ```
+    Workspace state carries over from `before_each`, but the last setup action's result does not: the case body starts at its own initial checkpoint.
+    `exit`, `stdout`, and `stderr` at the top of a case body would have no action to describe, so this case runs its own action first — and its `exit 0` is that action's, never the setup's.
+    ```
+}
+
+case "process expectations describe the case body's own action" {
+  $ grep "^mode = " tool.config
+  assert {
+    exit 0
+    stdout contains "mode = strict"
+  }
+}
