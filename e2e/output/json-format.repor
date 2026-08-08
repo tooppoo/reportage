@@ -78,11 +78,16 @@ case "--format=json names the phase each action and assertion came from" {
 }
 
 case "--format=json attributes a failing before_each assertion to the setup phase" {
+  # The setup assertion fails, so the case body never runs and `actions[]` is
+  # empty. "phase": "before_each" therefore has exactly two carriers: the
+  # failing setup assertion and its diagnostic. Do not add a `$` step to
+  # `before_each` — it would emit a third, and the assertions below would pass
+  # again even if the assertion and diagnostic lost their phase.
   write <"inner.repor"> ```
     before_each {
-      $ false
+      write <"setup.txt"> "x"
       assert {
-        exit 0
+        file <"missing.txt"> exists
       }
     }
 
