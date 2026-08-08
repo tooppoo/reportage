@@ -6,8 +6,10 @@ use crate::shim_event::ShimInvocationEvent;
 
 /// The captured output of a single `$` action step.
 ///
-/// Produced by the executor and stored in the checkpoint as the last action result.
-/// Also recorded in `CaseResult` for artifact output.
+/// Produced by the executor and stored in the checkpoint as the last action
+/// result. Recorded in `CaseResult` inside an [`ActionRecord`], which pairs it
+/// with the step it ran from — a position this type deliberately does not
+/// carry, since the executor cannot know it and a checkpoint has no use for it.
 #[derive(Debug, Clone)]
 pub struct ActionResult {
     pub command: String,

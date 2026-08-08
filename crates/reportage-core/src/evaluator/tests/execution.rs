@@ -356,15 +356,26 @@ fn before_each_runs_actions_and_assertions_in_source_order() {
 
 #[test]
 fn an_action_record_names_the_phase_and_step_it_ran_from() {
-    // Actions are one sequence across the concrete case, so the case body
-    // action is `actions[1]`. Its origin is phase-local, though: step 1 of the
-    // case body, not step 1 of the case.
-    let before_each = BeforeEach::new(vec![action("true"), assert_exit(0)]).unwrap();
+    // Each action is preceded by a different number of non-action steps, so
+    // the phase-local step index differs from the action's position in
+    // `actions` for both of them: a step index counted as an action ordinal —
+    // per phase or across the case — would report 0 and 1 instead of 1 and 2.
+    let before_each = BeforeEach::new(vec![
+        write_step("setup.txt", "s"),
+        action("true"),
+        assert_exit(0),
+    ])
+    .unwrap();
     let script = Script {
         before_each: Some(before_each),
         cases: vec![Case {
-            name: "acts after a write".to_string(),
-            steps: vec![write_step("a.txt", "x"), action("true"), assert_exit(0)],
+            name: "acts after two writes".to_string(),
+            steps: vec![
+                write_step("a.txt", "x"),
+                write_step("b.txt", "y"),
+                action("true"),
+                assert_exit(0),
+            ],
         }],
     };
     let result = evaluate(
@@ -385,8 +396,8 @@ fn an_action_record_names_the_phase_and_step_it_ran_from() {
             .map(|action| action.origin)
             .collect::<Vec<_>>(),
         vec![
-            StepOrigin::new(StepPhase::BeforeEach, 0),
-            StepOrigin::new(StepPhase::Case, 1),
+            StepOrigin::new(StepPhase::BeforeEach, 1),
+            StepOrigin::new(StepPhase::Case, 2),
         ]
     );
 }
