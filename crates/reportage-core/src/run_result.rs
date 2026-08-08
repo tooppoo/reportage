@@ -256,7 +256,7 @@ fn case_json(case_index: usize, case: &CaseResult, diagnostics: &mut Diagnostics
         .actions
         .iter()
         .enumerate()
-        .map(|(action_index, action)| action_json(&id, action_index, action))
+        .map(|(action_index, action)| action_json(&id, action_index, &action.result))
         .collect();
 
     let mut assertions = Vec::new();
@@ -965,18 +965,22 @@ fn dir_contains_observation_str(observation: DirContainsObservation) -> &'static
 mod tests {
     use super::*;
     use crate::result::{
-        AssertionBlockResult, FileError, RuntimeError, ScriptError, StepOrigin, StepPhase,
+        ActionRecord, AssertionBlockResult, FileError, RuntimeError, ScriptError, StepOrigin,
+        StepPhase,
     };
     use std::path::PathBuf;
 
-    fn passing_action() -> ActionResult {
-        ActionResult {
-            command: "echo hello".to_string(),
-            exit_code: 0,
-            stdout: b"hello\n".to_vec(),
-            stderr: vec![],
-            shim_invocations: vec![],
-            shim_event_parse_warnings: vec![],
+    fn passing_action() -> ActionRecord {
+        ActionRecord {
+            origin: StepOrigin::new(StepPhase::Case, 0),
+            result: ActionResult {
+                command: "echo hello".to_string(),
+                exit_code: 0,
+                stdout: b"hello\n".to_vec(),
+                stderr: vec![],
+                shim_invocations: vec![],
+                shim_event_parse_warnings: vec![],
+            },
         }
     }
 

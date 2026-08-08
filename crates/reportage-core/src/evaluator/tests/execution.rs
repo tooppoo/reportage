@@ -355,6 +355,43 @@ fn before_each_runs_actions_and_assertions_in_source_order() {
 }
 
 #[test]
+fn an_action_record_names_the_phase_and_step_it_ran_from() {
+    // Actions are one sequence across the concrete case, so the case body
+    // action is `actions[1]`. Its origin is phase-local, though: step 1 of the
+    // case body, not step 1 of the case.
+    let before_each = BeforeEach::new(vec![action("true"), assert_exit(0)]).unwrap();
+    let script = Script {
+        before_each: Some(before_each),
+        cases: vec![Case {
+            name: "acts after a write".to_string(),
+            steps: vec![write_step("a.txt", "x"), action("true"), assert_exit(0)],
+        }],
+    };
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    assert!(
+        matches!(result.cases[0].status, CaseStatus::Pass),
+        "{:?}",
+        result.cases[0].status
+    );
+    assert_eq!(
+        result.cases[0]
+            .actions
+            .iter()
+            .map(|action| action.origin)
+            .collect::<Vec<_>>(),
+        vec![
+            StepOrigin::new(StepPhase::BeforeEach, 0),
+            StepOrigin::new(StepPhase::Case, 1),
+        ]
+    );
+}
+
+#[test]
 fn the_body_entry_checkpoint_keeps_workspace_state_and_drops_process_evidence() {
     // The case body's first assertion sees the file the setup action created,
     // but a process expectation there has no action of its own to describe:

@@ -100,19 +100,22 @@ fn project_run_result(mut doc: Value, artifact_root: &Path) -> Value {
 mod tests {
     use super::*;
     use reportage_core::result::{
-        ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind,
+        ActionRecord, ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind,
         ExpectationResult, StepOrigin, StepPhase, TextValueProvenance,
     };
     use std::path::PathBuf;
 
-    fn passing_action() -> ActionResult {
-        ActionResult {
-            command: "echo hello".to_string(),
-            exit_code: 0,
-            stdout: b"hello\n".to_vec(),
-            stderr: vec![],
-            shim_invocations: vec![],
-            shim_event_parse_warnings: vec![],
+    fn passing_action() -> ActionRecord {
+        ActionRecord {
+            origin: StepOrigin::new(StepPhase::Case, 0),
+            result: ActionResult {
+                command: "echo hello".to_string(),
+                exit_code: 0,
+                stdout: b"hello\n".to_vec(),
+                stderr: vec![],
+                shim_invocations: vec![],
+                shim_event_parse_warnings: vec![],
+            },
         }
     }
 

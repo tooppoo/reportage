@@ -535,6 +535,23 @@ pub struct RuntimeError {
     pub origin: Option<StepOrigin>,
 }
 
+/// One `$` action a concrete case executed, paired with where in the case it
+/// came from.
+///
+/// The origin is not part of what the executor captured, so it is recorded
+/// here rather than added to [`ActionResult`]: a checkpoint's last action
+/// result is evidence about a process, and has no use for a step position.
+///
+/// Actions are numbered across the whole concrete case in execution order, so
+/// a `before_each` action and a case body action share one sequence. The
+/// `origin` says which block a given action was written in; its index into
+/// `CaseResult::actions` says when it ran.
+#[derive(Debug)]
+pub struct ActionRecord {
+    pub origin: StepOrigin,
+    pub result: ActionResult,
+}
+
 /// The full result of one concrete case.
 #[derive(Debug)]
 pub struct CaseResult {
@@ -542,7 +559,7 @@ pub struct CaseResult {
     /// Source file this case was loaded from. Set by the caller after evaluation.
     pub source_path: Option<PathBuf>,
     pub status: CaseStatus,
-    pub actions: Vec<ActionResult>,
+    pub actions: Vec<ActionRecord>,
     pub assertion_blocks: Vec<AssertionBlockResult>,
     /// Number of side-effecting steps (`write`, etc.) that ran to completion
     /// before this case finished, including `before_each` steps replayed into
