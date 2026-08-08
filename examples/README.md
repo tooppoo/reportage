@@ -69,8 +69,11 @@
 - [Setup](#group-6-setup)
   - [before_each](#file-6-1-before-each)
     - [the seeded files are present before any action](#case-6-1-1-the-seeded-files-are-present-before-any-action)
-    - [Workspace isolation](#case-6-1-2-workspace-isolation)
-    - [a later case still sees the pristine seeded state](#case-6-1-3-a-later-case-still-sees-the-pristine-seeded-state)
+    - [a case body sees what the setup command created](#case-6-1-2-a-case-body-sees-what-the-setup-command-created)
+    - [Setup output as a binding](#case-6-1-3-setup-output-as-a-binding)
+    - [Workspace isolation](#case-6-1-4-workspace-isolation)
+    - [a later case still sees the pristine seeded state](#case-6-1-5-a-later-case-still-sees-the-pristine-seeded-state)
+    - [The case body starts fresh](#case-6-1-6-the-case-body-starts-fresh)
   - [Writing a file with a heredoc](#file-6-2-writing-a-file-with-a-heredoc)
     - [create file with heredoc](#case-6-2-1-create-file-with-heredoc)
 
@@ -965,8 +968,10 @@ case "dir contains an entry" {
 
 Source: examples/before-each.repor
 
-A `before_each` block seeds every case's isolated workspace with the same files, so each case starts from an identical, explicit state.
-It holds the same steps a case body holds — `$` actions, `assert` blocks, and `write` steps — and, like a `document file` block, it appears at most once, before the first case.
+A `before_each` block seeds every case's isolated workspace before the case body's first step, so every case's starting state is produced by the same declared steps, written once.
+It holds the same steps a case body holds — `$` actions, `assert` blocks, `let` bindings, and `write` steps — and, like a `document file` block, it appears at most once, before the first case.
+Setup a `write` cannot express therefore belongs here too: creating an empty directory, initializing a tool, or reading a path that only exists at run time.
+This index renders `case` blocks only, so read the source file for the `before_each` block itself.
 
 <a id="case-6-1-1-the-seeded-files-are-present-before-any-action"></a>
 #### the seeded files are present before any action
@@ -980,7 +985,33 @@ case "the seeded files are present before any action" {
 }
 ```
 
-<a id="case-6-1-2-workspace-isolation"></a>
+<a id="case-6-1-2-a-case-body-sees-what-the-setup-command-created"></a>
+#### a case body sees what the setup command created
+
+```reportage
+case "a case body sees what the setup command created" {
+  assert {
+    dir <"repo/objects"> exists
+  }
+}
+```
+
+<a id="case-6-1-3-setup-output-as-a-binding"></a>
+#### Setup output as a binding
+
+An action only updates the checkpoint, so a setup action is verified by an `assert` block written next to it, and its output is captured with `let`.
+The binding is then usable for the rest of `before_each` — here, interpolated into a `write` — and for the whole case body.
+Every step is replayed inside each concrete case's own workspace, so the captured value is that case's own.
+
+```reportage
+case "a case body reads a binding the setup captured" {
+  assert {
+    file <"tool.config"> contains &"root = &{workspace}/repo"
+  }
+}
+```
+
+<a id="case-6-1-4-workspace-isolation"></a>
 #### Workspace isolation
 
 Each case gets its own copy of the seeded state, so a case may modify or delete a seeded file without affecting any other case.
@@ -998,7 +1029,7 @@ case "a case mutates only its own copy of the seeded state" {
 }
 ```
 
-<a id="case-6-1-3-a-later-case-still-sees-the-pristine-seeded-state"></a>
+<a id="case-6-1-5-a-later-case-still-sees-the-pristine-seeded-state"></a>
 #### a later case still sees the pristine seeded state
 
 ```reportage
@@ -1007,6 +1038,23 @@ case "a later case still sees the pristine seeded state" {
   assert {
     exit 0
     stdout contains "retries: 3"
+  }
+}
+```
+
+<a id="case-6-1-6-the-case-body-starts-fresh"></a>
+#### The case body starts fresh
+
+Workspace state carries over from `before_each`, but the last setup action's result does not: the case body starts at its own initial checkpoint.
+`exit`, `stdout`, and `stderr` at the top of a case body would have no action to describe, so this case runs its own action first.
+Its `stdout` is that action's — had the setup's evidence carried over, this would be the path the setup's last action printed.
+
+```reportage
+case "process expectations describe the case body's own action" {
+  $ grep "^mode = " tool.config
+  assert {
+    exit 0
+    stdout contains "mode = strict"
   }
 }
 ```

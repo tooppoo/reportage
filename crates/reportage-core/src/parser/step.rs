@@ -13,19 +13,18 @@ use crate::model::{
 use std::collections::HashSet;
 
 /// The `write` step's content position: the same `TextValueExpression` model,
-/// grammar, and parser in a case body and in `before_each`. `before_each` has
-/// no binding scope of its own, so it validates the parsed expression against
-/// an empty scope rather than taking a raw-text-only input type.
+/// grammar, and parser in a case body and in `before_each`. The two differ only
+/// in the binding scope their references are validated against, which
+/// [`validate_bindings`] applies per phase.
 pub(super) const WRITE_CONTENT_POSITION: TextValuePosition =
     TextValuePosition::new("`write` step content", TextSurface::InlineAndHeredoc);
 
 /// Parses a `before_each_block` pair into the [`BeforeEach`] model.
 ///
-/// `BeforeEach` holds the same [`Step`] as a case body, so which steps
-/// `before_each` accepts is decided here rather than by its step type. An
-/// action step and an assertion block parse exactly as they do in a case body;
-/// a `let` binding, and a binding reference inside `write` content, are still
-/// rejected with a diagnostic naming the ban, at the offending step's line.
+/// `BeforeEach` holds the same [`Step`] as a case body, and accepts the same
+/// step kinds, parsed by the same functions. Its binding flow is validated
+/// against an empty starting scope: a `before_each` step sees only the
+/// declarations before it in `before_each`, never one a case body makes later.
 pub(super) fn parse_before_each_block(
     pair: pest::iterators::Pair<Rule>,
 ) -> Result<BeforeEach, ParseError> {
@@ -37,23 +36,9 @@ pub(super) fn parse_before_each_block(
             Rule::action_step => steps.push(parse_action_step(pair)?),
             Rule::assertion_block => steps.push(parse_assertion_block(pair)?),
             Rule::write_step_string | Rule::write_step_heredoc => {
-                let line = pair.line_col().0;
-                let step = parse_write_step(pair)?;
-                let SideEffectingStep::WriteFile(write) = &step;
-                // The binding scope is statically empty here, so any reference
-                // — a direct `&name`, or one inside an interpolated literal —
-                // is a test-definition error. The shared traversal is what
-                // makes the interpolated case impossible to forget.
-                if !write.content.binding_references().is_empty() {
-                    return Err(ParseError::BeforeEachBindingStep { line });
-                }
-                steps.push(Step::SideEffect(step));
+                steps.push(Step::SideEffect(parse_write_step(pair)?))
             }
-            Rule::binding_step => {
-                return Err(ParseError::BeforeEachBindingStep {
-                    line: pair.line_col().0,
-                });
-            }
+            Rule::binding_step => steps.push(parse_binding_step(pair)?),
             // When the closing brace line has no final newline, its `trail`
             // matches EOI, and pest surfaces that as an explicit EOI pair,
             // exactly as in parse_case_block.
@@ -62,10 +47,53 @@ pub(super) fn parse_before_each_block(
         }
     }
 
+    validate_bindings(&steps, &BindingScope::empty())?;
     BeforeEach::new(steps).map_err(|BeforeEachError::Empty| ParseError::EmptyBeforeEach { line })
 }
 
-pub(super) fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case, ParseError> {
+/// The runtime evidence bindings a step sequence starts with.
+///
+/// Empty for `before_each`, which is the first sequence a concrete case runs.
+/// A case body starts with whatever `before_each` left declared, so a setup
+/// binding is in scope for the whole body — but a case body declaration is not
+/// in scope for `before_each`, which ran before it.
+pub(super) struct BindingScope {
+    declared: HashSet<String>,
+}
+
+impl BindingScope {
+    pub(super) fn empty() -> Self {
+        Self {
+            declared: HashSet::new(),
+        }
+    }
+
+    /// The scope a case body starts with, given the `before_each` that ran
+    /// first. Every name here is already declared, since `before_each`
+    /// completed before the case body's first step.
+    pub(super) fn after(before_each: Option<&BeforeEach>) -> Self {
+        Self {
+            declared: before_each
+                .map(|before_each| declared_names(before_each.steps()))
+                .unwrap_or_default(),
+        }
+    }
+}
+
+fn declared_names(steps: &[Step]) -> HashSet<String> {
+    steps
+        .iter()
+        .filter_map(|step| match step {
+            Step::Binding(binding) => Some(binding.name.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+pub(super) fn parse_case_block(
+    pair: pest::iterators::Pair<Rule>,
+    scope: &BindingScope,
+) -> Result<Case, ParseError> {
     let line = pair.line_col().0;
     let mut inner = pair.into_inner();
 
@@ -101,19 +129,24 @@ pub(super) fn parse_case_block(pair: pest::iterators::Pair<Rule>) -> Result<Case
         return Err(ParseError::MissingAssertionBlock { line, name });
     }
 
-    validate_bindings(&steps)?;
+    validate_bindings(&steps, scope)?;
     Ok(Case { name, steps })
 }
 
-fn validate_bindings(steps: &[Step]) -> Result<(), ParseError> {
-    let all_names: HashSet<String> = steps
-        .iter()
-        .filter_map(|step| match step {
-            Step::Binding(binding) => Some(binding.name.clone()),
-            _ => None,
-        })
-        .collect();
-    let mut declared = HashSet::new();
+/// Validates one step sequence's binding flow in source order, starting from
+/// `scope`.
+///
+/// `action_seen` starts false for every sequence, including a case body that
+/// follows a `before_each` containing actions: the body-entry checkpoint drops
+/// the last setup action's process evidence, so a case body `let` needs an
+/// action of its own to capture from.
+fn validate_bindings(steps: &[Step], scope: &BindingScope) -> Result<(), ParseError> {
+    // Names declared anywhere in this sequence, plus those already in scope.
+    // A reference to a name in here but not yet declared is a use-before-
+    // declaration; a reference to a name absent from it is undefined.
+    let mut all_names = scope.declared.clone();
+    all_names.extend(declared_names(steps));
+    let mut declared = scope.declared.clone();
     let mut action_seen = false;
     for step in steps {
         match step {
@@ -275,10 +308,9 @@ fn parse_action_step(pair: pest::iterators::Pair<Rule>) -> Result<Step, ParseErr
     Ok(Step::Action(ActionStep { command }))
 }
 
-// Returns the [`SideEffectingStep`] itself rather than a [`Step`], because a
-// `write` step is legal in two containers with different step models: a case
-// body (which wraps it in `Step::SideEffect`) and a `before_each` body (which
-// holds `SideEffectingStep`s only).
+// Returns the [`SideEffectingStep`] itself rather than a [`Step`], so the
+// `SideEffectingStep`-specific write-step parsers below stay reachable without
+// unwrapping a `Step`. Both callers wrap the result in `Step::SideEffect`.
 fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<SideEffectingStep, ParseError> {
     match pair.as_rule() {
         Rule::write_step_string => parse_write_step_string(pair),

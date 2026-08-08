@@ -1,0 +1,16 @@
+# The body-entry checkpoint drops the last setup action's process evidence, so
+# a case body `let` needs an action of its own — a `before_each` action does not
+# satisfy it (semantic.binding.requires_action).
+before_each {
+  $ pwd
+  assert {
+    exit 0
+  }
+}
+
+case "c" {
+  let workspace <- stdout_line
+  assert {
+    file <"nothing.txt"> exists
+  }
+}

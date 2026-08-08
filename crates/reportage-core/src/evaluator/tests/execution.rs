@@ -411,6 +411,74 @@ fn the_body_entry_checkpoint_keeps_workspace_state_and_drops_process_evidence() 
 }
 
 #[test]
+fn binding_provenance_numbers_actions_across_the_whole_concrete_case() {
+    // Provenance uses the concrete case's own action numbering, not a
+    // phase-relative counter: the `before_each` binding names action 0 and the
+    // case body binding names action 1. Index 0 alone would not tell the two
+    // numbering schemes apart, so both are asserted.
+    let before_each = BeforeEach::new(vec![
+        action("printf 'from-setup'"),
+        binding_step("captured"),
+    ])
+    .unwrap();
+    let script = Script {
+        before_each: Some(before_each),
+        cases: vec![Case {
+            name: "uses both bindings".to_string(),
+            steps: vec![
+                action("printf 'from-body'"),
+                binding_step("from_body"),
+                Step::AssertionBlock(
+                    AssertionBlock::new(vec![
+                        stdout_text_equals_binding("captured"),
+                        stdout_text_equals_binding("from_body"),
+                    ])
+                    .unwrap(),
+                ),
+            ],
+        }],
+    };
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    // The setup output differs from the body output, so the first expectation
+    // fails and the second passes — what matters here is the provenance each
+    // one reports.
+    assert!(matches!(result.cases[0].status, CaseStatus::Fail));
+    assert_eq!(result.cases[0].actions.len(), 2);
+    let expectations = &result.cases[0].assertion_blocks[0].expectations;
+    assert_eq!(
+        binding_provenance(&expectations[0]),
+        ("captured".to_string(), 0),
+        "a before_each binding names the setup action"
+    );
+    assert_eq!(
+        binding_provenance(&expectations[1]),
+        ("from_body".to_string(), 1),
+        "a case body binding names the case body action"
+    );
+}
+
+/// The binding name and provenance action index a `stdout text_equals &name`
+/// expectation reports.
+fn binding_provenance(expectation: &ExpectationResult) -> (String, usize) {
+    let ExpectationKind::StdoutTextEquals {
+        expected_source: TextValueProvenance::Binding { name, source },
+        ..
+    } = &expectation.kind
+    else {
+        panic!(
+            "expected a binding-sourced stdout text_equals, got {:?}",
+            expectation.kind
+        );
+    };
+    (name.clone(), source.action_index)
+}
+
+#[test]
 fn a_before_each_assertion_failure_fails_only_its_own_concrete_case() {
     // `false` makes the setup assertion fail for both cases. Each concrete
     // case fails on its own; neither runs its body, and the first failure does

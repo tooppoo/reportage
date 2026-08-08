@@ -284,7 +284,7 @@ Semantics:
 - An empty binding value, and a value containing line terminators or other control characters, are all substituted as-is.
 - One literal may reference the same binding more than once, and may reference several bindings.
 - Only case-local bindings are visible. Process environment variables, shell variables, and runner internals are never referenced implicitly.
-- An interpolated literal that references no binding is redundant but legal, so it stays usable where no binding scope exists — for example in `before_each`, whose binding scope is empty.
+- An interpolated literal that references no binding is redundant but legal, so it stays usable where the binding scope is empty — for example at the start of `before_each`, before its first `let`.
 - The resolved value is passed to the same write and comparison semantics as any other `TextValue`.
 
 Raw literals are unaffected. `&{name}` written inside `"..."` or a plain heredoc literal is literal text, which is what lets a script write shell scripts and other template engines' syntax verbatim:

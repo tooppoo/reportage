@@ -1,0 +1,16 @@
+# `before_each` has a binding scope of its own, validated in source order: a
+# reference to a name declared later in the same block is a use-before-
+# declaration (semantic.binding.use_before_declaration), not undefined — the
+# name does exist in this block, just not yet.
+before_each {
+  $ pwd
+  write <"seed.txt"> &workspace
+  let workspace <- stdout_line
+}
+
+case "c" {
+  $ true
+  assert {
+    exit 0
+  }
+}

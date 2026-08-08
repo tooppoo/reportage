@@ -1,0 +1,82 @@
+{
+  "before_each": {
+    "steps": [
+      {
+        "kind": "action",
+        "command": "pwd"
+      },
+      {
+        "kind": "binding",
+        "name": "workspace",
+        "source": "stdout_line",
+        "span": {
+          "start": 168,
+          "end": 196
+        }
+      },
+      {
+        "kind": "write_file",
+        "path": "fake-gitconfig",
+        "content": {
+          "kind": "interpolated",
+          "form": "heredoc",
+          "segments": [
+            {
+              "kind": "literal",
+              "value": "[url \"file://"
+            },
+            {
+              "kind": "binding",
+              "name": "workspace"
+            },
+            {
+              "kind": "literal",
+              "value": "/gist-repo\"]\n  insteadOf = https://gist.github.com/example.git\n"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "reads the setup binding from the case body",
+      "span": {
+        "start": 337,
+        "end": 476
+      },
+      "steps": [
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "fake-gitconfig",
+              "matcher": {
+                "kind": "contains",
+                "value": {
+                  "kind": "interpolated",
+                  "form": "string",
+                  "segments": [
+                    {
+                      "kind": "literal",
+                      "value": "file://"
+                    },
+                    {
+                      "kind": "binding",
+                      "name": "workspace"
+                    },
+                    {
+                      "kind": "literal",
+                      "value": "/gist-repo"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

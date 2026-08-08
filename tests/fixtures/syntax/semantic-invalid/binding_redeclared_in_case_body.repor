@@ -1,0 +1,15 @@
+# A `before_each` binding is in scope for the whole case body, so redeclaring
+# its name there is a duplicate declaration, not a shadow
+# (semantic.binding.duplicate).
+before_each {
+  $ pwd
+  let workspace <- stdout_line
+}
+
+case "c" {
+  $ pwd
+  let workspace <- stdout_line
+  assert {
+    exit 0
+  }
+}

@@ -170,3 +170,30 @@ fn assert_file_exists_step(path: &str) -> Step {
     })];
     Step::AssertionBlock(AssertionBlock::new(expectations).unwrap())
 }
+
+fn binding_step(name: &str) -> Step {
+    Step::Binding(BindingDeclaration {
+        name: name.to_string(),
+        source: RuntimeEvidenceSource::StdoutExact,
+        declaration_span: zero_span(),
+    })
+}
+
+fn stdout_text_equals_binding(name: &str) -> Expectation {
+    Expectation::Stdout(OutputExpectation {
+        matcher: OutputMatcher::TextEquals(TextValueExpression::Binding(BindingReference {
+            name: name.to_string(),
+            reference_span: zero_span(),
+        })),
+    })
+}
+
+/// These tests never render a span, so one placeholder serves every binding.
+fn zero_span() -> LocatedSpan {
+    LocatedSpan {
+        start: 0,
+        end: 0,
+        line: 1,
+        column: 1,
+    }
+}

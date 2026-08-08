@@ -198,7 +198,7 @@ fn binding_capture_requires_a_preceding_action() {
 }
 
 #[test]
-fn invalid_binding_identifier_and_before_each_binding_are_rejected() {
+fn invalid_binding_identifier_is_rejected() {
     let invalid = "case \"x\" {\n  $ true\n  let 1value <- stdout\n  assert { exit 0 }\n}\n";
     let error = parse(invalid).unwrap_err();
     assert_eq!(
@@ -223,18 +223,45 @@ fn invalid_binding_identifier_and_before_each_binding_are_rejected() {
         assert_eq!(location.line, 3);
         assert!(location.column.is_some());
     }
+}
 
-    let before_each =
-        "before_each {\n  let value <- stdout\n}\ncase \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
+#[test]
+fn a_before_each_binding_is_in_scope_for_the_whole_case_body() {
+    let src = "before_each {\n  $ pwd\n  let workspace <- stdout_line\n}\ncase \"x\" {\n  write <\"a.txt\"> &workspace\n  assert { file <\"a.txt\"> exists }\n}\n";
+    let script = parse_script(src).unwrap();
+    let before_each = script.before_each.expect("before_each must be parsed");
+    assert!(matches!(before_each.steps()[1], Step::Binding(_)));
+    assert_eq!(script.cases.len(), 1);
+}
+
+#[test]
+fn binding_scope_does_not_flow_backwards_from_a_case_body_into_before_each() {
+    // `before_each` runs first, so a case body declaration is undefined there —
+    // not used-before-declaration, which would imply it becomes available later.
+    let src = "before_each {\n  write <\"a.txt\"> &workspace\n}\ncase \"x\" {\n  $ pwd\n  let workspace <- stdout_line\n  assert { exit 0 }\n}\n";
     assert_eq!(
-        parse(before_each).unwrap_err().code(),
-        DiagnosticCode::SemanticBindingBeforeEachForbidden
+        parse(src).unwrap_err().code(),
+        DiagnosticCode::SemanticBindingUndefined
     );
+}
 
-    let reference = "before_each {\n  write <\"x\"> &value\n}\ncase \"x\" {\n  $ true\n  assert { exit 0 }\n}\n";
+#[test]
+fn a_case_body_binding_requires_a_case_body_action() {
+    // The body-entry checkpoint drops the last setup action's process evidence,
+    // so `action seen` restarts with the case body.
+    let src = "before_each {\n  $ pwd\n  assert { exit 0 }\n}\ncase \"x\" {\n  let workspace <- stdout_line\n  assert { file <\"a.txt\"> exists }\n}\n";
     assert_eq!(
-        parse(reference).unwrap_err().code(),
-        DiagnosticCode::SemanticBindingBeforeEachForbidden
+        parse(src).unwrap_err().code(),
+        DiagnosticCode::SemanticBindingRequiresAction
+    );
+}
+
+#[test]
+fn a_case_body_must_not_redeclare_a_before_each_binding() {
+    let src = "before_each {\n  $ pwd\n  let workspace <- stdout_line\n}\ncase \"x\" {\n  $ pwd\n  let workspace <- stdout_line\n  assert { exit 0 }\n}\n";
+    assert_eq!(
+        parse(src).unwrap_err().code(),
+        DiagnosticCode::SemanticBindingDuplicate
     );
 }
 

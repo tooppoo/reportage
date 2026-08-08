@@ -1,0 +1,14 @@
+# A `let` captures the last action's output, and `before_each` starts at the
+# setup-entry checkpoint with no action result
+# (semantic.binding.requires_action).
+before_each {
+  let workspace <- stdout_line
+  $ pwd
+}
+
+case "c" {
+  $ true
+  assert {
+    exit 0
+  }
+}

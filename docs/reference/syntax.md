@@ -150,10 +150,9 @@ case_block = {
 //
 // The body reuses case_step: `before_each` holds the same steps a case body
 // holds, so a step added to a case body is available here without a second
-// grammar decision. A `let` binding is still grammar-legal but rejected during
-// parser construction (semantic.binding.before_each_forbidden), so the ban
-// reports what it is instead of a bare pest syntax error — the deliberate
-// opposite of the document blocks' whitelist approach above.
+// grammar decision, and no step kind is banned. Binding scope is validated
+// during parser construction, per phase — the deliberate opposite of the
+// document blocks' whitelist approach above.
 // Placement (at most one block per module, before the first case) is likewise
 // enforced during parser construction (parse.before_each.duplicate /
 // parse.before_each.after_case); a body with zero steps parses and is

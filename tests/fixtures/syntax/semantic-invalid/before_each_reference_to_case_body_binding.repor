@@ -1,0 +1,14 @@
+# `before_each` runs before the case body, so a case body declaration is not in
+# its scope. The reference is undefined, not used-before-declaration
+# (semantic.binding.undefined).
+before_each {
+  write <"seed.txt"> &"&{revision}"
+}
+
+case "c" {
+  $ printf 'abc123\n'
+  let revision <- stdout_line
+  assert {
+    exit 0
+  }
+}

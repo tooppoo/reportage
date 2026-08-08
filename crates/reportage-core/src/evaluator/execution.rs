@@ -412,12 +412,11 @@ fn execute_steps(
             }
 
             Step::Binding(declaration) => {
-                // Two separate guarantees, one per phase: `validate_bindings`
-                // rejects a case body `let` with no preceding action, and the
-                // parser's `let` ban keeps `before_each` from reaching here at
-                // all. A unit that lifts that ban must give `before_each` the
-                // equivalent validation, or this `expect` — and the
-                // `actions.len() - 1` below — become panics.
+                // `validate_bindings` runs over each phase's own step list and
+                // rejects a `let` with no preceding action in that phase, so
+                // both this `expect` and the `actions.len() - 1` below are
+                // unreachable. The index is case-global: a `before_each`
+                // binding's provenance names the setup action it captured.
                 let action = execution
                     .checkpoint
                     .last_action
