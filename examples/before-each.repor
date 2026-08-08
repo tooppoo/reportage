@@ -4,8 +4,10 @@ document file {
   order 10
 
   description ```
-    A `before_each` block seeds every case's isolated workspace with the same files, so each case starts from an identical, explicit state.
-    Like a `document file` block, it appears at most once, before the first case.
+    A `before_each` block seeds every case's isolated workspace before the case body's first step, so each case starts from an identical, explicit state.
+    It holds the same steps a case body holds — `$` actions, `assert` blocks, `let` bindings, and `write` steps — and, like a `document file` block, it appears at most once, before the first case.
+    Setup a `write` cannot express therefore belongs here too: creating an empty directory, initializing a tool, or reading a path that only exists at run time.
+    This index renders `case` blocks only, so read the source file for the `before_each` block itself.
     ```
 }
 
@@ -16,12 +18,48 @@ before_each {
     ```
 
   write <"input/message.txt"> "hello reportage\n"
+
+  $ mkdir -p repo/objects
+  assert {
+    exit 0
+    dir <"repo/objects"> exists
+  }
+
+  $ pwd
+  let workspace <- stdout_line
+
+  write <"tool.config"> &```
+    root = &{workspace}/repo
+    mode = strict
+    ```
 }
 
 case "the seeded files are present before any action" {
   assert {
     file <"config.yml"> exists
     file <"input/message.txt"> contains "hello"
+  }
+}
+
+case "a case body sees what the setup command created" {
+  assert {
+    dir <"repo/objects"> exists
+  }
+}
+
+document case {
+  title "Setup output as a binding"
+
+  description ```
+    An action only updates the checkpoint, so a setup action is verified by an `assert` block written next to it, and its output is captured with `let`.
+    The binding is then usable for the rest of `before_each` — here, interpolated into a `write` — and for the whole case body.
+    Every step is replayed inside each concrete case's own workspace, so the captured value is that case's own.
+    ```
+}
+
+case "a case body reads a binding the setup captured" {
+  assert {
+    file <"tool.config"> contains &"root = &{workspace}/repo"
   }
 }
 
@@ -49,5 +87,23 @@ case "a later case still sees the pristine seeded state" {
   assert {
     exit 0
     stdout contains "retries: 3"
+  }
+}
+
+document case {
+  title "The case body starts fresh"
+
+  description ```
+    Workspace state carries over from `before_each`, but the last setup action's result does not: the case body starts at its own initial checkpoint.
+    `exit`, `stdout`, and `stderr` at the top of a case body would have no action to describe, so this case runs its own action first.
+    Its `stdout` is that action's — had the setup's evidence carried over, this would be the path the setup's last action printed.
+    ```
+}
+
+case "process expectations describe the case body's own action" {
+  $ grep "^mode = " tool.config
+  assert {
+    exit 0
+    stdout contains "mode = strict"
   }
 }
