@@ -16,6 +16,8 @@ This file records every document in this repository that is produced by a genera
 | --- | --- | --- |
 | [`examples/README.md`](../examples/README.md) | `reportage docs` (`just examples-docs-gen`, drift-checked by `just examples-docs-check`), from [`examples/*.repor`](../examples/) | The index restates each example's `document file` / `document case` metadata and its case bodies; generating it from the executable examples keeps the published index and the scripts CI runs from diverging. |
 
+Not yet registered: the VS Code extension's generated outputs — the `<!-- BEGIN GENERATED: snippets -->` region of [`editors/vscode/README.md`](../editors/vscode/README.md) and [`editors/vscode/examples/full-syntax.repor`](../editors/vscode/examples/full-syntax.repor), both produced by [`editors/vscode/scripts/generate-readme.mjs`](../editors/vscode/scripts/generate-readme.mjs) and drift-checked by `pnpm run check:readme` in CI. Recording them needs a row shape this table does not have, since only a region of that README is generated and the generator reads two sources; until then, both files say so at the point of editing.
+
 ## Generated contract artifacts outside `docs/`
 
 These are not documents, but they follow the same rule: the generated file is never hand-edited.
