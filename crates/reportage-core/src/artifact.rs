@@ -147,8 +147,8 @@ impl ArtifactWriter {
                     .join(test_id(case_index))
                     .join(action_id(action_index));
                 std::fs::create_dir_all(&dir)?;
-                std::fs::write(dir.join("stdout.bin"), &action.stdout)?;
-                std::fs::write(dir.join("stderr.bin"), &action.stderr)?;
+                std::fs::write(dir.join("stdout.bin"), &action.result.stdout)?;
+                std::fs::write(dir.join("stderr.bin"), &action.result.stderr)?;
             }
         }
         Ok(())
@@ -173,7 +173,9 @@ pub fn action_id(action_index: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::result::{ActionResult, CaseResult, CaseStatus};
+    use crate::result::{
+        ActionRecord, ActionResult, CaseResult, CaseStatus, StepOrigin, StepPhase,
+    };
     use tempfile::TempDir;
 
     fn empty_result() -> ExecutionReport {
@@ -259,13 +261,16 @@ mod tests {
             name: "one action".to_string(),
             source_path: None,
             status: CaseStatus::Pass,
-            actions: vec![ActionResult {
-                command: "echo hello".to_string(),
-                exit_code: 0,
-                stdout: b"hello\n".to_vec(),
-                stderr: b"".to_vec(),
-                shim_invocations: vec![],
-                shim_event_parse_warnings: vec![],
+            actions: vec![ActionRecord {
+                origin: StepOrigin::new(StepPhase::Case, 0),
+                result: ActionResult {
+                    command: "echo hello".to_string(),
+                    exit_code: 0,
+                    stdout: b"hello\n".to_vec(),
+                    stderr: b"".to_vec(),
+                    shim_invocations: vec![],
+                    shim_event_parse_warnings: vec![],
+                },
             }],
             assertion_blocks: vec![],
             side_effects_executed: 0,

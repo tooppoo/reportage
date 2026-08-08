@@ -355,6 +355,54 @@ fn before_each_runs_actions_and_assertions_in_source_order() {
 }
 
 #[test]
+fn an_action_record_names_the_phase_and_step_it_ran_from() {
+    // Each action is preceded by a different number of non-action steps, so
+    // the phase-local step index differs from the action's position in
+    // `actions` for both of them: a step index counted as an action ordinal —
+    // per phase or across the case — would report 0 and 1 instead of 1 and 2.
+    let before_each = BeforeEach::new(vec![
+        write_step("setup.txt", "s"),
+        action("true"),
+        assert_exit(0),
+    ])
+    .unwrap();
+    let script = Script {
+        before_each: Some(before_each),
+        cases: vec![Case {
+            name: "acts after two writes".to_string(),
+            steps: vec![
+                write_step("a.txt", "x"),
+                write_step("b.txt", "y"),
+                action("true"),
+                assert_exit(0),
+            ],
+        }],
+    };
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+    assert!(
+        matches!(result.cases[0].status, CaseStatus::Pass),
+        "{:?}",
+        result.cases[0].status
+    );
+    assert_eq!(
+        result.cases[0]
+            .actions
+            .iter()
+            .map(|action| action.origin)
+            .collect::<Vec<_>>(),
+        vec![
+            StepOrigin::new(StepPhase::BeforeEach, 1),
+            StepOrigin::new(StepPhase::Case, 2),
+        ]
+    );
+}
+
+#[test]
 fn the_body_entry_checkpoint_keeps_workspace_state_and_drops_process_evidence() {
     // The case body's first assertion sees the file the setup action created,
     // but a process expectation there has no action of its own to describe:

@@ -89,7 +89,7 @@ fn print_results(result: &ExecutionReport) {
         // See ADR 20260628T210000Z_shim-invocation-event-side-channel.
         if matches!(&case.status, CaseStatus::Fail | CaseStatus::RuntimeError(_)) {
             for action in &case.actions {
-                for ev in &action.shim_invocations {
+                for ev in &action.result.shim_invocations {
                     eprintln!(
                         "  shim invoked for '{}': {} -> {}",
                         ev.command_name,
@@ -100,7 +100,7 @@ fn print_results(result: &ExecutionReport) {
                         eprintln!("    target args: {:?}", ev.target.args);
                     }
                 }
-                for warning in &action.shim_event_parse_warnings {
+                for warning in &action.result.shim_event_parse_warnings {
                     eprintln!("  shim event warning: {warning}");
                 }
             }

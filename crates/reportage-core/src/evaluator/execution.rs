@@ -12,7 +12,7 @@ use crate::model::{
     Script, SideEffectingStep, Step, TextValue,
 };
 use crate::result::{
-    ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExecutionReport, ExpectationResult,
+    ActionRecord, AssertionBlockResult, CaseResult, CaseStatus, ExecutionReport, ExpectationResult,
     RuntimeError, ScriptError, StepOrigin, StepPhase,
 };
 use crate::shim::CommandRegistry;
@@ -83,7 +83,7 @@ struct CaseExecution {
     /// The evidence context the next assertion block verifies: the initial
     /// checkpoint until a `$` action replaces it.
     checkpoint: Checkpoint,
-    actions: Vec<ActionResult>,
+    actions: Vec<ActionRecord>,
     bindings: HashMap<String, Binding>,
     assertion_blocks: Vec<AssertionBlockResult>,
     /// Successful `write` (and future side-effecting) step count, independent
@@ -359,7 +359,10 @@ fn execute_steps(
                             ctx.workspace.root().to_path_buf(),
                             ctx.repor_dir.to_path_buf(),
                         );
-                        execution.actions.push(result);
+                        execution.actions.push(ActionRecord {
+                            origin: StepOrigin::new(ctx.phase, step_idx),
+                            result,
+                        });
                     }
                     Err(e) => {
                         return Err(StepAbort::Runtime(RuntimeError {
