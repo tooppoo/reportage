@@ -112,8 +112,8 @@ examples-docs-gen:
 examples-docs-check:
   #!/usr/bin/env sh
   set -eu
-  tmp=$(mktemp -d)
-  trap "rm -rf '$tmp'" EXIT
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
   cargo run --locked -q -p reportage-cli --bin reportage -- docs 'examples/*.repor' \
     --out-dir "$tmp" \
     --index-file-name README.md \
