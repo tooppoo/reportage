@@ -970,7 +970,7 @@ case "dir contains an entry" {
 Source: examples/before-each.repor
 
 A `before_each` block seeds every case's isolated workspace with the same files, so each case starts from an identical, explicit state.
-It holds the same steps a case body holds — `$` actions, `assert` blocks, `let` bindings, and `write` steps — and, like a `document file` block, it appears at most once, before the first case.
+Like a `document file` block, it appears at most once, before the first case.
 
 <a id="case-6-1-1-the-seeded-files-are-present-before-any-action"></a>
 #### the seeded files are present before any action
@@ -1020,9 +1020,10 @@ case "a later case still sees the pristine seeded state" {
 
 Source: examples/before-each-with-commands.repor
 
-Setup that a `write` cannot express — creating a directory tree, initializing a tool, reading a path that only exists at run time — belongs in `before_each` too.
-The block holds the same steps a case body holds, so it can run a `$` action, verify it with an `assert` block, capture output with `let`, and interpolate that value into a `write`.
+Setup that a `write` cannot express — creating an empty directory, initializing a tool, reading a path that only exists at run time — belongs in `before_each` too.
+The block holds the same steps a case body holds: a `$` action, an `assert` block verifying it, a `let` capturing its output, and a `write` interpolating that binding.
 Every step is replayed inside each concrete case's own workspace, so a binding captured here holds that case's own value.
+This index renders `case` blocks only, so read the source file for the `before_each` block itself.
 
 <a id="case-6-2-1-a-case-body-sees-what-the-setup-command-created"></a>
 #### a case body sees what the setup command created
@@ -1050,7 +1051,8 @@ case "a case body reads a binding the setup captured" {
 #### The case body starts fresh
 
 Workspace state carries over from `before_each`, but the last setup action's result does not: the case body starts at its own initial checkpoint.
-`exit`, `stdout`, and `stderr` at the top of a case body would have no action to describe, so this case runs its own action first — and its `exit 0` is that action's, never the setup's.
+`exit`, `stdout`, and `stderr` at the top of a case body would have no action to describe, so this case runs its own action first.
+Its `stdout` is that action's — had the setup's evidence carried over, this would be the path the setup's last action printed.
 
 ```reportage
 case "process expectations describe the case body's own action" {
