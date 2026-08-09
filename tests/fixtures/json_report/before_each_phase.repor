@@ -1,0 +1,22 @@
+# A `before_each` action and assertion, so `step.phase` appears as
+# "before_each" on both an action and an assertion.
+#
+# The body-entry `checkpoint: "initial"` contract needs a workspace expectation,
+# whose kind this fixture set's typed consumer model deliberately does not
+# cover; it is pinned by the run_result fixture of the same name, and this
+# document is a projection of that one.
+before_each {
+  $ echo setup
+  assert {
+    exit 0
+    stdout contains "setup"
+  }
+}
+
+case "acts after the setup action" {
+  $ echo body
+  assert {
+    exit 0
+    stdout contains "body"
+  }
+}

@@ -10,12 +10,16 @@
         "kind": "source",
         "source": "semantic_error.repor"
       },
-      "severity": "error"
+      "severity": "error",
+      "step": {
+        "index": 0,
+        "phase": "case"
+      }
     }
   ],
   "noop": false,
   "processExitCode": 2,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "error",
   "summary": {
     "actions": 0,

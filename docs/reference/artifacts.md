@@ -15,6 +15,7 @@ The artifact bundle written to `.reportage/runs/<run-id>/` — `result.json` plu
 - concrete case results (`tests[]`)
 - action results, including evidence references for captured stdout/stderr
 - assertion / expectation results
+- the step each action, assertion, and step-attributed diagnostic came from (`step`)
 - diagnostics and failure classification
 - document-local ids (`test-1`, `action-1`, `assertion-1`, `diagnostic-1`, ...)
 - schema version and tool version
@@ -90,7 +91,7 @@ A passing single-case run produces (`tool.version` normalised to a placeholder):
   "diagnostics": [],
   "noop": false,
   "processExitCode": 0,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "passed",
   "summary": {
     "actions": 1,
@@ -116,6 +117,10 @@ A passing single-case run produces (`tool.version` normalised to a placeholder):
             "artifactRef": "test-1/action-1/stdout.bin",
             "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
             "sizeBytes": 6
+          },
+          "step": {
+            "index": 0,
+            "phase": "case"
           }
         }
       ],
@@ -129,7 +134,11 @@ A passing single-case run produces (`tool.version` normalised to a placeholder):
             "status": "passed"
           },
           "id": "assertion-1",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 1,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-1",
@@ -145,7 +154,11 @@ A passing single-case run produces (`tool.version` normalised to a placeholder):
             "status": "passed"
           },
           "id": "assertion-2",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 1,
+            "phase": "case"
+          }
         }
       ],
       "id": "test-1",
@@ -171,7 +184,7 @@ For an empty, whitespace-only, or otherwise valid zero-case suite, the run manif
   "diagnostics": [],
   "noop": true,
   "processExitCode": 0,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "passed",
   "summary": {
     "actions": 0,
@@ -218,6 +231,22 @@ This keeps the manifest small and streaming-safe regardless of action output siz
 Runtime bindings captured from stdout or stderr do not create a second plaintext artifact.
 Their provenance points back to the existing action stream evidence, which remains the canonical byte record.
 Consumers can therefore trace a binding to its action, stream, and capture mode without duplicating potentially sensitive output in the manifest.
+
+### Step origin
+
+Every `actions[]` and `assertions[]` entry, and every diagnostic attributed to one step, carries a `step` object:
+
+```json
+"step": { "phase": "before_each", "index": 0 }
+```
+
+`phase` names the source block the step was written in — `before_each` for the module-level setup replayed inside this concrete case, `case` for the case body.
+
+`index` is **phase-local** and 0-based, counting every step kind in that block: actions, assertion blocks, `let` bindings, and `write` steps alike. It is not a position in `actions[]`. Those two numbers routinely differ: in the passing example above, the single action is `actions[0]` but reports `"index": 0` only because nothing precedes it; add a `write` before it and the action stays `actions[0]` while its `step.index` becomes `1`. Actions are numbered across the whole concrete case in execution order, so a `before_each` action and a case body action share one `actions[]` sequence; `step` is what says which block each came from.
+
+A diagnostic omits `step` when it is not attributable to one — a file-level parse or read error, or a case-level problem such as a case body containing no assertion block.
+
+`checkpoint: "initial"` on an assertion means the phase-entry checkpoint of that assertion's own `step.phase`, not that no action has run in the concrete case. A case body assertion placed before the body's first action reports `initial` even when `before_each` already ran actions, because the body-entry checkpoint does not carry their process evidence. See [Execution model](execution-model.md#initial-checkpoint).
 
 ## Relationship to `--format=json`
 

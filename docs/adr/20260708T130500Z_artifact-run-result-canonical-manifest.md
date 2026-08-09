@@ -117,5 +117,5 @@ Rejected for the canonical manifest: issue #102 requires the typed structs to co
 ### Neutral Consequences
 
 - `reportage-core` gains a `sha2` dependency.
-- Step indices and per-step counts of the old shape are no longer recorded in the manifest; failure positions are carried by diagnostics instead.
-- The two `schemaVersion` fields currently share the value `1` but version independently.
+- Step indices and per-step counts of the old shape are no longer recorded in the manifest; failure positions are carried by diagnostics instead. Revised by [ADR: Phase-Aware Step Origin in the JSON Contracts](20260808T140000Z_phase-aware-step-origin-in-json-contracts.md).
+- The two `schemaVersion` fields currently share the value `1` but version independently. Revised by [ADR: Phase-Aware Step Origin in the JSON Contracts](20260808T140000Z_phase-aware-step-origin-in-json-contracts.md).

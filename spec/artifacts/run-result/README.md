@@ -50,9 +50,12 @@ Because `result.json` is the canonical manifest, the typed consumer structs mode
 - `partial_execution_after_runtime_error` — evidence recorded before a later runtime error survives;
 - `expectation_kinds` — exercises file/dir/text-equals/empty/logical expectation shapes beyond the exit/stdoutContains kinds the scenarios above use, including a failing logical composition, which is the only shape in which a composition carries a `diagnosticRef` and its children must not;
 - `contents_equals` — exercises `fileContentsEquals` / `stdoutContentsEquals` with a workspace expected source, including a bounded `mismatch` object and an `observed` value other than `compared`, where no comparison outcome exists to record;
-- `noop` — valid zero-case input recorded as `noop: true` with empty `tests` and a zeroed summary.
+- `noop` — valid zero-case input recorded as `noop: true` with empty `tests` and a zeroed summary;
+- `text_equals` — exercises the `fileTextEquals` / `stdoutTextEquals` shapes and their `TextExpectedSource`;
+- `interpolated_text` — exercises an interpolated literal's `expectedSource` provenance, including its resolved binding references;
+- `before_each_phase` — a `before_each` action and assertion, so `step.phase` appears as both `before_each` and `case`, and the case body's first assertion pins `checkpoint: "initial"` meaning the body-entry checkpoint rather than "no action has run".
 
-The first six scenarios mirror `tests/fixtures/json_report/`'s required scenario set, so projection parity can be checked over the same run shapes. Each fixture has a companion `<name>.snapshot.json` normalized-output snapshot (`tool.version` replaced by a placeholder), refreshed via `UPDATE_RUN_RESULT_SNAPSHOTS=1`. See `crates/reportage-cli/tests/run_result_fixtures.rs`.
+The scenarios `tests/fixtures/json_report/` also requires are a subset of these, so projection parity can be checked over the same run shapes. Each fixture has a companion `<name>.snapshot.json` normalized-output snapshot (`tool.version` replaced by a placeholder), refreshed via `UPDATE_RUN_RESULT_SNAPSHOTS=1`. See `crates/reportage-cli/tests/run_result_fixtures.rs`.
 
 ## Compatibility
 

@@ -35,7 +35,7 @@ use super::OutputRenderer;
 
 /// Version of the `--format=json` stdout contract (`spec/output/json-report/schema.json`).
 /// Distinct from the artifact result contract's own `schemaVersion` (`reportage_core::run_result::RUN_RESULT_SCHEMA_VERSION`); the two contracts version independently even while their current values coincide.
-const JSON_REPORT_SCHEMA_VERSION: u32 = 1;
+const JSON_REPORT_SCHEMA_VERSION: u32 = 2;
 
 pub struct JsonRenderer {
     artifact_root: std::path::PathBuf,
@@ -157,7 +157,7 @@ mod tests {
     fn projection_keeps_document_semantics() {
         let doc = build_document(&report(), Path::new(".reportage/runs/1"));
 
-        assert_eq!(doc["schemaVersion"], 1);
+        assert_eq!(doc["schemaVersion"], JSON_REPORT_SCHEMA_VERSION);
         assert_eq!(doc["status"], "passed");
         assert_eq!(doc["processExitCode"], 0);
         assert_eq!(doc["tests"][0]["id"], "test-1");

@@ -366,7 +366,7 @@ A concrete case that runs `before_each` therefore has two initial checkpoints:
 
 The body-entry checkpoint carries the workspace state `before_each` produced — files its `write` steps wrote, and files its actions created — but not the last setup action's result. A case body's first `exit` / `stdout` / `stderr` describes something that case body did, never whichever command the shared setup happened to end with.
 
-An assertion evaluated at either checkpoint reports `checkpoint: "initial"` in [JSON output](../../spec/output/json-report/schema.json) and the [run result artifact](../../spec/artifacts/run-result/schema.json). The two are told apart by which block the assertion is written in.
+An assertion evaluated at either checkpoint reports `checkpoint: "initial"` in [JSON output](../../spec/output/json-report/schema.json) and the [run result artifact](../../spec/artifacts/run-result/schema.json). The two are told apart by the same assertion's `step.phase`, which names the block it is written in.
 
 A concrete case with no `before_each` has one initial checkpoint, the body-entry one.
 

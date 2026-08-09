@@ -100,6 +100,9 @@ struct Diagnostic {
     /// Mirrors `json_report_fixtures.rs`.
     location: Value,
     code: Option<String>,
+    /// Present only when the diagnostic is attributed to a step.
+    #[serde(default)]
+    step: Option<StepOrigin>,
 }
 
 /// Asserts `location` is JSON `null` or deserializes as a valid `Location`, without collapsing "missing key" and "present but null" the way an `Option<Location>` struct field would.
@@ -162,11 +165,30 @@ enum TestStatus {
     Error,
 }
 
+/// Mirrors the schema's `StepOrigin`: which block a step belongs to, and its
+/// 0-based position within that block. Deserialized rather than ignored so a
+/// consumer model proves the phase enum stays closed to these two values.
+/// Mirrors `json_report_fixtures.rs`.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct StepOrigin {
+    phase: StepPhase,
+    index: usize,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+enum StepPhase {
+    BeforeEach,
+    Case,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct Action {
     id: String,
     command: String,
+    step: StepOrigin,
     exit_code: i32,
     stdout: EvidenceReference,
     stderr: EvidenceReference,
@@ -191,6 +213,7 @@ struct EvidenceReference {
 struct Assertion {
     id: String,
     status: Status,
+    step: StepOrigin,
     checkpoint: String,
     expectation: Expectation,
     #[serde(default)]

@@ -120,6 +120,9 @@ struct Diagnostic {
     /// (`null` or a `Location`) is checked separately by `assert_location_shape_is_valid`.
     location: Value,
     code: Option<String>,
+    /// Present only when the diagnostic is attributed to a step.
+    #[serde(default)]
+    step: Option<StepOrigin>,
 }
 
 /// Asserts `location` is JSON `null` or deserializes as a valid `Location`, without collapsing
@@ -183,11 +186,29 @@ enum TestStatus {
     Error,
 }
 
+/// Mirrors the schema's `StepOrigin`: which block a step belongs to, and its
+/// 0-based position within that block. Deserialized rather than ignored so a
+/// consumer model proves the phase enum stays closed to these two values.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct StepOrigin {
+    phase: StepPhase,
+    index: usize,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+enum StepPhase {
+    BeforeEach,
+    Case,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct Action {
     id: String,
     command: String,
+    step: StepOrigin,
     exit_code: i32,
     stdout: StreamArtifact,
     stderr: StreamArtifact,
@@ -209,6 +230,7 @@ struct StreamArtifact {
 struct Assertion {
     id: String,
     status: Status,
+    step: StepOrigin,
     checkpoint: String,
     expectation: Expectation,
     #[serde(default)]
@@ -382,6 +404,7 @@ fn all_required_representative_scenarios_are_present() {
         "parse_error",
         "semantic_error",
         "runtime_error",
+        "before_each_phase",
         "partial_execution_after_runtime_error",
     ];
 

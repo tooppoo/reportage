@@ -2,7 +2,7 @@
   "diagnostics": [],
   "noop": false,
   "processExitCode": 0,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "passed",
   "summary": {
     "actions": 1,
@@ -28,6 +28,10 @@
             "artifactRef": "test-1/action-1/stdout.bin",
             "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
             "sizeBytes": 6
+          },
+          "step": {
+            "index": 0,
+            "phase": "case"
           }
         }
       ],
@@ -41,7 +45,11 @@
             "status": "passed"
           },
           "id": "assertion-1",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 1,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-1",
@@ -57,7 +65,11 @@
             "status": "passed"
           },
           "id": "assertion-2",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 1,
+            "phase": "case"
+          }
         }
       ],
       "id": "test-1",
