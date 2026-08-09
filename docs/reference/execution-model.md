@@ -193,18 +193,36 @@ v0 rules:
 - `before_each` is optional.
 - At most one `before_each` block is allowed per module (`parse.before_each.duplicate`).
 - `before_each` must appear before any `case` block, and must not separate a `document case` block from its target case (`parse.before_each.after_case`).
+  - Placement is validated positionally, as the source is read. A misplaced `before_each` whose bindings a preceding case already references therefore reports that reference's scope diagnostic (`semantic.binding.undefined`) rather than the placement error, because the case is validated before the block is reached.
 - `before_each` is not shared state; it is replayed inside each concrete case workspace.
-- Files created by `before_each` exist in the workspace before the case body's first step, and are workspace evidence at the initial checkpoint (see "Initial checkpoint" below).
+- Workspace state `before_each` produces — files it writes, and files its actions create — exists before the case body's first step, and is workspace evidence at the case body's initial checkpoint (see "Initial checkpoint" below).
 - A `before_each` step that fails at runtime is a runtime step error for that concrete case; the case body does not run.
+- A `before_each` assertion failure fails that concrete case; the case body does not run. Other concrete cases are still set up and run.
 - v0 does not provide `before_all`, `after_all`, or `after_each`.
 
 Allowed steps:
 
-- `before_each` may contain `write` steps only, and must contain at least one (`parse.before_each.empty`).
-- `$` action steps are rejected regardless of the command, setup-oriented or not (`parse.before_each.action_step`). Setup commands such as `$ mkdir -p ...` or `$ cp -R ... ...` belong in each case body, where they are explicit per case.
-- `assert` blocks are rejected (`parse.before_each.assertion_block`). To verify setup results, write workspace expectations at the start of each case body. Whether `before_each` should ever accept an assertion block is a deferred topic (see [Deferred topics](../planning/TBD.md)).
+- `before_each` contains the same steps a case body contains, in source order, and must contain at least one (`parse.before_each.empty`).
+- `$` action steps, `assert` blocks, `let` runtime evidence bindings, and `write` steps are accepted, and behave exactly as they do in a case body. An action only updates the checkpoint, so verify a setup action's result with an `assert` block inside `before_each`.
 
-See [ADR: `before_each` Is Write-Only Case-Local Setup](../adr/20260723T120000Z_before-each-case-local-setup.md) for the rationale behind these restrictions.
+Runtime evidence binding scope:
+
+- A binding declared in `before_each` is in scope for the rest of `before_each` and for the whole case body that follows.
+- A binding declared in a case body is not in scope for `before_each`, which already ran: a `before_each` reference to such a name is `semantic.binding.undefined`, not a use-before-declaration.
+- A case body must not redeclare a `before_each` binding name (`semantic.binding.duplicate`). There is no shadowing.
+- A binding's provenance names the action it captured from, whichever phase that action is in.
+- `let` requires a preceding action **in its own phase**. The body-entry checkpoint drops the last setup action's process evidence, so a case body `let` placed before the body's first action is `semantic.binding.requires_action` even when `before_each` ran actions.
+
+Checkpoint lifecycle:
+
+- `before_each` starts at a setup-entry checkpoint, which has workspace state and no last action result. A process expectation (`exit` / `stdout` / `stderr`) placed before the block's first action is therefore an initial-checkpoint error, exactly as at the start of a case body.
+- When `before_each` completes, the case body starts at its own initial checkpoint. Workspace state carries over; the last setup action's process evidence does not. A case body's first `exit` / `stdout` / `stderr` describes something that case body did, never a command the module-level setup happened to end with.
+
+Assertion requirement:
+
+- A `before_each` assertion verifies setup, and does not satisfy a case body's own requirement to contain at least one `assert` block (`parse.missing_assertion_block`). A case whose only assertion lives in the shared setup verifies nothing about its own subject.
+
+See [ADR: `before_each` Is a Case-Local Setup Phase](../adr/20260806T090000Z_before-each-case-local-setup-phase.md) and [ADR: Runtime Evidence Binding Scope Across `before_each` and the Case Body](../adr/20260806T140000Z_before-each-binding-scope.md) for the rationale.
 
 Variant-specific setup should usually live in the parameterized `case`, not in `before_each`. This keeps `before_each` independent of case-local parameter context.
 
@@ -332,16 +350,25 @@ Checkpoints are maintained by the runner as it processes case body steps.
 
 ## Initial checkpoint
 
-The initial checkpoint is established after the case workspace is created, `before_each` has run, and before the first step of the case body executes.
+An initial checkpoint is established at the start of each step sequence a concrete case runs, before that sequence's first step executes. It has:
 
-The initial checkpoint has:
-
-- workspace state (the current case workspace, including any files written by `before_each`);
+- workspace state (the current case workspace);
 - no last action result.
 
-Workspace expectations (`dir <"path"> exists`, `file <"path"> exists`, etc.) are valid at the initial checkpoint.
+Workspace expectations (`dir <"path"> exists`, `file <"path"> exists`, etc.) are valid at an initial checkpoint.
 
-Process expectations (`exit`, `stdout`, `stderr`) require a last action result. Using a process expectation in an assertion block at the initial checkpoint is a **script error**.
+Process expectations (`exit`, `stdout`, `stderr`) require a last action result. Using a process expectation in an assertion block at an initial checkpoint is a **script error**.
+
+A concrete case that runs `before_each` therefore has two initial checkpoints:
+
+- the **setup-entry checkpoint**, established after the case workspace is created and before `before_each`'s first step;
+- the **body-entry checkpoint**, established after `before_each` completes and before the case body's first step.
+
+The body-entry checkpoint carries the workspace state `before_each` produced — files its `write` steps wrote, and files its actions created — but not the last setup action's result. A case body's first `exit` / `stdout` / `stderr` describes something that case body did, never whichever command the shared setup happened to end with.
+
+An assertion evaluated at either checkpoint reports `checkpoint: "initial"` in [JSON output](../../spec/output/json-report/schema.json) and the [run result artifact](../../spec/artifacts/run-result/schema.json). The two are told apart by the same assertion's `step.phase`, which names the block it is written in.
+
+A concrete case with no `before_each` has one initial checkpoint, the body-entry one.
 
 ## Action-updated checkpoint
 

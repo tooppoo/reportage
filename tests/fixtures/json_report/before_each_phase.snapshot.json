@@ -1,0 +1,135 @@
+{
+  "artifactRoot": "<ARTIFACT_ROOT>",
+  "diagnostics": [],
+  "processExitCode": 0,
+  "schemaVersion": 2,
+  "status": "passed",
+  "summary": {
+    "actions": 2,
+    "assertions": 4,
+    "errors": 0,
+    "failed": 0,
+    "passed": 1,
+    "scripts": 1
+  },
+  "tests": [
+    {
+      "actions": [
+        {
+          "command": "echo setup",
+          "exitCode": 0,
+          "id": "action-1",
+          "stderr": {
+            "artifactRef": "test-1/action-1/stderr.bin",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-1/action-1/stdout.bin",
+            "sizeBytes": 6
+          },
+          "step": {
+            "index": 0,
+            "phase": "before_each"
+          }
+        },
+        {
+          "command": "echo body",
+          "exitCode": 0,
+          "id": "action-2",
+          "stderr": {
+            "artifactRef": "test-1/action-2/stderr.bin",
+            "sizeBytes": 0
+          },
+          "stdout": {
+            "artifactRef": "test-1/action-2/stdout.bin",
+            "sizeBytes": 5
+          },
+          "step": {
+            "index": 0,
+            "phase": "case"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "checkpoint": "action-1",
+          "expectation": {
+            "actual": 0,
+            "expected": 0,
+            "kind": "exit",
+            "status": "passed"
+          },
+          "id": "assertion-1",
+          "status": "passed",
+          "step": {
+            "index": 1,
+            "phase": "before_each"
+          }
+        },
+        {
+          "checkpoint": "action-1",
+          "expectation": {
+            "actualRef": "test-1/action-1/stdout.bin",
+            "actualSizeBytes": 6,
+            "expected": "setup",
+            "expectedSource": {
+              "kind": "quoted",
+              "value": "setup"
+            },
+            "kind": "stdoutContains",
+            "status": "passed"
+          },
+          "id": "assertion-2",
+          "status": "passed",
+          "step": {
+            "index": 1,
+            "phase": "before_each"
+          }
+        },
+        {
+          "checkpoint": "action-2",
+          "expectation": {
+            "actual": 0,
+            "expected": 0,
+            "kind": "exit",
+            "status": "passed"
+          },
+          "id": "assertion-3",
+          "status": "passed",
+          "step": {
+            "index": 1,
+            "phase": "case"
+          }
+        },
+        {
+          "checkpoint": "action-2",
+          "expectation": {
+            "actualRef": "test-1/action-2/stdout.bin",
+            "actualSizeBytes": 5,
+            "expected": "body",
+            "expectedSource": {
+              "kind": "quoted",
+              "value": "body"
+            },
+            "kind": "stdoutContains",
+            "status": "passed"
+          },
+          "id": "assertion-4",
+          "status": "passed",
+          "step": {
+            "index": 1,
+            "phase": "case"
+          }
+        }
+      ],
+      "id": "test-1",
+      "name": "acts after the setup action",
+      "path": "before_each_phase.repor",
+      "status": "passed"
+    }
+  ],
+  "tool": {
+    "name": "reportage",
+    "version": "<VERSION>"
+  }
+}

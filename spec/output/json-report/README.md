@@ -33,4 +33,4 @@ Typed deserialization is not schema validation: it enforces neither `const`, `pa
 
 ## Representative fixtures
 
-`tests/fixtures/json_report/*.repor` holds one fixture script per required scenario (passed, assertion failure, parse error, semantic error, runtime error, partial execution after a runtime error), each with a companion `*.snapshot.json` normalized-output snapshot. See `crates/reportage-cli/tests/json_report_fixtures.rs`.
+`tests/fixtures/json_report/*.repor` holds one fixture script per required scenario (passed, assertion failure, parse error, semantic error, runtime error, partial execution after a runtime error, and a `before_each` phase case that makes `step.phase` appear as both `before_each` and `case`), each with a companion `*.snapshot.json` normalized-output snapshot. See `crates/reportage-cli/tests/json_report_fixtures.rs`.

@@ -2,7 +2,7 @@
   "artifactRoot": "<ARTIFACT_ROOT>",
   "diagnostics": [],
   "processExitCode": 0,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "passed",
   "summary": {
     "actions": 1,
@@ -26,6 +26,10 @@
           "stdout": {
             "artifactRef": "test-1/action-1/stdout.bin",
             "sizeBytes": 6
+          },
+          "step": {
+            "index": 0,
+            "phase": "case"
           }
         }
       ],
@@ -39,7 +43,11 @@
             "status": "passed"
           },
           "id": "assertion-1",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 1,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-1",
@@ -55,7 +63,11 @@
             "status": "passed"
           },
           "id": "assertion-2",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 1,
+            "phase": "case"
+          }
         }
       ],
       "id": "test-1",

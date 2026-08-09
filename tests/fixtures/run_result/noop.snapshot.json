@@ -2,7 +2,7 @@
   "diagnostics": [],
   "noop": true,
   "processExitCode": 0,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "passed",
   "summary": {
     "actions": 0,

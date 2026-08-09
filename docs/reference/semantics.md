@@ -284,7 +284,7 @@ Semantics:
 - An empty binding value, and a value containing line terminators or other control characters, are all substituted as-is.
 - One literal may reference the same binding more than once, and may reference several bindings.
 - Only case-local bindings are visible. Process environment variables, shell variables, and runner internals are never referenced implicitly.
-- An interpolated literal that references no binding is redundant but legal, so it stays usable where no binding scope exists — for example in `before_each`, whose binding scope is empty.
+- An interpolated literal that references no binding is redundant but legal, so it stays usable where the binding scope is empty — for example at the start of `before_each`, before its first `let`.
 - The resolved value is passed to the same write and comparison semantics as any other `TextValue`.
 
 Raw literals are unaffected. `&{name}` written inside `"..."` or a plain heredoc literal is literal text, which is what lets a script write shell scripts and other template engines' syntax verbatim:
@@ -365,7 +365,7 @@ write <"expected/stdout.txt"> ```
   ```
 ```
 
-`write` is a **side-effecting step**: unlike an action or an assertion block, it changes workspace state directly rather than executing an action or verifying a checkpoint. It is one of three step kinds a `case` body may contain — action (`$ ...`), assertion block (`assert { ... }`), and side-effecting step (`write ...`) — evaluated in source order, exactly like actions and assertion blocks. It is also the only step kind a module-level `before_each` block may contain (see [Execution model](execution-model.md#before_each)).
+`write` is a **side-effecting step**: unlike an action or an assertion block, it changes workspace state directly rather than executing an action or verifying a checkpoint. It is one of three step kinds a `case` body may contain — action (`$ ...`), assertion block (`assert { ... }`), and side-effecting step (`write ...`) — evaluated in source order, exactly like actions and assertion blocks. A module-level `before_each` block holds the same step kinds (see [Execution model](execution-model.md#before_each)).
 
 Semantics:
 

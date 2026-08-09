@@ -6,8 +6,10 @@ use crate::shim_event::ShimInvocationEvent;
 
 /// The captured output of a single `$` action step.
 ///
-/// Produced by the executor and stored in the checkpoint as the last action result.
-/// Also recorded in `CaseResult` for artifact output.
+/// Produced by the executor and stored in the checkpoint as the last action
+/// result. Recorded in `CaseResult` inside an [`ActionRecord`], which pairs it
+/// with the step it ran from — a position this type deliberately does not
+/// carry, since the executor cannot know it and a checkpoint has no use for it.
 #[derive(Debug, Clone)]
 pub struct ActionResult {
     pub command: String,
@@ -422,21 +424,63 @@ impl ExpectationResult {
     }
 }
 
+/// Which source block a step belongs to.
+///
+/// A step index alone cannot locate a step, because `before_each` and a case
+/// body are separate source blocks that each number their steps from zero. The
+/// phase is what makes a [`StepOrigin`] unambiguous.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StepPhase {
+    /// The module-level `before_each` block, replayed inside each concrete
+    /// case. Its `step_index` is local to that block, so it restarts at zero
+    /// independently of the case body it precedes.
+    BeforeEach,
+    /// The case body.
+    Case,
+}
+
+/// Where a step-attributed result or diagnostic occurred.
+///
+/// `step_index` is phase-local and 0-based, and counts every step kind —
+/// action, assertion block, binding, and write alike — so it indexes directly
+/// into that phase's own step list. Human-readable output may present it as a
+/// 1-based step number; internal consumers must not renumber it.
+///
+/// Unrelated to the `origin` field of a JSON diagnostic (see
+/// `run_result::case_json`), which identifies the source file or test a
+/// diagnostic belongs to rather than a position within a step list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StepOrigin {
+    pub phase: StepPhase,
+    pub step_index: usize,
+}
+
+impl StepOrigin {
+    pub fn new(phase: StepPhase, step_index: usize) -> Self {
+        Self { phase, step_index }
+    }
+}
+
 /// The result of evaluating one assertion block.
 ///
 /// All expectations within the block are evaluated; `has_failures` reflects whether any of them failed.
 /// See docs/reference/semantics.md — Assertion block.
 #[derive(Debug)]
 pub struct AssertionBlockResult {
-    /// Index of this assertion block's step within the case body.
-    pub step_index: usize,
+    /// Which step of which phase this assertion block is.
+    pub origin: StepOrigin,
     pub expectations: Vec<ExpectationResult>,
-    /// Index into the case's `actions` of the checkpoint this block evaluated process
-    /// expectations against, i.e. how many `$` actions had run by this point minus one.
-    /// `None` means the block ran at the initial checkpoint (no action has run yet), which
-    /// is only possible when the block has no process expectations (`exit`/`stdout`/`stderr`)
-    /// — see `evaluate_case`'s "assertion block ... uses a process expectation ... but no '$'
-    /// action has run yet" check.
+    /// Index into the case's `actions` of the action-updated checkpoint this block
+    /// evaluated process expectations against.
+    ///
+    /// `None` means the block ran at the phase-entry checkpoint of its own
+    /// [`StepOrigin::phase`] — the setup-entry checkpoint for `before_each`, the
+    /// body-entry checkpoint for a case body — which has no last action result. A
+    /// case body's first assertion reports `None` even when `before_each` already
+    /// ran actions, because the body-entry checkpoint does not carry their process
+    /// evidence. `None` is only reachable when the block has no process expectation
+    /// (`exit`/`stdout`/`stderr`) — see `execute_steps`'s "uses a process expectation
+    /// ... but no '$' action has run yet" check.
     pub checkpoint_action_index: Option<usize>,
 }
 
@@ -463,7 +507,7 @@ pub enum CaseStatus {
 /// Covers both parse-domain problems detected at evaluation time (e.g. a missing
 /// assertion block, which reuses `DiagnosticCode::ParseMissingAssertionBlock`) and
 /// semantic errors (e.g. a path policy violation, or a process expectation used
-/// before any action has run). `diagnostic_code` and `step_index` let callers
+/// before any action has run). `diagnostic_code` and `origin` let callers
 /// (CLI rendering, the `--format=json` renderer) surface the failure structurally
 /// instead of parsing it back out of `message`.
 #[derive(Debug)]
@@ -471,16 +515,16 @@ pub struct ScriptError {
     pub message: String,
     /// The stable diagnostic code for this failure, when one is defined.
     pub diagnostic_code: Option<DiagnosticCode>,
-    /// The case-body step index this failure occurred at, when applicable.
+    /// The step this failure occurred at, when applicable.
     /// `None` for case-level problems not tied to one step (e.g. a missing assertion block).
-    pub step_index: Option<usize>,
+    pub origin: Option<StepOrigin>,
 }
 
 /// Structured detail for a [`CaseStatus::RuntimeError`].
 ///
 /// A runtime error can originate from a side-effecting step with its own stable
 /// diagnostic code (e.g. `step.write.target_exists`); `diagnostic_code` and
-/// `step_index` let callers (CLI rendering, the `result.json` artifact) surface
+/// `origin` let callers (CLI rendering, the `result.json` artifact) surface
 /// that structurally instead of parsing it back out of `message`.
 #[derive(Debug)]
 pub struct RuntimeError {
@@ -489,8 +533,25 @@ pub struct RuntimeError {
     /// `None` for infrastructure failures that predate a diagnostic code
     /// (e.g. shell spawn failure, workspace creation failure).
     pub diagnostic_code: Option<DiagnosticCode>,
-    /// The case-body step index this failure occurred at, when applicable.
-    pub step_index: Option<usize>,
+    /// The step this failure occurred at, when applicable.
+    pub origin: Option<StepOrigin>,
+}
+
+/// One `$` action a concrete case executed, paired with where in the case it
+/// came from.
+///
+/// The origin is not part of what the executor captured, so it is recorded
+/// here rather than added to [`ActionResult`]: a checkpoint's last action
+/// result is evidence about a process, and has no use for a step position.
+///
+/// Actions are numbered across the whole concrete case in execution order, so
+/// a `before_each` action and a case body action share one sequence. The
+/// `origin` says which block a given action was written in; its index into
+/// `CaseResult::actions` says when it ran.
+#[derive(Debug)]
+pub struct ActionRecord {
+    pub origin: StepOrigin,
+    pub result: ActionResult,
 }
 
 /// The full result of one concrete case.
@@ -500,7 +561,7 @@ pub struct CaseResult {
     /// Source file this case was loaded from. Set by the caller after evaluation.
     pub source_path: Option<PathBuf>,
     pub status: CaseStatus,
-    pub actions: Vec<ActionResult>,
+    pub actions: Vec<ActionRecord>,
     pub assertion_blocks: Vec<AssertionBlockResult>,
     /// Number of side-effecting steps (`write`, etc.) that ran to completion
     /// before this case finished, including `before_each` steps replayed into

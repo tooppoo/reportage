@@ -74,7 +74,6 @@ semantic.fixture_reference.escapes_repor_directory
 semantic.file_contents_reference.missing
 semantic.file_contents_reference.not_regular_file
 semantic.file_contents_reference.read_error
-semantic.binding.before_each_forbidden
 semantic.binding.invalid_identifier
 semantic.binding.duplicate
 semantic.binding.undefined

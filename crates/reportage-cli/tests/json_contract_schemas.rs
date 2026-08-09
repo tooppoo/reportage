@@ -227,7 +227,7 @@ fn feature_cases(base: Value, contract_specific: Vec<FeatureCase>) -> Vec<Featur
         FeatureCase::new(
             Feature::Const,
             "a different schemaVersion is rejected",
-            set(&base, "/schemaVersion", json!(2)),
+            set(&base, "/schemaVersion", json!(3)),
             false,
         ),
         FeatureCase::new(
@@ -943,7 +943,7 @@ fn mismatch() -> Value {
 /// produces every shape.
 fn run_result_document() -> Value {
     json!({
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "tool": { "name": "reportage", "version": "0.0.0" },
         "status": "failed",
         "processExitCode": 1,
@@ -988,6 +988,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "action-1",
                         "command": "echo hello",
+                        "step": { "phase": "before_each", "index": 0 },
                         "exitCode": 0,
                         "stdout": {
                             "artifactRef": "test-1/action-1/stdout.bin",
@@ -1005,6 +1006,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "assertion-1",
                         "status": "passed",
+                        "step": { "phase": "case", "index": 1 },
                         "checkpoint": "action-1",
                         "expectation": {
                             "kind": "exit",
@@ -1016,6 +1018,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "assertion-2",
                         "status": "failed",
+                        "step": { "phase": "case", "index": 1 },
                         "checkpoint": "action-1",
                         "expectation": {
                             "kind": "fileContentsEquals",
@@ -1033,6 +1036,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "assertion-3",
                         "status": "passed",
+                        "step": { "phase": "case", "index": 1 },
                         "checkpoint": "action-1",
                         "expectation": {
                             "kind": "logical",
@@ -1059,6 +1063,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "assertion-4",
                         "status": "failed",
+                        "step": { "phase": "case", "index": 1 },
                         "checkpoint": "action-1",
                         "expectation": {
                             "kind": "fileTextEquals",
@@ -1076,6 +1081,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "assertion-5",
                         "status": "failed",
+                        "step": { "phase": "case", "index": 1 },
                         "checkpoint": "action-1",
                         "expectation": {
                             "kind": "stdoutContentsEquals",
@@ -1092,6 +1098,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "assertion-6",
                         "status": "failed",
+                        "step": { "phase": "case", "index": 1 },
                         "checkpoint": "action-1",
                         "expectation": {
                             "kind": "stdoutTextEquals",
@@ -1108,6 +1115,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "assertion-7",
                         "status": "passed",
+                        "step": { "phase": "case", "index": 1 },
                         "checkpoint": "action-1",
                         "expectation": {
                             "kind": "fileExists",
@@ -1119,6 +1127,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "assertion-8",
                         "status": "passed",
+                        "step": { "phase": "case", "index": 1 },
                         "checkpoint": "action-1",
                         "expectation": {
                             "kind": "fileContains",
@@ -1140,6 +1149,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "assertion-9",
                         "status": "passed",
+                        "step": { "phase": "case", "index": 1 },
                         "checkpoint": "action-1",
                         "expectation": {
                             "kind": "stdoutEmpty",
@@ -1151,6 +1161,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "assertion-10",
                         "status": "passed",
+                        "step": { "phase": "case", "index": 1 },
                         "checkpoint": "action-1",
                         "expectation": {
                             "kind": "dirExists",
@@ -1162,6 +1173,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "assertion-11",
                         "status": "passed",
+                        "step": { "phase": "case", "index": 1 },
                         "checkpoint": "action-1",
                         "expectation": {
                             "kind": "dirContains",
@@ -1174,6 +1186,7 @@ fn run_result_document() -> Value {
                     {
                         "id": "assertion-12",
                         "status": "passed",
+                        "step": { "phase": "case", "index": 1 },
                         "checkpoint": "action-1",
                         "expectation": {
                             "kind": "stderrContains",

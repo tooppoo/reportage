@@ -1,0 +1,12 @@
+{
+  "kind": "changed",
+  "targets": [
+    "core",
+    "cli",
+    "docs"
+  ],
+  "links": [
+    "https://github.com/tooppoo/reportage/issues/227"
+  ],
+  "body": "the JSON and artifact contracts carry a step origin, at `schemaVersion` 2.\nEvery `actions[]` and `assertions[]` entry, and every step-attributed diagnostic, now carries `step: { phase, index }`, naming the block it came from and its 0-based position within that block. `checkpoint: \"initial\"` on an assertion means the phase-entry checkpoint of that assertion's own phase, not that no action has run in the case. Both `result.json` and `--format=json` move to `schemaVersion` 2: `step` is a new required property on objects declared `additionalProperties: false`, so a document produced now does not validate against either published v1 schema."
+}

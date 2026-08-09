@@ -16,7 +16,7 @@ case "manifest records a passing run with verifiable evidence references" {
   assert {
     exit 0
     file <".reportage/runs/run-result-pass/result.json"> exists
-    file <".reportage/runs/run-result-pass/result.json"> contains "\"schemaVersion\": 1"
+    file <".reportage/runs/run-result-pass/result.json"> contains "\"schemaVersion\": 2"
     file <".reportage/runs/run-result-pass/result.json"> contains "\"status\": \"passed\""
     file <".reportage/runs/run-result-pass/result.json"> contains "\"artifactRef\": \"test-1/action-1/stdout.bin\""
     # SHA-256 of the captured "hello\n": the manifest must reference evidence by digest, never inline the bytes.
@@ -61,5 +61,31 @@ case "manifest records a parse error as status error with a parse diagnostic" {
     file <".reportage/runs/run-result-error/result.json"> contains "\"status\": \"error\""
     file <".reportage/runs/run-result-error/result.json"> contains "\"processExitCode\": 2"
     file <".reportage/runs/run-result-error/result.json"> contains "\"category\": \"parse\""
+  }
+}
+
+case "manifest names the phase each action and assertion came from" {
+  write <"inner.repor"> ```
+    before_each {
+      $ echo setup
+      assert {
+        exit 0
+      }
+    }
+
+    case "acts after the setup action" {
+      $ echo body
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage --debug-run-id run-result-phase inner.repor
+
+  assert {
+    exit 0
+    file <".reportage/runs/run-result-phase/result.json"> contains "\"phase\": \"before_each\""
+    file <".reportage/runs/run-result-phase/result.json"> contains "\"phase\": \"case\""
   }
 }

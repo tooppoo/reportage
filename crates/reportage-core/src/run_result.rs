@@ -18,15 +18,51 @@ use crate::contents_diagnostic::mismatch_context;
 use crate::diagnostic::{DiagnosticCode, DiagnosticLocation};
 use crate::model::{CaptureMode, InterpolatedTextForm, OutputSource};
 use crate::result::{
-    ActionResult, CaseResult, CaseStatus, ContentsEqualsComparison, ContentsEqualsExpectedSource,
+    ActionRecord, CaseResult, CaseStatus, ContentsEqualsComparison, ContentsEqualsExpectedSource,
     ContentsEqualsObservation, ContentsEqualsOutcome, DirContainsObservation, DirExistsObservation,
     ExecutionReport, ExpectationKind, ExpectationResult, FileContentObservation, FileErrorKind,
-    FileExistsObservation, TextValueProvenance,
+    FileExistsObservation, StepOrigin, StepPhase, TextValueProvenance,
 };
 
 /// Version of the canonical artifact result contract (`spec/artifacts/run-result/schema.json`).
 /// Distinct from the `--format=json` stdout contract's own `schemaVersion` (`spec/output/json-report/schema.json`) and from the reportage CLI/crate version.
-pub const RUN_RESULT_SCHEMA_VERSION: u32 = 1;
+pub const RUN_RESULT_SCHEMA_VERSION: u32 = 2;
+
+/// Projects a [`StepOrigin`] into the external contract's `step` object.
+///
+/// `index` is phase-local and 0-based, counting every step kind, so it indexes
+/// directly into the block the `phase` names. A consumer must not compare an
+/// index across phases, nor against an action's position in `actions`, which is
+/// numbered across the whole concrete case.
+fn step_json(origin: StepOrigin) -> Value {
+    let phase = match origin.phase {
+        StepPhase::BeforeEach => "before_each",
+        StepPhase::Case => "case",
+    };
+    json!({ "phase": phase, "index": origin.step_index })
+}
+
+/// The fields one `diagnostics[]` entry is built from.
+///
+/// Passed as a struct rather than seven positional arguments so a call site
+/// names what it is supplying: `origin`, `location`, and `step` are three
+/// different answers to "where", and two of them are optional.
+struct NewDiagnostic<'a> {
+    category: &'a str,
+    code: Option<DiagnosticCode>,
+    severity: &'a str,
+    message: &'a str,
+    origin: Value,
+    /// `Some` only for parse-domain diagnostics, whose `parser::ParseError`
+    /// always carries a real line (and, for syntax errors, a column) — see
+    /// `parser::ParseError::to_diagnostic`. Every other diagnostic (semantic,
+    /// runtime, assertion, internal) passes `None`: source ranges are not yet
+    /// tracked on the evaluator side (see issue #89's non-goals), so those
+    /// diagnostics fall back to `location: null` plus `origin`.
+    location: Option<DiagnosticLocation>,
+    /// `Some` only when the diagnostic is attributed to one step.
+    step: Option<StepOrigin>,
+}
 
 /// Accumulates `diagnostics[]` entries and assigns each one a document-local id
 /// (`diagnostic-1`, `diagnostic-2`, ...) in the order they are pushed.
@@ -47,22 +83,16 @@ impl DiagnosticsBuilder {
 
     /// Pushes one diagnostic and returns its document-local id for a caller
     /// (e.g. an assertion) to reference via `diagnosticRef`.
-    ///
-    /// `location` is `Some` only for parse-domain diagnostics, whose `parser::ParseError`
-    /// always carries a real line (and, for syntax errors, a column) — see
-    /// `parser::ParseError::to_diagnostic`. Every other diagnostic (semantic, runtime,
-    /// assertion, internal) passes `None`: source ranges are not yet tracked on the
-    /// evaluator side (see issue #89's non-goals), so those diagnostics fall back to
-    /// `location: null` plus `origin`.
-    fn push(
-        &mut self,
-        category: &str,
-        code: Option<DiagnosticCode>,
-        severity: &str,
-        message: &str,
-        origin: Value,
-        location: Option<DiagnosticLocation>,
-    ) -> String {
+    fn push(&mut self, diagnostic: NewDiagnostic<'_>) -> String {
+        let NewDiagnostic {
+            category,
+            code,
+            severity,
+            message,
+            origin,
+            location,
+            step,
+        } = diagnostic;
         let id = format!("diagnostic-{}", self.entries.len() + 1);
         let location_json = match location {
             Some(loc) => json!({
@@ -79,6 +109,9 @@ impl DiagnosticsBuilder {
             "origin": origin,
             "location": location_json,
         });
+        if let Some(step) = step {
+            entry["step"] = step_json(step);
+        }
         if let Some(code) = code {
             entry["code"] = json!(code.as_str());
         }
@@ -105,21 +138,30 @@ pub fn build_run_result_document(report: &ExecutionReport) -> Value {
                 // either, since it is neither a script-domain failure nor an action
                 // execution infrastructure failure. See issue #75's allowance for an
                 // `internal` category alongside the four required ones.
-                diagnostics.push("internal", None, "error", message, origin, None);
+                diagnostics.push(NewDiagnostic {
+                    category: "internal",
+                    code: None,
+                    severity: "error",
+                    message,
+                    origin,
+                    location: None,
+                    step: None,
+                });
             }
             FileErrorKind::ParseError {
                 message,
                 diagnostic_code,
                 location,
             } => {
-                diagnostics.push(
-                    "parse",
-                    Some(*diagnostic_code),
-                    "error",
+                diagnostics.push(NewDiagnostic {
+                    category: "parse",
+                    code: Some(*diagnostic_code),
+                    severity: "error",
                     message,
                     origin,
-                    *location,
-                );
+                    location: *location,
+                    step: None,
+                });
             }
         }
     }
@@ -230,24 +272,26 @@ fn case_json(case_index: usize, case: &CaseResult, diagnostics: &mut Diagnostics
                 Some(DiagnosticCode::ParseMissingAssertionBlock) => "parse",
                 _ => "semantic",
             };
-            diagnostics.push(
+            diagnostics.push(NewDiagnostic {
                 category,
-                err.diagnostic_code,
-                "error",
-                &err.message,
-                origin.clone(),
-                None,
-            );
+                code: err.diagnostic_code,
+                severity: "error",
+                message: &err.message,
+                origin: origin.clone(),
+                location: None,
+                step: err.origin,
+            });
         }
         CaseStatus::RuntimeError(err) => {
-            diagnostics.push(
-                "runtime",
-                err.diagnostic_code,
-                "error",
-                &err.message,
-                origin.clone(),
-                None,
-            );
+            diagnostics.push(NewDiagnostic {
+                category: "runtime",
+                code: err.diagnostic_code,
+                severity: "error",
+                message: &err.message,
+                origin: origin.clone(),
+                location: None,
+                step: err.origin,
+            });
         }
         CaseStatus::Pass | CaseStatus::Fail => {}
     }
@@ -268,6 +312,7 @@ fn case_json(case_index: usize, case: &CaseResult, diagnostics: &mut Diagnostics
             assertions.push(assertion_json(
                 &id,
                 &assertion_id,
+                block.origin,
                 block.checkpoint_action_index,
                 expectation,
                 diagnostics,
@@ -285,19 +330,21 @@ fn case_json(case_index: usize, case: &CaseResult, diagnostics: &mut Diagnostics
     })
 }
 
-fn action_json(test_id: &str, action_index: usize, action: &ActionResult) -> Value {
+fn action_json(test_id: &str, action_index: usize, action: &ActionRecord) -> Value {
     let id = action_id(action_index);
+    let result = &action.result;
     let mut value = json!({
         "id": id,
-        "command": action.command,
-        "exitCode": action.exit_code,
-        "stdout": stream_artifact_json(test_id, &id, "stdout", &action.stdout),
-        "stderr": stream_artifact_json(test_id, &id, "stderr", &action.stderr),
+        "command": result.command,
+        "step": step_json(action.origin),
+        "exitCode": result.exit_code,
+        "stdout": stream_artifact_json(test_id, &id, "stdout", &result.stdout),
+        "stderr": stream_artifact_json(test_id, &id, "stderr", &result.stderr),
     });
 
-    if !action.shim_invocations.is_empty() {
+    if !result.shim_invocations.is_empty() {
         value["shimInvocations"] = json!(
-            action
+            result
                 .shim_invocations
                 .iter()
                 .map(|ev| json!({
@@ -313,8 +360,8 @@ fn action_json(test_id: &str, action_index: usize, action: &ActionResult) -> Val
                 .collect::<Vec<_>>()
         );
     }
-    if !action.shim_event_parse_warnings.is_empty() {
-        value["shimEventParseWarnings"] = json!(action.shim_event_parse_warnings);
+    if !result.shim_event_parse_warnings.is_empty() {
+        value["shimEventParseWarnings"] = json!(result.shim_event_parse_warnings);
     }
 
     value
@@ -339,6 +386,7 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 fn assertion_json(
     test_id: &str,
     assertion_id: &str,
+    step: StepOrigin,
     checkpoint_action_index: Option<usize>,
     expectation: &ExpectationResult,
     diagnostics: &mut DiagnosticsBuilder,
@@ -351,8 +399,16 @@ fn assertion_json(
     let mut value = json!({
         "id": assertion_id,
         "status": if expectation.passed { "passed" } else { "failed" },
+        "step": step_json(step),
         "checkpoint": checkpoint,
-        "expectation": expectation_json(test_id, checkpoint_action_index, expectation, diagnostics, true),
+        "expectation": expectation_json(
+            test_id,
+            step,
+            checkpoint_action_index,
+            expectation,
+            diagnostics,
+            true,
+        ),
     });
 
     // The top-level assertion's `diagnosticRef` mirrors its own expectation node's, for
@@ -386,6 +442,7 @@ fn assertion_json(
 /// contribute descriptive detail only, never their own `diagnostics[]` entry.
 fn expectation_json(
     test_id: &str,
+    step: StepOrigin,
     checkpoint_action_index: Option<usize>,
     expectation: &ExpectationResult,
     diagnostics: &mut DiagnosticsBuilder,
@@ -547,7 +604,14 @@ fn expectation_json(
             let children_json: Vec<Value> = children
                 .iter()
                 .map(|child| {
-                    expectation_json(test_id, checkpoint_action_index, child, diagnostics, false)
+                    expectation_json(
+                        test_id,
+                        step,
+                        checkpoint_action_index,
+                        child,
+                        diagnostics,
+                        false,
+                    )
                 })
                 .collect();
             json!({
@@ -569,8 +633,15 @@ fn expectation_json(
                 if !expectation.passed {
                     let origin = json!({ "kind": "test", "test": test_id });
                     let message = format!("'{}' composition did not hold", operator.keyword());
-                    let diagnostic_id =
-                        diagnostics.push("assertion", None, "failure", &message, origin, None);
+                    let diagnostic_id = diagnostics.push(NewDiagnostic {
+                        category: "assertion",
+                        code: None,
+                        severity: "failure",
+                        message: &message,
+                        origin,
+                        location: None,
+                        step: Some(step),
+                    });
                     value["diagnosticRef"] = json!(diagnostic_id);
                 }
             }
@@ -578,14 +649,15 @@ fn expectation_json(
                 if let Some(code) = expectation.failure_diagnostic_code() {
                     let origin = json!({ "kind": "test", "test": test_id });
                     let message = assertion_failure_message(&expectation.kind, code);
-                    let diagnostic_id = diagnostics.push(
-                        "assertion",
-                        Some(code),
-                        "failure",
-                        &message,
+                    let diagnostic_id = diagnostics.push(NewDiagnostic {
+                        category: "assertion",
+                        code: Some(code),
+                        severity: "failure",
+                        message: &message,
                         origin,
-                        None,
-                    );
+                        location: None,
+                        step: Some(step),
+                    });
                     value["diagnosticRef"] = json!(diagnostic_id);
                 }
             }
@@ -964,17 +1036,22 @@ fn dir_contains_observation_str(observation: DirContainsObservation) -> &'static
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::result::{AssertionBlockResult, FileError, RuntimeError, ScriptError};
+    use crate::result::{
+        ActionRecord, ActionResult, AssertionBlockResult, FileError, RuntimeError, ScriptError,
+    };
     use std::path::PathBuf;
 
-    fn passing_action() -> ActionResult {
-        ActionResult {
-            command: "echo hello".to_string(),
-            exit_code: 0,
-            stdout: b"hello\n".to_vec(),
-            stderr: vec![],
-            shim_invocations: vec![],
-            shim_event_parse_warnings: vec![],
+    fn passing_action() -> ActionRecord {
+        ActionRecord {
+            origin: StepOrigin::new(StepPhase::Case, 0),
+            result: ActionResult {
+                command: "echo hello".to_string(),
+                exit_code: 0,
+                stdout: b"hello\n".to_vec(),
+                stderr: vec![],
+                shim_invocations: vec![],
+                shim_event_parse_warnings: vec![],
+            },
         }
     }
 
@@ -993,7 +1070,7 @@ mod tests {
             status: CaseStatus::Pass,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                step_index: 1,
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
@@ -1011,7 +1088,7 @@ mod tests {
 
         assert_eq!(doc["status"], "passed");
         assert_eq!(doc["processExitCode"], 0);
-        assert_eq!(doc["schemaVersion"], 1);
+        assert_eq!(doc["schemaVersion"], RUN_RESULT_SCHEMA_VERSION);
         assert_eq!(doc["noop"], false);
         assert!(doc["diagnostics"].as_array().unwrap().is_empty());
         assert_eq!(doc["tests"][0]["id"], "test-1");
@@ -1074,7 +1151,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                step_index: 1,
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
@@ -1162,7 +1239,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                step_index: 1,
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
@@ -1202,7 +1279,7 @@ mod tests {
             status: CaseStatus::ScriptError(ScriptError {
                 message: "uses a process expectation but no action has run yet".to_string(),
                 diagnostic_code: Some(DiagnosticCode::SemanticExpectationRequiresAction),
-                step_index: Some(0),
+                origin: Some(StepOrigin::new(StepPhase::Case, 0)),
             }),
             actions: vec![],
             assertion_blocks: vec![],
@@ -1230,7 +1307,7 @@ mod tests {
             status: CaseStatus::RuntimeError(RuntimeError {
                 message: "write step at step 2 failed: target path already exists".to_string(),
                 diagnostic_code: Some(DiagnosticCode::StepWriteTargetExists),
-                step_index: Some(1),
+                origin: Some(StepOrigin::new(StepPhase::Case, 1)),
             }),
             actions: vec![],
             assertion_blocks: vec![],
@@ -1262,7 +1339,7 @@ mod tests {
             status: CaseStatus::RuntimeError(RuntimeError {
                 message: "boom".to_string(),
                 diagnostic_code: None,
-                step_index: None,
+                origin: None,
             }),
             actions: vec![],
             assertion_blocks: vec![],
@@ -1296,7 +1373,7 @@ mod tests {
             status: CaseStatus::Pass,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                step_index: 1,
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::Logical {
@@ -1348,7 +1425,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                step_index: 1,
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::Logical {
@@ -1402,7 +1479,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                step_index: 1,
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::Exit {
@@ -1434,7 +1511,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![],
             assertion_blocks: vec![AssertionBlockResult {
-                step_index: 0,
+                origin: StepOrigin::new(StepPhase::Case, 0),
                 checkpoint_action_index: None,
                 expectations: vec![
                     ExpectationResult {
@@ -1493,7 +1570,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![],
             assertion_blocks: vec![AssertionBlockResult {
-                step_index: 0,
+                origin: StepOrigin::new(StepPhase::Case, 0),
                 checkpoint_action_index: None,
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::FileTextEquals {
@@ -1533,7 +1610,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                step_index: 1,
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![
                     ExpectationResult {
@@ -1606,7 +1683,7 @@ mod tests {
             status: CaseStatus::Fail,
             actions: vec![],
             assertion_blocks: vec![AssertionBlockResult {
-                step_index: 0,
+                origin: StepOrigin::new(StepPhase::Case, 0),
                 checkpoint_action_index: None,
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::FileTextEquals {
@@ -1637,7 +1714,7 @@ mod tests {
             actions: vec![passing_action(), passing_action()],
             assertion_blocks: vec![
                 AssertionBlockResult {
-                    step_index: 1,
+                    origin: StepOrigin::new(StepPhase::Case, 1),
                     checkpoint_action_index: Some(0),
                     expectations: vec![ExpectationResult {
                         kind: ExpectationKind::Exit {
@@ -1648,7 +1725,7 @@ mod tests {
                     }],
                 },
                 AssertionBlockResult {
-                    step_index: 3,
+                    origin: StepOrigin::new(StepPhase::Case, 3),
                     checkpoint_action_index: Some(1),
                     expectations: vec![ExpectationResult {
                         kind: ExpectationKind::Exit {

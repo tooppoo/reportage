@@ -35,7 +35,7 @@ use super::OutputRenderer;
 
 /// Version of the `--format=json` stdout contract (`spec/output/json-report/schema.json`).
 /// Distinct from the artifact result contract's own `schemaVersion` (`reportage_core::run_result::RUN_RESULT_SCHEMA_VERSION`); the two contracts version independently even while their current values coincide.
-const JSON_REPORT_SCHEMA_VERSION: u32 = 1;
+const JSON_REPORT_SCHEMA_VERSION: u32 = 2;
 
 pub struct JsonRenderer {
     artifact_root: std::path::PathBuf,
@@ -100,19 +100,22 @@ fn project_run_result(mut doc: Value, artifact_root: &Path) -> Value {
 mod tests {
     use super::*;
     use reportage_core::result::{
-        ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind,
-        ExpectationResult, TextValueProvenance,
+        ActionRecord, ActionResult, AssertionBlockResult, CaseResult, CaseStatus, ExpectationKind,
+        ExpectationResult, StepOrigin, StepPhase, TextValueProvenance,
     };
     use std::path::PathBuf;
 
-    fn passing_action() -> ActionResult {
-        ActionResult {
-            command: "echo hello".to_string(),
-            exit_code: 0,
-            stdout: b"hello\n".to_vec(),
-            stderr: vec![],
-            shim_invocations: vec![],
-            shim_event_parse_warnings: vec![],
+    fn passing_action() -> ActionRecord {
+        ActionRecord {
+            origin: StepOrigin::new(StepPhase::Case, 0),
+            result: ActionResult {
+                command: "echo hello".to_string(),
+                exit_code: 0,
+                stdout: b"hello\n".to_vec(),
+                stderr: vec![],
+                shim_invocations: vec![],
+                shim_event_parse_warnings: vec![],
+            },
         }
     }
 
@@ -123,7 +126,7 @@ mod tests {
             status: CaseStatus::Pass,
             actions: vec![passing_action()],
             assertion_blocks: vec![AssertionBlockResult {
-                step_index: 1,
+                origin: StepOrigin::new(StepPhase::Case, 1),
                 checkpoint_action_index: Some(0),
                 expectations: vec![ExpectationResult {
                     kind: ExpectationKind::StdoutContains {
@@ -154,7 +157,7 @@ mod tests {
     fn projection_keeps_document_semantics() {
         let doc = build_document(&report(), Path::new(".reportage/runs/1"));
 
-        assert_eq!(doc["schemaVersion"], 1);
+        assert_eq!(doc["schemaVersion"], JSON_REPORT_SCHEMA_VERSION);
         assert_eq!(doc["status"], "passed");
         assert_eq!(doc["processExitCode"], 0);
         assert_eq!(doc["tests"][0]["id"], "test-1");

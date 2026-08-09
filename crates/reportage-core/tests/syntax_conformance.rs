@@ -110,10 +110,9 @@ impl<'a> From<&'a SourceFile> for SnapshotScript<'a> {
     }
 }
 
-/// Mirrors `model::BeforeEach`. Steps reuse `SnapshotStep`, so the snapshot
-/// shows the same `write_file` step shape as a case body — but only that
-/// shape can ever appear here, because the model holds `SideEffectingStep`s
-/// only.
+/// Mirrors `model::BeforeEach`. Steps reuse `SnapshotStep` because the model
+/// holds the same `Step` as a case body, so any step the parser accepts here
+/// snapshots in exactly the shape it has in a case body.
 #[derive(Serialize)]
 struct SnapshotBeforeEach<'a> {
     steps: Vec<SnapshotStep<'a>>,
@@ -683,7 +682,10 @@ fn invalid_syntax_fixtures_are_rejected() {
         };
 
         match fixture_stem(&path) {
-            "empty_action" | "whitespace_only_action" => {
+            // `before_each_empty_action` too: a `before_each` step is parsed by
+            // the same parser a case body step uses, so it reports the same
+            // step-level diagnostic rather than a bare syntax error.
+            "empty_action" | "whitespace_only_action" | "before_each_empty_action" => {
                 assert!(matches!(err, ParseError::EmptyAction { .. }));
                 assert_eq!(err.code().as_str(), "parse.empty_action");
             }
@@ -691,7 +693,10 @@ fn invalid_syntax_fixtures_are_rejected() {
                 assert!(matches!(err, ParseError::EmptyCase { .. }));
                 assert_eq!(err.code().as_str(), "parse.empty_case");
             }
-            "case_without_assertion_block" => {
+            // A `before_each` assertion verifies setup and never counts toward
+            // a case body's own assertion requirement, so both shapes reach the
+            // same diagnostic.
+            "case_without_assertion_block" | "before_each_only_assertion_block" => {
                 assert!(matches!(err, ParseError::MissingAssertionBlock { .. }));
                 assert_eq!(err.code().as_str(), "parse.missing_assertion_block");
             }
@@ -810,8 +815,11 @@ fn invalid_syntax_fixtures_are_rejected() {
                 assert_eq!(err.code().as_str(), "parse.document_case.orphan");
             }
             // `before_each` placement and body rules: at most one block, before
-            // the first case, `write` steps only, at least one step. See #70
-            // and the before_each ADR.
+            // the first case, at least one step. `before_each` accepts every
+            // case body step kind, so the body's own rules are the binding
+            // scope ones, covered by the `before_each_*` and
+            // `case_body_binding_*` semantic-invalid fixtures below.
+            // See #70, #227, and the before_each ADRs.
             "before_each_duplicate" => {
                 assert!(matches!(err, ParseError::DuplicateBeforeEach { .. }));
                 assert_eq!(err.code().as_str(), "parse.before_each.duplicate");
@@ -819,14 +827,6 @@ fn invalid_syntax_fixtures_are_rejected() {
             "before_each_after_case" => {
                 assert!(matches!(err, ParseError::BeforeEachAfterCase { .. }));
                 assert_eq!(err.code().as_str(), "parse.before_each.after_case");
-            }
-            "before_each_action_step" => {
-                assert!(matches!(err, ParseError::BeforeEachActionStep { .. }));
-                assert_eq!(err.code().as_str(), "parse.before_each.action_step");
-            }
-            "before_each_assertion_block" => {
-                assert!(matches!(err, ParseError::BeforeEachAssertionBlock { .. }));
-                assert_eq!(err.code().as_str(), "parse.before_each.assertion_block");
             }
             "before_each_empty" => {
                 assert!(matches!(err, ParseError::EmptyBeforeEach { .. }));
@@ -911,10 +911,26 @@ fn semantic_invalid_binding_fixtures_parse_grammar_but_fail_construction_validat
     // leading digit, and only parser construction rejects it.
     let expected = [
         (
+            "before_each_binding_requires_action",
+            "semantic.binding.requires_action",
+        ),
+        (
+            "before_each_reference_to_case_body_binding",
+            "semantic.binding.undefined",
+        ),
+        (
+            "before_each_use_before_declaration",
+            "semantic.binding.use_before_declaration",
+        ),
+        (
             "binding_declaration_invalid_identifier",
             "semantic.binding.invalid_identifier",
         ),
         ("binding_duplicate", "semantic.binding.duplicate"),
+        (
+            "binding_redeclared_in_case_body",
+            "semantic.binding.duplicate",
+        ),
         (
             "binding_reference_invalid_identifier",
             "semantic.binding.invalid_identifier",
@@ -925,8 +941,8 @@ fn semantic_invalid_binding_fixtures_parse_grammar_but_fail_construction_validat
             "semantic.binding.use_before_declaration",
         ),
         (
-            "interpolated_text_in_before_each",
-            "semantic.binding.before_each_forbidden",
+            "case_body_binding_requires_case_body_action",
+            "semantic.binding.requires_action",
         ),
         (
             "interpolated_text_invalid_identifier",

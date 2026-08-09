@@ -184,14 +184,8 @@ pub enum DiagnosticCode {
     /// A `before_each` block appears after the source's first case block
     /// or after a `document case` block.
     ParseBeforeEachAfterCase,
-    /// A `before_each` body contains a `$` action step; actions are banned
-    /// there regardless of the command.
-    ParseBeforeEachActionStep,
-    /// A `before_each` body contains an `assert` block.
-    ParseBeforeEachAssertionBlock,
     /// A `before_each` block contains no steps.
     ParseBeforeEachEmpty,
-    SemanticBindingBeforeEachForbidden,
     SemanticBindingInvalidIdentifier,
     SemanticBindingDuplicate,
     SemanticBindingUndefined,
@@ -277,10 +271,7 @@ impl DiagnosticCode {
         Self::ParseDocumentCaseOrphan,
         Self::ParseBeforeEachDuplicate,
         Self::ParseBeforeEachAfterCase,
-        Self::ParseBeforeEachActionStep,
-        Self::ParseBeforeEachAssertionBlock,
         Self::ParseBeforeEachEmpty,
-        Self::SemanticBindingBeforeEachForbidden,
         Self::SemanticBindingInvalidIdentifier,
         Self::SemanticBindingDuplicate,
         Self::SemanticBindingUndefined,
@@ -403,10 +394,7 @@ impl DiagnosticCode {
             Self::ParseDocumentCaseOrphan => "parse.document_case.orphan",
             Self::ParseBeforeEachDuplicate => "parse.before_each.duplicate",
             Self::ParseBeforeEachAfterCase => "parse.before_each.after_case",
-            Self::ParseBeforeEachActionStep => "parse.before_each.action_step",
-            Self::ParseBeforeEachAssertionBlock => "parse.before_each.assertion_block",
             Self::ParseBeforeEachEmpty => "parse.before_each.empty",
-            Self::SemanticBindingBeforeEachForbidden => "semantic.binding.before_each_forbidden",
             Self::SemanticBindingInvalidIdentifier => "semantic.binding.invalid_identifier",
             Self::SemanticBindingDuplicate => "semantic.binding.duplicate",
             Self::SemanticBindingUndefined => "semantic.binding.undefined",

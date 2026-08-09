@@ -9,12 +9,16 @@
         "kind": "test",
         "test": "test-2"
       },
-      "severity": "failure"
+      "severity": "failure",
+      "step": {
+        "index": 1,
+        "phase": "case"
+      }
     }
   ],
   "noop": false,
   "processExitCode": 1,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "failed",
   "summary": {
     "actions": 4,
@@ -40,6 +44,10 @@
             "artifactRef": "test-1/action-1/stdout.bin",
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "sizeBytes": 0
+          },
+          "step": {
+            "index": 1,
+            "phase": "case"
           }
         },
         {
@@ -55,6 +63,10 @@
             "artifactRef": "test-1/action-2/stdout.bin",
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "sizeBytes": 0
+          },
+          "step": {
+            "index": 2,
+            "phase": "case"
           }
         },
         {
@@ -70,6 +82,10 @@
             "artifactRef": "test-1/action-3/stdout.bin",
             "sha256": "4a1e67f2fe1d1cc7b31d0ca2ec441da4778203a036a77da10344c85e24ff0f92",
             "sizeBytes": 12
+          },
+          "step": {
+            "index": 3,
+            "phase": "case"
           }
         }
       ],
@@ -83,7 +99,11 @@
             "status": "passed"
           },
           "id": "assertion-1",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-3",
@@ -99,7 +119,11 @@
             "status": "passed"
           },
           "id": "assertion-2",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-3",
@@ -110,7 +134,11 @@
             "status": "passed"
           },
           "id": "assertion-3",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-3",
@@ -127,7 +155,11 @@
             "status": "passed"
           },
           "id": "assertion-4",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-3",
@@ -144,7 +176,11 @@
             "status": "passed"
           },
           "id": "assertion-5",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-3",
@@ -155,7 +191,11 @@
             "status": "passed"
           },
           "id": "assertion-6",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-3",
@@ -171,7 +211,11 @@
             "status": "passed"
           },
           "id": "assertion-7",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-3",
@@ -189,7 +233,11 @@
             "status": "passed"
           },
           "id": "assertion-8",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-3",
@@ -200,7 +248,11 @@
             "status": "passed"
           },
           "id": "assertion-9",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-3",
@@ -212,7 +264,11 @@
             "status": "passed"
           },
           "id": "assertion-10",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-3",
@@ -230,7 +286,11 @@
             "status": "passed"
           },
           "id": "assertion-11",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-3",
@@ -259,7 +319,11 @@
             "status": "passed"
           },
           "id": "assertion-12",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         },
         {
           "checkpoint": "action-3",
@@ -289,7 +353,11 @@
             "status": "passed"
           },
           "id": "assertion-13",
-          "status": "passed"
+          "status": "passed",
+          "step": {
+            "index": 4,
+            "phase": "case"
+          }
         }
       ],
       "id": "test-1",
@@ -312,6 +380,10 @@
             "artifactRef": "test-2/action-1/stdout.bin",
             "sha256": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
             "sizeBytes": 6
+          },
+          "step": {
+            "index": 0,
+            "phase": "case"
           }
         }
       ],
@@ -345,7 +417,11 @@
             "status": "failed"
           },
           "id": "assertion-1",
-          "status": "failed"
+          "status": "failed",
+          "step": {
+            "index": 1,
+            "phase": "case"
+          }
         }
       ],
       "id": "test-2",

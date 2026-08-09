@@ -15,7 +15,7 @@
       "\twrite <\"${1:path}\"> \"${2:content}\"",
       "}"
     ],
-    "description": "Module-level case-local setup replayed into each concrete case workspace (write steps only)"
+    "description": "Module-level case-local setup replayed into each concrete case workspace (same steps as a case body)"
   },
   "Document (case)": {
     "prefix": "document-case",

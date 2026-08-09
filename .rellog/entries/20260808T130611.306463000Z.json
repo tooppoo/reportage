@@ -1,0 +1,12 @@
+{
+  "kind": "changed",
+  "targets": [
+    "core",
+    "cli",
+    "docs"
+  ],
+  "links": [
+    "https://github.com/tooppoo/reportage/issues/227"
+  ],
+  "body": "remove the diagnostic codes that rejected steps inside `before_each`.\n`parse.before_each.action_step`, `parse.before_each.assertion_block`, and `semantic.binding.before_each_forbidden` no longer exist. Shapes that stay invalid report ordinary step and binding codes instead: `parse.missing_assertion_block`, `semantic.binding.requires_action`, `semantic.binding.undefined`, and `semantic.binding.use_before_declaration`. The `before_each` write-step runtime failure and `parse.before_each.empty` messages are reworded, since setup is no longer write-only."
+}

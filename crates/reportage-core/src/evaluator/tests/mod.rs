@@ -160,11 +160,7 @@ fn assert_file_text_equals_heredoc(actual_path: &str, expected_text: &str) -> St
 }
 
 fn before_each_writing(path: &str, content: &str) -> BeforeEach {
-    BeforeEach::new(vec![SideEffectingStep::WriteFile(WriteFileStep {
-        path: WorkspacePath::parse(path).unwrap(),
-        content: TextValueExpression::Raw(TextLiteral::Quoted(content.to_string())),
-    })])
-    .unwrap()
+    BeforeEach::new(vec![write_step(path, content)]).unwrap()
 }
 
 fn assert_file_exists_step(path: &str) -> Step {
@@ -173,4 +169,31 @@ fn assert_file_exists_step(path: &str) -> Step {
         matcher: FileMatcher::Exists,
     })];
     Step::AssertionBlock(AssertionBlock::new(expectations).unwrap())
+}
+
+fn binding_step(name: &str) -> Step {
+    Step::Binding(BindingDeclaration {
+        name: name.to_string(),
+        source: RuntimeEvidenceSource::StdoutExact,
+        declaration_span: zero_span(),
+    })
+}
+
+fn stdout_text_equals_binding(name: &str) -> Expectation {
+    Expectation::Stdout(OutputExpectation {
+        matcher: OutputMatcher::TextEquals(TextValueExpression::Binding(BindingReference {
+            name: name.to_string(),
+            reference_span: zero_span(),
+        })),
+    })
+}
+
+/// These tests never render a span, so one placeholder serves every binding.
+fn zero_span() -> LocatedSpan {
+    LocatedSpan {
+        start: 0,
+        end: 0,
+        line: 1,
+        column: 1,
+    }
 }
