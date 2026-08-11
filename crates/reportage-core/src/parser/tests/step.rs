@@ -355,6 +355,44 @@ fn before_each_keeps_action_assert_and_write_steps_in_source_order() {
 }
 
 #[test]
+fn before_each_source_is_the_exact_block_text() {
+    // Blank lines and comment lines around the block stay outside the span;
+    // an interior comment, an interior blank line, and the closing brace
+    // line's inline comment and line ending stay inside — the same span
+    // contract as case blocks.
+    let block = "before_each {\n  # seed the workspace\n\n  $ mkdir -p fixtures\n  assert { dir <\"fixtures\"> exists }\n} # setup done\n";
+    let src = format!(
+        "document file {{\n  title \"t\"\n}}\n\n# leading comment\n{block}\n# trailing comment\n{PASSING_CASE}"
+    );
+    let file = parse(&src).unwrap();
+    assert_eq!(file.before_each_source(), Some(block));
+}
+
+#[test]
+fn before_each_source_preserves_crlf_line_endings() {
+    let block = "before_each {\r\n  write <\"seed.txt\"> \"seed\\n\"\r\n}\r\n";
+    let src = format!("{block}\r\n{PASSING_CASE}");
+    let file = parse(&src).unwrap();
+    assert_eq!(file.before_each_source(), Some(block));
+}
+
+#[test]
+fn script_without_before_each_has_no_before_each_source() {
+    let file = parse(PASSING_CASE).unwrap();
+    assert!(file.before_each_source().is_none());
+}
+
+#[test]
+fn source_file_before_each_returns_the_execution_model() {
+    // The execution-facing accessor keeps its pre-wrapper contract: callers
+    // get the execution model directly, never the source-level wrapper.
+    let src = format!("{BEFORE_EACH}\n{PASSING_CASE}");
+    let file = parse(&src).unwrap();
+    let before_each = file.before_each().expect("before_each must be present");
+    assert_eq!(before_each.steps().len(), 1);
+}
+
+#[test]
 fn empty_before_each_is_rejected() {
     let src = format!("before_each {{\n}}\n\n{PASSING_CASE}");
     let err = parse(&src).unwrap_err();
