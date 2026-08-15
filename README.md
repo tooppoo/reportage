@@ -17,6 +17,14 @@ reportage is in early design. The documents in this repository describe the inte
 
 ## Quick Start
 
+### homebrew
+
+```sh
+brew install tooppoo/tap-catalog/reportage
+```
+
+### curl
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/tooppoo/reportage/refs/heads/main/install.sh | sh
 ```
