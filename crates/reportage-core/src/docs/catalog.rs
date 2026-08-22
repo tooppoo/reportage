@@ -237,6 +237,22 @@ mod tests {
     }
 
     #[test]
+    fn before_each_source_is_preserved_exactly() {
+        // The `case_source_is_preserved_exactly` counterpart for the setup
+        // field: CRLF line endings, an interior blank line, an inline comment
+        // on the closing brace line, and no final newline all arrive
+        // unchanged.
+        let block =
+            "before_each {\r\n  write <\"seed.txt\"> \"seed\\n\"\r\n\r\n  $ true\r\n} # done";
+        let catalog = build_catalog(&[loaded("crlf-setup.repor", block)]);
+
+        assert_eq!(
+            catalog.groups[0].files[0].before_each.as_deref(),
+            Some(block)
+        );
+    }
+
+    #[test]
     fn cases_stay_in_source_order() {
         let source = "case \"b\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n\ncase \"a\" {\n  $ true\n  assert {\n    exit 0\n  }\n}\n";
         let catalog = build_catalog(&[loaded("x.repor", source)]);
