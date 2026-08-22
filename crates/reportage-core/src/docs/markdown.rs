@@ -208,6 +208,7 @@ mod tests {
             title: title.to_string(),
             description: None,
             source_path: format!("{title}.repor"),
+            before_each: None,
             cases,
         }
     }
@@ -234,6 +235,7 @@ mod tests {
             title: "File assertions".to_string(),
             description: Some("About files.".to_string()),
             source_path: "examples/file-assertions.repor".to_string(),
+            before_each: None,
             cases: vec![DocumentedCase {
                 title: "File creation".to_string(),
                 description: Some("Creates a file.".to_string()),
