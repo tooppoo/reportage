@@ -91,11 +91,27 @@ Source path
 Description
   A valid source with zero cases still appears in the document.
 
+before_each
+    before_each {
+      write <"seed.txt"> "seed\n"
+    }
+
 File
   undocumented
 
 Source path
   sources/undocumented.repor
+
+before_each
+    before_each {
+      write <"seed.txt"> "seed\n"
+
+      $ mkdir -p fixtures
+      assert {
+        exit 0
+        dir <"fixtures"> exists
+      }
+    }
 
 Case
   fallback case one

@@ -973,6 +973,33 @@ It holds the same steps a case body holds — `$` actions, `assert` blocks, `let
 Setup a `write` cannot express therefore belongs here too: creating an empty directory, initializing a tool, or reading a path that only exists at run time.
 This index renders `case` blocks only, so read the source file for the `before_each` block itself.
 
+before_each
+
+````reportage
+before_each {
+  write <"config.yml"> ```
+    retries: 3
+    verbose: true
+    ```
+
+  write <"input/message.txt"> "hello reportage\n"
+
+  $ mkdir -p repo/objects
+  assert {
+    exit 0
+    dir <"repo/objects"> exists
+  }
+
+  $ pwd
+  let workspace <- stdout_line
+
+  write <"tool.config"> &```
+    root = &{workspace}/repo
+    mode = strict
+    ```
+}
+````
+
 <a id="case-6-1-1-the-seeded-files-are-present-before-any-action"></a>
 #### the seeded files are present before any action
 

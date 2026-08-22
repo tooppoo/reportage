@@ -1,5 +1,16 @@
 # A source without any document block: the file falls back to its stem as
 # title and to the default group, and each case falls back to its case name.
+# The before_each block renders even without any document metadata.
+
+before_each {
+  write <"seed.txt"> "seed\n"
+
+  $ mkdir -p fixtures
+  assert {
+    exit 0
+    dir <"fixtures"> exists
+  }
+}
 
 case "fallback case one" {
   $ echo one

@@ -11,8 +11,13 @@
 //!   preceded by an explicit `<a id="...">` anchor on its own line
 //! - file sections carry `Source: <source_path>`; file and case descriptions
 //!   follow their heading and are omitted entirely when absent
-//! - case sources are wrapped in a `reportage` fenced code block whose fence
-//!   is longer than the longest backtick run in the source (minimum 3)
+//! - a file's `before_each` source, when present, is rendered once per file
+//!   section before the case sections, as a `before_each` label paragraph
+//!   followed by a fenced source block; it is not a navigation entity, so it
+//!   adds no table-of-contents entry, anchor, or heading
+//! - case and `before_each` sources are wrapped in a `reportage` fenced code
+//!   block whose fence is longer than the longest backtick run in the source
+//!   (minimum 3)
 //! - renderer-generated blocks are separated by exactly one empty line, line
 //!   endings are normalized to LF, and the document ends with exactly one LF
 //!
@@ -28,8 +33,8 @@
 //! docs/adr/20260723T143711Z_markdown-documentation-format.md.
 //!
 //! Beyond the fence wrapper, the structural final newline before a closing
-//! fence, and LF normalization, case source content is never dropped or
-//! replaced.
+//! fence, and LF normalization, case and `before_each` source content is
+//! never dropped or replaced.
 
 use super::catalog::DocumentationCatalog;
 use super::render::{DocumentRenderer, RenderOptions};
@@ -57,6 +62,15 @@ impl DocumentRenderer for MarkdownRenderer {
                 section_blocks.push(format!("Source: {}", lf(&file.source_path)));
                 if let Some(description) = &file.description {
                     section_blocks.push(description_block(description));
+                }
+                // Not a navigation entity: rendered once per file section,
+                // before the cases, with no ToC entry, anchor, or heading, so
+                // the case anchor namespace and numbering stay unchanged.
+                // The label paragraph is the fixed DSL keyword, matching the
+                // plain format's label.
+                if let Some(before_each) = &file.before_each {
+                    section_blocks.push("before_each".to_string());
+                    section_blocks.push(fenced_source(before_each));
                 }
 
                 for (case_number, case) in numbered(&file.cases) {
@@ -157,7 +171,7 @@ fn slug(title: &str) -> Option<String> {
     if out.is_empty() { None } else { Some(out) }
 }
 
-/// The case source wrapped in a `reportage` fenced code block.
+/// A case or `before_each` source wrapped in a `reportage` fenced code block.
 ///
 /// The fence must be computed on the exact Catalog source (the contract's
 /// stated stage); LF normalization cannot change backtick runs, so the result
@@ -462,6 +476,79 @@ mod tests {
         assert!(output.contains(
             "```reportage\ncase \"x\" {\n  # a comment\n\n  $ true   \n} # trailing\n```"
         ));
+    }
+
+    /// The `before_each` source renders once per file section, after the
+    /// file metadata and before the first case section, as a label paragraph
+    /// plus a fenced source block.
+    #[test]
+    fn before_each_renders_once_before_the_case_sections() {
+        let mut catalog = representative_catalog("case \"x\" {\n  $ true\n}\n");
+        catalog.groups[0].files[0].before_each =
+            Some("before_each {\n  $ mkdir -p fixtures\n}\n".to_string());
+
+        let output = render(&catalog);
+        assert!(output.contains(
+            "About files.\n\
+             \n\
+             before_each\n\
+             \n\
+             ```reportage\n\
+             before_each {\n\
+             \x20\x20$ mkdir -p fixtures\n\
+             }\n\
+             ```\n\
+             \n\
+             <a id=\"case-1-1-1-file-creation\"></a>\n\
+             #### File creation\n"
+        ));
+    }
+
+    /// `before_each` is not a navigation entity: the table of contents,
+    /// anchors, headings, and case anchor numbering are byte-identical to the
+    /// same catalog without a `before_each`.
+    #[test]
+    fn before_each_adds_no_toc_entry_anchor_or_heading() {
+        let without = representative_catalog("case \"x\" {\n  $ true\n}\n");
+        let mut with = representative_catalog("case \"x\" {\n  $ true\n}\n");
+        with.groups[0].files[0].before_each = Some("before_each {\n  $ true\n}\n".to_string());
+
+        let with_output = render(&with);
+        let without_output = render(&without);
+        assert_eq!(
+            collect_anchor_ids(&with_output),
+            collect_anchor_ids(&without_output)
+        );
+        let headings = |output: &str| -> Vec<String> {
+            output
+                .lines()
+                .filter(|line| line.starts_with('#'))
+                .map(str::to_string)
+                .collect()
+        };
+        assert_eq!(headings(&with_output), headings(&without_output));
+        let toc = |output: &str| -> Vec<String> {
+            output
+                .lines()
+                .filter(|line| line.trim_start().starts_with("- ["))
+                .map(str::to_string)
+                .collect()
+        };
+        assert_eq!(toc(&with_output), toc(&without_output));
+    }
+
+    /// The fence rule applies to the setup source as well: one backtick
+    /// longer than the longest backtick run, and CRLF is normalized to LF.
+    #[test]
+    fn before_each_fences_and_lf_normalization_match_case_sources() {
+        let mut caseless = file("Setup only", vec![]);
+        caseless.before_each = Some("before_each {\r\n  $ echo '```'\r\n}\r\n".to_string());
+        let output = render(&single_group(vec![caseless]));
+
+        assert!(!output.contains('\r'));
+        assert!(
+            output.contains("before_each\n\n````reportage\nbefore_each {\n  $ echo '```'\n}\n````")
+        );
     }
 
     /// A zero-case file still gets its TOC entry, heading, and source path,

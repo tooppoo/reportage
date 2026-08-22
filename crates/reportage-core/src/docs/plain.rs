@@ -10,14 +10,19 @@
 //! - `Group` / `File` / `Source path` / `Case` / `Description` values are
 //!   indented by two spaces per logical line
 //! - a `Description` block is omitted entirely when the value is absent
-//! - `Reportage source` lines are indented by four spaces, except empty lines,
-//!   which stay empty so no trailing whitespace is produced
+//! - a file's `before_each` source, when present, is rendered once per file
+//!   section as a `before_each`-labeled source block before the case blocks,
+//!   under the same source rules as `Reportage source`; the block is omitted
+//!   entirely when the source declares no `before_each`
+//! - `Reportage source` and `before_each` source lines are indented by four
+//!   spaces, except empty lines, which stay empty so no trailing whitespace
+//!   is produced
 //! - line endings are normalized to LF for the whole document, including
 //!   inside source blocks
 //! - the document ends with exactly one LF
 //!
 //! Beyond presentation indentation, LF normalization, and the block wrappers,
-//! case source content is never dropped or replaced.
+//! case and `before_each` source content is never dropped or replaced.
 
 use super::catalog::DocumentationCatalog;
 use super::render::{DocumentRenderer, RenderOptions};
@@ -42,6 +47,12 @@ impl DocumentRenderer for PlainRenderer {
                 blocks.push(block("Source path", &file.source_path, VALUE_INDENT));
                 if let Some(description) = &file.description {
                     blocks.push(block("Description", description, VALUE_INDENT));
+                }
+                // Rendered once per file section, before the cases: the
+                // setup is declared once at module level in the source, even
+                // though execution replays it inside every concrete case.
+                if let Some(before_each) = &file.before_each {
+                    blocks.push(block("before_each", before_each, SOURCE_INDENT));
                 }
                 for case in &file.cases {
                     blocks.push(block("Case", &case.title, VALUE_INDENT));
@@ -175,6 +186,58 @@ mod tests {
         );
         assert!(output.starts_with("\n\nGroup\n"));
         assert!(!output.contains("Reportage Documentation"));
+    }
+
+    /// The `before_each` source renders once per file section, between the
+    /// file metadata blocks and the first case, with the fixed `before_each`
+    /// label and the same four-space source indentation as
+    /// `Reportage source`.
+    #[test]
+    fn before_each_renders_once_before_the_cases() {
+        let mut catalog = single_case_catalog("case \"x\" {\n  $ true\n}\n");
+        catalog.groups[0].files[0].before_each =
+            Some("before_each {\n\n  $ mkdir -p fixtures\n}\n".to_string());
+
+        let output = PlainRenderer.render(&catalog, &RenderOptions::default());
+        assert!(output.contains(
+            "Description\n  About files.\n\
+             \n\
+             before_each\n    before_each {\n\n      $ mkdir -p fixtures\n    }\n\
+             \n\
+             Case\n  File creation\n"
+        ));
+        assert_eq!(output.matches("before_each").count(), 2);
+    }
+
+    #[test]
+    fn before_each_blocks_are_omitted_when_absent() {
+        let output = PlainRenderer.render(
+            &single_case_catalog("case \"x\" {\n  $ true\n}\n"),
+            &RenderOptions::default(),
+        );
+        assert!(!output.contains("before_each"));
+    }
+
+    /// A zero-case file with a `before_each` still renders the setup block,
+    /// and CRLF setup sources are normalized like case sources.
+    #[test]
+    fn before_each_renders_for_zero_case_files_with_lf_normalization() {
+        let catalog = DocumentationCatalog {
+            groups: vec![DocumentationGroup {
+                name: "Index".to_string(),
+                files: vec![DocumentedFile {
+                    title: "setup-only".to_string(),
+                    description: None,
+                    source_path: "setup-only.repor".to_string(),
+                    before_each: Some("before_each {\r\n  $ true\r\n}\r\n".to_string()),
+                    cases: vec![],
+                }],
+            }],
+        };
+
+        let output = PlainRenderer.render(&catalog, &RenderOptions::default());
+        assert!(!output.contains('\r'));
+        assert!(output.ends_with("before_each\n    before_each {\n      $ true\n    }\n"));
     }
 
     #[test]
