@@ -1056,7 +1056,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "reportage-cli"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "assert_cmd",
  "assert_fs",
@@ -1071,7 +1071,7 @@ dependencies = [
 
 [[package]]
 name = "reportage-core"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "base64",
  "glob",
@@ -1457,7 +1457,7 @@ checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
 
 [[package]]
 name = "xtask"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "clap",
  "serde",

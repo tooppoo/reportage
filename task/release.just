@@ -6,6 +6,7 @@ update-version version:
 
   toml set ./Cargo.toml workspace.package.version {{ version }} > Cargo.toml.tmp
   mv Cargo.toml.tmp Cargo.toml
+  cargo c
 
 # create release tag(version pin) for the given version
 [group('release')]
