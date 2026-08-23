@@ -16,7 +16,7 @@
       "version": "1.24"
     },
     "ghcr.io/devcontainers/features/node:2": {
-      "version": "24.18.0",
+      "version": "24.19.0",
       "pnpmVersion": "11.9.0"
     },
     "ghcr.io/tooppoo/catalog-devcontainer-features/git-kura:0": {},
