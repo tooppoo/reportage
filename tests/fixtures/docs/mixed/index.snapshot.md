@@ -107,6 +107,12 @@ Source: sources/no-cases.repor
 
 A valid source with zero cases still appears in the document.
 
+```reportage
+before_each {
+  write <"seed.txt"> "seed\n"
+}
+```
+
 <a id="file-2-2-undocumented"></a>
 ### undocumented
 
@@ -116,6 +122,16 @@ Source: sources/undocumented.repor
 #### fallback case one
 
 ```reportage
+before_each {
+  write <"seed.txt"> "seed\n"
+
+  $ mkdir -p fixtures
+  assert {
+    exit 0
+    dir <"fixtures"> exists
+  }
+}
+
 case "fallback case one" {
   $ echo one
 
@@ -129,6 +145,16 @@ case "fallback case one" {
 #### fallback case two
 
 ```reportage
+before_each {
+  write <"seed.txt"> "seed\n"
+
+  $ mkdir -p fixtures
+  assert {
+    exit 0
+    dir <"fixtures"> exists
+  }
+}
+
 case "fallback case two" {
   $ echo two
 

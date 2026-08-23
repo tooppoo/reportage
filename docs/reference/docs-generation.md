@@ -16,7 +16,7 @@ Example:
 reportage docs 'examples/**/*.repor' --out-dir generated/docs --format markdown --title 'Project documentation'
 ```
 
-`reportage docs` aggregates the `document file` / `document case` metadata and the original case source of every selected `.repor` file into generated documentation under `--out-dir`.
+`reportage docs` aggregates the `document file` / `document case` metadata and the original `before_each` and case sources of every selected `.repor` file into generated documentation under `--out-dir`.
 
 - `--out-dir` is required.
 - `--format` defaults to `plain`; `plain` and `markdown` are the supported formats.
@@ -67,6 +67,12 @@ The generated document groups files, then lists each file's cases:
 - case title: `document case.title`, or the case name when unspecified.
 - case description: `document case.description`, omitted when unspecified.
 - case source: the exact `case` block text from the source file.
+- `before_each` source: the exact `before_each` block text from the source file, omitted when the source declares none.
+
+Each rendered case source block is a complete snippet: when the source declares a `before_each`, the setup block opens the case's source block, separated from the `case` block by one empty line, so a copied snippet parses and runs on its own — a case that references `before_each` bindings or files never appears without their declarations.
+Only the setup's final line ending is dropped at the join; both block texts are otherwise reproduced verbatim.
+The setup is included whether or not the file declares `document file` metadata.
+A source with zero cases and a `before_each` renders the setup block once on its own, so a declared setup is never silently dropped.
 
 A valid source with zero cases still appears with its file metadata and source path, without case sections.
 
@@ -104,7 +110,7 @@ The document title, group names, file titles, case titles, source paths, and des
 If a value contains Markdown syntax, raw HTML, newlines, control characters, heading markers, or link delimiters that break the rendered layout or the table of contents, that is the input's responsibility.
 Publishing Markdown generated from untrusted `.repor` sources therefore requires sanitization by the downstream publisher or rendering environment, not by `reportage docs`.
 
-Two structural exceptions are renderer-owned values, not metadata escapes: the generated explicit anchor IDs (ASCII only, see [Anchors and table of contents](#anchors-and-table-of-contents)) and the code fence wrapping each case source (see [Case source fences](#case-source-fences)).
+Two structural exceptions are renderer-owned values, not metadata escapes: the generated explicit anchor IDs (ASCII only, see [Anchors and table of contents](#anchors-and-table-of-contents)) and the code fence wrapping each source snippet (see [Source fences](#source-fences)).
 Line endings are the one permitted normalization: CRLF sequences are normalized to LF throughout the generated document, metadata included; no other character is changed.
 
 ## Plain text serialization
@@ -120,12 +126,13 @@ The serialization contract:
 - The document starts with the document title (`--title`, default `Reportage Documentation`).
 - Blocks (`Group`, `File`, `Source path`, `Description`, `Case`, `Reportage source`) are separated by exactly one empty line.
 - `Group` / `File` / `Source path` / `Case` / `Description` values are indented by two spaces per logical line; absent descriptions omit the whole `Description` block.
+- Each `Reportage source` block holds the case's complete snippet: the file's `before_each` block first when the source declares one, an empty line, then the case block. A zero-case source with a `before_each` renders the setup alone as one `Reportage source` block.
 - `Reportage source` lines are indented by four spaces; empty source lines stay empty, so no line carries trailing whitespace.
 - Line endings are normalized to LF for the whole document, including source blocks from CRLF sources.
 - Whether or not a source ends with a final newline, exactly one empty line separates it from the next block, and the document ends with exactly one LF.
-- Beyond that presentation indentation, LF normalization, and the block labels, case source content is reproduced without loss or replacement.
+- Beyond that presentation indentation, LF normalization, the block labels, and the snippet join, case and `before_each` source content is reproduced without loss or replacement.
 
-The representative example and the ordering / fallback / zero-case shapes are fixed by the generated example documents under [`tests/fixtures/docs/`](../../tests/fixtures/docs/) (`index.snapshot.txt` and `index.snapshot.md`), enforced byte for byte by [`crates/reportage-cli/tests/docs_generation.rs`](../../crates/reportage-cli/tests/docs_generation.rs).
+The representative example and the ordering / fallback / zero-case / `before_each` shapes are fixed by the generated example documents under [`tests/fixtures/docs/`](../../tests/fixtures/docs/) (`index.snapshot.txt` and `index.snapshot.md`), enforced byte for byte by [`crates/reportage-cli/tests/docs_generation.rs`](../../crates/reportage-cli/tests/docs_generation.rs).
 
 ## Markdown serialization
 
@@ -152,6 +159,8 @@ The serialization contract:
 - The document starts with `# <document title>`, followed by a `## Contents` section listing groups, files, and cases in Catalog order, each entry linking to its explicit anchor.
 - Every group, file, and case heading is immediately preceded by its explicit `<a id="..."></a>` anchor on its own line.
 - A file section carries `Source: <source_path>`; file and case descriptions follow their heading and are omitted entirely when absent — no empty paragraph or placeholder is generated.
+- Each case's fenced source block holds the case's complete snippet: the file's `before_each` block first when the source declares one, an empty line, then the case block (see [Source fences](#source-fences)). A zero-case source with a `before_each` renders the setup alone as one fenced block after the file metadata.
+- `before_each` is not a navigation entity: it adds no table of contents entry, no anchor, and no heading, so the group / file / case hierarchy, heading levels, and case anchor numbering are identical to the same Catalog without it.
 - A zero-case file still gets its table of contents entry, heading, source path, and description; no empty case section is generated.
 - Renderer-generated blocks are separated by exactly one empty line; a final newline carried by a description value never changes block separation.
 - Line endings are normalized to LF for the whole document, and the document ends with exactly one LF.
@@ -172,13 +181,13 @@ Uniqueness is guaranteed by the structure indices alone, so duplicate titles, ti
 Anchor IDs consist only of renderer-generated ASCII lowercase letters, digits, and hyphens; metadata is never inserted into an HTML attribute.
 The same Catalog and title always produce the same anchors, and the document title does not participate in anchor IDs.
 
-### Case source fences
+### Source fences
 
-Each case source is wrapped in a fenced code block with the `reportage` language identifier.
-The fence is one backtick longer than the longest backtick run in the exact case source, and at least three, so a source containing backtick fences cannot terminate the block early.
+Each source snippet — a case block with its `before_each` prefix when declared, or a zero-case file's `before_each` block alone — is wrapped in a fenced code block with the `reportage` language identifier.
+The fence is one backtick longer than the longest backtick run in the exact snippet, and at least three, so a snippet containing backtick fences cannot terminate the block early; a backtick run in the `before_each` block therefore lengthens the fence of every case block it opens.
 
-Inside the fence, the source is reproduced with CRLF normalized to LF and no other change: no line is dropped, no character is replaced, and whitespace and comments are preserved.
-A source without a final newline gets one structural LF so the closing fence sits on its own line; a source with a final newline gets no extra blank line before the closing fence.
+Inside the fence, the snippet is reproduced with CRLF normalized to LF and, beyond the join described in [Document structure](#document-structure), no other change: no line is dropped, no character is replaced, and whitespace and comments are preserved.
+A snippet without a final newline gets one structural LF so the closing fence sits on its own line; a snippet with a final newline gets no extra blank line before the closing fence.
 
 ## Output directory and replacement
 

@@ -13,9 +13,9 @@ use pest_derive::Parser;
 
 use self::document::{parse_document_case_block, parse_document_file_block};
 use self::step::{BindingScope, parse_before_each_block, parse_case_block};
-use crate::model::BeforeEach;
 use crate::source::{
-    CaseDocumentation, FileDocumentation, SourceCase, SourceFile, SourceSpan, SourceText,
+    CaseDocumentation, FileDocumentation, SourceBeforeEach, SourceCase, SourceFile, SourceSpan,
+    SourceText,
 };
 
 #[derive(Parser)]
@@ -28,10 +28,11 @@ mod tests;
 /// Parses `source` into the source-level model.
 ///
 /// The returned [`SourceFile`] owns a copy of `source` and associates each case
-/// with its byte range in that text; run [`SourceFile::into_script`] to obtain
-/// the execution-model `Script`.
-/// Each case's span is exactly the pest `case_block` pair's matched range —
-/// the grammar, not this function, defines where a case block starts and ends.
+/// and the `before_each` block with their byte ranges in that text; run
+/// [`SourceFile::into_script`] to obtain the execution-model `Script`.
+/// Each span is exactly the matched range of its pest pair (`case_block` /
+/// `before_each_block`) — the grammar, not this function, defines where a
+/// block starts and ends.
 pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
     let pairs = ReportageParser::parse(Rule::script, source).map_err(|e| {
         let (line, col) = match e.line_col {
@@ -50,7 +51,7 @@ pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
     // Call into_inner() to get its contents (document blocks, case_blocks, SOI, EOI).
     let script_pair = pairs.into_iter().next().expect("script always matches");
     let mut file_documentation: Option<FileDocumentation> = None;
-    let mut before_each: Option<BeforeEach> = None;
+    let mut before_each: Option<SourceBeforeEach> = None;
     // A parsed `document case` block waiting for its target case, with the
     // block's start line for the orphan diagnostic.
     let mut pending_case_documentation: Option<(CaseDocumentation, usize)> = None;
@@ -103,7 +104,9 @@ pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
                 if before_each.is_some() {
                     return Err(ParseError::DuplicateBeforeEach { line });
                 }
-                before_each = Some(parse_before_each_block(pair)?);
+                let pair_span = pair.as_span();
+                let span = SourceSpan::new(pair_span.start(), pair_span.end());
+                before_each = Some(SourceBeforeEach::new(parse_before_each_block(pair)?, span));
             }
             Rule::case_block => {
                 let pair_span = pair.as_span();
@@ -114,7 +117,10 @@ pub fn parse(source: &str) -> Result<SourceFile, ParseError> {
                 // Every case body starts from the same scope: whatever
                 // `before_each` left declared. `before_each` is required to
                 // precede the first case, so it is fully parsed by now.
-                let case = parse_case_block(pair, &BindingScope::after(before_each.as_ref()))?;
+                let case = parse_case_block(
+                    pair,
+                    &BindingScope::after(before_each.as_ref().map(SourceBeforeEach::before_each)),
+                )?;
                 cases.push(SourceCase::new(documentation, case, span));
             }
             // SOI, EOI, and silent blank/comment lines carry no content.

@@ -2,3 +2,8 @@ document file {
   title "Case-less file"
   description "A valid source with zero cases still appears in the document."
 }
+
+# A zero-case source still renders its before_each block.
+before_each {
+  write <"seed.txt"> "seed\n"
+}

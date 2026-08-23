@@ -131,7 +131,10 @@ fn representative_markdown_scenario_matches_snapshot() {
 /// Multiple groups and files: declared order before undeclared, order
 /// ascending, path tie-break, case-sensitive group ordering, fallback title /
 /// group / case titles, a zero-case file, heredoc descriptions, and a source
-/// without a final newline.
+/// without a final newline. `before_each` coverage: a documentation-less
+/// source opens each of its case source blocks with the setup block, a
+/// zero-case source renders the setup alone, and the sources without one
+/// keep their existing structure.
 #[test]
 fn mixed_scenario_matches_snapshot() {
     let dir = TempDir::new().unwrap();
@@ -141,8 +144,9 @@ fn mixed_scenario_matches_snapshot() {
 }
 
 /// The mixed scenario through `--format markdown`: ordering, fallbacks, a
-/// zero-case file with its TOC entry but no case section, and a source
-/// without a final newline, all under the Markdown contract.
+/// zero-case file with its TOC entry but no case section, a source without a
+/// final newline, and `before_each` opening each case fence (adding no TOC
+/// entry, anchor, or heading), all under the Markdown contract.
 #[test]
 fn mixed_markdown_scenario_matches_snapshot() {
     let dir = TempDir::new().unwrap();
@@ -165,10 +169,10 @@ fn markdown_metadata_scenario_matches_snapshot() {
 
 // --- in-test scenarios ----------------------------------------------------
 
-const CRLF_SOURCE: &str = "document file {\r\n  title \"CRLF file\"\r\n}\r\n\r\ncase \"crlf case\" {\r\n  $ true\r\n\r\n  assert {\r\n    exit 0\r\n  }\r\n}\r\n";
+const CRLF_SOURCE: &str = "document file {\r\n  title \"CRLF file\"\r\n}\r\n\r\nbefore_each {\r\n  write <\"seed.txt\"> \"seed\\n\"\r\n}\r\n\r\ncase \"crlf case\" {\r\n  $ true\r\n\r\n  assert {\r\n    exit 0\r\n  }\r\n}\r\n";
 
-/// CRLF sources generate an LF-only document; the source block content is
-/// otherwise unchanged.
+/// CRLF sources generate an LF-only document; the snippet (before_each +
+/// case) content is otherwise unchanged.
 #[test]
 fn crlf_sources_are_normalized_to_lf_in_the_generated_document() {
     let dir = TempDir::new().unwrap();
@@ -182,12 +186,13 @@ fn crlf_sources_are_normalized_to_lf_in_the_generated_document() {
         "generated document must not contain CR bytes"
     );
     assert!(generated.contains(
-        "Reportage source\n    case \"crlf case\" {\n      $ true\n\n      assert {\n        exit 0\n      }\n    }\n"
+        "Reportage source\n    before_each {\n      write <\"seed.txt\"> \"seed\\n\"\n    }\n\n    case \"crlf case\" {\n      $ true\n\n      assert {\n        exit 0\n      }\n    }\n"
     ));
 }
 
 /// CRLF sources generate an LF-only Markdown document; inside the fence the
-/// source keeps its content with only the line endings normalized.
+/// snippet (before_each + case) keeps its content with only the line endings
+/// normalized.
 #[test]
 fn crlf_sources_are_normalized_to_lf_in_the_generated_markdown_document() {
     let dir = TempDir::new().unwrap();
@@ -201,7 +206,7 @@ fn crlf_sources_are_normalized_to_lf_in_the_generated_markdown_document() {
         "generated document must not contain CR bytes"
     );
     assert!(generated.contains(
-        "```reportage\ncase \"crlf case\" {\n  $ true\n\n  assert {\n    exit 0\n  }\n}\n```"
+        "```reportage\nbefore_each {\n  write <\"seed.txt\"> \"seed\\n\"\n}\n\ncase \"crlf case\" {\n  $ true\n\n  assert {\n    exit 0\n  }\n}\n```"
     ));
 }
 

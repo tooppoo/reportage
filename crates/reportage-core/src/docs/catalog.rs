@@ -35,6 +35,12 @@ pub struct DocumentedFile {
     /// The normalized display path, not a filesystem access path: renderers
     /// print it verbatim.
     pub source_path: String,
+    /// The exact `before_each` block text sliced from the source span, or
+    /// `None` when the source declares none. The preservation contract of
+    /// [`DocumentedCase::source`] applies unchanged: the text reaches the
+    /// Catalog verbatim, and presentation transformations belong to
+    /// renderers.
+    pub before_each: Option<String>,
     pub cases: Vec<DocumentedCase>,
 }
 
@@ -104,6 +110,7 @@ pub fn build_catalog(sources: &[LoadedSourceFile]) -> DocumentationCatalog {
                 title,
                 description,
                 source_path: loaded.display_path.clone(),
+                before_each: loaded.source.before_each_source().map(str::to_string),
                 cases,
             },
         });
@@ -162,6 +169,7 @@ mod tests {
         assert_eq!(file.title, "sample-file");
         assert_eq!(file.description, None);
         assert_eq!(file.source_path, "dir/sample-file.repor");
+        assert_eq!(file.before_each, None);
         assert_eq!(file.cases[0].title, "first case");
         assert_eq!(file.cases[0].description, None);
     }
@@ -202,6 +210,46 @@ mod tests {
         assert_eq!(file.title, "empty");
         assert_eq!(file.source_path, "empty.repor");
         assert!(file.cases.is_empty());
+    }
+
+    #[test]
+    fn before_each_source_is_preserved_exactly_without_document_file() {
+        // Reaching the Catalog requires neither a `document file` block nor
+        // any transformation of the block text: an interior comment, a blank
+        // line, and the closing brace line's inline comment arrive verbatim.
+        let block = "before_each {\n  # seed\n\n  write <\"seed.txt\"> \"seed\\n\"\n} # done\n";
+        let source = format!("{block}\n{UNDOCUMENTED}");
+        let catalog = build_catalog(&[loaded("setup.repor", &source)]);
+
+        let file = &catalog.groups[0].files[0];
+        assert_eq!(file.before_each.as_deref(), Some(block));
+        assert_eq!(file.cases.len(), 1);
+    }
+
+    #[test]
+    fn before_each_is_included_for_zero_case_sources() {
+        let block = "before_each {\n  write <\"seed.txt\"> \"seed\\n\"\n}\n";
+        let catalog = build_catalog(&[loaded("setup-only.repor", block)]);
+
+        let file = &catalog.groups[0].files[0];
+        assert_eq!(file.before_each.as_deref(), Some(block));
+        assert!(file.cases.is_empty());
+    }
+
+    #[test]
+    fn before_each_source_is_preserved_exactly() {
+        // The `case_source_is_preserved_exactly` counterpart for the setup
+        // field: CRLF line endings, an interior blank line, an inline comment
+        // on the closing brace line, and no final newline all arrive
+        // unchanged.
+        let block =
+            "before_each {\r\n  write <\"seed.txt\"> \"seed\\n\"\r\n\r\n  $ true\r\n} # done";
+        let catalog = build_catalog(&[loaded("crlf-setup.repor", block)]);
+
+        assert_eq!(
+            catalog.groups[0].files[0].before_each.as_deref(),
+            Some(block)
+        );
     }
 
     #[test]

@@ -170,6 +170,34 @@ impl SourceCase {
     }
 }
 
+/// The module's `before_each` setup: the execution-model `BeforeEach` and the byte range
+/// of the whole `before_each` block (matching the pest `before_each_block` pair)
+/// in the original source.
+///
+/// The span follows the same contract as [`SourceCase`]: it covers the `before_each`
+/// line's leading indentation through the closing brace line, including that line's
+/// trailing whitespace / inline comment and its line ending when present, and it
+/// excludes blank lines and comment lines before or after the block.
+#[derive(Debug)]
+pub struct SourceBeforeEach {
+    before_each: BeforeEach,
+    span: SourceSpan,
+}
+
+impl SourceBeforeEach {
+    pub(crate) fn new(before_each: BeforeEach, span: SourceSpan) -> Self {
+        Self { before_each, span }
+    }
+
+    pub fn before_each(&self) -> &BeforeEach {
+        &self.before_each
+    }
+
+    pub fn span(&self) -> SourceSpan {
+        self.span
+    }
+}
+
 /// A parsed reportage file as the parser returns it:
 /// the owned source text, the file-scope documentation when the source declares one,
 /// the module's `before_each` setup when the source declares one,
@@ -178,7 +206,7 @@ impl SourceCase {
 pub struct SourceFile {
     source: SourceText,
     file_documentation: Option<FileDocumentation>,
-    before_each: Option<BeforeEach>,
+    before_each: Option<SourceBeforeEach>,
     cases: Vec<SourceCase>,
 }
 
@@ -190,29 +218,35 @@ impl SourceFile {
     pub(crate) fn new(
         source: SourceText,
         file_documentation: Option<FileDocumentation>,
-        before_each: Option<BeforeEach>,
+        before_each: Option<SourceBeforeEach>,
         cases: Vec<SourceCase>,
     ) -> Self {
         let text = source.as_str();
         let mut previous_end = 0usize;
-        for source_case in &cases {
-            let span = source_case.span();
+        // The setup span joins the same ordering chain as the case spans:
+        // grammar and placement rules put `before_each` before every case,
+        // so the parser must deliver its span first and non-overlapping.
+        let spans = before_each
+            .iter()
+            .map(|setup| ("before_each", setup.span()))
+            .chain(cases.iter().map(|source_case| ("case", source_case.span())));
+        for (kind, span) in spans {
             assert!(
                 span.end() <= text.len(),
-                "case span {}..{} exceeds source length {}",
+                "{kind} span {}..{} exceeds source length {}",
                 span.start(),
                 span.end(),
                 text.len()
             );
             assert!(
                 text.is_char_boundary(span.start()) && text.is_char_boundary(span.end()),
-                "case span {}..{} is not on UTF-8 character boundaries",
+                "{kind} span {}..{} is not on UTF-8 character boundaries",
                 span.start(),
                 span.end()
             );
             assert!(
                 previous_end <= span.start(),
-                "case spans must be in source order and non-overlapping"
+                "{kind} spans must be in source order and non-overlapping"
             );
             previous_end = span.end();
         }
@@ -237,8 +271,30 @@ impl SourceFile {
     }
 
     /// The module's `before_each` setup, or `None` when the source declares none.
+    ///
+    /// Execution-facing: returns the execution model inside the source-level
+    /// wrapper, so callers that only run the setup never see spans.
     pub fn before_each(&self) -> Option<&BeforeEach> {
+        self.before_each.as_ref().map(SourceBeforeEach::before_each)
+    }
+
+    /// The module's `before_each` setup with its source span, or `None` when
+    /// the source declares none.
+    ///
+    /// The source-side counterpart of [`Self::before_each`], mirroring
+    /// [`Self::cases`]: consumers that need the block's span (documentation
+    /// generation) read it here, execution-facing callers stay on
+    /// [`Self::before_each`].
+    pub fn before_each_block(&self) -> Option<&SourceBeforeEach> {
         self.before_each.as_ref()
+    }
+
+    /// The original source text of the whole `before_each` block, or `None`
+    /// when the source declares none.
+    pub fn before_each_source(&self) -> Option<&str> {
+        self.before_each
+            .as_ref()
+            .map(|setup| self.source.slice(setup.span()))
     }
 
     pub fn cases(&self) -> &[SourceCase] {
@@ -258,7 +314,7 @@ impl SourceFile {
     /// Source text, spans, and documentation metadata are dropped here.
     pub fn into_script(self) -> Script {
         Script {
-            before_each: self.before_each,
+            before_each: self.before_each.map(|setup| setup.before_each),
             cases: self
                 .cases
                 .into_iter()

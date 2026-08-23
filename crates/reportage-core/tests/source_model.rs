@@ -29,35 +29,47 @@ fn source_file_invariants_hold_for_entire_fixture_corpus() {
         );
 
         let mut previous_end = 0usize;
-        for source_case in source_file.cases() {
-            let span = source_case.span();
+        // The `before_each` block precedes every case per the grammar and the
+        // placement rules, so its span joins the same ordering chain, checked
+        // before the case spans.
+        let spans = source_file
+            .before_each_block()
+            .map(|setup| ("before_each", setup.span()))
+            .into_iter()
+            .chain(
+                source_file
+                    .cases()
+                    .iter()
+                    .map(|source_case| ("case", source_case.span())),
+            );
+        for (keyword, span) in spans {
             let display = path.display();
 
             assert!(
                 span.start() <= span.end() && span.end() <= source.len(),
-                "{display}: span {}..{} out of range",
+                "{display}: {keyword} span {}..{} out of range",
                 span.start(),
                 span.end()
             );
             assert!(
                 source.is_char_boundary(span.start()) && source.is_char_boundary(span.end()),
-                "{display}: span {}..{} not on char boundaries",
+                "{display}: {keyword} span {}..{} not on char boundaries",
                 span.start(),
                 span.end()
             );
             assert!(
                 previous_end <= span.start(),
-                "{display}: case spans must be in source order and non-overlapping"
+                "{display}: {keyword} spans must be in source order and non-overlapping"
             );
             previous_end = span.end();
 
-            // The span starts at the case line's leading indentation and ends
-            // with the closing brace line (its line ending included when one
-            // exists in the source).
-            let block = source_file.case_source(source_case);
+            // The span starts at the keyword line's leading indentation and
+            // ends with the closing brace line (its line ending included when
+            // one exists in the source).
+            let block = source_file.source().slice(span);
             assert!(
-                block.trim_start_matches([' ', '\t']).starts_with("case"),
-                "{display}: span must start at the case keyword's line: {block:?}"
+                block.trim_start_matches([' ', '\t']).starts_with(keyword),
+                "{display}: span must start at the {keyword} keyword's line: {block:?}"
             );
             let last_line = block.trim_end_matches(['\n', '\r']).lines().last();
             assert!(
@@ -81,6 +93,7 @@ fn projection_preserves_case_names_and_order_for_entire_fixture_corpus() {
             .iter()
             .map(|source_case| source_case.case().name.clone())
             .collect();
+        let has_before_each = source_file.before_each().is_some();
 
         let script = source_file.into_script();
         let script_names: Vec<String> = script.cases.iter().map(|case| case.name.clone()).collect();
@@ -89,6 +102,12 @@ fn projection_preserves_case_names_and_order_for_entire_fixture_corpus() {
             source_names,
             script_names,
             "{}: projection must not add, drop, or reorder cases",
+            path.display()
+        );
+        assert_eq!(
+            script.before_each.is_some(),
+            has_before_each,
+            "{}: projection must not add or drop the before_each setup",
             path.display()
         );
     }

@@ -971,30 +971,75 @@ Source: examples/before-each.repor
 A `before_each` block seeds every case's isolated workspace before the case body's first step, so every case's starting state is produced by the same declared steps, written once.
 It holds the same steps a case body holds — `$` actions, `assert` blocks, `let` bindings, and `write` steps — and, like a `document file` block, it appears at most once, before the first case.
 Setup a `write` cannot express therefore belongs here too: creating an empty directory, initializing a tool, or reading a path that only exists at run time.
-This index renders `case` blocks only, so read the source file for the `before_each` block itself.
 
 <a id="case-6-1-1-the-seeded-files-are-present-before-any-action"></a>
 #### the seeded files are present before any action
 
-```reportage
+````reportage
+before_each {
+  write <"config.yml"> ```
+    retries: 3
+    verbose: true
+    ```
+
+  write <"input/message.txt"> "hello reportage\n"
+
+  $ mkdir -p repo/objects
+  assert {
+    exit 0
+    dir <"repo/objects"> exists
+  }
+
+  $ pwd
+  let workspace <- stdout_line
+
+  write <"tool.config"> &```
+    root = &{workspace}/repo
+    mode = strict
+    ```
+}
+
 case "the seeded files are present before any action" {
   assert {
     file <"config.yml"> exists
     file <"input/message.txt"> contains "hello"
   }
 }
-```
+````
 
 <a id="case-6-1-2-a-case-body-sees-what-the-setup-command-created"></a>
 #### a case body sees what the setup command created
 
-```reportage
+````reportage
+before_each {
+  write <"config.yml"> ```
+    retries: 3
+    verbose: true
+    ```
+
+  write <"input/message.txt"> "hello reportage\n"
+
+  $ mkdir -p repo/objects
+  assert {
+    exit 0
+    dir <"repo/objects"> exists
+  }
+
+  $ pwd
+  let workspace <- stdout_line
+
+  write <"tool.config"> &```
+    root = &{workspace}/repo
+    mode = strict
+    ```
+}
+
 case "a case body sees what the setup command created" {
   assert {
     dir <"repo/objects"> exists
   }
 }
-```
+````
 
 <a id="case-6-1-3-setup-output-as-a-binding"></a>
 #### Setup output as a binding
@@ -1003,13 +1048,36 @@ An action only updates the checkpoint, so a setup action is verified by an `asse
 The binding is then usable for the rest of `before_each` — here, interpolated into a `write` — and for the whole case body.
 Every step is replayed inside each concrete case's own workspace, so the captured value is that case's own.
 
-```reportage
+````reportage
+before_each {
+  write <"config.yml"> ```
+    retries: 3
+    verbose: true
+    ```
+
+  write <"input/message.txt"> "hello reportage\n"
+
+  $ mkdir -p repo/objects
+  assert {
+    exit 0
+    dir <"repo/objects"> exists
+  }
+
+  $ pwd
+  let workspace <- stdout_line
+
+  write <"tool.config"> &```
+    root = &{workspace}/repo
+    mode = strict
+    ```
+}
+
 case "a case body reads a binding the setup captured" {
   assert {
     file <"tool.config"> contains &"root = &{workspace}/repo"
   }
 }
-```
+````
 
 <a id="case-6-1-4-workspace-isolation"></a>
 #### Workspace isolation
@@ -1017,7 +1085,30 @@ case "a case body reads a binding the setup captured" {
 Each case gets its own copy of the seeded state, so a case may modify or delete a seeded file without affecting any other case.
 The next case below still sees the pristine seeded files.
 
-```reportage
+````reportage
+before_each {
+  write <"config.yml"> ```
+    retries: 3
+    verbose: true
+    ```
+
+  write <"input/message.txt"> "hello reportage\n"
+
+  $ mkdir -p repo/objects
+  assert {
+    exit 0
+    dir <"repo/objects"> exists
+  }
+
+  $ pwd
+  let workspace <- stdout_line
+
+  write <"tool.config"> &```
+    root = &{workspace}/repo
+    mode = strict
+    ```
+}
+
 case "a case mutates only its own copy of the seeded state" {
   $ rm config.yml
   assert {
@@ -1027,12 +1118,35 @@ case "a case mutates only its own copy of the seeded state" {
     }
   }
 }
-```
+````
 
 <a id="case-6-1-5-a-later-case-still-sees-the-pristine-seeded-state"></a>
 #### a later case still sees the pristine seeded state
 
-```reportage
+````reportage
+before_each {
+  write <"config.yml"> ```
+    retries: 3
+    verbose: true
+    ```
+
+  write <"input/message.txt"> "hello reportage\n"
+
+  $ mkdir -p repo/objects
+  assert {
+    exit 0
+    dir <"repo/objects"> exists
+  }
+
+  $ pwd
+  let workspace <- stdout_line
+
+  write <"tool.config"> &```
+    root = &{workspace}/repo
+    mode = strict
+    ```
+}
+
 case "a later case still sees the pristine seeded state" {
   $ grep "retries" config.yml
   assert {
@@ -1040,7 +1154,7 @@ case "a later case still sees the pristine seeded state" {
     stdout contains "retries: 3"
   }
 }
-```
+````
 
 <a id="case-6-1-6-the-case-body-starts-fresh"></a>
 #### The case body starts fresh
@@ -1049,7 +1163,30 @@ Workspace state carries over from `before_each`, but the last setup action's res
 `exit`, `stdout`, and `stderr` at the top of a case body would have no action to describe, so this case runs its own action first.
 Its `stdout` is that action's — had the setup's evidence carried over, this would be the path the setup's last action printed.
 
-```reportage
+````reportage
+before_each {
+  write <"config.yml"> ```
+    retries: 3
+    verbose: true
+    ```
+
+  write <"input/message.txt"> "hello reportage\n"
+
+  $ mkdir -p repo/objects
+  assert {
+    exit 0
+    dir <"repo/objects"> exists
+  }
+
+  $ pwd
+  let workspace <- stdout_line
+
+  write <"tool.config"> &```
+    root = &{workspace}/repo
+    mode = strict
+    ```
+}
+
 case "process expectations describe the case body's own action" {
   $ grep "^mode = " tool.config
   assert {
@@ -1057,7 +1194,7 @@ case "process expectations describe the case body's own action" {
     stdout contains "mode = strict"
   }
 }
-```
+````
 
 <a id="file-6-2-writing-a-file-with-a-heredoc"></a>
 ### Writing a file with a heredoc
