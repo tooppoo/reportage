@@ -14,15 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: tooppoo/rellog-actions/setup@0.1.0
+      - uses: tooppoo/rellog-actions/setup@2abfca180ea8f95dc3d77be64b25b4bc33a0b380 # 0.1.0
 
       - name: Check release readiness
         run: rellog ready ${{ github.ref_name }}
 
   setup-artifacts:
-    uses: tooppoo/github-release-workflows/.github/workflows/wf-cross-platform-build.yml@main
+    uses: tooppoo/github-release-workflows/.github/workflows/wf-cross-platform-build.yml@9e11ee50a835c66f9dc7408029c16c3de00d93f4 # main
     needs: check-ready
     with:
       config_path: .github/workflows/artifacts.manifest.json
@@ -35,16 +35,16 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Get all archives
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.setup-artifacts.outputs.artifact_name }}
           path: dist
 
       - name: Create GitHub Release
-        uses: tooppoo/rellog-actions/create-gh-release@0.1.0
+        uses: tooppoo/rellog-actions/create-gh-release@2abfca180ea8f95dc3d77be64b25b4bc33a0b380 # 0.1.0
         with:
           release-id: ${{ github.ref_name }}
           files: |

@@ -18,16 +18,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Go
         # required for examples
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: "1.24"
+          go-version: "1.27"
       - name: Set up Node.js
         # required for examples
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
       - uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3
@@ -43,7 +43,7 @@ jobs:
           crate: cargo-llvm-cov
           locked: true
       - run: rustup toolchain install stable --profile minimal
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Check
         run: just check
@@ -60,7 +60,7 @@ jobs:
           use_oidc: true
 
   setup-artifacts:
-    uses: tooppoo/github-release-workflows/.github/workflows/wf-cross-platform-build.yml@main
+    uses: tooppoo/github-release-workflows/.github/workflows/wf-cross-platform-build.yml@9e11ee50a835c66f9dc7408029c16c3de00d93f4 # main
     with:
       config_path: .github/workflows/artifacts.manifest.json
 
@@ -70,7 +70,7 @@ jobs:
     needs: setup-artifacts
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3
         with:
@@ -82,7 +82,7 @@ jobs:
           locked: true
 
       - name: Get Archive
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.setup-artifacts.outputs.artifact_name }}
           path: dist
@@ -91,7 +91,7 @@ jobs:
         run: echo "version=$(just get-version)" >> $GITHUB_OUTPUT
 
       - name: assert artifacts
-        uses: tooppoo/fs-assert-action@latest
+        uses: tooppoo/fs-assert-action@f4f2541bc5816904ad5d6a0ec05f25de6c728238 # latest
         with:
           root: dist
           manifest: |
@@ -139,7 +139,7 @@ jobs:
           find ./dist # debug
 
       - name: assert extracted files
-        uses: tooppoo/fs-assert-action@latest
+        uses: tooppoo/fs-assert-action@f4f2541bc5816904ad5d6a0ec05f25de6c728238 # latest
         with:
           root: dist
           manifest: |
@@ -167,7 +167,7 @@ jobs:
                   - is_executable
 
   installer-smoke-test:
-    uses: tooppoo/github-release-workflows/.github/workflows/wf-installer-smoke-test.yml@main
+    uses: tooppoo/github-release-workflows/.github/workflows/wf-installer-smoke-test.yml@9e11ee50a835c66f9dc7408029c16c3de00d93f4 # main
     with:
       config_path: .github/workflows/artifacts.manifest.json
 
@@ -176,7 +176,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3
         with:
@@ -194,7 +194,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0 # v3
         with:
@@ -207,10 +207,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: "1.24"
+          go-version: "1.27"
 
       - name: Set up Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
 
@@ -242,14 +242,14 @@ jobs:
         working-directory: editors/vscode
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Node.js
         # required for examples
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           # working-directory affect only `run` step, not `uses` step
           # so we need to set package_json_file explicitly for `uses` step
