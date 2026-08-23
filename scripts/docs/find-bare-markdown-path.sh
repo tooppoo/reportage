@@ -101,6 +101,7 @@ BEGIN {
 FNR == 1 {
   in_fence = 0
   fence_char = ""
+  fence_len = 0
   reported = 0
 }
 
@@ -193,13 +194,26 @@ function is_fence_opener(s) {
   return s ~ /^[[:space:]]*(```+|~~~+)/
 }
 
+function fence_run_length(s, t) {
+  t = s
+  if (fence_char == "~") {
+    gsub(/[^~]/, "", t)
+  } else {
+    gsub(/[^`]/, "", t)
+  }
+  return length(t)
+}
+
+# Per the CommonMark closing rule, a closer needs at least as many fence
+# characters as its opener, so a shorter backtick run inside a longer fence
+# (a heredoc fence inside a four-backtick source block) stays content.
 function is_fence_closer(s) {
   if (fence_char == "`") {
-    return s ~ /^[[:space:]]*```+[[:space:]]*$/
+    return s ~ /^[[:space:]]*```+[[:space:]]*$/ && fence_run_length(s) >= fence_len
   }
 
   if (fence_char == "~") {
-    return s ~ /^[[:space:]]*~~~+[[:space:]]*$/
+    return s ~ /^[[:space:]]*~~~+[[:space:]]*$/ && fence_run_length(s) >= fence_len
   }
 
   return 0
@@ -209,12 +223,14 @@ function enter_fence(s) {
   if (s ~ /^[[:space:]]*```+/) {
     fence_char = "`"
     in_fence = 1
+    fence_len = fence_run_length(s)
     return
   }
 
   if (s ~ /^[[:space:]]*~~~+/) {
     fence_char = "~"
     in_fence = 1
+    fence_len = fence_run_length(s)
     return
   }
 }

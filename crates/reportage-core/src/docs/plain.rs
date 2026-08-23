@@ -10,22 +10,23 @@
 //! - `Group` / `File` / `Source path` / `Case` / `Description` values are
 //!   indented by two spaces per logical line
 //! - a `Description` block is omitted entirely when the value is absent
-//! - a file's `before_each` source, when present, is rendered once per file
-//!   section as a `before_each`-labeled source block before the case blocks,
-//!   under the same source rules as `Reportage source`; the block is omitted
-//!   entirely when the source declares no `before_each`
-//! - `Reportage source` and `before_each` source lines are indented by four
-//!   spaces, except empty lines, which stay empty so no trailing whitespace
-//!   is produced
+//! - each `Reportage source` block holds the case's complete snippet: the
+//!   file's `before_each` block first when the source declares one, an empty
+//!   line, then the case block (see `render::snippet_source`); a zero-case
+//!   source with a `before_each` renders the setup alone as one
+//!   `Reportage source` block
+//! - `Reportage source` lines are indented by four spaces, except empty
+//!   lines, which stay empty so no trailing whitespace is produced
 //! - line endings are normalized to LF for the whole document, including
 //!   inside source blocks
 //! - the document ends with exactly one LF
 //!
-//! Beyond presentation indentation, LF normalization, and the block wrappers,
-//! case and `before_each` source content is never dropped or replaced.
+//! Beyond presentation indentation, LF normalization, the block wrappers,
+//! and the snippet join, case and `before_each` source content is never
+//! dropped or replaced.
 
 use super::catalog::DocumentationCatalog;
-use super::render::{DocumentRenderer, RenderOptions};
+use super::render::{DocumentRenderer, RenderOptions, snippet_source};
 
 const VALUE_INDENT: usize = 2;
 const SOURCE_INDENT: usize = 4;
@@ -48,18 +49,24 @@ impl DocumentRenderer for PlainRenderer {
                 if let Some(description) = &file.description {
                     blocks.push(block("Description", description, VALUE_INDENT));
                 }
-                // Rendered once per file section, before the cases: the
-                // setup is declared once at module level in the source, even
-                // though execution replays it inside every concrete case.
-                if let Some(before_each) = &file.before_each {
-                    blocks.push(block("before_each", before_each, SOURCE_INDENT));
+                // With no case block to complete, a zero-case source renders
+                // its setup alone so a declared `before_each` is never
+                // silently dropped.
+                if file.cases.is_empty()
+                    && let Some(before_each) = &file.before_each
+                {
+                    blocks.push(block("Reportage source", before_each, SOURCE_INDENT));
                 }
                 for case in &file.cases {
                     blocks.push(block("Case", &case.title, VALUE_INDENT));
                     if let Some(description) = &case.description {
                         blocks.push(block("Description", description, VALUE_INDENT));
                     }
-                    blocks.push(block("Reportage source", &case.source, SOURCE_INDENT));
+                    blocks.push(block(
+                        "Reportage source",
+                        &snippet_source(file.before_each.as_deref(), &case.source),
+                        SOURCE_INDENT,
+                    ));
                 }
             }
         }
@@ -188,25 +195,30 @@ mod tests {
         assert!(!output.contains("Reportage Documentation"));
     }
 
-    /// The `before_each` source renders once per file section, between the
-    /// file metadata blocks and the first case, with the fixed `before_each`
-    /// label and the same four-space source indentation as
-    /// `Reportage source`.
+    /// A declared `before_each` opens every case's `Reportage source` block:
+    /// the setup block, an empty line, then the case block, all under the
+    /// same four-space source indentation.
     #[test]
-    fn before_each_renders_once_before_the_cases() {
+    fn before_each_is_included_in_every_case_source_block() {
         let mut catalog = single_case_catalog("case \"x\" {\n  $ true\n}\n");
         catalog.groups[0].files[0].before_each =
             Some("before_each {\n\n  $ mkdir -p fixtures\n}\n".to_string());
+        catalog.groups[0].files[0].cases.push(DocumentedCase {
+            title: "second".to_string(),
+            description: None,
+            source: "case \"y\" {\n  $ true\n}\n".to_string(),
+        });
 
         let output = PlainRenderer.render(&catalog, &RenderOptions::default());
+        let snippet = "Reportage source\n    before_each {\n\n      $ mkdir -p fixtures\n    }\n\n";
+        assert_eq!(output.matches(snippet).count(), 2);
         assert!(output.contains(
-            "Description\n  About files.\n\
+            "Case\n  File creation\n\
              \n\
-             before_each\n    before_each {\n\n      $ mkdir -p fixtures\n    }\n\
+             Reportage source\n    before_each {\n\n      $ mkdir -p fixtures\n    }\n\
              \n\
-             Case\n  File creation\n"
+             \x20\x20\x20\x20case \"x\" {\n      $ true\n    }\n"
         ));
-        assert_eq!(output.matches("before_each").count(), 2);
     }
 
     #[test]
@@ -218,10 +230,10 @@ mod tests {
         assert!(!output.contains("before_each"));
     }
 
-    /// A zero-case file with a `before_each` still renders the setup block,
-    /// and CRLF setup sources are normalized like case sources.
+    /// A zero-case file with a `before_each` renders the setup alone as one
+    /// `Reportage source` block, with CRLF normalized like case sources.
     #[test]
-    fn before_each_renders_for_zero_case_files_with_lf_normalization() {
+    fn before_each_renders_alone_for_zero_case_files_with_lf_normalization() {
         let catalog = DocumentationCatalog {
             groups: vec![DocumentationGroup {
                 name: "Index".to_string(),
@@ -237,7 +249,8 @@ mod tests {
 
         let output = PlainRenderer.render(&catalog, &RenderOptions::default());
         assert!(!output.contains('\r'));
-        assert!(output.ends_with("before_each\n    before_each {\n      $ true\n    }\n"));
+        assert!(output.ends_with("Reportage source\n    before_each {\n      $ true\n    }\n"));
+        assert!(!output.contains("Case\n"));
     }
 
     #[test]

@@ -42,6 +42,30 @@ impl Default for RenderOptions {
     }
 }
 
+/// Joins a file's `before_each` source and one case source into the single
+/// snippet a source block renders: the setup block, one empty line, then the
+/// case block. Every rendered snippet is thereby a complete module that
+/// parses on its own — a case referencing `before_each` bindings or files
+/// never appears without their declarations. Shared by all formats so the
+/// join rule cannot drift between them.
+///
+/// Only the setup's final line ending is dropped at the join (the separating
+/// empty line is renderer-owned); both block texts are otherwise passed
+/// through verbatim, and each format still applies its own LF normalization
+/// afterwards. Without a `before_each`, the case source alone is the snippet.
+pub(super) fn snippet_source(before_each: Option<&str>, case_source: &str) -> String {
+    match before_each {
+        None => case_source.to_string(),
+        Some(setup) => {
+            let setup = setup
+                .strip_suffix("\r\n")
+                .or_else(|| setup.strip_suffix('\n'))
+                .unwrap_or(setup);
+            format!("{setup}\n\n{case_source}")
+        }
+    }
+}
+
 /// One document format: serializes a [`DocumentationCatalog`] and names the
 /// file extension of the produced document(s).
 ///

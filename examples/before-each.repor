@@ -7,7 +7,6 @@ document file {
     A `before_each` block seeds every case's isolated workspace before the case body's first step, so every case's starting state is produced by the same declared steps, written once.
     It holds the same steps a case body holds — `$` actions, `assert` blocks, `let` bindings, and `write` steps — and, like a `document file` block, it appears at most once, before the first case.
     Setup a `write` cannot express therefore belongs here too: creating an empty directory, initializing a tool, or reading a path that only exists at run time.
-    This index renders `case` blocks only, so read the source file for the `before_each` block itself.
     ```
 }
 
