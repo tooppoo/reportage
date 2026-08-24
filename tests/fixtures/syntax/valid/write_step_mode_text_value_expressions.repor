@@ -1,0 +1,21 @@
+case "mode combines with every text value expression" {
+  $ printf 'abc123\n'
+  let revision <- stdout_line
+
+  write <"raw.txt"> mode=0o600 "literal\n"
+  write <"raw-heredoc.txt"> mode=0o640 ```
+    literal heredoc
+    ```
+
+  write <"binding.txt"> mode=0o644 &revision
+  write <"interpolated.txt"> mode=0o755 &"revision &{revision}\n"
+  write <"interpolated-heredoc.txt"> mode=0o700 &```
+    revision &{revision}
+    ```
+
+  assert {
+    file <"raw.txt"> contains "literal"
+    file <"binding.txt"> text_equals &revision
+    file <"interpolated.txt"> contains &revision
+  }
+}

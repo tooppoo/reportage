@@ -1,0 +1,8 @@
+# 8 and 9 are not octal digits, so they name no permission bit set
+case "invalid write mode" {
+  write <"bin/tool"> mode=0o888 "content\n"
+  $ true
+  assert {
+    exit 0
+  }
+}

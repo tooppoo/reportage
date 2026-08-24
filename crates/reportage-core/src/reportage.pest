@@ -219,8 +219,9 @@ heredoc_literal = {
 
 // ─── Write step ─────────────────────────────────────────────────────────────
 //
-// `write <"path"> <text_literal>` writes the text_literal's (dedented, in
-// the heredoc case) content to a file in the concrete case workspace. The
+// `write <"path"> mode=0oXYZ? <text_literal>` writes the text_literal's
+// (dedented, in the heredoc case) content to a file in the concrete case
+// workspace, optionally fixing that file's POSIX permission bits. The
 // path is a workspace path literal and the content is a text_literal; both
 // positions are parsed as the kind-agnostic `value_literal` so a wrong-kind
 // literal is a semantic diagnostic, not a syntax error (see "Value literals"
@@ -230,8 +231,31 @@ heredoc_literal = {
 // ordinary single-line construct; write_step_heredoc consumes its own
 // trailing line.
 
-write_step_string  = { "write" ~ ws+ ~ value_literal ~ ws+ ~ inline_text_value_expression }
-write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ ws* ~ heredoc_text_value_expression }
+write_step_string  = { "write" ~ ws+ ~ value_literal ~ (ws+ ~ write_mode)? ~ ws+ ~ inline_text_value_expression }
+write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ (ws+ ~ write_mode)? ~ ws* ~ heredoc_text_value_expression }
+
+// The optional POSIX file mode of the file `write` creates, between the path
+// and the content. Atomic, so `mode=` and its value are one inseparable token:
+// the surface form is exactly `mode=0oXYZ` with no whitespace around `=`, and
+// exactly three octal digits.
+//
+// Every other spelling is rejected, by one of two paths. Most of them —
+// `mode = 0o755`, `0O755`, `0755`, `755`, `0o75`, `0o888`, and symbolic chmod
+// syntax such as `u+x` — fail this rule outright, so the whole
+// `(ws+ ~ write_mode)?` group is skipped rather than partially matched and the
+// unmatched text is offered to the content position, which does not accept it
+// either. A fourth digit is the exception: `mode=0o1000` matches this rule as
+// `mode=0o100` and then fails on the whitespace the content position requires,
+// so its diagnostic points at the trailing digit instead of at the mode.
+// Either path is a syntax error before execution, which is what keeps a
+// rejected spelling from ever reaching a run as a silently ignored modifier.
+//
+// The three-digit shape is what confines the value to 0o000–0o777, keeping
+// setuid / setgid / sticky out of the language rather than out of the
+// implementation. See docs/reference/semantics.md — Write step, and
+// docs/adr/20260824T140000Z_write-step-posix-file-mode.md.
+write_mode  = @{ "mode=0o" ~ octal_digit{3} }
+octal_digit = _{ '0'..'7' }
 
 binding_step       = { "let" ~ ws+ ~ binding_identifier ~ ws* ~ "<-" ~ ws* ~ evidence_source }
 binding_identifier = @{ (ASCII_ALPHANUMERIC | "_")+ }

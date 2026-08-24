@@ -1,0 +1,44 @@
+{
+  "cases": [
+    {
+      "name": "write step mode at both ends of the range",
+      "span": {
+        "start": 0,
+        "end": 179
+      },
+      "steps": [
+        {
+          "kind": "write_file",
+          "path": "unreadable.txt",
+          "content": {
+            "kind": "quoted",
+            "value": "closed\n"
+          },
+          "mode": "0o000"
+        },
+        {
+          "kind": "write_file",
+          "path": "world.txt",
+          "content": {
+            "kind": "quoted",
+            "value": "open\n"
+          },
+          "mode": "0o777"
+        },
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+before_each {
+  write <"bin/git"> mode=0o755 ```
+    #!/bin/sh
+    echo "fake git"
+    ```
+}
+
+case "setup mode is available to the case body" {
+  $ true
+  assert {
+    exit 0
+  }
+}

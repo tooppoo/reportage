@@ -1,0 +1,8 @@
+# a mode must be exactly three octal digits; a fourth digit would reach setuid / setgid / sticky
+case "invalid write mode" {
+  write <"bin/tool"> mode=0o1000 "content\n"
+  $ true
+  assert {
+    exit 0
+  }
+}

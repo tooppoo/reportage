@@ -43,6 +43,9 @@
       "include": "#strings"
     },
     {
+      "include": "#write-mode"
+    },
+    {
       "include": "#numbers"
     },
     {
@@ -320,6 +323,9 @@
                   "include": "#strings"
                 },
                 {
+                  "include": "#write-mode"
+                },
+                {
                   "include": "#keywords"
                 }
               ]
@@ -361,6 +367,9 @@
                 },
                 {
                   "include": "#strings"
+                },
+                {
+                  "include": "#write-mode"
                 },
                 {
                   "include": "#keywords"
@@ -579,6 +588,24 @@
         {
           "name": "punctuation.section.block.end.reportage",
           "match": "\\}"
+        }
+      ]
+    },
+    "write-mode": {
+      "patterns": [
+        {
+          "match": "\\b(mode)(=)(0o[0-7]{3})",
+          "captures": {
+            "1": {
+              "name": "variable.parameter.write-mode.reportage"
+            },
+            "2": {
+              "name": "keyword.operator.assignment.reportage"
+            },
+            "3": {
+              "name": "constant.numeric.octal.reportage"
+            }
+          }
         }
       ]
     }

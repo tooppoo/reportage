@@ -1,0 +1,221 @@
+# `write <"path"> mode=0oXYZ <content>` (#245): the optional POSIX file mode
+# fixes the permission bits of the file the step creates.
+#
+# Permission bits are read back with `ls -l`, whose first ten characters are
+# specified by POSIX, rather than with `stat`, whose format flags differ
+# between GNU and BSD. Column 11 is skipped because an ACL or SELinux label
+# adds a `+` / `.` marker there on some systems.
+
+case "an executable fake command written by a write step runs from an action" {
+  write <"bin/git"> mode=0o755 ```
+    #!/bin/sh
+    echo "fake git"
+    ```
+
+  $ PATH="$PWD/bin:$PATH" git
+
+  assert {
+    exit 0
+    stdout contains "fake git"
+  }
+}
+
+# The contrast case for the one above: without a mode the same content is
+# created non-executable, and the shell reports 126 ("found but not
+# executable"), not 127 ("not found"). This is the failure the mode exists to
+# remove, so it is pinned rather than left implied.
+case "the same fake command written without a mode is not executable" {
+  write <"bin/git"> ```
+    #!/bin/sh
+    echo "fake git"
+    ```
+
+  $ ./bin/git
+
+  assert {
+    exit 126
+  }
+}
+
+# `0o640` rather than `0o600`: a `write` step without a mode already produces
+# `0o600`, so a `0o600` case would pass just as well against an implementation
+# that ignored the mode entirely.
+case "a restrictive mode is applied exactly" {
+  write <"secret.txt"> mode=0o640 "secret\n"
+
+  $ ls -l secret.txt | cut -c1-10
+
+  assert {
+    exit 0
+    stdout text_equals "-rw-r-----\n"
+  }
+}
+
+case "an owner-only executable mode is applied exactly" {
+  write <"bin/private"> mode=0o700 ```
+    #!/bin/sh
+    ```
+
+  $ ls -l bin/private | cut -c1-10
+
+  assert {
+    exit 0
+    stdout text_equals "-rwx------\n"
+  }
+}
+
+case "a fully closed mode is applied exactly" {
+  write <"closed.txt"> mode=0o000 "closed\n"
+
+  $ ls -l closed.txt | cut -c1-10
+
+  assert {
+    exit 0
+    stdout text_equals "----------\n"
+  }
+}
+
+# A mode describes the file the step names, never the directories the step had
+# to create to reach it. Compared against a directory made by `mkdir` in the
+# same workspace so the expectation holds whatever the ambient umask is.
+case "a mode does not apply to the parent directories the step creates" {
+  $ mkdir control
+
+  write <"nested/dir/tool"> mode=0o700 "x\n"
+
+  $ test "$(ls -ld nested/dir | cut -c1-10)" = "$(ls -ld control | cut -c1-10)"
+
+  assert {
+    exit 0
+  }
+}
+
+# The mode is the file's final permission bits regardless of the reportage
+# process's own umask. The inner script asserts the permission bits; the outer
+# action is what sets the umask the inner reportage process inherits. Under a
+# creation-mask implementation the inner `0o777` would land on `0o700` here and
+# the inner run would fail.
+case "the requested mode is not reduced by the reportage process umask" {
+  write <"inner.repor"> ```
+    case "writes a fully open file" {
+      write <"open.txt"> mode=0o777 "open\n"
+
+      $ ls -l open.txt | cut -c1-10
+
+      assert {
+        exit 0
+        stdout text_equals "-rwxrwxrwx\n"
+      }
+    }
+    ```
+
+  $ umask 077 && reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+# `mode` is not an overwrite escape hatch: create-only still rejects an
+# existing target, and the failure stays a runtime step error (exit code 3),
+# not an assertion failure (exit code 1).
+case "a mode does not turn write into an overwrite" {
+  write <"inner.repor"> ```
+    case "writes the same path twice" {
+      write <"same.txt"> "first\n"
+      write <"same.txt"> mode=0o777 "second\n"
+
+      assert {
+        file <"same.txt"> contains "first"
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 3
+    stderr contains "step.write.target_exists"
+  }
+}
+
+# A mode outside the canonical `mode=0oXYZ` form is refused before anything
+# runs: the reportage process exits 2 (parse error), not 1 (test failed) or 3
+# (runtime error), and no case is reported. `mode = 0o755` stands for the
+# spellings that fail the mode rule outright.
+case "a mode with whitespace around the equals sign is a parse error" {
+  write <"inner.repor"> ```
+    case "writes with a spaced mode" {
+      write <"a.txt"> mode = 0o755 "x\n"
+
+      assert {
+        file <"a.txt"> exists
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.syntax"
+    not {
+      stdout contains "PASS"
+    }
+  }
+}
+
+# The four-digit spelling is the one a script reaches for to request setuid,
+# setgid, or sticky, so it is pinned separately: it is rejected by a different
+# grammar path than the case above, and must reach the same CLI contract.
+case "a mode with a fourth octal digit is a parse error" {
+  write <"inner.repor"> ```
+    case "writes with a four digit mode" {
+      write <"a.txt"> mode=0o1000 "x\n"
+
+      assert {
+        file <"a.txt"> exists
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.syntax"
+    not {
+      stdout contains "PASS"
+    }
+  }
+}
+
+# The outer fence is four backticks so the inner script's own three-backtick
+# heredoc is ordinary content rather than the outer block's closing fence.
+case "before_each accepts the same mode syntax as a case body" {
+  write <"inner.repor"> ````
+    before_each {
+      write <"bin/git"> mode=0o755 ```
+        #!/bin/sh
+        echo "fake git"
+        ```
+    }
+
+    case "runs the setup fake command" {
+      $ PATH="$PWD/bin:$PATH" git
+
+      assert {
+        exit 0
+        stdout contains "fake git"
+      }
+    }
+    ````
+
+  $ reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}

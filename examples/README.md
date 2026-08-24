@@ -76,6 +76,9 @@
     - [The case body starts fresh](#case-6-1-6-the-case-body-starts-fresh)
   - [Writing a file with a heredoc](#file-6-2-writing-a-file-with-a-heredoc)
     - [create file with heredoc](#case-6-2-1-create-file-with-heredoc)
+  - [Writing an executable file](#file-6-3-writing-an-executable-file)
+    - [run a fake command created by a write step](#case-6-3-1-run-a-fake-command-created-by-a-write-step)
+    - [keep a fixture readable only by its owner](#case-6-3-2-keep-a-fixture-readable-only-by-its-owner)
 
 <a id="group-1-actions"></a>
 ## Actions
@@ -1226,3 +1229,48 @@ case "create file with heredoc" {
   }
 }
 ````
+
+<a id="file-6-3-writing-an-executable-file"></a>
+### Writing an executable file
+
+Source: examples/write-file-mode.repor
+
+A `write <"path"> mode=0oXYZ <content>` step fixes the POSIX permission bits of the file it creates, so a fake command can be authored and made executable in one step instead of being followed by a `chmod` action that is setup rather than behavior under test.
+The mode is written as exactly three octal digits after the `0o` prefix, between the path and the content, and it is the file's final permission bits regardless of the umask reportage runs under.
+Omitting `mode` keeps the original behavior, and a mode never applies to the parent directories the step creates.
+
+<a id="case-6-3-1-run-a-fake-command-created-by-a-write-step"></a>
+#### run a fake command created by a write step
+
+````reportage
+case "run a fake command created by a write step" {
+  write <"bin/git"> mode=0o755 ```
+    #!/bin/sh
+    echo "fake git 1.0"
+    ```
+
+  $ PATH="$PWD/bin:$PATH" git
+
+  assert {
+    exit 0
+    stdout contains "fake git 1.0"
+  }
+}
+````
+
+<a id="case-6-3-2-keep-a-fixture-readable-only-by-its-owner"></a>
+#### keep a fixture readable only by its owner
+
+```reportage
+case "keep a fixture readable only by its owner" {
+  write <"secret.txt"> mode=0o600 "token\n"
+
+  # The first ten characters of `ls -l` are the file type and permission bits.
+  $ ls -l secret.txt | cut -c1-10
+
+  assert {
+    exit 0
+    stdout text_equals "-rw-------\n"
+  }
+}
+```

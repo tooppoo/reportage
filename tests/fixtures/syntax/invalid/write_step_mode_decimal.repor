@@ -1,0 +1,8 @@
+# a bare decimal is not accepted; the 0o prefix is what makes the radix explicit
+case "invalid write mode" {
+  write <"bin/tool"> mode=755 "content\n"
+  $ true
+  assert {
+    exit 0
+  }
+}

@@ -1,0 +1,8 @@
+# mode belongs between the path and the content, never after the content
+case "invalid write mode" {
+  write <"bin/tool"> "content\n" mode=0o755
+  $ true
+  assert {
+    exit 0
+  }
+}
