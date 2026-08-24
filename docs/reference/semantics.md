@@ -403,6 +403,8 @@ Semantics:
 
 The mode is applied before the file becomes visible at its target path, so the file is never observable with a mode other than the requested one. If the mode cannot be applied, the step fails as a runtime step error and no file is created at the target path; see "Side-effecting step failure classification" below.
 
+A mode restrictive enough to make the file unreadable to the runner itself — `0o000`, or `0o200` where the runner is not the owner — does not change how a later file expectation behaves. Reading such a file for a `contains`, `text_equals`, or `contents_equals` comparison is an ordinary unmet precondition (`assertion.file.*.precondition_unmet`), the same category a missing file falls into, so it is an assertion failure rather than a `step.write.*` runtime step error.
+
 For the decision to introduce `mode` at all, and why no `executable` modifier or symbolic syntax was added, see [the file mode ADR](../adr/20260824T140000Z_write-step-posix-file-mode.md).
 
 ### Side-effecting step failure classification

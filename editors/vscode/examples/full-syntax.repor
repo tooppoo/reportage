@@ -74,6 +74,20 @@ case "Write step (heredoc)" {
   }
 }
 
+case "Write step (mode)" {
+  write <"bin/tool"> mode=0o755 ```
+    #!/bin/sh
+    echo "from the fake tool"
+    ```
+
+  $ ./bin/tool
+
+  assert {
+    exit 0
+    stdout contains "from the fake tool"
+  }
+}
+
 case "Assert (single expectation)" {
   $ true
 

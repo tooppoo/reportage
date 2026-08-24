@@ -36,7 +36,10 @@
     "description": "Reportage case block"
   },
   "Action step": {
-    "prefix": ["$", "action"],
+    "prefix": [
+      "$",
+      "action"
+    ],
     "body": [
       "$ ${1:command}"
     ],
@@ -57,6 +60,15 @@
       "```"
     ],
     "description": "Write a heredoc literal to a workspace path"
+  },
+  "Write step (mode)": {
+    "prefix": "writem",
+    "body": [
+      "write <\"${1:bin/tool}\"> mode=0o${2:755} ```",
+      "\t${3:#!/bin/sh}",
+      "```"
+    ],
+    "description": "Write a heredoc literal to a workspace path with POSIX permission bits"
   },
   "Assert (single expectation)": {
     "prefix": "assert",
