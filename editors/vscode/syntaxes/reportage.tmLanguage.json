@@ -323,6 +323,9 @@
                   "include": "#strings"
                 },
                 {
+                  "include": "#write-mode"
+                },
+                {
                   "include": "#keywords"
                 }
               ]
@@ -364,6 +367,9 @@
                 },
                 {
                   "include": "#strings"
+                },
+                {
+                  "include": "#write-mode"
                 },
                 {
                   "include": "#keywords"
