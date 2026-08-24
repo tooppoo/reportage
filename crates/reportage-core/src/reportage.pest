@@ -239,12 +239,16 @@ write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ (ws+ ~ write_mode)? ~ ws*
 // the surface form is exactly `mode=0oXYZ` with no whitespace around `=`, and
 // exactly three octal digits.
 //
-// Everything else — `mode = 0o755`, `0O755`, `0755`, `755`, `0o75`, `0o1000`,
-// `0o888`, and symbolic chmod syntax such as `u+x` — fails this rule. Because
-// the whole `(ws+ ~ write_mode)?` group is then skipped rather than partially
-// matched, the unmatched text is next offered to the content position, where
-// it is not a valid literal either, so every rejected spelling surfaces as a
-// syntax error before execution rather than as a silently ignored modifier.
+// Every other spelling is rejected, by one of two paths. Most of them —
+// `mode = 0o755`, `0O755`, `0755`, `755`, `0o75`, `0o888`, and symbolic chmod
+// syntax such as `u+x` — fail this rule outright, so the whole
+// `(ws+ ~ write_mode)?` group is skipped rather than partially matched and the
+// unmatched text is offered to the content position, which does not accept it
+// either. A fourth digit is the exception: `mode=0o1000` matches this rule as
+// `mode=0o100` and then fails on the whitespace the content position requires,
+// so its diagnostic points at the trailing digit instead of at the mode.
+// Either path is a syntax error before execution, which is what keeps a
+// rejected spelling from ever reaching a run as a silently ignored modifier.
 //
 // The three-digit shape is what confines the value to 0o000–0o777, keeping
 // setuid / setgid / sticky out of the language rather than out of the

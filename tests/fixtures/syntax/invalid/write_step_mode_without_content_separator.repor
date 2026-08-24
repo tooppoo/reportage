@@ -1,0 +1,9 @@
+# a mode and the content are separate tokens; the content must not run
+# straight on from the mode's last digit
+case "invalid write mode" {
+  write <"bin/tool"> mode=0o755"content\n"
+  $ true
+  assert {
+    exit 0
+  }
+}

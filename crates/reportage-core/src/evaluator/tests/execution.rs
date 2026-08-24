@@ -737,3 +737,60 @@ fn a_write_step_whose_binding_never_resolves_is_a_runtime_error() {
         Some("semantic.binding.undefined")
     );
 }
+
+// Pins the evaluator-to-workspace seam for a write step's `mode`: the step's
+// own mode must reach `Workspace::write_file`, not a hardcoded `None`. Observed
+// through an action rather than by inspecting the workspace directly, because
+// the workspace is internal to the evaluator and dropped with the case.
+#[test]
+#[cfg(unix)]
+fn write_step_mode_reaches_the_workspace() {
+    let script = single_case(vec![
+        write_step_with_mode(
+            "bin/tool",
+            "#!/bin/sh\n",
+            Some(FileMode::from_bits(0o755).unwrap()),
+        ),
+        action("test -x bin/tool"),
+        assert_exit(0),
+    ]);
+
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+
+    assert!(
+        matches!(result.cases[0].status, CaseStatus::Pass),
+        "the written file must be executable: {:?}",
+        result.cases[0].status
+    );
+}
+
+// The companion to the test above: without a mode the same content is not
+// executable, so the assertion above cannot pass for a reason unrelated to the
+// mode.
+#[test]
+#[cfg(unix)]
+fn write_step_without_a_mode_leaves_the_file_non_executable() {
+    let script = single_case(vec![
+        write_step("bin/tool", "#!/bin/sh\n"),
+        action("test -x bin/tool"),
+        assert_exit(0),
+    ]);
+
+    let result = evaluate(
+        &script,
+        &default_env(),
+        Path::new("test.repor"),
+        &default_commands(),
+    );
+
+    assert!(
+        matches!(result.cases[0].status, CaseStatus::Fail),
+        "expected the executable check to fail: {:?}",
+        result.cases[0].status
+    );
+}

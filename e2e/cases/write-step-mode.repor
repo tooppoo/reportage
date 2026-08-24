@@ -37,14 +37,17 @@ case "the same fake command written without a mode is not executable" {
   }
 }
 
+# `0o640` rather than `0o600`: a `write` step without a mode already produces
+# `0o600`, so a `0o600` case would pass just as well against an implementation
+# that ignored the mode entirely.
 case "a restrictive mode is applied exactly" {
-  write <"secret.txt"> mode=0o600 "secret\n"
+  write <"secret.txt"> mode=0o640 "secret\n"
 
   $ ls -l secret.txt | cut -c1-10
 
   assert {
     exit 0
-    stdout text_equals "-rw-------\n"
+    stdout text_equals "-rw-r-----\n"
   }
 }
 
@@ -134,6 +137,57 @@ case "a mode does not turn write into an overwrite" {
   assert {
     exit 3
     stderr contains "step.write.target_exists"
+  }
+}
+
+# A mode outside the canonical `mode=0oXYZ` form is refused before anything
+# runs: the reportage process exits 2 (parse error), not 1 (test failed) or 3
+# (runtime error), and no case is reported. `mode = 0o755` stands for the
+# spellings that fail the mode rule outright.
+case "a mode with whitespace around the equals sign is a parse error" {
+  write <"inner.repor"> ```
+    case "writes with a spaced mode" {
+      write <"a.txt"> mode = 0o755 "x\n"
+
+      assert {
+        file <"a.txt"> exists
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.syntax"
+    not {
+      stdout contains "PASS"
+    }
+  }
+}
+
+# The four-digit spelling is the one a script reaches for to request setuid,
+# setgid, or sticky, so it is pinned separately: it is rejected by a different
+# grammar path than the case above, and must reach the same CLI contract.
+case "a mode with a fourth octal digit is a parse error" {
+  write <"inner.repor"> ```
+    case "writes with a four digit mode" {
+      write <"a.txt"> mode=0o1000 "x\n"
+
+      assert {
+        file <"a.txt"> exists
+      }
+    }
+    ```
+
+  $ reportage inner.repor
+
+  assert {
+    exit 2
+    stderr contains "parse.syntax"
+    not {
+      stdout contains "PASS"
+    }
   }
 }
 

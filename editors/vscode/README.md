@@ -196,6 +196,33 @@ From [examples/write_step_heredoc.repor](examples/write_step_heredoc.repor).
 
 </details>
 
+### Write step (mode)
+
+`writem` — Write a heredoc literal to a workspace path with POSIX permission bits
+
+<details>
+<summary>Example</summary>
+
+````reportage
+case "Write step (mode)" {
+  write <"bin/tool"> mode=0o755 ```
+    #!/bin/sh
+    echo "from the fake tool"
+    ```
+
+  $ ./bin/tool
+
+  assert {
+    exit 0
+    stdout contains "from the fake tool"
+  }
+}
+````
+
+From [examples/write_step_mode.repor](examples/write_step_mode.repor).
+
+</details>
+
 ### Assert (single expectation)
 
 `assert` — Single-line assertion block with exactly one expectation
