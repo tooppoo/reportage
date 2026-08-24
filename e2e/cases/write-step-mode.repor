@@ -37,23 +37,64 @@ case "the same fake command written without a mode is not executable" {
   }
 }
 
-# The permission bits a `write` step without a mode produces are a documented
-# contract (semantics.md — Write step, File mode), so they are pinned here and
-# not only at the workspace layer.
-case "a write step without a mode creates an owner-only file" {
-  write <"plain.txt"> "plain\n"
+# The bits a `write` step without a mode produces are a documented contract
+# (semantics.md — Write step, File mode), so they are pinned here and not only
+# at the workspace layer. Unlike an explicit mode, this default is a file
+# *creation* mode, which the kernel masks — so both cases set the umask of the
+# inner reportage process rather than inheriting whatever the suite runs under.
+case "a write step without a mode is owner-only under an ordinary umask" {
+  write <"inner.repor"> ```
+    case "writes without a mode" {
+      write <"plain.txt"> "plain\n"
 
-  $ ls -l plain.txt | cut -c1-10
+      $ ls -l plain.txt | cut -c1-10
+
+      assert {
+        exit 0
+        stdout text_equals "-rw-------\n"
+      }
+    }
+    ```
+
+  $ umask 022 && reportage inner.repor
 
   assert {
     exit 0
-    stdout text_equals "-rw-------\n"
+    stdout contains "PASS"
   }
 }
 
-# `0o640` rather than `0o600`: a `write` step without a mode already produces
-# `0o600`, so a `0o600` case would pass just as well against an implementation
-# that ignored the mode entirely.
+# The part that holds under *any* umask: masking only clears bits, and the
+# requested `0o600` has none set for group or other, so neither can ever gain
+# access. `cut -c5-10` is the group and other columns of `ls -l`. The umask
+# here also clears an owner bit, so a case asserting the full `-rw-------`
+# would fail — which is exactly why that claim is scoped to an ordinary umask
+# above.
+case "a write step without a mode never exposes the file to group or other" {
+  write <"inner.repor"> ```
+    case "writes without a mode" {
+      write <"plain.txt"> "plain\n"
+
+      $ ls -l plain.txt | cut -c5-10
+
+      assert {
+        exit 0
+        stdout text_equals "------\n"
+      }
+    }
+    ```
+
+  $ umask 0400 && reportage inner.repor
+
+  assert {
+    exit 0
+    stdout contains "PASS"
+  }
+}
+
+# `0o640` rather than `0o600`: under an ordinary umask a `write` step without a
+# mode already produces `0o600`, so a `0o600` case would pass just as well
+# against an implementation that ignored the mode entirely.
 case "a restrictive mode is applied exactly" {
   write <"secret.txt"> mode=0o640 "secret\n"
 

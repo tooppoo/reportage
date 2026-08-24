@@ -392,19 +392,31 @@ mod tests {
         );
     }
 
-    // Pins the mode a `write` step without `mode` produces, so adding `mode`
-    // cannot quietly change what every existing script already gets. `0o600`
-    // is the mode the temporary file is created with and then keeps: nothing
-    // in the no-mode path touches permissions.
+    // Pins what a `write` step without `mode` produces, so adding `mode` cannot
+    // quietly change what every script that names no mode already gets.
+    //
+    // Only the group and other bits are asserted, because the no-mode path sets
+    // no mode of its own: the file keeps the temporary file's *creation* mode,
+    // which the kernel masks with the process umask. `0o600` is what is
+    // requested, and masking only clears bits, so nothing outside the owner can
+    // ever be set — but the owner's own bits are not guaranteed, and asserting
+    // `0o600` outright fails under a umask as restrictive as `0o400`. The
+    // ordinary-umask result is pinned where the umask can be controlled, in
+    // e2e/cases/write-step-mode.repor.
     #[test]
     #[cfg(unix)]
-    fn write_file_without_a_mode_leaves_the_created_file_owner_only() {
+    fn write_file_without_a_mode_never_grants_group_or_other_access() {
         let workspace = Workspace::new().unwrap();
         let path = WorkspacePath::parse("a.txt").unwrap();
 
         workspace.write_file(&path, "hi", None).unwrap();
 
-        assert_eq!(permission_bits(&workspace.root().join("a.txt")), 0o600);
+        let bits = permission_bits(&workspace.root().join("a.txt"));
+        assert_eq!(
+            bits & 0o077,
+            0,
+            "group and other bits must be clear, got 0o{bits:03o}"
+        );
     }
 
     // A `mode` describes the file the step names, not the directories the
@@ -437,13 +449,16 @@ mod tests {
         let workspace = Workspace::new().unwrap();
         let path = WorkspacePath::parse("a.txt").unwrap();
         workspace.write_file(&path, "first", None).unwrap();
+        // Captured rather than written as a literal: the first write set no
+        // mode of its own, so its bits depend on the ambient umask.
+        let before = permission_bits(&workspace.root().join("a.txt"));
 
         let err = workspace
             .write_file(&path, "second", Some(FileMode::from_bits(0o777).unwrap()))
             .unwrap_err();
 
         assert!(matches!(err, WriteFileError::TargetAlreadyExists));
-        assert_eq!(permission_bits(&workspace.root().join("a.txt")), 0o600);
+        assert_eq!(permission_bits(&workspace.root().join("a.txt")), before);
         let content = std::fs::read_to_string(workspace.root().join("a.txt")).unwrap();
         assert_eq!(content, "first");
     }
