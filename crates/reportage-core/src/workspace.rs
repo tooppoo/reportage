@@ -8,7 +8,7 @@
 use std::path::Path;
 
 use crate::diagnostic::DiagnosticCode;
-use crate::model::WorkspacePath;
+use crate::model::{FileMode, WorkspacePath};
 
 /// An isolated case workspace, backed by a temporary directory that is
 /// removed when the workspace is dropped.
@@ -40,6 +40,12 @@ pub enum WriteFileError {
     ParentNotADirectory,
     /// An OS-level I/O error occurred while creating directories or writing the file.
     Io(std::io::Error),
+    /// The requested file mode could not be applied to the file before it was
+    /// published at the target path.
+    ///
+    /// Separate from [`WriteFileError::Io`] only so the message names the
+    /// mode as the failing part; both classify as `step.write.io_error`.
+    SetMode(std::io::Error),
 }
 
 impl std::fmt::Display for WriteFileError {
@@ -53,6 +59,7 @@ impl std::fmt::Display for WriteFileError {
                 "the target's parent path is blocked by a file, symlink, or other non-directory entry"
             ),
             WriteFileError::Io(e) => write!(f, "I/O error: {e}"),
+            WriteFileError::SetMode(e) => write!(f, "I/O error while setting the file mode: {e}"),
         }
     }
 }
@@ -66,7 +73,7 @@ impl WriteFileError {
         match self {
             WriteFileError::TargetAlreadyExists => DiagnosticCode::StepWriteTargetExists,
             WriteFileError::ParentNotADirectory => DiagnosticCode::StepWriteParentNotADirectory,
-            WriteFileError::Io(_) => DiagnosticCode::StepWriteIoError,
+            WriteFileError::Io(_) | WriteFileError::SetMode(_) => DiagnosticCode::StepWriteIoError,
         }
     }
 }
@@ -99,7 +106,20 @@ impl Workspace {
     /// partway through from ever leaving a partially-written file visible
     /// at `target` — the create-only guarantee and the file's content
     /// become visible together, or not at all.
-    pub fn write_file(&self, path: &WorkspacePath, content: &str) -> Result<(), WriteFileError> {
+    ///
+    /// `mode`, when given, is the target file's final permission bits. It is
+    /// applied to the temporary file before that file is published, so the
+    /// same all-or-nothing rule covers the mode: a file visible at `target`
+    /// always already carries the requested mode. `None` leaves whatever
+    /// mode the temporary file was created with, preserving the behavior of
+    /// every `write` step that does not name one. `mode` applies only to the
+    /// target file; parent directories created above are left alone.
+    pub fn write_file(
+        &self,
+        path: &WorkspacePath,
+        content: &str,
+        mode: Option<FileMode>,
+    ) -> Result<(), WriteFileError> {
         if self.parent_path_is_blocked(path) {
             return Err(WriteFileError::ParentNotADirectory);
         }
@@ -116,6 +136,10 @@ impl Workspace {
             .map_err(WriteFileError::Io)?;
         temp.write_all(content.as_bytes())
             .map_err(WriteFileError::Io)?;
+
+        if let Some(mode) = mode {
+            set_file_mode(temp.as_file(), mode).map_err(WriteFileError::SetMode)?;
+        }
 
         match temp.persist_noclobber(&target) {
             Ok(_) => Ok(()),
@@ -153,6 +177,32 @@ impl Workspace {
     }
 }
 
+/// Sets `file`'s permission bits to exactly `mode`.
+///
+/// Applied to the open handle rather than to a path, so no other process can
+/// substitute a different file between the write and the mode change. `chmod`
+/// assigns the bits verbatim, which is what makes the resulting mode
+/// independent of the reportage process's umask — unlike the file *creation*
+/// mode, which the kernel masks.
+#[cfg(unix)]
+fn set_file_mode(file: &std::fs::File, mode: FileMode) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt as _;
+    file.set_permissions(std::fs::Permissions::from_mode(mode.bits()))
+}
+
+/// `write`'s `mode` is defined in POSIX permission-bit terms, which have no
+/// faithful Windows equivalent (see docs/adr — no native Windows execution).
+/// Reported as a failure rather than ignored: a silently unapplied `mode`
+/// would leave a fixture the script declared unreadable or unexecutable
+/// looking like it succeeded.
+#[cfg(not(unix))]
+fn set_file_mode(_file: &std::fs::File, _mode: FileMode) -> std::io::Result<()> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "write mode requires a POSIX platform",
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,7 +211,7 @@ mod tests {
     fn write_file_creates_file_with_content() {
         let workspace = Workspace::new().unwrap();
         let path = WorkspacePath::parse("a.txt").unwrap();
-        workspace.write_file(&path, "hello\n").unwrap();
+        workspace.write_file(&path, "hello\n", None).unwrap();
         let content = std::fs::read_to_string(workspace.root().join("a.txt")).unwrap();
         assert_eq!(content, "hello\n");
     }
@@ -170,7 +220,7 @@ mod tests {
     fn write_file_creates_parent_directories() {
         let workspace = Workspace::new().unwrap();
         let path = WorkspacePath::parse("nested/dir/a.txt").unwrap();
-        workspace.write_file(&path, "hi").unwrap();
+        workspace.write_file(&path, "hi", None).unwrap();
         assert!(workspace.root().join("nested/dir/a.txt").is_file());
     }
 
@@ -178,8 +228,8 @@ mod tests {
     fn write_file_rejects_existing_target() {
         let workspace = Workspace::new().unwrap();
         let path = WorkspacePath::parse("a.txt").unwrap();
-        workspace.write_file(&path, "first").unwrap();
-        let err = workspace.write_file(&path, "second").unwrap_err();
+        workspace.write_file(&path, "first", None).unwrap();
+        let err = workspace.write_file(&path, "second", None).unwrap_err();
         assert!(matches!(err, WriteFileError::TargetAlreadyExists));
         assert_eq!(err.code().as_str(), "step.write.target_exists");
         // Not silently overwritten.
@@ -192,7 +242,7 @@ mod tests {
         let workspace = Workspace::new().unwrap();
         std::fs::create_dir_all(workspace.root().join("a-dir")).unwrap();
         let path = WorkspacePath::parse("a-dir").unwrap();
-        let err = workspace.write_file(&path, "x").unwrap_err();
+        let err = workspace.write_file(&path, "x", None).unwrap_err();
         assert!(matches!(err, WriteFileError::TargetAlreadyExists));
     }
 
@@ -201,7 +251,7 @@ mod tests {
         let workspace = Workspace::new().unwrap();
         std::fs::write(workspace.root().join("blocker"), b"i am a file").unwrap();
         let path = WorkspacePath::parse("blocker/child.txt").unwrap();
-        let err = workspace.write_file(&path, "x").unwrap_err();
+        let err = workspace.write_file(&path, "x", None).unwrap_err();
         assert!(matches!(err, WriteFileError::ParentNotADirectory));
         assert_eq!(err.code().as_str(), "step.write.parent_not_a_directory");
     }
@@ -219,7 +269,7 @@ mod tests {
         std::os::unix::fs::symlink(outside.path(), workspace.root().join("escape")).unwrap();
 
         let path = WorkspacePath::parse("escape/leaked.txt").unwrap();
-        let err = workspace.write_file(&path, "leaked").unwrap_err();
+        let err = workspace.write_file(&path, "leaked", None).unwrap_err();
         assert!(matches!(err, WriteFileError::ParentNotADirectory));
 
         // Nothing was written outside the workspace through the symlink.
@@ -235,8 +285,125 @@ mod tests {
         std::os::unix::fs::symlink(&real_file, workspace.root().join("link")).unwrap();
 
         let path = WorkspacePath::parse("link/child.txt").unwrap();
-        let err = workspace.write_file(&path, "x").unwrap_err();
+        let err = workspace.write_file(&path, "x", None).unwrap_err();
         assert!(matches!(err, WriteFileError::ParentNotADirectory));
+    }
+
+    #[cfg(unix)]
+    fn permission_bits(path: &Path) -> u32 {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    // Every representable value, sampled at the boundaries a script actually
+    // reaches for: an executable fake command, an owner-only secret, and the
+    // fully closed and fully open ends of the range.
+    #[test]
+    #[cfg(unix)]
+    fn write_file_applies_the_requested_mode_exactly() {
+        for requested in [0o755, 0o700, 0o644, 0o600, 0o000, 0o777] {
+            let workspace = Workspace::new().unwrap();
+            let path = WorkspacePath::parse("bin/tool").unwrap();
+            let mode = FileMode::from_bits(requested).unwrap();
+
+            workspace
+                .write_file(&path, "#!/bin/sh\n", Some(mode))
+                .unwrap();
+
+            assert_eq!(
+                permission_bits(&workspace.root().join("bin/tool")),
+                requested,
+                "requested mode {requested:o}"
+            );
+        }
+    }
+
+    // `0o777` is the discriminating case: under the usual `0o022` umask, an
+    // implementation that let the mode go through the file *creation* mask
+    // instead of `chmod` would land on `0o755` here.
+    #[test]
+    #[cfg(unix)]
+    fn write_file_does_not_let_the_umask_reduce_the_requested_mode() {
+        let workspace = Workspace::new().unwrap();
+        let path = WorkspacePath::parse("open.txt").unwrap();
+        let mode = FileMode::from_bits(0o777).unwrap();
+
+        workspace.write_file(&path, "x", Some(mode)).unwrap();
+
+        assert_eq!(permission_bits(&workspace.root().join("open.txt")), 0o777);
+    }
+
+    // Pins the mode a `write` step without `mode` produces, so adding `mode`
+    // cannot quietly change what every existing script already gets. `0o600`
+    // is the mode the temporary file is created with and then keeps: nothing
+    // in the no-mode path touches permissions.
+    #[test]
+    #[cfg(unix)]
+    fn write_file_without_a_mode_leaves_the_created_file_owner_only() {
+        let workspace = Workspace::new().unwrap();
+        let path = WorkspacePath::parse("a.txt").unwrap();
+
+        workspace.write_file(&path, "hi", None).unwrap();
+
+        assert_eq!(permission_bits(&workspace.root().join("a.txt")), 0o600);
+    }
+
+    // A `mode` describes the file the step names, not the directories the
+    // step had to create to get there. Compared against a directory made the
+    // ordinary way in the same process, so the expectation holds whatever the
+    // ambient umask is.
+    #[test]
+    #[cfg(unix)]
+    fn write_file_mode_does_not_apply_to_auto_created_parent_directories() {
+        let workspace = Workspace::new().unwrap();
+        let path = WorkspacePath::parse("nested/dir/tool").unwrap();
+        let mode = FileMode::from_bits(0o700).unwrap();
+        std::fs::create_dir(workspace.root().join("control")).unwrap();
+
+        workspace.write_file(&path, "x", Some(mode)).unwrap();
+
+        let control = permission_bits(&workspace.root().join("control"));
+        assert_eq!(permission_bits(&workspace.root().join("nested")), control);
+        assert_eq!(
+            permission_bits(&workspace.root().join("nested/dir")),
+            control
+        );
+    }
+
+    // `mode` is not an overwrite escape hatch: create-only still wins, and the
+    // existing file keeps the mode it already had.
+    #[test]
+    #[cfg(unix)]
+    fn write_file_with_a_mode_still_refuses_an_existing_target() {
+        let workspace = Workspace::new().unwrap();
+        let path = WorkspacePath::parse("a.txt").unwrap();
+        workspace.write_file(&path, "first", None).unwrap();
+
+        let err = workspace
+            .write_file(&path, "second", Some(FileMode::from_bits(0o777).unwrap()))
+            .unwrap_err();
+
+        assert!(matches!(err, WriteFileError::TargetAlreadyExists));
+        assert_eq!(permission_bits(&workspace.root().join("a.txt")), 0o600);
+        let content = std::fs::read_to_string(workspace.root().join("a.txt")).unwrap();
+        assert_eq!(content, "first");
+    }
+
+    // A failing `chmod` is not portably arrangeable from a test — the process
+    // owns the temporary file it just created — so the failure path is covered
+    // by its classification and message instead. That such a failure leaves no
+    // target behind follows from the mode being applied before
+    // `persist_noclobber`, which the create-only tests above already cover.
+    #[test]
+    fn set_mode_failure_is_a_write_io_error_that_names_the_mode() {
+        let err =
+            WriteFileError::SetMode(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+
+        assert_eq!(err.code().as_str(), "step.write.io_error");
+        assert!(
+            err.to_string().contains("file mode"),
+            "message should name the mode as the failing part: {err}"
+        );
     }
 
     #[test]
