@@ -10,6 +10,12 @@ use std::path::Path;
 use crate::diagnostic::DiagnosticCode;
 use crate::model::{FileMode, WorkspacePath};
 
+/// Applies a permission bit set to an already-open file.
+///
+/// Indirected through a function pointer only so a test can substitute a
+/// failing one; see [`Workspace::write_file_applying`].
+type ApplyMode = fn(&std::fs::File, FileMode) -> std::io::Result<()>;
+
 /// An isolated case workspace, backed by a temporary directory that is
 /// removed when the workspace is dropped.
 ///
@@ -43,9 +49,13 @@ pub enum WriteFileError {
     /// The requested file mode could not be applied to the file before it was
     /// published at the target path.
     ///
-    /// Separate from [`WriteFileError::Io`] only so the message names the
-    /// mode as the failing part; both classify as `step.write.io_error`.
-    SetMode(std::io::Error),
+    /// Separate from [`WriteFileError::Io`] only so the message can name the
+    /// mode as the failing part and repeat the value that was refused; both
+    /// classify as `step.write.io_error`.
+    SetMode {
+        mode: FileMode,
+        error: std::io::Error,
+    },
 }
 
 impl std::fmt::Display for WriteFileError {
@@ -59,7 +69,11 @@ impl std::fmt::Display for WriteFileError {
                 "the target's parent path is blocked by a file, symlink, or other non-directory entry"
             ),
             WriteFileError::Io(e) => write!(f, "I/O error: {e}"),
-            WriteFileError::SetMode(e) => write!(f, "I/O error while setting the file mode: {e}"),
+            WriteFileError::SetMode { mode, error } => write!(
+                f,
+                "I/O error while setting the file mode to 0o{:03o}: {error}",
+                mode.bits()
+            ),
         }
     }
 }
@@ -73,7 +87,9 @@ impl WriteFileError {
         match self {
             WriteFileError::TargetAlreadyExists => DiagnosticCode::StepWriteTargetExists,
             WriteFileError::ParentNotADirectory => DiagnosticCode::StepWriteParentNotADirectory,
-            WriteFileError::Io(_) | WriteFileError::SetMode(_) => DiagnosticCode::StepWriteIoError,
+            WriteFileError::Io(_) | WriteFileError::SetMode { .. } => {
+                DiagnosticCode::StepWriteIoError
+            }
         }
     }
 }
@@ -120,6 +136,27 @@ impl Workspace {
         content: &str,
         mode: Option<FileMode>,
     ) -> Result<(), WriteFileError> {
+        self.write_file_applying(
+            path,
+            content,
+            mode.map(|mode| (mode, set_file_mode as ApplyMode)),
+        )
+    }
+
+    /// [`Workspace::write_file`] with the mode-applying step supplied by the
+    /// caller.
+    ///
+    /// Exists so a test can inject a failing mode application. A real `chmod`
+    /// on a temporary file this process just created cannot be made to fail
+    /// portably, and the property being protected — a rejected mode leaves no
+    /// target behind — is a property of *where* the mode is applied, which a
+    /// later refactor could silently move past `persist_noclobber`.
+    fn write_file_applying(
+        &self,
+        path: &WorkspacePath,
+        content: &str,
+        apply_mode: Option<(FileMode, ApplyMode)>,
+    ) -> Result<(), WriteFileError> {
         if self.parent_path_is_blocked(path) {
             return Err(WriteFileError::ParentNotADirectory);
         }
@@ -137,8 +174,8 @@ impl Workspace {
         temp.write_all(content.as_bytes())
             .map_err(WriteFileError::Io)?;
 
-        if let Some(mode) = mode {
-            set_file_mode(temp.as_file(), mode).map_err(WriteFileError::SetMode)?;
+        if let Some((mode, apply)) = apply_mode {
+            apply(temp.as_file(), mode).map_err(|error| WriteFileError::SetMode { mode, error })?;
         }
 
         match temp.persist_noclobber(&target) {
@@ -318,19 +355,37 @@ mod tests {
         }
     }
 
-    // `0o777` is the discriminating case: under the usual `0o022` umask, an
-    // implementation that let the mode go through the file *creation* mask
-    // instead of `chmod` would land on `0o755` here.
+    // `0o777` is requested because it covers every bit any umask can mask:
+    // whatever the ambient umask is, a `mode` routed through the file
+    // *creation* mask instead of `chmod` loses exactly the bits the control
+    // file below loses, and this assertion catches it.
+    //
+    // The one case this cannot detect is a process running with umask `0`,
+    // where the two implementations are indistinguishable because nothing is
+    // masked at all. The test reports the observed umask on failure rather
+    // than asserting a non-zero one, so it never fails for an environment
+    // reason; environment-independent coverage of the same criterion belongs
+    // to an e2e scenario, which can set the umask of the reportage process it
+    // launches.
     #[test]
     #[cfg(unix)]
     fn write_file_does_not_let_the_umask_reduce_the_requested_mode() {
         let workspace = Workspace::new().unwrap();
+        // Created the ordinary way, so the kernel masks its `0o666` creation
+        // mode down to whatever the ambient umask allows.
+        std::fs::write(workspace.root().join("control"), "x").unwrap();
+        let umask = 0o666 & !permission_bits(&workspace.root().join("control"));
+
         let path = WorkspacePath::parse("open.txt").unwrap();
         let mode = FileMode::from_bits(0o777).unwrap();
 
         workspace.write_file(&path, "x", Some(mode)).unwrap();
 
-        assert_eq!(permission_bits(&workspace.root().join("open.txt")), 0o777);
+        assert_eq!(
+            permission_bits(&workspace.root().join("open.txt")),
+            0o777,
+            "requested mode reduced by the ambient umask 0o{umask:03o}"
+        );
     }
 
     // Pins the mode a `write` step without `mode` produces, so adding `mode`
@@ -389,19 +444,42 @@ mod tests {
         assert_eq!(content, "first");
     }
 
-    // A failing `chmod` is not portably arrangeable from a test — the process
-    // owns the temporary file it just created — so the failure path is covered
-    // by its classification and message instead. That such a failure leaves no
-    // target behind follows from the mode being applied before
-    // `persist_noclobber`, which the create-only tests above already cover.
+    // A refused mode must not publish the file. The content is already written
+    // by this point, so applying the mode after `persist_noclobber` instead
+    // would leave a target behind carrying permissions the script rejected.
     #[test]
-    fn set_mode_failure_is_a_write_io_error_that_names_the_mode() {
-        let err =
-            WriteFileError::SetMode(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+    fn write_file_leaves_no_target_when_the_mode_cannot_be_applied() {
+        let workspace = Workspace::new().unwrap();
+        let path = WorkspacePath::parse("bin/tool").unwrap();
+        let mode = FileMode::from_bits(0o755).unwrap();
+
+        let err = workspace
+            .write_file_applying(
+                &path,
+                "#!/bin/sh\n",
+                Some((mode, |_, _| {
+                    Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+                })),
+            )
+            .unwrap_err();
+
+        assert!(matches!(err, WriteFileError::SetMode { .. }));
+        assert!(
+            !workspace.root().join("bin/tool").exists(),
+            "target must not be published when its mode was refused"
+        );
+    }
+
+    #[test]
+    fn set_mode_failure_is_a_write_io_error_that_names_the_refused_mode() {
+        let err = WriteFileError::SetMode {
+            mode: FileMode::from_bits(0o755).unwrap(),
+            error: std::io::Error::from(std::io::ErrorKind::PermissionDenied),
+        };
 
         assert_eq!(err.code().as_str(), "step.write.io_error");
         assert!(
-            err.to_string().contains("file mode"),
+            err.to_string().contains("file mode to 0o755"),
             "message should name the mode as the failing part: {err}"
         );
     }
