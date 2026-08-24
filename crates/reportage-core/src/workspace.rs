@@ -243,6 +243,7 @@ fn set_file_mode(_file: &std::fs::File, _mode: FileMode) -> std::io::Result<()> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     #[test]
     fn write_file_creates_file_with_content() {
@@ -332,27 +333,30 @@ mod tests {
         std::fs::metadata(path).unwrap().permissions().mode() & 0o777
     }
 
-    // Every representable value, sampled at the boundaries a script actually
-    // reaches for: an executable fake command, an owner-only secret, and the
-    // fully closed and fully open ends of the range.
-    #[test]
+    // Sampled at the values a script actually reaches for — an executable fake
+    // command, an owner-only secret — plus the fully closed and fully open ends
+    // of the range.
     #[cfg(unix)]
-    fn write_file_applies_the_requested_mode_exactly() {
-        for requested in [0o755, 0o700, 0o644, 0o600, 0o000, 0o777] {
-            let workspace = Workspace::new().unwrap();
-            let path = WorkspacePath::parse("bin/tool").unwrap();
-            let mode = FileMode::from_bits(requested).unwrap();
+    #[rstest]
+    #[case::executable(0o755)]
+    #[case::owner_executable(0o700)]
+    #[case::world_readable(0o644)]
+    #[case::owner_only(0o600)]
+    #[case::closed(0o000)]
+    #[case::open(0o777)]
+    fn write_file_applies_the_requested_mode_exactly(#[case] requested: u32) {
+        let workspace = Workspace::new().unwrap();
+        let path = WorkspacePath::parse("bin/tool").unwrap();
+        let mode = FileMode::from_bits(requested).unwrap();
 
-            workspace
-                .write_file(&path, "#!/bin/sh\n", Some(mode))
-                .unwrap();
+        workspace
+            .write_file(&path, "#!/bin/sh\n", Some(mode))
+            .unwrap();
 
-            assert_eq!(
-                permission_bits(&workspace.root().join("bin/tool")),
-                requested,
-                "requested mode {requested:o}"
-            );
-        }
+        assert_eq!(
+            permission_bits(&workspace.root().join("bin/tool")),
+            requested
+        );
     }
 
     // `0o777` is requested because it covers every bit any umask can mask:

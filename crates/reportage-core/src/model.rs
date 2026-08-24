@@ -906,21 +906,26 @@ pub enum OutputSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn file_mode_accepts_the_whole_permission_bit_range() {
-        for bits in [0o000, 0o600, 0o755, 0o777] {
-            assert_eq!(FileMode::from_bits(bits).unwrap().bits(), bits);
-        }
+    #[rstest]
+    #[case::closed(0o000)]
+    #[case::owner_only(0o600)]
+    #[case::executable(0o755)]
+    #[case::open(0o777)]
+    fn file_mode_accepts_a_permission_bit_set(#[case] bits: u32) {
+        assert_eq!(FileMode::from_bits(bits).unwrap().bits(), bits);
     }
 
     // The bits just above the range are the ones `write` deliberately does not
-    // offer — sticky, setgid, setuid — so they must be rejected rather than
-    // silently truncated into a plausible-looking permission set.
-    #[test]
-    fn file_mode_rejects_bits_above_the_permission_range() {
-        for bits in [0o1000, 0o2000, 0o4000, 0o7777] {
-            assert_eq!(FileMode::from_bits(bits), Err(FileModeError::OutOfRange));
-        }
+    // offer, so they must be rejected rather than silently truncated into a
+    // plausible-looking permission set.
+    #[rstest]
+    #[case::sticky(0o1000)]
+    #[case::setgid(0o2000)]
+    #[case::setuid(0o4000)]
+    #[case::every_special_bit(0o7777)]
+    fn file_mode_rejects_bits_above_the_permission_range(#[case] bits: u32) {
+        assert_eq!(FileMode::from_bits(bits), Err(FileModeError::OutOfRange));
     }
 }
