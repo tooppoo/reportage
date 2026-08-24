@@ -376,6 +376,47 @@ impl WorkspacePath {
     }
 }
 
+/// The POSIX permission bits a `write` step may request for the file it creates.
+///
+/// Constructed only via [`FileMode::from_bits`], which rejects anything above
+/// `0o777`. Confining the type to the nine ordinary permission bits makes
+/// setuid, setgid, and sticky — deliberately out of `write`'s scope —
+/// unrepresentable rather than merely unused, so no caller can carry them as
+/// far as the filesystem.
+/// See docs/reference/semantics.md — Write step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileMode(u32);
+
+/// Error returned when a raw value falls outside the permission bits
+/// [`FileMode`] can represent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileModeError {
+    /// The value had bits set above `0o777`: setuid, setgid, sticky, or a
+    /// file type bit.
+    OutOfRange,
+}
+
+impl FileMode {
+    /// Validates `bits` as a plain POSIX permission bit set and, if valid,
+    /// returns the [`FileMode`] wrapping it.
+    ///
+    /// Rejects every value above `0o777`. The surface syntax already limits a
+    /// `mode` to three octal digits, but validating here keeps the guarantee
+    /// attached to the type instead of to one parser, so a value that reaches
+    /// the filesystem is in range no matter which caller built it.
+    pub fn from_bits(bits: u32) -> Result<Self, FileModeError> {
+        if bits > 0o777 {
+            return Err(FileModeError::OutOfRange);
+        }
+        Ok(Self(bits))
+    }
+
+    /// The permission bits, in the form `chmod(2)` expects.
+    pub fn bits(self) -> u32 {
+        self.0
+    }
+}
+
 /// A fixture path known to be lexically safe to resolve against the directory
 /// containing the referencing `*.repor` source file.
 ///
@@ -860,4 +901,31 @@ pub struct JqExpectation {
 pub enum OutputSource {
     Stdout,
     Stderr,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case::closed(0o000)]
+    #[case::owner_only(0o600)]
+    #[case::executable(0o755)]
+    #[case::open(0o777)]
+    fn file_mode_accepts_a_permission_bit_set(#[case] bits: u32) {
+        assert_eq!(FileMode::from_bits(bits).unwrap().bits(), bits);
+    }
+
+    // The bits just above the range are the ones `write` deliberately does not
+    // offer, so they must be rejected rather than silently truncated into a
+    // plausible-looking permission set.
+    #[rstest]
+    #[case::sticky(0o1000)]
+    #[case::setgid(0o2000)]
+    #[case::setuid(0o4000)]
+    #[case::every_special_bit(0o7777)]
+    fn file_mode_rejects_bits_above_the_permission_range(#[case] bits: u32) {
+        assert_eq!(FileMode::from_bits(bits), Err(FileModeError::OutOfRange));
+    }
 }
