@@ -1,0 +1,39 @@
+{
+  "before_each": {
+    "steps": [
+      {
+        "kind": "write_file",
+        "path": "bin/git",
+        "content": {
+          "kind": "heredoc",
+          "value": "#!/bin/sh\necho \"fake git\"\n"
+        },
+        "mode": "0o755"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "setup mode is available to the case body",
+      "span": {
+        "start": 94,
+        "end": 181
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+case "write step mode at both ends of the range" {
+  write <"unreadable.txt"> mode=0o000 "closed\n"
+  write <"world.txt"> mode=0o777 "open\n"
+  $ true
+  assert {
+    exit 0
+  }
+}

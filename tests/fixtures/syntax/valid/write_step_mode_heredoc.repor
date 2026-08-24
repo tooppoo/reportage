@@ -1,0 +1,11 @@
+case "write step mode with a heredoc literal" {
+  write <"bin/git"> mode=0o755 ```
+    #!/bin/sh
+    echo "fake git"
+    ```
+
+  $ true
+  assert {
+    exit 0
+  }
+}

@@ -696,6 +696,7 @@ fn a_write_step_whose_binding_never_resolves_is_a_runtime_error() {
             action("true"),
             Step::SideEffect(SideEffectingStep::WriteFile(WriteFileStep {
                 path: WorkspacePath::parse("out.txt").unwrap(),
+                mode: None,
                 content: TextValueExpression::Binding(crate::model::BindingReference {
                     name: "never_captured".to_string(),
                     reference_span: crate::model::LocatedSpan {

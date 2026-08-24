@@ -108,6 +108,10 @@ pub enum SideEffectingStep {
 pub struct WriteFileStep {
     pub path: WorkspacePath,
     pub content: TextValueExpression,
+    /// The permission bits the created file ends up with, when the step named
+    /// a `mode`. `None` leaves the mode alone, which is what every `write`
+    /// step written before `mode` existed relies on.
+    pub mode: Option<FileMode>,
 }
 
 #[derive(Debug)]

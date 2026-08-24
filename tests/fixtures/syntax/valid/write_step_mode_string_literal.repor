@@ -1,0 +1,7 @@
+case "write step mode with a string literal" {
+  write <"secret.txt"> mode=0o600 "secret\n"
+  $ true
+  assert {
+    exit 0
+  }
+}

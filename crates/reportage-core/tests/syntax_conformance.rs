@@ -217,6 +217,12 @@ enum SnapshotStep<'a> {
     WriteFile {
         path: &'a str,
         content: SnapshotTextExpression<'a>,
+        /// Rendered as the `0oXYZ` the script wrote, not as the decimal a
+        /// derived `Debug` would print, so a snapshot diff is readable against
+        /// the fixture. Omitted entirely when the step names no mode, which
+        /// keeps every pre-`mode` fixture's snapshot byte-identical.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        mode: Option<String>,
     },
     Binding {
         name: &'a str,
@@ -262,6 +268,7 @@ impl<'a> From<&'a SideEffectingStep> for SnapshotStep<'a> {
         Self::WriteFile {
             path: write_step.path.as_str(),
             content: SnapshotTextExpression::from(&write_step.content),
+            mode: write_step.mode.map(|mode| format!("0o{:03o}", mode.bits())),
         }
     }
 }

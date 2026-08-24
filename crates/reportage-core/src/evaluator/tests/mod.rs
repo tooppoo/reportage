@@ -98,9 +98,14 @@ fn checkpoint_after_exit(code: i32) -> Checkpoint {
 }
 
 fn write_step(path: &str, content: &str) -> Step {
+    write_step_with_mode(path, content, None)
+}
+
+fn write_step_with_mode(path: &str, content: &str, mode: Option<FileMode>) -> Step {
     Step::SideEffect(SideEffectingStep::WriteFile(WriteFileStep {
         path: WorkspacePath::parse(path).unwrap(),
         content: TextValueExpression::Raw(TextLiteral::Quoted(content.to_string())),
+        mode,
     }))
 }
 

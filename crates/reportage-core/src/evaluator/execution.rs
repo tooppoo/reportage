@@ -399,7 +399,7 @@ fn execute_steps(
                 };
                 match ctx
                     .workspace
-                    .write_file(&write_step.path, content.as_str(), None)
+                    .write_file(&write_step.path, content.as_str(), write_step.mode)
                 {
                     Ok(()) => execution.side_effects_executed += 1,
                     Err(e) => {
