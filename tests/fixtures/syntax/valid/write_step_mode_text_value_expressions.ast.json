@@ -1,0 +1,137 @@
+{
+  "cases": [
+    {
+      "name": "mode combines with every text value expression",
+      "span": {
+        "start": 0,
+        "end": 575
+      },
+      "steps": [
+        {
+          "kind": "action",
+          "command": "printf 'abc123\\n'"
+        },
+        {
+          "kind": "binding",
+          "name": "revision",
+          "source": "stdout_line",
+          "span": {
+            "start": 80,
+            "end": 107
+          }
+        },
+        {
+          "kind": "write_file",
+          "path": "raw.txt",
+          "content": {
+            "kind": "quoted",
+            "value": "literal\n"
+          },
+          "mode": "0o600"
+        },
+        {
+          "kind": "write_file",
+          "path": "raw-heredoc.txt",
+          "content": {
+            "kind": "heredoc",
+            "value": "literal heredoc\n"
+          },
+          "mode": "0o640"
+        },
+        {
+          "kind": "write_file",
+          "path": "binding.txt",
+          "content": {
+            "kind": "binding",
+            "name": "revision"
+          },
+          "mode": "0o644"
+        },
+        {
+          "kind": "write_file",
+          "path": "interpolated.txt",
+          "content": {
+            "kind": "interpolated",
+            "form": "string",
+            "segments": [
+              {
+                "kind": "literal",
+                "value": "revision "
+              },
+              {
+                "kind": "binding",
+                "name": "revision"
+              },
+              {
+                "kind": "literal",
+                "value": "\n"
+              }
+            ]
+          },
+          "mode": "0o755"
+        },
+        {
+          "kind": "write_file",
+          "path": "interpolated-heredoc.txt",
+          "content": {
+            "kind": "interpolated",
+            "form": "heredoc",
+            "segments": [
+              {
+                "kind": "literal",
+                "value": "revision "
+              },
+              {
+                "kind": "binding",
+                "name": "revision"
+              },
+              {
+                "kind": "literal",
+                "value": "\n"
+              }
+            ]
+          },
+          "mode": "0o700"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "file",
+              "path": "raw.txt",
+              "matcher": {
+                "kind": "contains",
+                "value": {
+                  "kind": "quoted",
+                  "value": "literal"
+                }
+              }
+            },
+            {
+              "kind": "file",
+              "path": "binding.txt",
+              "matcher": {
+                "kind": "text_equals",
+                "value": {
+                  "kind": "binding",
+                  "name": "revision"
+                }
+              }
+            },
+            {
+              "kind": "file",
+              "path": "interpolated.txt",
+              "matcher": {
+                "kind": "contains",
+                "value": {
+                  "kind": "binding",
+                  "name": "revision"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

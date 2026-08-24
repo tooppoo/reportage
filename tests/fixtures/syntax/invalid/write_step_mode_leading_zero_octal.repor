@@ -1,0 +1,8 @@
+# the C-style leading-zero octal form is not accepted; only the 0o prefix is
+case "invalid write mode" {
+  write <"bin/tool"> mode=0755 "content\n"
+  $ true
+  assert {
+    exit 0
+  }
+}

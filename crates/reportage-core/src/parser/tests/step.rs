@@ -4,6 +4,7 @@ use crate::model::{
     RuntimeEvidenceSource, SideEffectingStep, Step, TextLiteral, TextValueExpression,
     WorkspacePathError,
 };
+use rstest::rstest;
 
 // ─── Write step: string literal / heredoc literal (#67, #86) ──────────
 
@@ -110,6 +111,105 @@ fn multiple_write_steps_are_kept_in_source_order() {
     };
     assert_eq!(first.path.as_str(), "a.txt");
     assert_eq!(second.path.as_str(), "b.txt");
+}
+
+// ─── Write step: optional POSIX file mode (#245) ──────────────────────
+
+#[test]
+fn write_step_without_a_mode_carries_none() {
+    let src = "case \"x\" {\n  write <\"a.txt\"> \"hello\\n\"\n  $ true\n  assert { exit 0 }\n}\n";
+    let script = parse_script(src).unwrap();
+    assert_eq!(write_file_step(&script).mode, None);
+}
+
+#[rstest]
+#[case::closed("0o000", 0o000)]
+#[case::owner_only("0o600", 0o600)]
+#[case::executable("0o755", 0o755)]
+#[case::open("0o777", 0o777)]
+fn write_step_mode_parses_a_three_digit_octal_literal(
+    #[case] literal: &str,
+    #[case] expected: u32,
+) {
+    let src = format!(
+        "case \"x\" {{\n  write <\"a.txt\"> mode={literal} \"hello\\n\"\n  $ true\n  assert {{ exit 0 }}\n}}\n"
+    );
+    let script = parse_script(&src).unwrap();
+    let mode = write_file_step(&script).mode.expect("mode must be parsed");
+    assert_eq!(mode.bits(), expected);
+}
+
+// `mode` sits in the same position for both content forms, and the heredoc
+// form additionally has no whitespace requirement between the mode and the
+// opening fence, so it is worth pinning separately from the string form.
+#[test]
+fn write_step_mode_parses_with_a_heredoc_content() {
+    let src = "case \"x\" {\n  write <\"bin/git\"> mode=0o755 ```\n    #!/bin/sh\n    ```\n  $ true\n  assert { exit 0 }\n}\n";
+    let script = parse_script(src).unwrap();
+    let step = write_file_step(&script);
+    assert_eq!(step.mode.expect("mode must be parsed").bits(), 0o755);
+    assert_eq!(
+        step.content.binding_free_text_value().unwrap().as_str(),
+        "#!/bin/sh\n"
+    );
+}
+
+// A `mode` must not shadow the content position: the step still has to carry
+// the same `TextValueExpression` it would without one.
+#[test]
+fn write_step_mode_leaves_a_binding_reference_content_intact() {
+    let src = "case \"x\" {\n  $ printf 'abc\\n'\n  let rev <- stdout_line\n  write <\"a.txt\"> mode=0o644 &rev\n  assert { exit 0 }\n}\n";
+    let script = parse_script(src).unwrap();
+    let Step::SideEffect(SideEffectingStep::WriteFile(step)) = &script.cases[0].steps[2] else {
+        panic!("expected third step to be a write step");
+    };
+    assert_eq!(step.mode.expect("mode must be parsed").bits(), 0o644);
+    let TextValueExpression::Binding(reference) = &step.content else {
+        panic!("expected the content to stay a binding reference");
+    };
+    assert_eq!(reference.name, "rev");
+}
+
+#[test]
+fn before_each_write_step_accepts_the_same_mode_syntax() {
+    let src = format!(
+        "before_each {{\n  write <\"bin/git\"> mode=0o755 \"#!/bin/sh\\n\"\n}}\n\n{PASSING_CASE}"
+    );
+    let script = parse_script(&src).unwrap();
+    let before_each = script.before_each.expect("before_each must be parsed");
+    let Step::SideEffect(SideEffectingStep::WriteFile(step)) = &before_each.steps()[0] else {
+        panic!("before_each write step must parse as a write step");
+    };
+    assert_eq!(step.mode.expect("mode must be parsed").bits(), 0o755);
+}
+
+// Every spelling outside the canonical `mode=0oXYZ` is refused by the grammar
+// rather than by a later validation pass, so none of them can reach execution
+// as a silently ignored modifier. A rejected `mode` leaves text the content
+// position cannot accept either, which is why these surface as plain syntax
+// errors instead of a `mode`-specific diagnostic.
+#[rstest]
+#[case::four_octal_digits("mode=0o1000")]
+#[case::two_octal_digits("mode=0o75")]
+#[case::non_octal_digit("mode=0o888")]
+#[case::decimal("mode=755")]
+#[case::leading_zero_octal("mode=0755")]
+#[case::uppercase_prefix("mode=0O755")]
+#[case::spaced_equals("mode = 0o755")]
+#[case::symbolic("mode=u+x")]
+fn write_step_rejects_a_mode_outside_the_canonical_form(#[case] mode: &str) {
+    let src = format!(
+        "case \"x\" {{\n  write <\"a.txt\"> {mode} \"hello\\n\"\n  $ true\n  assert {{ exit 0 }}\n}}\n"
+    );
+    let err = parse_script(&src).unwrap_err();
+    assert_eq!(err.code().as_str(), "parse.syntax");
+}
+
+#[test]
+fn write_step_rejects_a_mode_after_the_content() {
+    let src = "case \"x\" {\n  write <\"a.txt\"> \"hello\\n\" mode=0o755\n  $ true\n  assert { exit 0 }\n}\n";
+    let err = parse_script(src).unwrap_err();
+    assert_eq!(err.code().as_str(), "parse.syntax");
 }
 
 // ─── before_each block (#70) ────────────────────────────────────────────

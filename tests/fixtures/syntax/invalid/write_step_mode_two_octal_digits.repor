@@ -1,0 +1,8 @@
+# a mode must be exactly three octal digits; a shorthand two-digit form is not accepted
+case "invalid write mode" {
+  write <"bin/tool"> mode=0o75 "content\n"
+  $ true
+  assert {
+    exit 0
+  }
+}

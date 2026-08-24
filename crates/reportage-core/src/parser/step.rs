@@ -7,7 +7,7 @@ use super::text_expression::{
 use super::{ParseError, Rule};
 use crate::model::{
     ActionStep, BeforeEach, BeforeEachError, BindingDeclaration, Case, Expectation, FileMatcher,
-    LocatedSpan, OutputMatcher, RuntimeEvidenceSource, SideEffectingStep, Step,
+    FileMode, LocatedSpan, OutputMatcher, RuntimeEvidenceSource, SideEffectingStep, Step,
     TextValueExpression, WorkspacePath, WriteFileStep,
 };
 use std::collections::HashSet;
@@ -322,7 +322,7 @@ fn parse_write_step(pair: pest::iterators::Pair<Rule>) -> Result<SideEffectingSt
 fn parse_write_step_string(
     pair: pest::iterators::Pair<Rule>,
 ) -> Result<SideEffectingStep, ParseError> {
-    // write_step_string = { "write" ~ ws+ ~ value_literal ~ ws+ ~ inline_text_value_expression }
+    // write_step_string = { "write" ~ ws+ ~ value_literal ~ (ws+ ~ write_mode)? ~ ws+ ~ inline_text_value_expression }
     let mut inner = pair.into_inner();
     let path_pair = inner.next().expect("write_step_string must have a path");
     // The path is validated before the content is parsed, so a step with both
@@ -330,32 +330,73 @@ fn parse_write_step_string(
     // diagnostic is emitted per parse, and the path is what the step names
     // first.
     let path = parse_write_path(path_pair)?;
-    let content_pair = inner
-        .next()
-        .expect("write_step_string must have an inline_text_value_expression");
+    let (mode, content_pair) = take_write_mode(
+        &mut inner,
+        "write_step_string must have an inline_text_value_expression",
+    );
     let content = parse_inline_text_value_expression(content_pair, WRITE_CONTENT_POSITION)?;
     Ok(SideEffectingStep::WriteFile(WriteFileStep {
         path,
         content,
+        mode,
     }))
 }
 
 fn parse_write_step_heredoc(
     pair: pest::iterators::Pair<Rule>,
 ) -> Result<SideEffectingStep, ParseError> {
-    // write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ ws* ~ heredoc_text_value_expression }
+    // write_step_heredoc = { "write" ~ ws+ ~ value_literal ~ (ws+ ~ write_mode)? ~ ws* ~ heredoc_text_value_expression }
     let mut inner = pair.into_inner();
     let path_pair = inner.next().expect("write_step_heredoc must have a path");
     let path = parse_write_path(path_pair)?;
-    let content_pair = inner
-        .next()
-        .expect("write_step_heredoc must have a heredoc_text_value_expression");
+    let (mode, content_pair) = take_write_mode(
+        &mut inner,
+        "write_step_heredoc must have a heredoc_text_value_expression",
+    );
     let content = parse_heredoc_text_value_expression(content_pair)?;
     Ok(SideEffectingStep::WriteFile(WriteFileStep {
         path,
         content,
+        mode,
     }))
 }
+
+/// Consumes the optional `mode=0oXYZ` pair and returns it together with the
+/// content pair that follows.
+///
+/// Shared by both content forms: `mode` sits in the same position for each, so
+/// which pair is the mode and which is the content is decided in one place
+/// rather than once per form.
+fn take_write_mode<'a>(
+    inner: &mut pest::iterators::Pairs<'a, Rule>,
+    missing_content: &'static str,
+) -> (Option<FileMode>, pest::iterators::Pair<'a, Rule>) {
+    let next = inner.next().expect(missing_content);
+    if next.as_rule() != Rule::write_mode {
+        return (None, next);
+    }
+    let mode = parse_write_mode(&next);
+    (Some(mode), inner.next().expect(missing_content))
+}
+
+/// Reads the permission bits out of a matched `write_mode` token.
+///
+/// Infallible by construction rather than by check: the grammar admits exactly
+/// `mode=0o` followed by three digits in `0..=7`, so both the radix conversion
+/// and the [`FileMode`] range are already guaranteed by the time this runs.
+/// Every rejected spelling is a syntax error, which is why `mode` contributes
+/// no parse-domain diagnostic of its own.
+fn parse_write_mode(mode_pair: &pest::iterators::Pair<Rule>) -> FileMode {
+    let digits = mode_pair
+        .as_str()
+        .strip_prefix(WRITE_MODE_PREFIX)
+        .expect("the write_mode rule always starts with the mode prefix");
+    let bits =
+        u32::from_str_radix(digits, 8).expect("the write_mode rule admits only three octal digits");
+    FileMode::from_bits(bits).expect("three octal digits never exceed 0o777")
+}
+
+const WRITE_MODE_PREFIX: &str = "mode=0o";
 
 /// Validates a `write` step's path literal, shared by both content forms so
 /// the kind check and the path policy are applied in exactly one place.

@@ -1,0 +1,35 @@
+{
+  "cases": [
+    {
+      "name": "write step mode with a heredoc literal",
+      "span": {
+        "start": 0,
+        "end": 163
+      },
+      "steps": [
+        {
+          "kind": "write_file",
+          "path": "bin/git",
+          "content": {
+            "kind": "heredoc",
+            "value": "#!/bin/sh\necho \"fake git\"\n"
+          },
+          "mode": "0o755"
+        },
+        {
+          "kind": "action",
+          "command": "true"
+        },
+        {
+          "kind": "assertion_block",
+          "expectations": [
+            {
+              "kind": "exit",
+              "expected": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

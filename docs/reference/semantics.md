@@ -374,13 +374,44 @@ Semantics:
 - Parent directories are created automatically. If a regular file, a symlink, or any other non-directory entry already occupies part of the parent path, the step fails — a symlink is rejected rather than followed, so a symlink planted by an earlier `$` action (e.g. `$ ln -s /tmp escape`) cannot be used to make a later `write` step escape the isolated workspace.
 - When `<text_literal>` is a string literal, the step is an ordinary single-line construct and may carry a trailing `#` comment, like every other single-line step. When it is a heredoc literal, see "Heredoc literal" above for its own line-ending and dedent rules.
 
+### File mode
+
+A `write` step may fix the POSIX permission bits of the file it creates, by naming a `mode` between the path and the content:
+
+```reportage
+write <"bin/git"> mode=0o755 ```
+  #!/bin/sh
+  echo "fake git"
+  ```
+```
+
+```reportage
+write <"secret.txt"> mode=0o600 "secret"
+```
+
+The same position and spelling apply to every content form — string literal, heredoc literal, binding reference, and interpolated text — and to a `write` step in a `before_each` block exactly as in a case body.
+
+Semantics:
+
+- The accepted spelling is exactly `mode=0oXYZ`: the `0o` prefix, then three octal digits, with no whitespace around `=`. Every other spelling — `mode = 0o755`, `0O755`, `0755`, `755`, `0o75`, `0o1000`, `0o888`, and symbolic chmod syntax such as `u+x` — is a syntax error, rejected before the script runs. The canonical range is therefore `0o000` through `0o777`.
+- The value is the target file's **final** permission bits. It does not depend on the umask the reportage process runs under.
+- Only the nine ordinary permission bits are expressible. setuid, setgid, and sticky are out of scope, which is what confines the literal to three digits.
+- Omitting `mode` keeps the behavior a `write` step has without one; nothing about the created file's mode changes.
+- A `mode` applies to the target file alone. Parent directories the step creates are left with whatever mode ordinary directory creation gives them.
+- A `mode` is not an overwrite escape hatch. Create-only still applies: naming a mode does not permit writing over an existing path.
+- Only Linux and macOS are supported. Windows permission semantics are out of scope, in line with [no native Windows execution](../adr/20260627T120000Z_no-windows-native-execution.md).
+
+The mode is applied before the file becomes visible at its target path, so the file is never observable with a mode other than the requested one. If the mode cannot be applied, the step fails as a runtime step error and no file is created at the target path; see "Side-effecting step failure classification" below.
+
+For the decision to introduce `mode` at all, and why no `executable` modifier or symbolic syntax was added, see [the file mode ADR](../adr/20260824T140000Z_write-step-posix-file-mode.md).
+
 ### Side-effecting step failure classification
 
 A `write` step's failure is never an assertion failure — there is no expectation being compared against evidence, only an operation that either succeeds or does not:
 
 - Malformed syntax (an unterminated fenced block, a fence line with an inline comment, a non-blank body line indented less than the closing fence) is a **parse error**.
 - An unsafe workspace path — empty, absolute, or containing a `.` / `..` segment — is a **parse-domain validation error** (`semantic.workspace_path.*`), detected before any file I/O is attempted. See [Parse diagnostics](diagnostics.md).
-- A regular file blocking the parent path, an already-existing target, or an OS-level I/O failure is a **runtime step error** (`step.write.*`), detected while the step actually runs.
+- A regular file blocking the parent path, an already-existing target, an OS-level I/O failure, or a failure to apply a requested `mode` is a **runtime step error** (`step.write.*`), detected while the step actually runs. A failed `mode` shares `step.write.io_error` with the other I/O failures; its message names the mode as the failing part.
 
 A runtime step error stops the concrete case at that point, the same way an assertion block failure does: later steps in the same case do not run, but the runner may proceed to the next concrete case. Unlike an assertion block failure, a runtime step error is a `runtime_error` run outcome (exit code `3`), not a `test_failed` outcome — see [Exit codes](exit-codes.md).
 
