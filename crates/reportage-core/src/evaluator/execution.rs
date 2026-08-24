@@ -397,7 +397,10 @@ fn execute_steps(
                         }));
                     }
                 };
-                match ctx.workspace.write_file(&write_step.path, content.as_str()) {
+                match ctx
+                    .workspace
+                    .write_file(&write_step.path, content.as_str(), None)
+                {
                     Ok(()) => execution.side_effects_executed += 1,
                     Err(e) => {
                         return Err(StepAbort::Runtime(RuntimeError {
