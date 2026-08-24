@@ -396,7 +396,7 @@ Semantics:
 - The accepted spelling is exactly `mode=0oXYZ`: the `0o` prefix, then three octal digits, with no whitespace around `=`. Every other spelling — `mode = 0o755`, `0O755`, `0755`, `755`, `0o75`, `0o1000`, `0o888`, and symbolic chmod syntax such as `u+x` — is a syntax error, rejected before the script runs. The canonical range is therefore `0o000` through `0o777`.
 - The value is the target file's **final** permission bits. It does not depend on the umask the reportage process runs under.
 - Only the nine ordinary permission bits are expressible. setuid, setgid, and sticky are out of scope, which is what confines the literal to three digits.
-- Omitting `mode` keeps the behavior a `write` step has without one; nothing about the created file's mode changes.
+- `mode` is optional. A `write` step without one creates a file readable and writable by its owner and by nobody else (`0o600`).
 - A `mode` applies to the target file alone. Parent directories the step creates are left with whatever mode ordinary directory creation gives them.
 - A `mode` is not an overwrite escape hatch. Create-only still applies: naming a mode does not permit writing over an existing path.
 - Only Linux and macOS are supported. Windows permission semantics are out of scope, in line with [no native Windows execution](../adr/20260627T120000Z_no-windows-native-execution.md).
@@ -404,8 +404,6 @@ Semantics:
 The mode is applied before the file becomes visible at its target path, so the file is never observable with a mode other than the requested one. If the mode cannot be applied, the step fails as a runtime step error and no file is created at the target path; see "Side-effecting step failure classification" below.
 
 A mode restrictive enough to make the file unreadable to the runner itself — `0o000`, or `0o200` where the runner is not the owner — does not change how a later file expectation behaves. Reading such a file for a `contains`, `text_equals`, or `contents_equals` comparison is an ordinary unmet precondition (`assertion.file.*.precondition_unmet`), the same category a missing file falls into, so it is an assertion failure rather than a `step.write.*` runtime step error.
-
-For the decision to introduce `mode` at all, and why no `executable` modifier or symbolic syntax was added, see [the file mode ADR](../adr/20260824T140000Z_write-step-posix-file-mode.md).
 
 ### Side-effecting step failure classification
 
