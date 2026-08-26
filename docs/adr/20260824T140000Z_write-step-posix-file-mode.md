@@ -94,13 +94,13 @@ A `write` step has no expectation to compare against evidence, so its failure is
 
 Windows permission semantics are out of scope, consistent with [no native Windows execution](20260627T120000Z_no-windows-native-execution.md).
 
-Off-Unix the mode application returns an error rather than being skipped. Since every step applies a mode, that means no `write` step at all can succeed there, not merely one that names a mode. This deliberately differs from `shim.rs` and `shim_scaffold.rs`, which wrap their `chmod` in a bare `#[cfg(unix)]` block and silently do nothing elsewhere. The difference is who asked: there the `0o755` is an internal implementation detail, while here it is a contract the script author wrote down. Silently ignoring it would hand back a fixture that is not the one the script declared, reported as a success.
+Off-Unix the mode application returns an error rather than being skipped. Since every step applies a mode, that means no `write` step at all can succeed there, not merely one that names a mode. This deliberately differs from `shim.rs` and `shim_scaffold.rs`, which wrap their `chmod` in a bare `#[cfg(unix)]` block and silently do nothing elsewhere. The difference is who asked: there the `0o755` is an internal implementation detail, while here it is a contract the language states — the mode the script wrote down, or the `0o600` default it can rely on having instead. Silently ignoring either would hand back a fixture that is not the one the language promised, reported as a success.
 
 ## Alternatives Considered
 
 ### An `executable` modifier
 
-Directly expresses the motivating case and needs no octal literacy. Rejected because it generalizes badly: restrictive fixtures (`0o600`, `0o700`) and deliberately unreadable ones (`0o000`) are equally real, and each would need a modifier of its own, leaving the language with several partly-overlapping concepts instead of one.
+Directly expresses the motivating case and needs no octal literacy. Rejected because it generalizes badly: selectively shared fixtures (`0o640`), owner-only executables (`0o700`), and deliberately unreadable ones (`0o000`) are equally real, and each would need a modifier of its own, leaving the language with several partly-overlapping concepts instead of one.
 
 ### Symbolic chmod syntax (`mode=u+x`)
 
