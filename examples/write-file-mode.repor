@@ -24,14 +24,16 @@ case "run a fake command created by a write step" {
   }
 }
 
-case "keep a fixture readable only by its owner" {
-  write <"secret.txt"> mode=0o600 "token\n"
+# `0o640` rather than `0o600`: the latter is what omitting `mode` already
+# gives, so it would not show the mode doing anything.
+case "share a fixture with the group but not the world" {
+  write <"shared.txt"> mode=0o640 "token\n"
 
   # The first ten characters of `ls -l` are the file type and permission bits.
-  $ ls -l secret.txt | cut -c1-10
+  $ ls -l shared.txt | cut -c1-10
 
   assert {
     exit 0
-    stdout text_equals "-rw-------\n"
+    stdout text_equals "-rw-r-----\n"
   }
 }

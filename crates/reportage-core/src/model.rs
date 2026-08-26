@@ -406,9 +406,10 @@ impl FileMode {
     /// executable.
     ///
     /// A stated default rather than whatever the platform happens to produce.
-    /// It is applied the same way an explicit `mode` is, so a `write` step's
-    /// result never depends on the umask the reportage process runs under,
-    /// whether or not the step names a mode.
+    /// It is applied the same way an explicit `mode` is, so the target file's
+    /// permission bits never depend on the umask the reportage process runs
+    /// under, whether or not the step names a mode. The parent directories a
+    /// step creates are masked as ordinary directory creation always is.
     pub const DEFAULT: Self = Self(0o600);
 
     /// Validates `bits` as a plain POSIX permission bit set and, if valid,
@@ -929,6 +930,17 @@ mod tests {
     #[case::open(0o777)]
     fn file_mode_accepts_a_permission_bit_set(#[case] bits: u32) {
         assert_eq!(FileMode::from_bits(bits).unwrap().bits(), bits);
+    }
+
+    // The default's value is a user-facing contract, stated in
+    // docs/reference/semantics.md and in the examples. Everything else refers
+    // to it through the constant, so this is the one place that would notice
+    // the value itself changing. Built through `from_bits` as well, so the
+    // `Self(0o600)` shortcut cannot drift outside the range the type accepts.
+    #[test]
+    fn file_mode_default_is_owner_read_write_only() {
+        assert_eq!(FileMode::DEFAULT.bits(), 0o600);
+        assert_eq!(FileMode::from_bits(0o600).unwrap(), FileMode::DEFAULT);
     }
 
     // The bits just above the range are the ones `write` deliberately does not

@@ -42,10 +42,11 @@ case "the same fake command written without a mode is not executable" {
 #
 # That the default holds under a umask which would otherwise reduce it is not
 # checked here: separating it from a creation mode needs a umask clearing an
-# owner bit, and reportage cannot run under one — clearing owner write stops it
-# writing its own artifacts, and clearing owner read leaves a `.profraw` that
-# crashes the coverage merge. That guarantee is checked at its mechanism, in
-# workspace.rs.
+# owner bit, and neither is usable. Clearing owner write stops reportage
+# writing its own artifacts, whatever build it is. Clearing owner read is
+# blocked only in this suite: the coverage-instrumented build leaves a
+# `.profraw` it cannot read back, which crashes `llvm-profdata merge`. That
+# guarantee is checked at its mechanism, in workspace.rs.
 case "a write step without a mode is owner read-write only" {
   write <"plain.txt"> "plain\n"
 

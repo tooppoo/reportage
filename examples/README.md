@@ -78,7 +78,7 @@
     - [create file with heredoc](#case-6-2-1-create-file-with-heredoc)
   - [Writing an executable file](#file-6-3-writing-an-executable-file)
     - [run a fake command created by a write step](#case-6-3-1-run-a-fake-command-created-by-a-write-step)
-    - [keep a fixture readable only by its owner](#case-6-3-2-keep-a-fixture-readable-only-by-its-owner)
+    - [share a fixture with the group but not the world](#case-6-3-2-share-a-fixture-with-the-group-but-not-the-world)
 
 <a id="group-1-actions"></a>
 ## Actions
@@ -1258,19 +1258,19 @@ case "run a fake command created by a write step" {
 }
 ````
 
-<a id="case-6-3-2-keep-a-fixture-readable-only-by-its-owner"></a>
-#### keep a fixture readable only by its owner
+<a id="case-6-3-2-share-a-fixture-with-the-group-but-not-the-world"></a>
+#### share a fixture with the group but not the world
 
 ```reportage
-case "keep a fixture readable only by its owner" {
-  write <"secret.txt"> mode=0o600 "token\n"
+case "share a fixture with the group but not the world" {
+  write <"shared.txt"> mode=0o640 "token\n"
 
   # The first ten characters of `ls -l` are the file type and permission bits.
-  $ ls -l secret.txt | cut -c1-10
+  $ ls -l shared.txt | cut -c1-10
 
   assert {
     exit 0
-    stdout text_equals "-rw-------\n"
+    stdout text_equals "-rw-r-----\n"
   }
 }
 ```

@@ -238,9 +238,13 @@ fn set_file_mode(file: &std::fs::File, mode: FileMode) -> std::io::Result<()> {
 
 /// `write`'s `mode` is defined in POSIX permission-bit terms, which have no
 /// faithful Windows equivalent (see docs/adr — no native Windows execution).
-/// Reported as a failure rather than ignored: a silently unapplied `mode`
-/// would leave a fixture the script declared unreadable or unexecutable
-/// looking like it succeeded.
+///
+/// Reported as a failure rather than ignored, so a fixture never looks like it
+/// succeeded while carrying permissions nobody chose. Since every `write` step
+/// applies a mode — [`FileMode::DEFAULT`] when the step names none — this means
+/// no `write` step at all can succeed off Unix, not merely one that names a
+/// mode. That is deliberate: the `0o600` default is as much a contract as an
+/// explicit mode, and there is nothing to honor it with here.
 #[cfg(not(unix))]
 fn set_file_mode(_file: &std::fs::File, _mode: FileMode) -> std::io::Result<()> {
     Err(std::io::Error::new(
@@ -416,13 +420,6 @@ mod tests {
         );
     }
 
-    static APPLIED_MODE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(u32::MAX);
-
-    fn record_applied_mode(_file: &std::fs::File, mode: FileMode) -> std::io::Result<()> {
-        APPLIED_MODE.store(mode.bits(), std::sync::atomic::Ordering::SeqCst);
-        Ok(())
-    }
-
     // The test above cannot tell the default apart from the temporary file's
     // creation mode: under an ordinary umask both land on `0o600`. Only a umask
     // that clears an owner bit would separate them, and no such umask is usable
@@ -430,19 +427,24 @@ mod tests {
     // artifacts, and one clearing owner read leaves a `.profraw` that crashes
     // the coverage merge. So the guarantee is checked at its mechanism instead:
     // a step naming no mode must still reach `chmod`, carrying the default.
+    //
+    // A failing applier is what makes the mode observable — it comes back in
+    // the error — so the check needs no shared state between the applier and
+    // the assertion.
     #[test]
     fn write_file_without_a_mode_still_applies_the_default_through_chmod() {
         let workspace = Workspace::new().unwrap();
         let path = WorkspacePath::parse("a.txt").unwrap();
 
-        workspace
-            .write_file_applying(&path, "hi", None, record_applied_mode)
-            .unwrap();
+        let err = workspace
+            .write_file_applying(&path, "hi", None, |_, _| {
+                Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+            })
+            .unwrap_err();
 
-        assert_eq!(
-            APPLIED_MODE.load(std::sync::atomic::Ordering::SeqCst),
-            FileMode::DEFAULT.bits(),
-            "a write step naming no mode must still apply the default explicitly"
+        assert!(
+            matches!(err, WriteFileError::SetMode { mode, .. } if mode == FileMode::DEFAULT),
+            "a step naming no mode must still apply the default explicitly: {err}"
         );
     }
 

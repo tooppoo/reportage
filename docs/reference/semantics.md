@@ -386,7 +386,7 @@ write <"bin/git"> mode=0o755 ```
 ```
 
 ```reportage
-write <"secret.txt"> mode=0o600 "secret"
+write <"secret.txt"> mode=0o640 "secret"
 ```
 
 The same position and spelling apply to every content form — string literal, heredoc literal, binding reference, and interpolated text — and to a `write` step in a `before_each` block exactly as in a case body.
@@ -411,7 +411,7 @@ A `write` step's failure is never an assertion failure — there is no expectati
 
 - Malformed syntax (an unterminated fenced block, a fence line with an inline comment, a non-blank body line indented less than the closing fence) is a **parse error**.
 - An unsafe workspace path — empty, absolute, or containing a `.` / `..` segment — is a **parse-domain validation error** (`semantic.workspace_path.*`), detected before any file I/O is attempted. See [Parse diagnostics](diagnostics.md).
-- A regular file blocking the parent path, an already-existing target, an OS-level I/O failure, or a failure to apply a requested `mode` is a **runtime step error** (`step.write.*`), detected while the step actually runs. A failed `mode` shares `step.write.io_error` with the other I/O failures; its message names the mode as the failing part.
+- A regular file blocking the parent path, an already-existing target, an OS-level I/O failure, or a failure to apply the file's `mode` is a **runtime step error** (`step.write.*`), detected while the step actually runs. A failed `mode` shares `step.write.io_error` with the other I/O failures; its message names the mode as the failing part. Every `write` step applies a mode, so this can name the `0o600` default for a step that wrote none.
 
 A runtime step error stops the concrete case at that point, the same way an assertion block failure does: later steps in the same case do not run, but the runner may proceed to the next concrete case. Unlike an assertion block failure, a runtime step error is a `runtime_error` run outcome (exit code `3`), not a `test_failed` outcome — see [Exit codes](exit-codes.md).
 
