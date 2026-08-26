@@ -123,40 +123,51 @@ impl Workspace {
     /// at `target` — the create-only guarantee and the file's content
     /// become visible together, or not at all.
     ///
-    /// `mode`, when given, is the target file's final permission bits. It is
+    /// `mode` is the target file's final permission bits, defaulting to
+    /// [`FileMode::DEFAULT`] when the step names none. Either way it is
     /// applied to the temporary file before that file is published, so the
     /// same all-or-nothing rule covers the mode: a file visible at `target`
-    /// always already carries the requested mode. `None` leaves whatever
-    /// mode the temporary file was created with, preserving the behavior of
-    /// every `write` step that does not name one. `mode` applies only to the
-    /// target file; parent directories created above are left alone.
+    /// always already carries it.
+    ///
+    /// Applying the default explicitly, rather than leaving the temporary
+    /// file's creation mode in place, is what keeps a `write` step's result
+    /// independent of the reportage process's umask: the kernel masks a
+    /// creation mode and does not mask `chmod`. `mode` applies only to the
+    /// target file; parent directories created above are left alone, and
+    /// their modes are masked as ordinary directory creation always is.
     pub fn write_file(
         &self,
         path: &WorkspacePath,
         content: &str,
         mode: Option<FileMode>,
     ) -> Result<(), WriteFileError> {
-        self.write_file_applying(
-            path,
-            content,
-            mode.map(|mode| (mode, set_file_mode as ApplyMode)),
-        )
+        self.write_file_applying(path, content, mode, set_file_mode)
     }
 
     /// [`Workspace::write_file`] with the mode-applying step supplied by the
     /// caller.
     ///
-    /// Exists so a test can inject a failing mode application. A real `chmod`
-    /// on a temporary file this process just created cannot be made to fail
-    /// portably, and the property being protected — a rejected mode leaves no
-    /// target behind — is a property of *where* the mode is applied, which a
-    /// later refactor could silently move past `persist_noclobber`.
+    /// Exists so a test can observe or fail the mode application, which is
+    /// otherwise invisible: a real `chmod` on a temporary file this process
+    /// just created cannot be made to fail portably, and under an ordinary
+    /// umask an applied [`FileMode::DEFAULT`] is indistinguishable from the
+    /// creation mode it replaces. Both properties this protects are about
+    /// *what* is applied and *where* — that a step naming no mode still goes
+    /// through `chmod`, and that a refused mode returns before
+    /// `persist_noclobber` — and a later refactor could silently break either
+    /// without changing any observable file.
+    ///
+    /// The default is resolved here rather than in [`Workspace::write_file`]
+    /// so that a test reaching this seam exercises the same defaulting the
+    /// public entry point does.
     fn write_file_applying(
         &self,
         path: &WorkspacePath,
         content: &str,
-        apply_mode: Option<(FileMode, ApplyMode)>,
+        mode: Option<FileMode>,
+        apply: ApplyMode,
     ) -> Result<(), WriteFileError> {
+        let mode = mode.unwrap_or(FileMode::DEFAULT);
         if self.parent_path_is_blocked(path) {
             return Err(WriteFileError::ParentNotADirectory);
         }
@@ -174,9 +185,7 @@ impl Workspace {
         temp.write_all(content.as_bytes())
             .map_err(WriteFileError::Io)?;
 
-        if let Some((mode, apply)) = apply_mode {
-            apply(temp.as_file(), mode).map_err(|error| WriteFileError::SetMode { mode, error })?;
-        }
+        apply(temp.as_file(), mode).map_err(|error| WriteFileError::SetMode { mode, error })?;
 
         match temp.persist_noclobber(&target) {
             Ok(_) => Ok(()),
@@ -229,9 +238,13 @@ fn set_file_mode(file: &std::fs::File, mode: FileMode) -> std::io::Result<()> {
 
 /// `write`'s `mode` is defined in POSIX permission-bit terms, which have no
 /// faithful Windows equivalent (see docs/adr — no native Windows execution).
-/// Reported as a failure rather than ignored: a silently unapplied `mode`
-/// would leave a fixture the script declared unreadable or unexecutable
-/// looking like it succeeded.
+///
+/// Reported as a failure rather than ignored, so a fixture never looks like it
+/// succeeded while carrying permissions nobody chose. Since every `write` step
+/// applies a mode — [`FileMode::DEFAULT`] when the step names none — this means
+/// no `write` step at all can succeed off Unix, not merely one that names a
+/// mode. That is deliberate: the `0o600` default is as much a contract as an
+/// explicit mode, and there is nothing to honor it with here.
 #[cfg(not(unix))]
 fn set_file_mode(_file: &std::fs::File, _mode: FileMode) -> std::io::Result<()> {
     Err(std::io::Error::new(
@@ -392,19 +405,47 @@ mod tests {
         );
     }
 
-    // Pins the mode a `write` step without `mode` produces, so adding `mode`
-    // cannot quietly change what every existing script already gets. `0o600`
-    // is the mode the temporary file is created with and then keeps: nothing
-    // in the no-mode path touches permissions.
+    // Pins the bits a `write` step without `mode` produces.
     #[test]
     #[cfg(unix)]
-    fn write_file_without_a_mode_leaves_the_created_file_owner_only() {
+    fn write_file_without_a_mode_is_owner_read_write_only() {
         let workspace = Workspace::new().unwrap();
         let path = WorkspacePath::parse("a.txt").unwrap();
 
         workspace.write_file(&path, "hi", None).unwrap();
 
-        assert_eq!(permission_bits(&workspace.root().join("a.txt")), 0o600);
+        assert_eq!(
+            permission_bits(&workspace.root().join("a.txt")),
+            FileMode::DEFAULT.bits()
+        );
+    }
+
+    // The test above cannot tell the default apart from the temporary file's
+    // creation mode: under an ordinary umask both land on `0o600`. Only a umask
+    // that clears an owner bit would separate them, and no such umask is usable
+    // here — one clearing owner write stops reportage writing its own
+    // artifacts, and one clearing owner read leaves a `.profraw` that crashes
+    // the coverage merge. So the guarantee is checked at its mechanism instead:
+    // a step naming no mode must still reach `chmod`, carrying the default.
+    //
+    // A failing applier is what makes the mode observable — it comes back in
+    // the error — so the check needs no shared state between the applier and
+    // the assertion.
+    #[test]
+    fn write_file_without_a_mode_still_applies_the_default_through_chmod() {
+        let workspace = Workspace::new().unwrap();
+        let path = WorkspacePath::parse("a.txt").unwrap();
+
+        let err = workspace
+            .write_file_applying(&path, "hi", None, |_, _| {
+                Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+            })
+            .unwrap_err();
+
+        assert!(
+            matches!(err, WriteFileError::SetMode { mode, .. } if mode == FileMode::DEFAULT),
+            "a step naming no mode must still apply the default explicitly: {err}"
+        );
     }
 
     // A `mode` describes the file the step names, not the directories the
@@ -443,7 +484,10 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(err, WriteFileError::TargetAlreadyExists));
-        assert_eq!(permission_bits(&workspace.root().join("a.txt")), 0o600);
+        assert_eq!(
+            permission_bits(&workspace.root().join("a.txt")),
+            FileMode::DEFAULT.bits()
+        );
         let content = std::fs::read_to_string(workspace.root().join("a.txt")).unwrap();
         assert_eq!(content, "first");
     }
@@ -458,13 +502,9 @@ mod tests {
         let mode = FileMode::from_bits(0o755).unwrap();
 
         let err = workspace
-            .write_file_applying(
-                &path,
-                "#!/bin/sh\n",
-                Some((mode, |_, _| {
-                    Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
-                })),
-            )
+            .write_file_applying(&path, "#!/bin/sh\n", Some(mode), |_, _| {
+                Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+            })
             .unwrap_err();
 
         assert!(matches!(err, WriteFileError::SetMode { .. }));

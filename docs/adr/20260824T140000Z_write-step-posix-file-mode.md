@@ -32,10 +32,10 @@ write <"bin/git"> mode=0o755 ```
   echo "fake git"
   ```
 
-write <"secret.txt"> mode=0o600 "secret"
+write <"secret.txt"> mode=0o640 "secret"
 ````
 
-The motivating case is the executable bit, and a dedicated `executable` modifier would express it more directly. It was rejected because it answers only one of the permission questions a fixture raises: a fixture that must be owner-readable only (`0o600`), or deliberately unreadable (`0o000`), is just as real, and each would need its own modifier. One property whose value is the permission bit set covers all of them and introduces exactly one new concept.
+The motivating case is the executable bit, and a dedicated `executable` modifier would express it more directly. It was rejected because it answers only one of the permission questions a fixture raises: a fixture that must be group-readable but not world-readable (`0o640`), or deliberately unreadable (`0o000`), is just as real, and each would need its own modifier. One property whose value is the permission bit set covers all of them and introduces exactly one new concept.
 
 `mode` is a property of the file being created, so it sits with the other things `write` says about that file — after the path, before the content — rather than as a trailing option.
 
@@ -75,12 +75,16 @@ Every rejected `mode` is rejected by the grammar, and every value the grammar ac
 
 1. create a temporary file in the target's parent directory
 2. write the content to it
-3. apply the mode to it, when one was named
+3. apply the mode to it — the one the step named, or the default
 4. publish it to the target with `persist_noclobber`
 
-A file visible at the target therefore always already carries the requested mode, and a failed mode application publishes nothing.
+A file visible at the target therefore always already carries the mode that was applied, and a failed mode application publishes nothing.
 
 The mode is applied with `chmod` on the open handle rather than through the file's *creation* mode. This is what makes the result independent of the reportage process's umask: the kernel masks a creation mode and does not mask `chmod`. Applying it to the handle rather than to the path also means no other process can substitute a different file between the write and the mode change.
+
+A step that names no `mode` goes through the same step, with a fixed default of `0o600` — owner read and write, nothing for group or other, never executable. Leaving the temporary file's creation mode in place instead would have made the one case a script does not spell out the one case whose result depends on the environment: under `umask 0400` the same step yields `0o200`. A default that is stated rather than inherited means the permission bits of every file a `write` step creates are a property of the script.
+
+The cost is that `chmod` is now on the path of every `write` step, not only one that names a mode: on a filesystem that refuses it, a step that previously succeeded becomes a `step.write.io_error`. That is accepted because the alternative is a default whose value depends on the environment, which is the thing this decision exists to remove.
 
 ### 6. A failed mode is a runtime step error, reusing `step.write.io_error`
 
@@ -90,13 +94,13 @@ A `write` step has no expectation to compare against evidence, so its failure is
 
 Windows permission semantics are out of scope, consistent with [no native Windows execution](20260627T120000Z_no-windows-native-execution.md).
 
-Off-Unix the mode application returns an error rather than being skipped. This deliberately differs from `shim.rs` and `shim_scaffold.rs`, which wrap their `chmod` in a bare `#[cfg(unix)]` block and silently do nothing elsewhere. The difference is who asked: there the `0o755` is an internal implementation detail, while here it is a contract the script author wrote down. Silently ignoring it would hand back a fixture that is not the one the script declared, reported as a success.
+Off-Unix the mode application returns an error rather than being skipped. Since every step applies a mode, that means no `write` step at all can succeed there, not merely one that names a mode. This deliberately differs from `shim.rs` and `shim_scaffold.rs`, which wrap their `chmod` in a bare `#[cfg(unix)]` block and silently do nothing elsewhere. The difference is who asked: there the `0o755` is an internal implementation detail, while here it is a contract the language states — the mode the script wrote down, or the `0o600` default it can rely on having instead. Silently ignoring either would hand back a fixture that is not the one the language promised, reported as a success.
 
 ## Alternatives Considered
 
 ### An `executable` modifier
 
-Directly expresses the motivating case and needs no octal literacy. Rejected because it generalizes badly: restrictive fixtures (`0o600`, `0o700`) and deliberately unreadable ones (`0o000`) are equally real, and each would need a modifier of its own, leaving the language with several partly-overlapping concepts instead of one.
+Directly expresses the motivating case and needs no octal literacy. Rejected because it generalizes badly: selectively shared fixtures (`0o640`), owner-only executables (`0o700`), and deliberately unreadable ones (`0o000`) are equally real, and each would need a modifier of its own, leaving the language with several partly-overlapping concepts instead of one.
 
 ### Symbolic chmod syntax (`mode=u+x`)
 
