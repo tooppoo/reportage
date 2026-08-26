@@ -401,6 +401,16 @@ pub enum FileModeError {
 }
 
 impl FileMode {
+    /// The permission bits a `write` step's file gets when the step names no
+    /// `mode`: readable and writable by its owner, and nothing else — never
+    /// executable.
+    ///
+    /// A stated default rather than whatever the platform happens to produce.
+    /// It is applied the same way an explicit `mode` is, so a `write` step's
+    /// result never depends on the umask the reportage process runs under,
+    /// whether or not the step names a mode.
+    pub const DEFAULT: Self = Self(0o600);
+
     /// Validates `bits` as a plain POSIX permission bit set and, if valid,
     /// returns the [`FileMode`] wrapping it.
     ///

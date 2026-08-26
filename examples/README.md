@@ -1237,7 +1237,7 @@ Source: examples/write-file-mode.repor
 
 A `write <"path"> mode=0oXYZ <content>` step fixes the POSIX permission bits of the file it creates, so a fake command can be authored and made executable in one step instead of being followed by a `chmod` action that is setup rather than behavior under test.
 The mode is written as exactly three octal digits after the `0o` prefix, between the path and the content, and it is the file's final permission bits regardless of the umask reportage runs under.
-`mode` is optional: without it the file is never accessible to group or other, and a mode never applies to the parent directories the step creates.
+`mode` is optional and defaults to `0o600`: without it the file is readable and writable by its owner only, and never executable. A mode never applies to the parent directories the step creates.
 
 <a id="case-6-3-1-run-a-fake-command-created-by-a-write-step"></a>
 #### run a fake command created by a write step

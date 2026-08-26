@@ -82,6 +82,8 @@ A file visible at the target therefore always already carries the requested mode
 
 The mode is applied with `chmod` on the open handle rather than through the file's *creation* mode. This is what makes the result independent of the reportage process's umask: the kernel masks a creation mode and does not mask `chmod`. Applying it to the handle rather than to the path also means no other process can substitute a different file between the write and the mode change.
 
+A step that names no `mode` goes through the same step, with a fixed default of `0o600` — owner read and write, nothing for group or other, never executable. Leaving the temporary file's creation mode in place instead would have made the one case a script does not spell out the one case whose result depends on the environment: under `umask 0400` the same step yields `0o200`. A default that is stated rather than inherited means the permission bits of every file a `write` step creates are a property of the script.
+
 ### 6. A failed mode is a runtime step error, reusing `step.write.io_error`
 
 A `write` step has no expectation to compare against evidence, so its failure is never an assertion failure — decision 5 of [the `write` step ADR](20260704T183546Z_write-step-and-per-case-workspace-isolation.md) applies unchanged. A mode that cannot be applied reuses the existing `step.write.io_error` code rather than introducing a new one: it is an OS-level I/O failure like the others already in that class, and a new code would oblige every consumer to learn a distinction that changes nothing about how the failure is handled. The message names the mode as the failing part and repeats the value that was refused, so the diagnostic is still specific.
