@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 0.0.9
+
+### added
+
+#### core / cli / tests / docs
+
+<!-- rellog:entry:start -->
+<!-- rellog:body:start -->
+`write` can fix the POSIX file mode of the file it creates.
+`write <"bin/git"> mode=0o755 <content>` writes the file and sets its permission bits in one step, so a fake command fixture no longer needs a following `chmod` action. The mode is written as exactly three octal digits after `0o`, between the path and the content, and is accepted with every content form and in `before_each` as well as a case body. It is the target file's final permission bits regardless of the umask reportage runs under, it applies to the target file only and not to parent directories the step creates, and it does not relax create-only. `mode` defaults to `0o600`, so a file written without one is readable and writable by its owner only and never executable, regardless of umask. `mode = 0o755`, `0O755`, `0755`, `755`, `0o75`, `0o1000`, `0o888`, and symbolic chmod syntax are rejected before the script runs. Linux and macOS only.
+<!-- rellog:body:end -->
+
+Refs:
+- https://github.com/tooppoo/reportage/issues/245
+<!-- rellog:entry:end -->
+
 ## 0.0.8
 
 ### added
