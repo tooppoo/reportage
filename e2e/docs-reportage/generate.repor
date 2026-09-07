@@ -1,0 +1,157 @@
+# `reportage docs-reportage` (issue #257): the Reportage-source documentation
+# generator, used for reportage's own development and documentation. Every case
+# is published as its original `.repor` source, and the presentation options
+# keep the same contract `reportage docs` offers. The exact serialization is
+# fixed by tests/fixtures/docs/*/index.snapshot.{txt,md}; these cases verify the
+# CLI-observable flow: exit code, stdout mutation report, generated file, the
+# raw source projection, and the absence of execution side effects.
+
+case "the generated document reproduces the case source verbatim" {
+  write <"src/a.repor"> ```
+    document file {
+      title "Documented file"
+      group "Filesystem"
+    }
+
+    case "documented" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs-reportage 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    stdout contains "generated: out/index.txt"
+    file <"out/index.txt"> exists
+    file <"out/index.txt"> contains "Reportage Documentation"
+    file <"out/index.txt"> contains "Documented file"
+    file <"out/index.txt"> contains "src/a.repor"
+    file <"out/index.txt"> contains "Reportage source"
+    file <"out/index.txt"> contains "case \"documented\" {"
+    file <"out/index.txt"> contains "assert {"
+  }
+}
+
+# A declared `before_each` opens each case's source block, so a copied snippet
+# still parses on its own.
+case "a before_each block opens each generated case source" {
+  write <"src/setup.repor"> ```
+    before_each {
+      write <"seed.txt"> "seed"
+    }
+
+    case "uses the seed" {
+      $ cat seed.txt
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs-reportage 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    file <"out/index.txt"> contains "before_each {"
+    file <"out/index.txt"> contains "case \"uses the seed\" {"
+  }
+}
+
+# The presentation options carry the same meaning as on `docs`: `--format`
+# selects the serialization, `--title` replaces the document title, and
+# `--index-file-name` names the written document verbatim.
+case "the presentation options apply to the Reportage source projection" {
+  write <"src/a.repor"> ```
+    case "one" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs-reportage 'src/*.repor' --out-dir out --format markdown --layout single-file --title "Reportage internals" --index-file-name readme.md
+
+  assert {
+    exit 0
+    stdout contains "generated: out/readme.md"
+    file <"out/readme.md"> contains "# Reportage internals"
+    file <"out/readme.md"> contains "case \"one\" {"
+    not {
+      file <"out/index.md"> exists
+    }
+  }
+}
+
+# Generation parses sources but never executes them: the case action must not
+# run, and no execution artifact directory may appear.
+case "sources are not executed and no artifacts are generated" {
+  write <"src/side-effect.repor"> ```
+    case "would create a marker file" {
+      $ touch marker.txt
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs-reportage 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    not {
+      file <"marker.txt"> exists
+    }
+    not {
+      dir <".reportage"> exists
+    }
+  }
+}
+
+# A pattern matching no eligible source fails the reportage process with the
+# request validation code 2, reported on stderr, and nothing is written.
+case "a pattern with no eligible match is a request validation error" {
+  $ reportage docs-reportage 'missing/*.repor' --out-dir out
+
+  assert {
+    exit 2
+    stdout empty
+    stderr contains "pattern 'missing/*.repor' matched no eligible source"
+    not {
+      dir <"out"> exists
+    }
+  }
+}
+
+# clap rejects the invocation before any generation work starts, with the
+# shared CLI usage code 4 — distinct from request validation (2).
+case "an unknown --format value is a usage error" {
+  $ reportage docs-reportage 'src/*.repor' --out-dir out --format no-such-format
+
+  assert {
+    exit 4
+    stdout empty
+    stderr contains "no-such-format"
+    not {
+      dir <"out"> exists
+    }
+  }
+}
+
+# The help states this subcommand's own purpose, so `docs` and `docs-reportage`
+# are distinguishable from the CLI alone.
+case "docs-reportage --help states the Reportage-source purpose" {
+  $ reportage docs-reportage --help
+
+  assert {
+    exit 0
+    stdout contains "Generate Reportage-source documentation"
+    stdout contains "--out-dir"
+    stdout contains "--format"
+    stdout contains "--layout"
+  }
+}

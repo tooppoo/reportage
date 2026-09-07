@@ -80,10 +80,10 @@ Code `2` here intentionally reuses the same number as the run command's "script/
 `reportage references` is a side-effect-free tooling subcommand that only prints the reference URL index (see [`spec/output/references-index/`](../../spec/output/references-index/)).
 It exits `0` after printing, or `4` when clap rejects the invocation (e.g. an unsupported `--format` value), the same CLI usage error code as everywhere else.
 
-## `docs` exit codes
+## Documentation generation exit codes
 
-`reportage docs` (see [Documentation generation](docs-generation.md)) parses sources but never runs them, so the run command's "Test/assertion failure" code does not apply.
-It uses its own table, reusing the shared meanings of `2`, `3`, and `4`:
+`reportage docs` and `reportage docs-reportage` (see [Documentation generation](docs-generation.md)) parse sources but never run them, so the run command's "Test/assertion failure" code does not apply.
+They share one table, reusing the shared meanings of `2`, `3`, and `4`:
 
 | Code | Meaning |
 |------|---------|
@@ -93,5 +93,5 @@ It uses its own table, reusing the shared meanings of `2`, `3`, and `4`:
 | `4`  | **CLI usage error** — clap rejected the invocation: an unknown option, an unknown `--format` / `--layout` value, or a missing required pattern / `--out-dir`. |
 
 A source read error is classified as `2`, matching the run command's treatment of a selected source that cannot be used as valid input.
-`reportage docs` produces no execution report or artifact; error details are printed to stderr in a deterministic order, one `error:` line each.
+Neither subcommand produces an execution report or artifact; error details are printed to stderr in a deterministic order, one `error:` line each.
 The rationale for this classification is recorded in [ADR: Documentation Generation Command](../adr/20260723T070556Z_documentation-generation-command.md).

@@ -1,4 +1,11 @@
-//! Generated-document conformance for `reportage docs` (issues #170, #171).
+//! Generated-document conformance for `reportage docs-reportage` (issues
+//! #170, #171, #257).
+//!
+//! The Reportage-source serialization contract these snapshots fix is owned by
+//! `docs-reportage`, so the suite drives that subcommand: `docs` keeps
+//! generating the same document only until its product-facing cutover, and
+//! pinning the source contract to it would move the snapshots with that
+//! change.
 //!
 //! Each scenario under `tests/fixtures/docs/<scenario>/sources/` is copied
 //! into a temp working directory and generated through the real binary; the
@@ -82,7 +89,12 @@ fn assert_matches_snapshot(scenario: &str, snapshot_name: &str, generated: &str)
 
 fn generate(dir: &TempDir) -> String {
     reportage(dir)
-        .args(["docs", "sources/**/*.repor", "--out-dir", "generated"])
+        .args([
+            "docs-reportage",
+            "sources/**/*.repor",
+            "--out-dir",
+            "generated",
+        ])
         .assert()
         .success()
         .stdout("generated: generated/index.txt\n");
@@ -92,7 +104,7 @@ fn generate(dir: &TempDir) -> String {
 fn generate_markdown(dir: &TempDir) -> String {
     reportage(dir)
         .args([
-            "docs",
+            "docs-reportage",
             "sources/**/*.repor",
             "--out-dir",
             "generated",
@@ -220,7 +232,7 @@ fn the_title_option_applies_to_both_formats() {
 
     reportage(&dir)
         .args([
-            "docs",
+            "docs-reportage",
             "sources/**/*.repor",
             "--out-dir",
             "generated",
@@ -234,7 +246,7 @@ fn the_title_option_applies_to_both_formats() {
 
     reportage(&dir)
         .args([
-            "docs",
+            "docs-reportage",
             "sources/**/*.repor",
             "--out-dir",
             "generated",
@@ -260,7 +272,7 @@ fn deduplication_and_determinism() {
 
     reportage(&dir)
         .args([
-            "docs",
+            "docs-reportage",
             "sources/*.repor",
             "sources/file-assertions.repor",
             "sub/../sources/*.repor",
@@ -278,7 +290,7 @@ fn deduplication_and_determinism() {
 
     reportage(&dir)
         .args([
-            "docs",
+            "docs-reportage",
             "sources/*.repor",
             "sources/file-assertions.repor",
             "sub/../sources/*.repor",
@@ -310,9 +322,10 @@ fn document_tail_and_whitespace_contract() {
     }
 }
 
-/// `docs` parses sources but never executes them and never writes artifacts.
+/// `docs-reportage` parses sources but never executes them and never writes
+/// artifacts.
 #[test]
-fn docs_does_not_execute_sources_or_write_artifacts() {
+fn docs_reportage_does_not_execute_sources_or_write_artifacts() {
     let dir = TempDir::new().unwrap();
     dir.child("sources/marker.repor")
         .write_str(
