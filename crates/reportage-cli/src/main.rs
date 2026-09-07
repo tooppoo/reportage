@@ -75,14 +75,20 @@ enum Commands {
     /// List versioned documentation URLs for this reportage version.
     References(ReferencesArgs),
 
-    /// Generate documentation from reportage sources without executing them.
-    /// See docs/reference/docs-generation.md.
+    /// Generate product-facing documentation (projection not implemented yet).
+    ///
+    /// Documents a product that is tested with reportage, for that product's
+    /// own users. The product-facing projection is not implemented yet, so
+    /// this subcommand still emits the Reportage-source document
+    /// `docs-reportage` produces. Sources are parsed, never executed. See
+    /// docs/reference/docs-generation.md.
     Docs(DocsArgs),
 
     /// Generate Reportage-source documentation for reportage's own development.
     ///
-    /// Every case is published as its original `.repor` source, without being
-    /// executed. See docs/reference/docs-generation.md.
+    /// Every case is published as its original `.repor` source. Documentation
+    /// for a product that merely uses reportage belongs to `docs`. Sources are
+    /// parsed, never executed. See docs/reference/docs-generation.md.
     DocsReportage(DocsArgs),
 }
 

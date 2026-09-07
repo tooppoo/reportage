@@ -825,7 +825,7 @@ Source: examples/document-file.repor
 
 A `document file` block attaches documentation metadata to the whole script.
 It goes at the top, before any `before_each` or `case`, and may appear at most once.
-Its fields are `title`, `group`, and `order` (which control how `reportage docs` labels and orders this file), plus a free-form `description` like this one.
+Its fields are `title`, `group`, and `order` (which control how generated documentation labels and orders this file), plus a free-form `description` like this one.
 The block is separate from `#` comments and never affects execution.
 
 <a id="case-4-1-1-file-exists"></a>
@@ -867,7 +867,7 @@ Case documentation is optional and per case.
 #### Documented case
 
 This block documents the next case.
-`reportage docs` uses its `title` as the case heading and renders this `description` above the case source.
+`reportage docs-reportage` uses its `title` as the case heading and renders this `description` above the case source.
 
 ```reportage
 case "file exists" {

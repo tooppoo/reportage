@@ -26,13 +26,17 @@ case "--help points to the reference discovery command" {
 # `docs` is a real subcommand since issue #170: normal help lists it with its
 # documentation-generation summary, and no trace of the former reserved
 # not-implemented stub (issue #166) may remain.
-case "--help advertises the docs subcommand" {
+#
+# Since issue #257 the listing carries both generators, each with the audience
+# it serves: the top-level help is the only place a user discovers that the
+# choice between them exists, so both summaries are pinned here.
+case "--help advertises both documentation generation subcommands" {
   $ reportage --help
 
   assert {
     exit 0
-    stdout contains "docs"
-    stdout contains "Generate documentation from reportage sources"
+    stdout contains "Generate product-facing documentation"
+    stdout contains "docs-reportage  Generate Reportage-source documentation"
     not {
       stdout contains "Reserved for a future documentation generation command"
     }
