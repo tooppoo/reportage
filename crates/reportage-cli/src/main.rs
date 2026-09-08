@@ -75,9 +75,21 @@ enum Commands {
     /// List versioned documentation URLs for this reportage version.
     References(ReferencesArgs),
 
-    /// Generate documentation from reportage sources without executing them.
-    /// See docs/reference/docs-generation.md.
+    /// Generate product-facing documentation (projection not implemented yet).
+    ///
+    /// Documents a product that is tested with reportage, for that product's
+    /// own users. The product-facing projection is not implemented yet, so
+    /// this subcommand still emits the Reportage-source document
+    /// `docs-reportage` produces. Sources are parsed, never executed. See
+    /// docs/reference/docs-generation.md.
     Docs(DocsArgs),
+
+    /// Generate Reportage-source documentation for reportage's own development.
+    ///
+    /// Every case is published as its original `.repor` source. Documentation
+    /// for a product that merely uses reportage belongs to `docs`. Sources are
+    /// parsed, never executed. See docs/reference/docs-generation.md.
+    DocsReportage(DocsArgs),
 }
 
 #[derive(Parser)]
@@ -99,6 +111,13 @@ enum ReferencesFormat {
     Json,
 }
 
+/// The argument surface shared by `docs` and `docs-reportage`.
+///
+/// One struct, not two: the presentation options (`--format`, `--layout`,
+/// `--title`, `--index-file-name`) and the source selection / output directory
+/// policy are independent of which projection a subcommand generates, so both
+/// keep the same contract by construction. See
+/// docs/adr/20260907T230710Z_reportage-source-documentation-subcommand.md.
 #[derive(Parser)]
 struct DocsArgs {
     /// Glob patterns selecting `.repor` source files, resolved relative to the
@@ -134,10 +153,10 @@ struct DocsArgs {
     index_file_name: Option<String>,
 }
 
-/// Document format for the `docs` subcommand.
+/// Document format for the documentation generation subcommands.
 ///
 /// A separate enum from the run result's [`OutputFormat`] and
-/// [`ReferencesFormat`] on purpose: `docs --format` selects the generated
+/// [`ReferencesFormat`] on purpose: `--format` here selects the generated
 /// document serialization (issue #170), not a CLI stdout format.
 #[derive(Clone, Copy, Default, clap::ValueEnum)]
 enum DocsFormat {
@@ -146,8 +165,8 @@ enum DocsFormat {
     Markdown,
 }
 
-/// Document layout for the `docs` subcommand: how many files are generated
-/// under `--out-dir`.
+/// Document layout for the documentation generation subcommands: how many
+/// files are generated under `--out-dir`.
 #[derive(Clone, Copy, Default, clap::ValueEnum)]
 enum DocsLayout {
     #[default]
@@ -229,13 +248,18 @@ fn run_references(args: &ReferencesArgs) -> ! {
     std::process::exit(0);
 }
 
-/// Runs `reportage docs` and always terminates the process: like the other tooling
-/// subcommands, documentation generation never enters the script-execution/report/artifact
-/// pipeline — sources are parsed but never executed, and no `.reportage/` artifact is written.
+/// Runs a documentation generation subcommand and always terminates the process: like the
+/// other tooling subcommands, documentation generation never enters the
+/// script-execution/report/artifact pipeline — sources are parsed but never executed, and no
+/// `.reportage/` artifact is written.
+///
+/// Shared by `docs` and `docs-reportage` while both still generate the Reportage-source
+/// projection; the flow around the projection (request validation, error reporting, mutation
+/// reporting, exit codes) is the part that stays common once they diverge.
 ///
 /// Error details go to stderr in a deterministic order, one `error:` line each; the success
 /// path reports every written document on stdout so file mutations are always visible.
-/// Exit codes 0/2/3/4 follow the `docs` table in docs/reference/exit-codes.md.
+/// Exit codes 0/2/3/4 follow the documentation generation table in docs/reference/exit-codes.md.
 fn run_docs(args: &DocsArgs) -> ! {
     let request = docs::GenerateRequest {
         patterns: args.patterns.clone(),
@@ -294,15 +318,15 @@ fn main() {
     };
 
     // Tooling subcommands (`reportage shim scaffold ...`, `reportage references`,
-    // `reportage docs`) exit here and never reach the script-execution/report/artifact pipeline
-    // below: they are not test runs, and the artifact-writing exit codes (2/3) further down have
-    // no meaning for them.
+    // `reportage docs`, `reportage docs-reportage`) exit here and never reach the
+    // script-execution/report/artifact pipeline below: they are not test runs, and the
+    // artifact-writing exit codes (2/3) further down have no meaning for them.
     match &cli.command {
         Some(Commands::Shim(shim_args)) => match &shim_args.command {
             ShimCommand::Scaffold(args) => run_shim_scaffold(args),
         },
         Some(Commands::References(references_args)) => run_references(references_args),
-        Some(Commands::Docs(docs_args)) => run_docs(docs_args),
+        Some(Commands::Docs(docs_args) | Commands::DocsReportage(docs_args)) => run_docs(docs_args),
         None => {}
     }
 

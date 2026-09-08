@@ -15,7 +15,7 @@ document case {
 
   description ```
     This block documents the next case.
-    `reportage docs` uses its `title` as the case heading and renders this `description` above the case source.
+    `reportage docs-reportage` uses its `title` as the case heading and renders this `description` above the case source.
     ```
 }
 

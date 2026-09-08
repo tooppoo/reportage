@@ -4,6 +4,12 @@
 # contract is fixed by tests/fixtures/docs/*/index.snapshot.txt; these cases
 # verify the CLI-observable flow: exit code, stdout mutation report, generated
 # file, fallbacks, and the absence of execution side effects.
+#
+# These cases stay on `docs` deliberately (issue #257): the Reportage-source
+# contract itself is owned by `docs-reportage` and pinned there, while `docs`
+# keeps emitting that document only until its product-facing cutover. Keeping
+# them here means the cutover has to revisit every assertion it invalidates
+# instead of silently changing an unwatched command.
 
 case "glob collects multiple sources into one plain text document" {
   write <"src/a.repor"> ```

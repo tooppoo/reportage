@@ -43,13 +43,15 @@ case "an unknown option is a usage error" {
 }
 
 # The command is a real, documented subcommand now: its help renders the
-# interface instead of the former reserved not-implemented error.
+# interface instead of the former reserved not-implemented error, and states
+# the audience that distinguishes it from `docs-reportage` (issue #257).
 case "docs --help prints the real interface" {
   $ reportage docs --help
 
   assert {
     exit 0
-    stdout contains "Generate documentation from reportage sources"
+    stdout contains "Generate product-facing documentation"
+    stdout contains "docs-reportage"
     stdout contains "--out-dir"
     stdout contains "--format"
     stdout contains "--layout"

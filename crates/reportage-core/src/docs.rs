@@ -1,6 +1,12 @@
-//! Documentation generation (`reportage docs`): glob discovery, the source
-//! loading boundary, the Documentation Catalog, renderers, and output
-//! writing.
+//! Documentation generation (`reportage docs`, `reportage docs-reportage`):
+//! glob discovery, the source loading boundary, the Documentation Catalog,
+//! renderers, and output writing.
+//!
+//! The Catalog and renderers here are the Reportage-source projection: each
+//! case is reproduced as its original `.repor` source, which is what
+//! `docs-reportage` exists to publish. Both subcommands still generate it; see
+//! docs/adr/20260907T230710Z_reportage-source-documentation-subcommand.md for
+//! the responsibility split and its transitional state.
 //!
 //! Generation parses sources but never executes them: `SourceFile::into_script`,
 //! the executor, and the evaluator are not reachable from this module, and no
@@ -70,7 +76,7 @@ pub fn layout_for(document_layout: DocumentLayout) -> &'static dyn DocumentLayou
     }
 }
 
-/// A `reportage docs` invocation, as validated by the CLI layer.
+/// A documentation generation invocation, as validated by the CLI layer.
 #[derive(Debug)]
 pub struct GenerateRequest {
     pub patterns: Vec<String>,
@@ -99,7 +105,8 @@ pub struct GenerateReport {
 
 /// Exit-code-level error classification for the CLI:
 /// request/source validation errors versus filesystem/runtime infrastructure
-/// errors. See docs/reference/exit-codes.md — `docs` exit codes.
+/// errors. See docs/reference/exit-codes.md — documentation generation exit
+/// codes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorClass {
     RequestValidation,
