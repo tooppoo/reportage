@@ -47,6 +47,11 @@ A pre-rendered phrase would additionally fix wording across every format, and co
 
 Logical compositions (`not` / `all` / `any`) must stay nested rather than being flattened, because `not { A B }` negates the two together and a flattened form would state a different condition.
 
+A comparison against another file must carry whether that file belongs to the example.
+A workspace path names a file in the case workspace — the same place the example's own file steps and commands act — so a reader can see it in the example.
+A fixture reference resolves against the directory holding the `.repor` source instead (see [Language semantics](../reference/semantics.md) — Fixture reference value), so a reader following the example never encounters it.
+Collapsing the two would let a renderer point readers at a file that appears nowhere in the documentation, which is the same failure the unnamed `mode` decision above avoids.
+
 ### `write` is an input example, never a hidden fixture
 
 Every `write` step must appear as a file example with its path and content.
@@ -139,6 +144,7 @@ Rejected: the two projections agree only on the `document` block metadata; every
 ### Neutral Consequences
 
 - The catalog carries each source's display path even though a product document need not show it; whether to print it is a renderer decision.
+- A compared-against file's origin is carried but not interpreted: whether an external file is worth naming at all, or should only be described, stays a renderer decision.
 - A file with `before_each` and no cases documents nothing but its own metadata, which differs from the Reportage-source projection's treatment of the same file.
 - Expectation kinds that the v0 grammar does not produce are still represented, so the projection stays total over the expectation model rather than depending on which kinds happen to be parsed today.
 

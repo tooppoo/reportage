@@ -108,9 +108,11 @@ pub enum SideEffectingStep {
 pub struct WriteFileStep {
     pub path: WorkspacePath,
     pub content: TextValueExpression,
-    /// The permission bits the created file ends up with, when the step named
-    /// a `mode`. `None` leaves the mode alone, which is what every `write`
-    /// step written before `mode` existed relies on.
+    /// The permission bits the step named, or `None` when it named none.
+    ///
+    /// `None` is not "no mode": the step still applies [`FileMode::DEFAULT`],
+    /// so this field says only whether the source chose the value. See
+    /// docs/reference/semantics.md — File mode.
     pub mode: Option<FileMode>,
 }
 

@@ -227,10 +227,28 @@ pub enum ExpectedValue {
     Text(DocumentedText),
     /// A whole number stated by the source, such as an exit code.
     Number(u64),
-    /// The contents of another file, named by its path.
+    /// The contents of another file, named by its path and by whether that
+    /// file is part of the example.
     FileContents {
         path: String,
+        origin: FileContentsOrigin,
     },
+}
+
+/// Where a compared-against file lives, relative to the example.
+///
+/// The distinction is a reader's, not a syntactic one: a path they can see in
+/// the example is guidance, and a path they cannot is a detail of how the
+/// example is checked. Collapsing the two would let a renderer point readers
+/// at a file that appears nowhere in the documentation.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum FileContentsOrigin {
+    /// A file in the example's own working directory: one the example prepares
+    /// or a command produces, so it is visible in the example itself.
+    Example,
+    /// A file kept alongside the `.repor` source, outside the example: a
+    /// reader following the example never encounters it.
+    External,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -482,13 +500,22 @@ fn project_expected_text(text: &TextValueExpression) -> ExpectedValue {
     ExpectedValue::Text(project_text(text))
 }
 
+/// Projects a compared-against file, keeping whether it belongs to the example.
+///
+/// A workspace path names a file in the case workspace — the same directory
+/// the example's own `write` steps and commands act on. A fixture reference
+/// resolves against the directory holding the `.repor` source instead (see
+/// docs/reference/semantics.md — Fixture reference value), so it is invisible
+/// to a reader following the example, and a renderer needs to know which it has.
 fn project_file_contents(reference: &FileContentsReference) -> ExpectedValue {
     match reference {
         FileContentsReference::Workspace(path) => ExpectedValue::FileContents {
             path: path.as_str().to_string(),
+            origin: FileContentsOrigin::Example,
         },
         FileContentsReference::Fixture(reference) => ExpectedValue::FileContents {
             path: reference.as_str().to_string(),
+            origin: FileContentsOrigin::External,
         },
     }
 }
@@ -539,6 +566,13 @@ mod tests {
     fn file_subject(path: &str) -> ObservedSubject {
         ObservedSubject::File {
             path: path.to_string(),
+        }
+    }
+
+    fn file_contents(path: &str, origin: FileContentsOrigin) -> ExpectedValue {
+        ExpectedValue::FileContents {
+            path: path.to_string(),
+            origin,
         }
     }
 
@@ -882,11 +916,11 @@ mod tests {
         "stdout text_equals \"done\"",
         observation(ObservedSubject::Stdout, ObservedOperation::Is(text("done")))
     )]
-    #[case::stdout_contents_equals(
+    #[case::stdout_contents_equals_workspace_path(
         "stdout contents_equals <\"expected.txt\">",
         observation(
             ObservedSubject::Stdout,
-            ObservedOperation::Is(ExpectedValue::FileContents { path: "expected.txt".to_string() })
+            ObservedOperation::Is(file_contents("expected.txt", FileContentsOrigin::Example))
         )
     )]
     #[case::stderr_empty(
@@ -909,11 +943,18 @@ mod tests {
         "file <\"a.txt\"> text_equals \"x\"",
         observation(file_subject("a.txt"), ObservedOperation::Is(text("x")))
     )]
+    #[case::file_contents_equals_workspace_path(
+        "file <\"a.txt\"> contents_equals <\"expected.txt\">",
+        observation(
+            file_subject("a.txt"),
+            ObservedOperation::Is(file_contents("expected.txt", FileContentsOrigin::Example))
+        )
+    )]
     #[case::file_contents_equals_fixture(
         "file <\"a.txt\"> contents_equals @\"expected.txt\"",
         observation(
             file_subject("a.txt"),
-            ObservedOperation::Is(ExpectedValue::FileContents { path: "expected.txt".to_string() })
+            ObservedOperation::Is(file_contents("expected.txt", FileContentsOrigin::External))
         )
     )]
     #[case::dir_exists(
@@ -1021,10 +1062,12 @@ mod tests {
     }
 
     /// Byte-for-byte comparison against another file keeps the file's identity
-    /// rather than inlining unknown contents, for a workspace path and a
-    /// fixture reference alike.
+    /// rather than inlining unknown contents, and keeps whether that file
+    /// belongs to the example: a workspace path names a file the example
+    /// itself has, while a fixture reference names one kept beside the
+    /// `.repor` source that a reader never sees.
     #[test]
-    fn contents_equals_documents_the_file_it_compares_against() {
+    fn contents_equals_documents_the_file_it_compares_against_and_where_it_lives() {
         let expectations = only_expectations(
             "case \"contents\" {\n  $ run\n  assert {\n    file <\"out.txt\"> contents_equals <\"expected.txt\">\n    stdout contents_equals @\"expected-stdout.txt\"\n  }\n}\n",
         );
@@ -1033,18 +1076,18 @@ mod tests {
             expectations,
             vec![
                 observation(
-                    ObservedSubject::File {
-                        path: "out.txt".to_string(),
-                    },
-                    ObservedOperation::Is(ExpectedValue::FileContents {
-                        path: "expected.txt".to_string(),
-                    }),
+                    file_subject("out.txt"),
+                    ObservedOperation::Is(file_contents(
+                        "expected.txt",
+                        FileContentsOrigin::Example
+                    )),
                 ),
                 observation(
                     ObservedSubject::Stdout,
-                    ObservedOperation::Is(ExpectedValue::FileContents {
-                        path: "expected-stdout.txt".to_string(),
-                    }),
+                    ObservedOperation::Is(file_contents(
+                        "expected-stdout.txt",
+                        FileContentsOrigin::External
+                    )),
                 ),
             ]
         );
