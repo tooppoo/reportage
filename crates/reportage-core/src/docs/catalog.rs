@@ -1,32 +1,31 @@
 //! The Documentation Catalog: the renderer-ready intermediate model between
-//! the parser's source-level model and the documentation renderers.
+//! the parser's source-level model and the Reportage-source documentation
+//! renderers (`reportage docs-reportage`).
 //!
 //! The Catalog API deliberately exposes only plain `String` values — never
 //! `SourceFile` / `SourceCase` / `SourceSpan` / `DocumentationText` — so a
 //! renderer can be written and tested without depending on parser types.
-//! All display fallbacks (file stem as title, the `Index` default group, the
-//! case name as case title) are applied here and only here; the source-level
-//! model never materializes them. See
-//! docs/adr/20260723T070556Z_documentation-generation-command.md.
+//! Display fallbacks and the ordering contract come from
+//! [`super::metadata`], shared with the product-facing projection; what a case
+//! becomes — here, its exact source text — is this projection's own concern.
+//! See docs/adr/20260723T070556Z_documentation-generation-command.md.
 
 use super::loader::LoadedSourceFile;
+use super::metadata::{self, DocumentGroup};
 
-/// The default group for files whose source declares no `document file` group.
-///
-/// This value is a user-facing output contract, fixed by Catalog tests and
-/// generated-document snapshots.
-pub const DEFAULT_GROUP: &str = "Index";
+pub use super::metadata::DEFAULT_GROUP;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct DocumentationCatalog {
     pub groups: Vec<DocumentationGroup>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct DocumentationGroup {
-    pub name: String,
-    pub files: Vec<DocumentedFile>,
-}
+/// One group of documented files.
+///
+/// A [`DocumentGroup`] specialized to this projection's file type: the group
+/// name and the ordering within it are metadata concerns owned by
+/// [`super::metadata`], so this projection does not restate them.
+pub type DocumentationGroup = DocumentGroup<DocumentedFile>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct DocumentedFile {
@@ -59,88 +58,30 @@ pub struct DocumentedCase {
 /// Builds the Catalog from loaded sources, applying display fallbacks and the
 /// deterministic ordering contract.
 ///
-/// Ordering: groups by ascending name; within a group, files with a declared
-/// `document file` order before files without one, then ascending order value,
-/// then ascending `source_path`; cases stay in source order. All string
-/// comparisons are locale-independent, case-sensitive `String` ordering.
+/// Grouping, file ordering, and the metadata fallbacks are
+/// [`super::metadata`]'s; cases stay in source order.
 pub fn build_catalog(sources: &[LoadedSourceFile]) -> DocumentationCatalog {
-    struct FileEntry {
-        order: Option<u64>,
-        file: DocumentedFile,
-    }
-
-    let mut groups: std::collections::BTreeMap<String, Vec<FileEntry>> =
-        std::collections::BTreeMap::new();
-
-    for loaded in sources {
-        let documentation = loaded.source.file_documentation();
-
-        let group = documentation
-            .and_then(|d| d.group.clone())
-            .unwrap_or_else(|| DEFAULT_GROUP.to_string());
-        let title = documentation
-            .and_then(|d| d.title.clone())
-            .unwrap_or_else(|| file_stem(&loaded.display_path).to_string());
-        let description = documentation
-            .and_then(|d| d.description.as_ref())
-            .map(|text| text.as_str().to_string());
-        let order = documentation.and_then(|d| d.order);
-
-        let cases = loaded
-            .source
-            .cases()
-            .iter()
-            .map(|source_case| {
-                let case_documentation = source_case.documentation();
-                DocumentedCase {
-                    title: case_documentation
-                        .and_then(|d| d.title.clone())
-                        .unwrap_or_else(|| source_case.case().name.clone()),
-                    description: case_documentation
-                        .and_then(|d| d.description.as_ref())
-                        .map(|text| text.as_str().to_string()),
-                    source: loaded.source.case_source(source_case).to_string(),
-                }
-            })
-            .collect();
-
-        groups.entry(group).or_default().push(FileEntry {
-            order,
-            file: DocumentedFile {
-                title,
-                description,
-                source_path: loaded.display_path.clone(),
-                before_each: loaded.source.before_each_source().map(str::to_string),
-                cases,
-            },
-        });
-    }
-
     DocumentationCatalog {
-        groups: groups
-            .into_iter()
-            .map(|(name, mut entries)| {
-                entries.sort_by(|a, b| {
-                    (a.order.is_none(), a.order, &a.file.source_path).cmp(&(
-                        b.order.is_none(),
-                        b.order,
-                        &b.file.source_path,
-                    ))
-                });
-                DocumentationGroup {
-                    name,
-                    files: entries.into_iter().map(|entry| entry.file).collect(),
-                }
-            })
-            .collect(),
+        groups: metadata::group_files(sources, |loaded, file_metadata| DocumentedFile {
+            title: file_metadata.title.clone(),
+            description: file_metadata.description.clone(),
+            source_path: file_metadata.source_path.clone(),
+            before_each: loaded.source.before_each_source().map(str::to_string),
+            cases: loaded
+                .source
+                .cases()
+                .iter()
+                .map(|source_case| {
+                    let case_metadata = metadata::case_metadata(source_case);
+                    DocumentedCase {
+                        title: case_metadata.title,
+                        description: case_metadata.description,
+                        source: loaded.source.case_source(source_case).to_string(),
+                    }
+                })
+                .collect(),
+        }),
     }
-}
-
-/// The last display path segment without its `.repor` extension, used as the
-/// file title fallback.
-fn file_stem(display_path: &str) -> &str {
-    let name = display_path.rsplit('/').next().unwrap_or(display_path);
-    name.strip_suffix(".repor").unwrap_or(name)
 }
 
 #[cfg(test)]
@@ -265,48 +206,31 @@ mod tests {
         assert_eq!(titles, vec!["b", "a"]);
     }
 
-    fn with_order(group: &str, order: Option<u64>) -> String {
-        let order_field = order.map(|o| format!("  order {o}\n")).unwrap_or_default();
-        format!(
-            "document file {{\n  group \"{group}\"\n{order_field}}}\n\ncase \"c\" {{\n  $ true\n  assert {{\n    exit 0\n  }}\n}}\n"
-        )
-    }
-
+    /// The grouping and ordering contract itself is fixed by `metadata`'s own
+    /// tests; what belongs here is that this Catalog reaches them at all, so a
+    /// build that grouped or ordered nothing cannot pass.
     #[test]
-    fn files_with_declared_order_come_before_undeclared_and_ties_break_on_path() {
+    fn files_are_grouped_and_ordered_through_the_shared_metadata_contract() {
+        fn ordered(group: &str, order: Option<u64>) -> String {
+            let order_field = order.map(|o| format!("  order {o}\n")).unwrap_or_default();
+            format!(
+                "document file {{\n  group \"{group}\"\n{order_field}}}\n\ncase \"c\" {{\n  $ true\n  assert {{\n    exit 0\n  }}\n}}\n"
+            )
+        }
+
         let catalog = build_catalog(&[
-            loaded("a-unordered.repor", &with_order("G", None)),
-            loaded("z-first.repor", &with_order("G", Some(1))),
-            loaded("m-second.repor", &with_order("G", Some(2))),
-            loaded("b-second-too.repor", &with_order("G", Some(2))),
+            loaded("a-unordered.repor", &ordered("Guides", None)),
+            loaded("z-first.repor", &ordered("Guides", Some(1))),
+            loaded("c.repor", UNDOCUMENTED),
         ]);
 
+        let names: Vec<_> = catalog.groups.iter().map(|g| g.name.as_str()).collect();
+        assert_eq!(names, vec!["Guides", DEFAULT_GROUP]);
         let paths: Vec<_> = catalog.groups[0]
             .files
             .iter()
             .map(|f| f.source_path.as_str())
             .collect();
-        assert_eq!(
-            paths,
-            vec![
-                "z-first.repor",
-                "b-second-too.repor",
-                "m-second.repor",
-                "a-unordered.repor"
-            ]
-        );
-    }
-
-    #[test]
-    fn groups_sort_case_sensitively_and_locale_independently() {
-        let catalog = build_catalog(&[
-            loaded("a.repor", &with_order("advanced", None)),
-            loaded("b.repor", &with_order("Guides", None)),
-            loaded("c.repor", UNDOCUMENTED),
-        ]);
-
-        let names: Vec<_> = catalog.groups.iter().map(|g| g.name.as_str()).collect();
-        // Uppercase before lowercase: byte-wise String ordering, no locale.
-        assert_eq!(names, vec!["Guides", "Index", "advanced"]);
+        assert_eq!(paths, vec!["z-first.repor", "a-unordered.repor"]);
     }
 }
