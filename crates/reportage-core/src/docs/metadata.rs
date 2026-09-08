@@ -9,7 +9,10 @@
 //! diverge entirely on what a *case* becomes. Keeping the answer in one place
 //! is what stops the two projections from drifting into two ordering contracts
 //! for the same metadata. See
-//! docs/adr/20260907T230710Z_reportage-source-documentation-subcommand.md.
+//! docs/adr/20260907T230710Z_reportage-source-documentation-subcommand.md for
+//! the split, and
+//! docs/adr/20260908T131134Z_product-documentation-projection.md for what the
+//! two projections do and do not share.
 //!
 //! Like the catalogs built on top of it, this module exposes only plain values:
 //! `SourceFile` / `SourceCase` go in, `String` / `Option<String>` / `u64` come

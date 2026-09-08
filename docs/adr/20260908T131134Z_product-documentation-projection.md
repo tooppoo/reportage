@@ -52,9 +52,15 @@ Logical compositions (`not` / `all` / `any`) must stay nested rather than being 
 Every `write` step must appear as a file example with its path and content.
 Files a `.repor` writes are, in practice, the configuration and input files a product's users write themselves, so treating them as test scaffolding to hide would delete the most directly reusable part of the example.
 
-A `write` that names a `mode` must carry it: an example whose file has to be executable is not reproducible without its permission bits.
+A `write` that names a `mode` explicitly must carry it: an example whose file has to be executable is not reproducible without its permission bits.
 
-Content that the source does not state in full — content assembled from a value captured during the run — must be marked as captured rather than dropped, so the file still appears as part of the example.
+An unnamed `mode` must not be surfaced, even though it is not absent.
+Every `write` applies a mode, and an unnamed one is reportage's fixed `0o600` default (see [Language semantics](../reference/semantics.md) — File mode).
+That default describes the case workspace reportage creates, not a permission a product's reader should reproduce; stating it in product documentation would present a test-harness detail as product guidance.
+An explicitly named mode is different: the source named it because the example depends on it.
+
+Content assembled from values captured during the run must keep its literal parts and name the binding filling each gap, rather than collapsing into a single "captured" marker.
+A configuration file with one interpolated field is otherwise almost entirely literal text, and that text is the part a reader copies.
 
 ### Actions are not classified as product operations or setup
 
@@ -75,7 +81,7 @@ The Reportage-source projection deliberately differs here and still shows that s
 
 A `let` binding declares where a captured value comes from.
 It writes no file, runs no command, and verifies nothing, so it has no product-facing meaning of its own and must not become a step.
-Its effect stays visible wherever the bound value is used, marked as captured.
+Its effect stays visible wherever the bound value is used, as a named captured segment of that value.
 
 ## Alternatives Considered
 
@@ -93,6 +99,16 @@ Rejected: the acceptance criterion for this projection is that the DSL does not 
 
 Building "exit code is 0" in the catalog is simpler for renderers.
 Rejected: it fixes wording for every format at once, cannot be adapted per subject or audience, and puts presentation in the model — the same mistake the Reportage-source Catalog avoids by keeping presentation in renderers.
+
+### Collapse any interpolated value into a single "captured" marker
+
+Treating a value with any captured part as opaque is the smallest model, and matches how the execution model answers "can this be resolved without a binding environment".
+Rejected: that question is not this projection's. Discarding the literal segments would delete most of a file whose content is one interpolated field inside otherwise static configuration, which is the common shape in real suites.
+
+### Surface the effective file mode on every file example
+
+Resolving an unnamed `mode` to the `0o600` default would make every file example state the permissions the file ends up with.
+Rejected: those permissions are reportage's workspace default, not something the product's user does; stating them would document the harness. The alternative of resolving the default inside a renderer was rejected for the same reason, plus it would duplicate a `reportage-core` semantics constant in the documentation layer.
 
 ### Hide `write` steps as test fixtures
 
@@ -117,7 +133,8 @@ Rejected: the two projections agree only on the `document` block metadata; every
 
 - Two catalogs must be maintained, and a `document` block field added later has to be threaded into both (though only through the shared metadata module).
 - The expectation model must stay exhaustive over the language's expectations; a new expectation kind is a change here as well as in the evaluator.
-- Captured values documented as "captured" carry less information than a reader might want, and no static analysis can improve that.
+- A captured value is documented by the binding's name and the literal text around it, never by the value itself, so an example whose interesting part is that value reads thinner than one with literal content. Resolving it would require running the scenario, which documentation generation must not do.
+- The projection does not state where a captured value comes from, even though the source model records it (a binding declares a stream and a capture mode). Naming the binding was enough to keep interpolated content readable; carrying the capture's origin is a further step, deliberately not taken until a renderer needs it.
 
 ### Neutral Consequences
 
