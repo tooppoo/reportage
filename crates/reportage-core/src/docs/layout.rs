@@ -94,10 +94,18 @@ pub fn validate_index_file_name(name: &str) -> Result<(), IndexFileNameError> {
 /// One document layout: maps a catalog to the set of documents to write,
 /// delegating serialization to the given renderer.
 ///
-/// Generic over the catalog type for the same reason
-/// [`DocumentRenderer`] is: one layout serves every projection, because
-/// deciding how many files to write and what to name them never depends on
-/// what a case became.
+/// Generic over the catalog type for the same reason [`DocumentRenderer`] is:
+/// the v0 layout serves every projection, because deciding how many files to
+/// write and what to name them does not depend on what a case became.
+///
+/// That holds for `single-file` only. The planned multi-file layout
+/// (docs/adr/20260723T070556Z_documentation-generation-command.md) partitions
+/// a catalog into sub-catalogs, so it must inspect catalog content and will be
+/// implementable only for catalog types that expose a partitioning operation.
+/// Adding it therefore means constraining `C` here and in
+/// [`super::layout_for`], not just writing another implementation — the two
+/// interfaces still compose, but the layout side is not unconditionally
+/// catalog-agnostic.
 pub trait DocumentLayoutPlan<C> {
     /// Renders the catalog into the documents this layout prescribes,
     /// forwarding the document-level render options to every `render` call and

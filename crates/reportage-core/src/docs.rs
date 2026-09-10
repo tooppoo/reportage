@@ -27,7 +27,7 @@ pub mod discovery;
 pub mod layout;
 pub mod loader;
 pub mod markdown;
-pub mod markdown_parts;
+mod markdown_parts;
 pub mod metadata;
 pub mod output;
 pub mod plain;

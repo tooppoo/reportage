@@ -26,7 +26,7 @@
 //! dropped or replaced.
 
 use super::catalog::DocumentationCatalog;
-use super::render::{DocumentRenderer, RenderOptions, logical_lines, snippet_source};
+use super::render::{DocumentRenderer, RenderOptions, lf, logical_lines, snippet_source};
 
 const VALUE_INDENT: usize = 2;
 const SOURCE_INDENT: usize = 4;
@@ -39,7 +39,7 @@ impl DocumentRenderer<DocumentationCatalog> for PlainRenderer {
         // The title is inserted verbatim except for the document-wide LF
         // normalization; logical_lines would also drop a trailing-newline
         // tail, which the raw title mapping policy forbids.
-        let mut blocks: Vec<String> = vec![options.document_title.replace("\r\n", "\n")];
+        let mut blocks: Vec<String> = vec![lf(&options.document_title)];
 
         for group in &catalog.groups {
             blocks.push(block("Group", &group.name, VALUE_INDENT));
