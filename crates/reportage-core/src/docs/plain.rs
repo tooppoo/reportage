@@ -26,7 +26,7 @@
 //! dropped or replaced.
 
 use super::catalog::DocumentationCatalog;
-use super::render::{DocumentRenderer, RenderOptions, snippet_source};
+use super::render::{DocumentRenderer, RenderOptions, logical_lines, snippet_source};
 
 const VALUE_INDENT: usize = 2;
 const SOURCE_INDENT: usize = 4;
@@ -34,7 +34,7 @@ const SOURCE_INDENT: usize = 4;
 /// The `plain` format: renders a catalog into one plain text document.
 pub struct PlainRenderer;
 
-impl DocumentRenderer for PlainRenderer {
+impl DocumentRenderer<DocumentationCatalog> for PlainRenderer {
     fn render(&self, catalog: &DocumentationCatalog, options: &RenderOptions) -> String {
         // The title is inserted verbatim except for the document-wide LF
         // normalization; logical_lines would also drop a trailing-newline
@@ -98,17 +98,6 @@ fn block(label: &str, value: &str, indent: usize) -> String {
         }
     }
     out
-}
-
-/// Splits a value into logical lines with CRLF normalized to LF, dropping the
-/// empty tail produced by a final newline.
-fn logical_lines(value: &str) -> Vec<String> {
-    let normalized = value.replace("\r\n", "\n");
-    let mut lines: Vec<String> = normalized.split('\n').map(str::to_string).collect();
-    if lines.len() > 1 && lines.last().is_some_and(|line| line.is_empty()) {
-        lines.pop();
-    }
-    lines
 }
 
 #[cfg(test)]

@@ -8,11 +8,16 @@
 //! never requires touching layout code (and vice versa). See
 //! docs/adr/20260723T070556Z_documentation-generation-command.md.
 //!
+//! The trait is generic over the catalog it serializes so that the
+//! Reportage-source and product-facing projections each keep their own model
+//! while sharing one format/layout interface. It is deliberately not a trait
+//! over a common document type: the two catalogs are not unified, and only the
+//! interface is. See
+//! docs/adr/20260908T131134Z_product-documentation-projection.md.
+//!
 //! All implementations live in this crate; the trait may grow methods (e.g.
 //! index/TOC rendering for multi-file layouts) when a consumer for them
 //! exists, rather than speculating on their shape now.
-
-use super::catalog::DocumentationCatalog;
 
 /// The document title used when `--title` is not given, shared by every
 /// format. This value is a user-facing output contract, fixed by generated
@@ -66,18 +71,41 @@ pub(super) fn snippet_source(before_each: Option<&str>, case_source: &str) -> St
     }
 }
 
-/// One document format: serializes a [`DocumentationCatalog`] and names the
-/// file extension of the produced document(s).
+/// One document format for one catalog type: serializes a catalog and names
+/// the file extension of the produced document(s).
 ///
 /// `render` must be a pure function of the catalog and options: renderers own
 /// presentation (indentation, line ending normalization, wrappers) but must
-/// never drop or replace case source content beyond that — the exact
-/// contract is documented per implementation.
-pub trait DocumentRenderer {
+/// never drop or replace catalog content beyond that — the exact contract is
+/// documented per implementation.
+pub trait DocumentRenderer<C> {
     /// Serializes `catalog` into one document body.
-    fn render(&self, catalog: &DocumentationCatalog, options: &RenderOptions) -> String;
+    fn render(&self, catalog: &C, options: &RenderOptions) -> String;
 
     /// The file extension for documents this format produces, without the
     /// leading dot (e.g. `"txt"`).
     fn file_extension(&self) -> &'static str;
+}
+
+/// CRLF normalized to LF.
+///
+/// Every generated document normalizes line endings and changes no other
+/// character, so every format routes its metadata values through this. A lone
+/// CR is not a line ending here and passes through unchanged.
+pub(super) fn lf(value: &str) -> String {
+    value.replace("\r\n", "\n")
+}
+
+/// Splits a value into logical lines with CRLF normalized to LF, dropping the
+/// empty tail produced by a final newline.
+///
+/// Shared so that "a trailing newline in a metadata value does not add an
+/// empty line" holds identically in every format.
+pub(super) fn logical_lines(value: &str) -> Vec<String> {
+    let normalized = lf(value);
+    let mut lines: Vec<String> = normalized.split('\n').map(str::to_string).collect();
+    if lines.len() > 1 && lines.last().is_some_and(|line| line.is_empty()) {
+        lines.pop();
+    }
+    lines
 }

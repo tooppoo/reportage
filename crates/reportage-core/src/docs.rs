@@ -27,6 +27,7 @@ pub mod discovery;
 pub mod layout;
 pub mod loader;
 pub mod markdown;
+pub mod markdown_parts;
 pub mod metadata;
 pub mod output;
 pub mod plain;
@@ -66,21 +67,25 @@ pub enum DocumentLayout {
     SingleFile,
 }
 
-/// Resolves the format selector to its renderer implementation.
+/// Resolves the format selector to its Reportage-source renderer.
 ///
 /// The exhaustive match is deliberate: adding a format extends this single
-/// factory, and the compiler points here when the enum grows.
-pub fn renderer_for(format: DocumentFormat) -> &'static dyn DocumentRenderer {
+/// factory, and the compiler points here when the enum grows. The
+/// product-facing projection gets its own factory over the same selector, so
+/// adding a format to one projection cannot silently skip the other.
+pub fn renderer_for(
+    format: DocumentFormat,
+) -> &'static dyn DocumentRenderer<catalog::DocumentationCatalog> {
     match format {
         DocumentFormat::Plain => &plain::PlainRenderer,
         DocumentFormat::Markdown => &markdown::MarkdownRenderer,
     }
 }
 
-/// Resolves the layout selector to its plan implementation.
+/// Resolves the layout selector to its plan implementation, for any catalog.
 ///
 /// The exhaustive match is deliberate, exactly as in [`renderer_for`].
-pub fn layout_for(document_layout: DocumentLayout) -> &'static dyn DocumentLayoutPlan {
+pub fn layout_for<C>(document_layout: DocumentLayout) -> &'static dyn DocumentLayoutPlan<C> {
     match document_layout {
         DocumentLayout::SingleFile => &layout::SingleFileLayout,
     }
