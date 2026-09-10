@@ -13,7 +13,7 @@ In such a project the `.repor` sources describe the product — the files a user
 
 Issue [#257](https://github.com/tooppoo/reportage/issues/257) resolves this by giving reportage two documentation generators: a product-facing one and a Reportage-source one.
 This ADR records how that split is expressed in the CLI, and why the existing generation moves to a new name instead of becoming a mode of the old one.
-It does not record the product projection's model; that decision belongs to the ADR written with it.
+It does not record the product projection's model; that decision is recorded in [ADR: Product Documentation Projection](20260908T131134Z_product-documentation-projection.md).
 
 ## Decision
 
@@ -70,11 +70,12 @@ Rejected: the two have different audiences and different output destinations, an
 ### Neutral Consequences
 
 - Until the product-facing cutover, `docs` and `docs-reportage` produce identical documents, so the transitional state is testable but must not be relied on.
-- The internal boundary between the two projections is left to the ADR that introduces the product projection; this decision constrains only the CLI surface.
+- The internal boundary between the two projections is left to [ADR: Product Documentation Projection](20260908T131134Z_product-documentation-projection.md); this decision constrains only the CLI surface.
 
 ## References
 
 - Issue: [#257](https://github.com/tooppoo/reportage/issues/257)
 - [ADR: Documentation Generation Command](20260723T070556Z_documentation-generation-command.md)
 - [ADR: Markdown Documentation Format](20260723T143711Z_markdown-documentation-format.md)
+- [ADR: Product Documentation Projection](20260908T131134Z_product-documentation-projection.md)
 - [Documentation generation reference](../reference/docs-generation.md)

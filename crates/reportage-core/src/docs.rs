@@ -2,11 +2,19 @@
 //! glob discovery, the source loading boundary, the Documentation Catalog,
 //! renderers, and output writing.
 //!
-//! The Catalog and renderers here are the Reportage-source projection: each
-//! case is reproduced as its original `.repor` source, which is what
-//! `docs-reportage` exists to publish. Both subcommands still generate it; see
+//! Two projections sit on the shared discovery / loading / output pipeline.
+//! `catalog` is the Reportage-source projection, reproducing each case as its
+//! original `.repor` source, which is what `docs-reportage` publishes;
+//! `product` is the product-facing projection, restating each case as files,
+//! commands, and verified outcomes. They share only `metadata` — the
+//! `document` block fallbacks and the ordering contract. See
 //! docs/adr/20260907T230710Z_reportage-source-documentation-subcommand.md for
-//! the responsibility split and its transitional state.
+//! the responsibility split and its transitional state, and
+//! docs/adr/20260908T131134Z_product-documentation-projection.md for the
+//! product projection's model.
+//!
+//! Both subcommands still generate the Reportage-source projection: the
+//! product renderers and the `docs` cutover are not wired up yet.
 //!
 //! Generation parses sources but never executes them: `SourceFile::into_script`,
 //! the executor, and the evaluator are not reachable from this module, and no
@@ -19,8 +27,10 @@ pub mod discovery;
 pub mod layout;
 pub mod loader;
 pub mod markdown;
+pub mod metadata;
 pub mod output;
 pub mod plain;
+pub mod product;
 pub mod render;
 
 use std::path::{Path, PathBuf};
