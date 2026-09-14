@@ -316,6 +316,29 @@ mod tests {
         );
     }
 
+    /// An empty expected value has no useful delimited form — an empty quoted
+    /// fragment reads as a typo and an empty code span is not a code span at
+    /// all — so it is named instead, in every format and every operation.
+    #[test]
+    fn an_empty_expected_value_is_named_rather_than_delimited() {
+        assert_eq!(
+            observation(
+                ObservedSubject::Stdout,
+                ObservedOperation::Contains(text(""))
+            ),
+            vec!["standard output contains the empty string"]
+        );
+        assert_eq!(
+            observation(
+                ObservedSubject::File {
+                    path: "a.txt".to_string()
+                },
+                ObservedOperation::Is(text(""))
+            ),
+            vec!["\"a.txt\" is the empty string"]
+        );
+    }
+
     /// The pair, not the operation alone, decides the wording: `contains` on a
     /// directory is an entry name, and on a file a substring.
     #[test]

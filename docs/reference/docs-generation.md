@@ -161,6 +161,7 @@ Guarantees:
 - A value captured while the scenario runs appears as `<name>` — the name it has in the example — because no text for it exists in the source.
 - A `write` that names a `mode` shows it. An unnamed `mode` is not shown: it is reportage's fixed workspace default (see [Language semantics](semantics.md) — File mode), not a permission a reader reproduces.
 - A comparison against a file the example itself has names that file; a comparison against a fixture kept beside the `.repor` source does not, because a reader following the example cannot locate it.
+- An empty expected value is named (`the empty string`) rather than delimited, because an empty quoted fragment reads as a typo and an empty Markdown code span is not a code span at all.
 - A source with zero cases contributes its section metadata and no examples.
 
 Verified conditions are phrased from the observed subject and the operation together, so the same operation word can read differently per subject — `contains` is a substring of a file's text and a named entry in a directory. The wording is identical in every format; only value decoration differs (quoted in plain text, a code span in Markdown). Logical compositions are nested rather than flattened.

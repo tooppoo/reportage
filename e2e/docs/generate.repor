@@ -244,6 +244,30 @@ case "a ** pattern collects nested sources into one document in order" {
   }
 }
 
+# An empty expected value has no useful delimited form, so it is named. `""` is
+# a valid expected value, so the wording has to be stated rather than left to a
+# format's quoting.
+case "an empty expected value is named rather than quoted" {
+  write <"src/empty-value.repor"> ```
+    case "empty expected value" {
+      $ run
+      assert {
+        stdout contains ""
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    file <"out/index.txt"> contains ```
+      Verified outcome
+        standard output contains the empty string
+      ```
+  }
+}
+
 # Sources without document blocks fall back to the file stem as title, the
 # fixed default group `Index`, and the case name as example title.
 case "documentation-free sources fall back to stem, Index group, and case names" {

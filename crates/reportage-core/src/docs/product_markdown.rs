@@ -366,6 +366,26 @@ mod tests {
         assert!(document.contains("````\ntext\n```sh\nrun\n```\n````"));
     }
 
+    /// An empty expected value is named, never wrapped: `` `` `` is not a code
+    /// span in Markdown, so delimiting it would emit two literal backticks.
+    #[test]
+    fn an_empty_expected_value_is_named_rather_than_spanned() {
+        let document = one_example(
+            vec![verification_step(vec![
+                DocumentedExpectation::Observation {
+                    subject: ObservedSubject::Stdout,
+                    operation: ObservedOperation::Contains(ExpectedValue::Text(
+                        DocumentedText::Literal(String::new()),
+                    )),
+                },
+            ])],
+            Vec::new(),
+        );
+
+        assert!(document.contains("- standard output contains the empty string\n"));
+        assert!(!document.contains("``\n"));
+    }
+
     /// A nested composition becomes a nested list, so the grouping the
     /// scenario wrote survives into the rendered document.
     #[test]

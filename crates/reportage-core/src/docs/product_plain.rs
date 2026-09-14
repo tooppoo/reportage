@@ -35,7 +35,7 @@
 use super::product::{
     ExampleStep, ProductDocumentationCatalog, ProductDocumentedFile, ProductExample,
 };
-use super::product_render::{ValueStyle, condition_lines, content_lines, mode_suffix};
+use super::product_render::{ValueStyle, condition_lines, content_lines, mode_suffix, one_line};
 use super::render::{DocumentRenderer, RenderOptions, lf, logical_lines};
 
 const VALUE_INDENT: usize = 2;
@@ -125,10 +125,14 @@ fn example_blocks(example: &ProductExample) -> Vec<String> {
 fn step_block(step: &ExampleStep) -> String {
     match step {
         ExampleStep::File(file) => {
+            // Through `one_line`, like every value in a code span on the
+            // Markdown side: a path carrying a line break would otherwise put
+            // its tail at column 0, where nothing distinguishes it from a
+            // block label.
             let mut out = format!(
                 "File\n{}{}{}",
                 " ".repeat(VALUE_INDENT),
-                lf(&file.path),
+                one_line(&file.path),
                 mode_suffix(file.mode)
             );
             for line in content_lines(&file.content) {
@@ -427,6 +431,46 @@ mod tests {
         assert!(!document.contains('\r'));
         assert!(document.contains("  Line one.\n  Line two.\n"));
         assert!(document.contains("    first\n    second\n"));
+    }
+
+    /// A path carrying a line break must not put its tail at column 0, where
+    /// it would be indistinguishable from a block label.
+    #[test]
+    fn a_path_containing_a_line_break_stays_on_one_line() {
+        let document = render(&catalog(vec![ProductExample {
+            title: "Odd path".to_string(),
+            description: None,
+            preparation: Vec::new(),
+            steps: vec![
+                file_step("a\nb.txt", "x\n", None),
+                verification_step(vec![observation(
+                    ObservedSubject::ExitCode,
+                    ObservedOperation::Is(ExpectedValue::Number(0)),
+                )]),
+            ],
+        }]));
+
+        assert!(document.contains("File\n  a\\nb.txt\n    x\n"));
+    }
+
+    /// An empty expected value is named rather than delimited: an empty quoted
+    /// fragment reads as a typo.
+    #[test]
+    fn an_empty_expected_value_is_named_rather_than_quoted() {
+        let document = render(&catalog(vec![ProductExample {
+            title: "Empty".to_string(),
+            description: None,
+            preparation: Vec::new(),
+            steps: vec![verification_step(vec![observation(
+                ObservedSubject::Stdout,
+                ObservedOperation::Contains(ExpectedValue::Text(DocumentedText::Literal(
+                    String::new(),
+                ))),
+            )])],
+        }]));
+
+        assert!(document.contains("  standard output contains the empty string\n"));
+        assert!(!document.contains("\"\""));
     }
 
     /// A value containing the format's own delimiter must not close it: the
