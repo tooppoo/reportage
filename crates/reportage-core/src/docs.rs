@@ -9,12 +9,11 @@
 //! commands, and verified outcomes. They share only `metadata` — the
 //! `document` block fallbacks and the ordering contract. See
 //! docs/adr/20260907T230710Z_reportage-source-documentation-subcommand.md for
-//! the responsibility split and its transitional state, and
+//! the responsibility split,
 //! docs/adr/20260908T131134Z_product-documentation-projection.md for the
-//! product projection's model.
-//!
-//! Both subcommands still generate the Reportage-source projection: the
-//! product renderers and the `docs` cutover are not wired up yet.
+//! product projection's model, and
+//! docs/adr/20260914T161520Z_product-document-serialization.md for its
+//! serialization.
 //!
 //! Generation parses sources but never executes them: `SourceFile::into_script`,
 //! the executor, and the evaluator are not reachable from this module, and no
@@ -32,6 +31,9 @@ pub mod metadata;
 pub mod output;
 pub mod plain;
 pub mod product;
+pub mod product_markdown;
+pub mod product_plain;
+mod product_render;
 pub mod render;
 
 use std::path::{Path, PathBuf};
@@ -82,6 +84,20 @@ pub fn renderer_for(
     }
 }
 
+/// Resolves the format selector to its product-facing renderer.
+///
+/// A second factory rather than one generic over the catalog: each projection
+/// has its own set of implementations, and the two must stay separately
+/// exhaustive so adding a format to one cannot silently skip the other.
+pub fn product_renderer_for(
+    format: DocumentFormat,
+) -> &'static dyn DocumentRenderer<product::ProductDocumentationCatalog> {
+    match format {
+        DocumentFormat::Plain => &product_plain::ProductPlainRenderer,
+        DocumentFormat::Markdown => &product_markdown::ProductMarkdownRenderer,
+    }
+}
+
 /// Resolves the layout selector to its plan implementation, for any catalog.
 ///
 /// The exhaustive match is deliberate, exactly as in [`renderer_for`].
@@ -91,11 +107,29 @@ pub fn layout_for<C>(document_layout: DocumentLayout) -> &'static dyn DocumentLa
     }
 }
 
+/// Which projection a generation produces.
+///
+/// Selected by the subcommand, never by an option: the two answer different
+/// audiences, so making them a flag on one command would change the meaning of
+/// every block in the output while claiming the command was the same. See
+/// docs/adr/20260907T230710Z_reportage-source-documentation-subcommand.md.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DocumentProjection {
+    /// What a product's own users need: files, commands, and verified
+    /// outcomes. `reportage docs`.
+    #[default]
+    Product,
+    /// The `.repor` sources themselves, for documenting reportage.
+    /// `reportage docs-reportage`.
+    ReportageSource,
+}
+
 /// A documentation generation invocation, as validated by the CLI layer.
 #[derive(Debug)]
 pub struct GenerateRequest {
     pub patterns: Vec<String>,
     pub out_dir: PathBuf,
+    pub projection: DocumentProjection,
     pub format: DocumentFormat,
     pub layout: DocumentLayout,
     /// The document title, applied to every format through
@@ -178,12 +212,16 @@ impl std::fmt::Display for GenerateError {
 impl std::error::Error for GenerateError {}
 
 /// Generates documentation end to end: resolve patterns, load sources, build
-/// the Catalog, render, then — only after everything succeeded — validate the
-/// output directory and write the document(s).
+/// the catalog `projection` selects, render, then — only after everything
+/// succeeded — validate the output directory and write the document(s).
 ///
 /// Patterns and the display path contract are resolved against `base_dir`;
 /// the CLI passes the current working directory. `request.out_dir` is used as
 /// given.
+///
+/// The projection is the only thing the two subcommands differ in: every stage
+/// before it and after it is literally the same code, which is what keeps
+/// their pattern rules, error classification, and output policy from drifting.
 pub fn generate(
     base_dir: &Path,
     request: &GenerateRequest,
@@ -197,19 +235,26 @@ pub fn generate(
     let discovered = discovery::resolve_patterns(base_dir, &request.patterns)
         .map_err(GenerateError::Discovery)?;
     let loaded = loader::load_sources(discovered).map_err(GenerateError::SourceLoad)?;
-    let catalog = catalog::build_catalog(&loaded);
     let render_options = RenderOptions {
         document_title: request.title.clone(),
     };
     let layout_options = LayoutOptions {
         index_file_name: request.index_file_name.clone(),
     };
-    let planned: Vec<PlannedDocument> = layout_for(request.layout).plan(
-        &catalog,
-        renderer_for(request.format),
-        &render_options,
-        &layout_options,
-    );
+    let planned: Vec<PlannedDocument> = match request.projection {
+        DocumentProjection::Product => layout_for(request.layout).plan(
+            &product::build_product_catalog(&loaded),
+            product_renderer_for(request.format),
+            &render_options,
+            &layout_options,
+        ),
+        DocumentProjection::ReportageSource => layout_for(request.layout).plan(
+            &catalog::build_catalog(&loaded),
+            renderer_for(request.format),
+            &render_options,
+            &layout_options,
+        ),
+    };
 
     let output_directory =
         output::OutputDirectory::prepare(&request.out_dir).map_err(GenerateError::Output)?;
@@ -237,10 +282,15 @@ mod tests {
         std::fs::write(path, contents).unwrap();
     }
 
+    /// A `docs-reportage` request: the pipeline tests below assert on the
+    /// Reportage-source projection's blocks, which are the ones that name a
+    /// concrete document shape. What the projection selector itself changes is
+    /// covered by `each_projection_generates_its_own_document`.
     fn request(dir: &Path, patterns: &[&str]) -> GenerateRequest {
         GenerateRequest {
             patterns: patterns.iter().map(|p| p.to_string()).collect(),
             out_dir: dir.join("generated"),
+            projection: DocumentProjection::ReportageSource,
             format: DocumentFormat::Plain,
             layout: DocumentLayout::SingleFile,
             title: render::DEFAULT_DOCUMENT_TITLE.to_string(),
@@ -427,5 +477,36 @@ mod tests {
         let document = std::fs::read_to_string(&report.written[0]).unwrap();
         assert!(document.contains("File\n  empty"));
         assert!(!document.contains("Reportage source"));
+    }
+
+    /// The projection selector is the one thing the two subcommands differ in:
+    /// the same sources and the same options produce two different documents,
+    /// and only the Reportage-source one holds `.repor` text.
+    #[test]
+    fn each_projection_generates_its_own_document() {
+        let dir = tempfile::tempdir().unwrap();
+        write(
+            &dir.path().join("src/a.repor"),
+            "case \"init\" {\n  $ demo init\n  assert {\n    exit 0\n  }\n}\n",
+        );
+
+        let mut source_request = request(dir.path(), &["src/*.repor"]);
+        source_request.index_file_name = Some("source.txt".to_string());
+        generate(dir.path(), &source_request).unwrap();
+        let source = std::fs::read_to_string(dir.path().join("generated/source.txt")).unwrap();
+
+        let mut product_request = request(dir.path(), &["src/*.repor"]);
+        product_request.projection = DocumentProjection::Product;
+        product_request.index_file_name = Some("product.txt".to_string());
+        generate(dir.path(), &product_request).unwrap();
+        let product = std::fs::read_to_string(dir.path().join("generated/product.txt")).unwrap();
+
+        assert!(source.contains("Reportage source"));
+        assert!(source.contains("case \"init\" {"));
+
+        assert!(!product.contains("Reportage source"));
+        assert!(!product.contains("case \"init\" {"));
+        assert!(product.contains("Command\n  demo init"));
+        assert!(product.contains("Verified outcome\n  the exit code is 0"));
     }
 }

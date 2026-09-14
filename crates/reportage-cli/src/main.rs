@@ -75,13 +75,13 @@ enum Commands {
     /// List versioned documentation URLs for this reportage version.
     References(ReferencesArgs),
 
-    /// Generate product-facing documentation (projection not implemented yet).
+    /// Generate documentation for a product that is tested with reportage.
     ///
-    /// Documents a product that is tested with reportage, for that product's
-    /// own users. The product-facing projection is not implemented yet, so
-    /// this subcommand still emits the Reportage-source document
-    /// `docs-reportage` produces. Sources are parsed, never executed. See
-    /// docs/reference/docs-generation.md.
+    /// Written for that product's own users: each case becomes the files they
+    /// prepare, the commands they run, and the outcomes those commands are
+    /// verified to produce. No Reportage syntax appears in the output; for
+    /// reportage's own documentation, use `docs-reportage`. Sources are
+    /// parsed, never executed. See docs/reference/docs-generation.md.
     Docs(DocsArgs),
 
     /// Generate Reportage-source documentation for reportage's own development.
@@ -253,17 +253,18 @@ fn run_references(args: &ReferencesArgs) -> ! {
 /// script-execution/report/artifact pipeline — sources are parsed but never executed, and no
 /// `.reportage/` artifact is written.
 ///
-/// Shared by `docs` and `docs-reportage` while both still generate the Reportage-source
-/// projection; the flow around the projection (request validation, error reporting, mutation
-/// reporting, exit codes) is the part that stays common once they diverge.
+/// Shared by `docs` and `docs-reportage`, which differ only in the `projection` they ask for:
+/// everything around it — request validation, error reporting, mutation reporting, exit codes —
+/// is one code path, so the two subcommands cannot drift apart on anything but the projection.
 ///
 /// Error details go to stderr in a deterministic order, one `error:` line each; the success
 /// path reports every written document on stdout so file mutations are always visible.
 /// Exit codes 0/2/3/4 follow the documentation generation table in docs/reference/exit-codes.md.
-fn run_docs(args: &DocsArgs) -> ! {
+fn run_docs(args: &DocsArgs, projection: docs::DocumentProjection) -> ! {
     let request = docs::GenerateRequest {
         patterns: args.patterns.clone(),
         out_dir: args.out_dir.clone(),
+        projection,
         format: match args.format {
             DocsFormat::Plain => docs::DocumentFormat::Plain,
             DocsFormat::Markdown => docs::DocumentFormat::Markdown,
@@ -326,7 +327,10 @@ fn main() {
             ShimCommand::Scaffold(args) => run_shim_scaffold(args),
         },
         Some(Commands::References(references_args)) => run_references(references_args),
-        Some(Commands::Docs(docs_args) | Commands::DocsReportage(docs_args)) => run_docs(docs_args),
+        Some(Commands::Docs(docs_args)) => run_docs(docs_args, docs::DocumentProjection::Product),
+        Some(Commands::DocsReportage(docs_args)) => {
+            run_docs(docs_args, docs::DocumentProjection::ReportageSource)
+        }
         None => {}
     }
 
