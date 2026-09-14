@@ -37,12 +37,15 @@
 //! source content is never dropped or replaced.
 
 use super::catalog::DocumentationCatalog;
-use super::render::{DocumentRenderer, RenderOptions, snippet_source};
+use super::markdown_parts::{
+    anchor_id, anchored_heading, description_block, fenced, numbered, toc_entry,
+};
+use super::render::{DocumentRenderer, RenderOptions, lf, snippet_source};
 
 /// The `markdown` format: renders a catalog into one Markdown document.
 pub struct MarkdownRenderer;
 
-impl DocumentRenderer for MarkdownRenderer {
+impl DocumentRenderer<DocumentationCatalog> for MarkdownRenderer {
     fn render(&self, catalog: &DocumentationCatalog, options: &RenderOptions) -> String {
         // The table of contents and the section anchors are built in the same
         // pass so an anchor can never diverge from the entry linking to it.
@@ -71,7 +74,7 @@ impl DocumentRenderer for MarkdownRenderer {
                 if file.cases.is_empty()
                     && let Some(before_each) = &file.before_each
                 {
-                    section_blocks.push(fenced_source(before_each));
+                    section_blocks.push(fenced("reportage", before_each));
                 }
 
                 for (case_number, case) in numbered(&file.cases) {
@@ -84,10 +87,10 @@ impl DocumentRenderer for MarkdownRenderer {
                     if let Some(description) = &case.description {
                         section_blocks.push(description_block(description));
                     }
-                    section_blocks.push(fenced_source(&snippet_source(
-                        file.before_each.as_deref(),
-                        &case.source,
-                    )));
+                    section_blocks.push(fenced(
+                        "reportage",
+                        &snippet_source(file.before_each.as_deref(), &case.source),
+                    ));
                 }
             }
         }
@@ -106,108 +109,6 @@ impl DocumentRenderer for MarkdownRenderer {
     fn file_extension(&self) -> &'static str {
         "md"
     }
-}
-
-/// 1-based iteration: the Catalog structure indices in anchor IDs start at 1.
-fn numbered<T>(items: &[T]) -> impl Iterator<Item = (usize, &T)> {
-    items.iter().enumerate().map(|(i, item)| (i + 1, item))
-}
-
-/// CRLF normalized to LF; every metadata value passes through here so the
-/// document carries no CRLF sequence. A lone CR is not a line ending here
-/// and passes through unchanged, matching the plain format.
-fn lf(value: &str) -> String {
-    value.replace("\r\n", "\n")
-}
-
-/// A description block: the value verbatim except for LF normalization and
-/// dropping the single final newline a heredoc value carries, so whether the
-/// metadata ends with a newline never changes block separation — the same
-/// rule the plain format applies to every labeled value.
-fn description_block(value: &str) -> String {
-    let normalized = lf(value);
-    normalized
-        .strip_suffix('\n')
-        .unwrap_or(&normalized)
-        .to_string()
-}
-
-/// One table-of-contents line, indented two spaces per nesting depth. The
-/// title lands verbatim in the link text; the link target is the generated
-/// ASCII anchor.
-fn toc_entry(depth: usize, title: &str, anchor: &str) -> String {
-    format!("{}- [{}](#{anchor})", "  ".repeat(depth), lf(title))
-}
-
-/// One heading block: the explicit anchor immediately above the heading line,
-/// so the pair always travels as a unit between empty-line block separators.
-fn anchored_heading(marker: &str, anchor: &str, title: &str) -> String {
-    format!("<a id=\"{anchor}\"></a>\n{marker} {}", lf(title))
-}
-
-/// The anchor ID for one structure index prefix (e.g. `file-1-2`) and its
-/// display title. Uniqueness comes from the prefix alone; the slug is a
-/// readability aid and is omitted when normalization leaves nothing.
-fn anchor_id(index_prefix: &str, title: &str) -> String {
-    match slug(title) {
-        Some(slug) => format!("{index_prefix}-{slug}"),
-        None => index_prefix.to_string(),
-    }
-}
-
-/// The fixed slug normalization: ASCII alphanumerics are kept (letters
-/// lowercased), every other run of characters collapses into one `-`, and
-/// leading/trailing `-` are stripped. `None` when nothing remains.
-fn slug(title: &str) -> Option<String> {
-    let mut out = String::new();
-    let mut separate = false;
-    for c in title.chars() {
-        if c.is_ascii_alphanumeric() {
-            if separate && !out.is_empty() {
-                out.push('-');
-            }
-            separate = false;
-            out.push(c.to_ascii_lowercase());
-        } else {
-            separate = true;
-        }
-    }
-    if out.is_empty() { None } else { Some(out) }
-}
-
-/// A source snippet wrapped in a `reportage` fenced code block.
-///
-/// The fence must be computed on the exact Catalog source (the contract's
-/// stated stage); LF normalization cannot change backtick runs, so the result
-/// is the same either way. A source without a final newline gets one
-/// structural LF so the closing fence sits on its own line; a source with one
-/// gets nothing extra, so no blank line appears before the fence.
-fn fenced_source(source: &str) -> String {
-    let fence = "`".repeat(fence_length(source));
-    let mut body = lf(source);
-    if !body.is_empty() && !body.ends_with('\n') {
-        body.push('\n');
-    }
-    format!("{fence}reportage\n{body}{fence}")
-}
-
-/// One longer than the longest backtick run in the source, and at least 3.
-fn fence_length(source: &str) -> usize {
-    (longest_backtick_run(source) + 1).max(3)
-}
-
-fn longest_backtick_run(source: &str) -> usize {
-    let mut longest = 0;
-    let mut current = 0;
-    for c in source.chars() {
-        if c == '`' {
-            current += 1;
-            longest = longest.max(current);
-        } else {
-            current = 0;
-        }
-    }
-    longest
 }
 
 #[cfg(test)]
@@ -331,16 +232,6 @@ mod tests {
         assert!(!output.contains("Reportage Documentation"));
     }
 
-    #[test]
-    fn slug_normalization_is_fixed() {
-        assert_eq!(slug("File Assertions"), Some("file-assertions".to_string()));
-        assert_eq!(slug("A+B=C 2"), Some("a-b-c-2".to_string()));
-        assert_eq!(slug("--Hello,  World!--"), Some("hello-world".to_string()));
-        assert_eq!(slug("日本語タイトル"), None);
-        assert_eq!(slug(""), None);
-        assert_eq!(slug("日本語 mixed 語"), Some("mixed".to_string()));
-    }
-
     fn collect_anchor_ids(output: &str) -> Vec<String> {
         output
             .lines()
@@ -415,24 +306,15 @@ mod tests {
         assert!(output.contains("\n\nLine one.\n\n<em>raw html</em> and [link](x).\n\n"));
     }
 
+    /// A case source containing a fence lengthens the fence around it, so the
+    /// block cannot terminate early. The rule itself is fixed in
+    /// `markdown_parts`; what belongs here is that this renderer applies it to
+    /// the exact case source.
     #[test]
-    fn fence_is_longer_than_the_longest_backtick_run_and_at_least_three() {
-        assert_eq!(fence_length("no backticks"), 3);
-        assert_eq!(fence_length("a `` b"), 3);
-        assert_eq!(fence_length("a ``` b"), 4);
-        assert_eq!(fence_length("a `````` b"), 7);
-
+    fn a_case_source_containing_a_fence_gets_a_longer_fence() {
         let source = "case \"t\" {\n  $ echo '```'\n}\n";
         let output = render(&single_group(vec![file("f", vec![case("c", source)])]));
         assert!(output.contains("````reportage\ncase \"t\" {\n  $ echo '```'\n}\n````"));
-    }
-
-    /// The contract allows computing the fence before or after LF
-    /// normalization because backtick runs cannot change: fixed here.
-    #[test]
-    fn fence_length_is_identical_before_and_after_lf_normalization() {
-        let source = "case \"t\" {\r\n  $ echo '````'\r\n}\r\n";
-        assert_eq!(fence_length(source), fence_length(&lf(source)));
     }
 
     #[test]

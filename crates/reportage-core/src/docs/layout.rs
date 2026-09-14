@@ -9,7 +9,6 @@
 
 use std::path::{Component, Path};
 
-use super::catalog::DocumentationCatalog;
 use super::render::{DocumentRenderer, RenderOptions};
 
 /// A rendered document and its output path relative to the output root.
@@ -92,16 +91,29 @@ pub fn validate_index_file_name(name: &str) -> Result<(), IndexFileNameError> {
     }
 }
 
-/// One document layout: maps a [`DocumentationCatalog`] to the set of
-/// documents to write, delegating serialization to the given renderer.
-pub trait DocumentLayoutPlan {
+/// One document layout: maps a catalog to the set of documents to write,
+/// delegating serialization to the given renderer.
+///
+/// Generic over the catalog type for the same reason [`DocumentRenderer`] is:
+/// the v0 layout serves every projection, because deciding how many files to
+/// write and what to name them does not depend on what a case became.
+///
+/// That holds for `single-file` only. The planned multi-file layout
+/// (docs/adr/20260723T070556Z_documentation-generation-command.md) partitions
+/// a catalog into sub-catalogs, so it must inspect catalog content and will be
+/// implementable only for catalog types that expose a partitioning operation.
+/// Adding it therefore means constraining `C` here and in
+/// [`super::layout_for`], not just writing another implementation — the two
+/// interfaces still compose, but the layout side is not unconditionally
+/// catalog-agnostic.
+pub trait DocumentLayoutPlan<C> {
     /// Renders the catalog into the documents this layout prescribes,
     /// forwarding the document-level render options to every `render` call and
     /// consulting `layout_options` for file naming.
     fn plan(
         &self,
-        catalog: &DocumentationCatalog,
-        renderer: &dyn DocumentRenderer,
+        catalog: &C,
+        renderer: &dyn DocumentRenderer<C>,
         render_options: &RenderOptions,
         layout_options: &LayoutOptions,
     ) -> Vec<PlannedDocument>;
@@ -113,11 +125,11 @@ pub trait DocumentLayoutPlan {
 /// example `index.txt`).
 pub struct SingleFileLayout;
 
-impl DocumentLayoutPlan for SingleFileLayout {
+impl<C> DocumentLayoutPlan<C> for SingleFileLayout {
     fn plan(
         &self,
-        catalog: &DocumentationCatalog,
-        renderer: &dyn DocumentRenderer,
+        catalog: &C,
+        renderer: &dyn DocumentRenderer<C>,
         render_options: &RenderOptions,
         layout_options: &LayoutOptions,
     ) -> Vec<PlannedDocument> {
@@ -135,13 +147,14 @@ impl DocumentLayoutPlan for SingleFileLayout {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::docs::catalog::DocumentationCatalog;
 
     /// A minimal fake format: the layout contract (one file, `index.<ext>`,
     /// body delegated to the renderer) must hold for any format, not just
     /// `plain`.
     struct FakeRenderer;
 
-    impl DocumentRenderer for FakeRenderer {
+    impl DocumentRenderer<DocumentationCatalog> for FakeRenderer {
         fn render(&self, catalog: &DocumentationCatalog, options: &RenderOptions) -> String {
             format!(
                 "{}: {} groups\n",
