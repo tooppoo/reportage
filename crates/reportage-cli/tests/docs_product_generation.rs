@@ -155,8 +155,10 @@ fn the_generated_documents_expose_no_reportage_construct() {
     }
 }
 
-/// The document ends with exactly one LF and carries no trailing whitespace,
-/// independent of the line structure of the file contents it embeds.
+/// The document ends with exactly one LF, and no renderer-generated line adds
+/// trailing whitespace. Scoped to renderer-generated lines on purpose: file
+/// content is reproduced verbatim, which
+/// `file_content_keeps_its_own_trailing_whitespace` covers.
 #[test]
 fn document_tail_and_whitespace_contract() {
     let dir = TempDir::new().unwrap();
@@ -169,9 +171,35 @@ fn document_tail_and_whitespace_contract() {
         assert_eq!(
             line,
             line.trim_end(),
-            "no generated line may carry trailing whitespace"
+            "no renderer-generated line may carry trailing whitespace"
         );
     }
+}
+
+/// The other half of that contract: a file example is what a reader copies, so
+/// content that carries trailing whitespace keeps it. Built in-test rather
+/// than committed as a fixture, because a trailing-whitespace line in a
+/// checked-in source would not survive ordinary editor and review tooling.
+#[test]
+fn file_content_keeps_its_own_trailing_whitespace() {
+    let dir = TempDir::new().unwrap();
+    dir.child("sources/whitespace.repor")
+        .write_str(concat!(
+            "case \"trailing whitespace\" {\n",
+            "  write <\"a.txt\"> \"trailing   \\nlast\\n\"\n",
+            "  $ run\n",
+            "  assert {\n",
+            "    exit 0\n",
+            "  }\n",
+            "}\n",
+        ))
+        .unwrap();
+
+    let generated = generate(&dir);
+    assert!(
+        generated.contains("    trailing   \n"),
+        "file content must be reproduced verbatim:\n{generated}"
+    );
 }
 
 /// The two subcommands document the same sources differently: `docs` states

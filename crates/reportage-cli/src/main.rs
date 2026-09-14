@@ -139,16 +139,16 @@ struct DocsArgs {
     #[arg(long, value_enum, default_value_t = DocsLayout::SingleFile)]
     layout: DocsLayout,
 
-    /// Document title, applied to every format. Used verbatim: never
-    /// rejected, trimmed, or escaped, even when empty or containing Markdown
-    /// syntax; see docs/reference/docs-generation.md — Input text policy.
+    // `Option<String>` rather than a clap `default_value`: the default is
+    // projection-specific (see `docs::render::default_document_title`), so an
+    // explicitly empty `--title ''` must stay distinguishable from an omitted
+    // one, which a default value would collapse.
+    /// Document title, applied to every format. Defaults to `Documentation`
+    /// for `docs` and `Reportage Documentation` for `docs-reportage`.
     ///
-    /// The default depends on the subcommand rather than being a clap
-    /// `default_value`, because a product's documentation must not be headed
-    /// by reportage's name: `docs` defaults to `Documentation` and
-    /// `docs-reportage` to `Reportage Documentation`. An explicitly empty
-    /// `--title ''` therefore has to stay distinguishable from an omitted one,
-    /// which an `Option` gives and a default value would not.
+    /// Used verbatim: never rejected, trimmed, or escaped, even when empty or
+    /// containing Markdown syntax; see docs/reference/docs-generation.md —
+    /// Input text policy.
     #[arg(long, value_name = "STRING")]
     title: Option<String>,
 

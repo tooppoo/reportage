@@ -155,7 +155,13 @@ fn observation_sentence(
 /// One expected value as the object of a condition sentence.
 fn expected_value(value: &ExpectedValue, style: &dyn ValueStyle) -> String {
     match value {
-        ExpectedValue::Text(text) => style.code(&inline_text(text)),
+        // An empty value is named rather than delimited: an empty quoted
+        // fragment reads as a typo, and an empty code span is not a code span
+        // at all in Markdown.
+        ExpectedValue::Text(text) => match inline_text(text) {
+            rendered if rendered.is_empty() => "the empty string".to_string(),
+            rendered => style.code(&rendered),
+        },
         ExpectedValue::Number(number) => number.to_string(),
         ExpectedValue::FileContents {
             path,

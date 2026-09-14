@@ -60,10 +60,7 @@ impl ValueStyle for PlainStyle {
 
 impl DocumentRenderer<ProductDocumentationCatalog> for ProductPlainRenderer {
     fn render(&self, catalog: &ProductDocumentationCatalog, options: &RenderOptions) -> String {
-        // The title is inserted verbatim except for the document-wide LF
-        // normalization; logical_lines would also drop a trailing-newline
-        // tail, which the raw title mapping policy forbids.
-        let mut blocks: Vec<String> = vec![lf(&options.document_title)];
+        let mut blocks: Vec<String> = Vec::new();
 
         for group in &catalog.groups {
             blocks.push(block("Group", &group.name, VALUE_INDENT));
@@ -77,12 +74,18 @@ impl DocumentRenderer<ProductDocumentationCatalog> for ProductPlainRenderer {
         // newline and put two empty lines before the next block. Plain text
         // has no way to show a trailing blank line inside a block anyway, so
         // the separation contract wins over reproducing it.
-        blocks
-            .iter()
-            .map(|block| block.trim_end_matches('\n'))
-            .collect::<Vec<_>>()
-            .join("\n\n")
-            + "\n"
+        //
+        // The title is exempt and prepended after the trim: it is used
+        // verbatim except for the document-wide LF normalization, and trimming
+        // it here would make `--title` mean something different on this
+        // subcommand than on every other format and subcommand.
+        let mut document = vec![lf(&options.document_title)];
+        document.extend(
+            blocks
+                .iter()
+                .map(|block| block.trim_end_matches('\n').to_string()),
+        );
+        document.join("\n\n") + "\n"
     }
 
     fn file_extension(&self) -> &'static str {

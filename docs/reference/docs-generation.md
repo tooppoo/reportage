@@ -170,7 +170,7 @@ Verified conditions are phrased from the observed subject and the operation toge
 `--format plain` writes blocks separated by exactly one empty line, each a label line followed by values indented two spaces:
 
 ```text
-Reportage Documentation
+Documentation
 
 Group
   Getting started
@@ -200,7 +200,7 @@ Verified outcome
 - A `File` block holds the path, its `(mode 0o...)` suffix when named, and the content indented four spaces beneath it; an empty file is its path alone.
 - `Preparation` and `Steps` are label-only blocks that bound the shared setup. They appear only when the example has preparation; without it, the example's own steps follow its metadata directly.
 - A `Verified outcome` block holds one condition per line, with nested compositions indented two further spaces.
-- Expected text inside a condition is escaped onto one line (`\n`, `\t`, `\\`, `"`); file content is never escaped and keeps its lines.
+- Expected text inside a condition is reduced to one line, escaping `\\`, `\n`, `\r`, and `\t`; the format then makes its own delimiter unambiguous (plain text escapes a `"` inside the quoted value, Markdown sizes the code span past any backtick run in it). File content is never escaped and keeps its lines.
 - Line endings are normalized to LF and the document ends with exactly one LF. No renderer-generated line adds trailing whitespace; a file content line that carries trailing whitespace keeps it, since the block is what a reader copies.
 - A value's own trailing blank lines are not reproduced: a block ending in a blank line has no representation when blocks are separated by exactly one empty line.
 
