@@ -19,10 +19,18 @@
 //! index/TOC rendering for multi-file layouts) when a consumer for them
 //! exists, rather than speculating on their shape now.
 
-/// The document title used when `--title` is not given, shared by every
-/// format. This value is a user-facing output contract, fixed by generated
-/// document snapshots.
+/// The document title used when `--title` is not given for the
+/// Reportage-source projection, shared by every format. This value is a
+/// user-facing output contract, fixed by generated document snapshots.
 pub const DEFAULT_DOCUMENT_TITLE: &str = "Reportage Documentation";
+
+/// The document title used when `--title` is not given for the product-facing
+/// projection.
+///
+/// Deliberately not [`DEFAULT_DOCUMENT_TITLE`]: a product's own documentation
+/// must not be headed by reportage's name, which is the exact failure the
+/// product projection exists to avoid. Also a user-facing output contract.
+pub const DEFAULT_PRODUCT_DOCUMENT_TITLE: &str = "Documentation";
 
 /// Document-level render options: CLI-selected presentation values that apply
 /// to the whole generated document.
@@ -44,6 +52,14 @@ impl Default for RenderOptions {
         Self {
             document_title: DEFAULT_DOCUMENT_TITLE.to_string(),
         }
+    }
+}
+
+/// The title a projection uses when the invocation gives none.
+pub fn default_document_title(projection: super::DocumentProjection) -> &'static str {
+    match projection {
+        super::DocumentProjection::Product => DEFAULT_PRODUCT_DOCUMENT_TITLE,
+        super::DocumentProjection::ReportageSource => DEFAULT_DOCUMENT_TITLE,
     }
 }
 

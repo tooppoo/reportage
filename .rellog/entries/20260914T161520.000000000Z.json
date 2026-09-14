@@ -1,0 +1,13 @@
+{
+  "kind": "changed",
+  "targets": [
+    "core",
+    "cli",
+    "docs",
+    "tests"
+  ],
+  "links": [
+    "https://github.com/tooppoo/reportage/issues/257"
+  ],
+  "body": "`reportage docs` now generates documentation for the product under test, and `reportage docs-reportage` generates the Reportage source documentation it used to.\nThis is a breaking change to `reportage docs`. Its output no longer contains Reportage syntax: each case becomes the files a reader prepares, the commands they run, and the conditions those commands are verified to satisfy, in the order the scenario wrote them. `write` steps appear as file examples with their content (and their `mode` when the scenario names one), `$` actions as command examples, `assert` blocks as verified outcomes phrased as sentences, and `before_each` as the example's preparation without ever naming `before_each`. Commands and verified outcomes stay one ordered sequence rather than being paired up, because a reportage assertion verifies the current checkpoint and not the action before it. Omitting `--title` now yields `Documentation` for `docs`, so a product's documentation is not headed by reportage's name; `docs-reportage` keeps `Reportage Documentation`. To keep the previous output, switch the invocation to `reportage docs-reportage`: `--format`, `--layout`, `--title`, `--index-file-name`, the source pattern rules, the output directory policy, and the exit codes are the same on both subcommands."
+}

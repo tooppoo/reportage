@@ -1,0 +1,53 @@
+document file {
+  title "Installing a skill"
+  group "Getting started"
+  order 2
+}
+
+before_each {
+  write <"demo.kdl"> ```
+    demo {
+      catalog "github.com/example/catalog"
+    }
+    ```
+
+  $ demo init
+}
+
+document case {
+  title "Installing from a catalog"
+}
+
+case "install writes the skill directory" {
+  $ demo install review
+
+  assert {
+    exit 0
+    dir <".demo/skills"> contains "review"
+    file <".demo/skills/review/SKILL.md"> exists
+  }
+
+  $ demo list
+
+  assert {
+    stdout contains "review"
+  }
+}
+
+document case {
+  title "Installing an unknown skill"
+
+  description "An unknown name fails without touching the workspace."
+}
+
+case "install rejects an unknown skill" {
+  $ demo install no-such-skill
+
+  assert {
+    exit 1
+    stderr contains "unknown skill"
+    not {
+      dir <".demo/skills"> contains "no-such-skill"
+    }
+  }
+}

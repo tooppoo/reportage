@@ -35,7 +35,7 @@ case "--help advertises both documentation generation subcommands" {
 
   assert {
     exit 0
-    stdout contains "Generate product-facing documentation"
+    stdout contains "docs            Generate documentation for a product"
     stdout contains "docs-reportage  Generate Reportage-source documentation"
     not {
       stdout contains "Reserved for a future documentation generation command"

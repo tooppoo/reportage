@@ -50,7 +50,7 @@ case "docs --help prints the real interface" {
 
   assert {
     exit 0
-    stdout contains "Generate product-facing documentation"
+    stdout contains "Generate documentation for a product that is tested with reportage"
     stdout contains "docs-reportage"
     stdout contains "--out-dir"
     stdout contains "--format"

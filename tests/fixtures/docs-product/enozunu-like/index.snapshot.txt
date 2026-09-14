@@ -1,0 +1,118 @@
+Documentation
+
+Group
+  Getting started
+
+Section
+  Initializing a workspace
+
+Description
+  A workspace is described by a single `demo.kdl` file that lists the
+  catalogs a project installs from.
+
+Example
+  Creating the configuration
+
+Description
+  The configuration file is written first; `demo init` then records a lock
+  file describing exactly what it resolved.
+
+File
+  demo.kdl
+    demo {
+      catalog "github.com/example/catalog"
+    }
+
+Command
+  demo init
+
+Verified outcome
+  the exit code is 0
+  standard output contains "resolved 1 catalog"
+  "demo.lock.json" exists
+  "demo.lock.json" contains "github.com/example/catalog"
+
+Example
+  Re-running init
+
+Description
+  A second run reuses the recorded lock file instead of resolving again.
+
+File
+  demo.kdl
+    demo {
+      catalog "github.com/example/catalog"
+    }
+
+Command
+  demo init
+
+Command
+  demo init
+
+Verified outcome
+  the exit code is 0
+  standard output contains "up to date"
+  not:
+    standard error contains "error"
+
+Section
+  Installing a skill
+
+Example
+  Installing from a catalog
+
+Preparation
+
+File
+  demo.kdl
+    demo {
+      catalog "github.com/example/catalog"
+    }
+
+Command
+  demo init
+
+Steps
+
+Command
+  demo install review
+
+Verified outcome
+  the exit code is 0
+  the directory ".demo/skills" has an entry named "review"
+  ".demo/skills/review/SKILL.md" exists
+
+Command
+  demo list
+
+Verified outcome
+  standard output contains "review"
+
+Example
+  Installing an unknown skill
+
+Description
+  An unknown name fails without touching the workspace.
+
+Preparation
+
+File
+  demo.kdl
+    demo {
+      catalog "github.com/example/catalog"
+    }
+
+Command
+  demo init
+
+Steps
+
+Command
+  demo install no-such-skill
+
+Verified outcome
+  the exit code is 1
+  standard error contains "unknown skill"
+  not:
+    the directory ".demo/skills" has an entry named "no-such-skill"

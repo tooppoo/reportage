@@ -1,17 +1,12 @@
-# `reportage docs --format markdown` (issue #171): the single-file Markdown
-# generation flow. The exact serialization contract is fixed by
-# tests/fixtures/docs/*/index.snapshot.md; these cases verify the
+# `reportage docs --format markdown` (issues #171, #257): the single-file
+# Markdown generation flow for the product-facing projection. The exact
+# serialization contract is fixed by
+# tests/fixtures/docs-product/*/index.snapshot.md; these cases verify the
 # CLI-observable flow: exit codes, the stdout mutation report, the generated
 # index.md, the format-shared --title option, coexistence with index.txt, and
 # the output replacement rules for index.md.
-#
-# These cases stay on `docs` deliberately (issue #257): the Reportage-source
-# contract itself is owned by `docs-reportage` and pinned there, while `docs`
-# keeps emitting that document only until its product-facing cutover. Keeping
-# them here means the cutover has to revisit every assertion it invalidates
-# instead of silently changing an unwatched command.
 
-case "markdown format generates index.md with TOC, anchors, and fenced source" {
+case "markdown format generates index.md with a TOC, anchors, and step blocks" {
   write <"src/a.repor"> ```
     document file {
       title "File assertions"
@@ -37,13 +32,16 @@ case "markdown format generates index.md with TOC, anchors, and fenced source" {
     exit 0
     stdout contains "generated: out/index.md"
     file <"out/index.md"> exists
-    file <"out/index.md"> contains "# Reportage Documentation"
+    file <"out/index.md"> contains "# Documentation"
     file <"out/index.md"> contains "## Contents"
     file <"out/index.md"> contains "- [Filesystem](#group-1-filesystem)"
-    file <"out/index.md"> contains "<a id=\"case-1-1-1-file-creation\"></a>"
+    file <"out/index.md"> contains "<a id=\"example-1-1-1-file-creation\"></a>"
     file <"out/index.md"> contains "#### File creation"
-    file <"out/index.md"> contains "Source: src/a.repor"
-    file <"out/index.md"> contains "```reportage"
+    file <"out/index.md"> contains "**Verified outcome**"
+    file <"out/index.md"> contains "- `test.txt` exists"
+    not {
+      file <"out/index.md"> contains "Source: src/a.repor"
+    }
   }
 }
 
@@ -67,7 +65,7 @@ case "--title applies to both plain and markdown formats" {
     file <"out/index.txt"> contains "Project documentation"
     file <"out/index.md"> contains "# Project documentation"
     not {
-      file <"out/index.md"> contains "Reportage Documentation"
+      file <"out/index.md"> contains "# Documentation"
     }
   }
 }
@@ -196,8 +194,9 @@ case "index.md as a symlink is rejected and its target preserved" {
   }
 }
 
-# An empty --title is accepted verbatim: generation succeeds and the default
-# title is not substituted.
+# An empty --title is accepted verbatim: the heading is left empty rather than
+# falling back to the subcommand's default, which is why the option is an
+# optional value and not a defaulted one.
 case "an empty --title is accepted and replaces the default title" {
   write <"src/a.repor"> ```
     case "one" {
@@ -213,15 +212,63 @@ case "an empty --title is accepted and replaces the default title" {
   assert {
     exit 0
     file <"out/index.md"> exists
+    file <"out/index.md"> contains "# \n\n## Contents"
     not {
-      file <"out/index.md"> contains "Reportage Documentation"
+      file <"out/index.md"> contains "# Documentation"
     }
   }
 }
 
-# A valid source with zero cases still gets its file heading, source path,
-# and TOC entry; no case heading or code fence is generated.
-case "a zero-case source appears in markdown without case sections" {
+# The default title is the one part of --title that differs per subcommand: a
+# product's documentation must not be headed by reportage's name, while
+# reportage's own documentation is exactly that.
+case "the default title differs between the two subcommands" {
+  write <"src/a.repor"> ```
+    case "one" {
+      $ true
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown --index-file-name product.md
+  $ reportage docs-reportage 'src/*.repor' --out-dir out --format markdown --index-file-name source.md
+
+  assert {
+    exit 0
+    file <"out/product.md"> contains "# Documentation\n"
+    not {
+      file <"out/product.md"> contains "# Reportage Documentation"
+    }
+    file <"out/source.md"> contains "# Reportage Documentation\n"
+  }
+}
+
+# A value containing backticks must not close its own code span: a product CLI
+# that quotes a file name in its output is the ordinary case here.
+case "backticks in an expected value do not break the code span" {
+  write <"src/a.repor"> ```
+    case "quotes a path" {
+      $ demo init
+      assert {
+        stdout contains "created `demo.kdl`"
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out --format markdown
+
+  assert {
+    exit 0
+    file <"out/index.md"> contains "- standard output contains `` created `demo.kdl` ``"
+  }
+}
+
+# A valid source with zero cases still gets its section heading and TOC entry;
+# it has no example, so no example heading and no verified outcome appear. The
+# product document shows no source path at all.
+case "a zero-case source appears in markdown without example sections" {
   write <"src/empty.repor"> ```
     document file {
       title "Case-less"
@@ -232,14 +279,13 @@ case "a zero-case source appears in markdown without case sections" {
 
   assert {
     exit 0
-    file <"out/index.md"> contains "- [Case-less](#file-1-1-case-less)"
+    file <"out/index.md"> contains "- [Case-less](#section-1-1-case-less)"
     file <"out/index.md"> contains "### Case-less"
-    file <"out/index.md"> contains "Source: src/empty.repor"
     not {
       file <"out/index.md"> contains "####"
     }
     not {
-      file <"out/index.md"> contains "```reportage"
+      file <"out/index.md"> contains "**Verified outcome**"
     }
   }
 }

@@ -1,0 +1,61 @@
+document file {
+  title "Initializing a workspace"
+  group "Getting started"
+  order 1
+
+  description ```
+    A workspace is described by a single `demo.kdl` file that lists the
+    catalogs a project installs from.
+    ```
+}
+
+document case {
+  title "Creating the configuration"
+
+  description ```
+    The configuration file is written first; `demo init` then records a lock
+    file describing exactly what it resolved.
+    ```
+}
+
+case "init writes a lock file" {
+  write <"demo.kdl"> ```
+    demo {
+      catalog "github.com/example/catalog"
+    }
+    ```
+
+  $ demo init
+
+  assert {
+    exit 0
+    stdout contains "resolved 1 catalog"
+    file <"demo.lock.json"> exists
+    file <"demo.lock.json"> contains "github.com/example/catalog"
+  }
+}
+
+document case {
+  title "Re-running init"
+
+  description "A second run reuses the recorded lock file instead of resolving again."
+}
+
+case "init is idempotent" {
+  write <"demo.kdl"> ```
+    demo {
+      catalog "github.com/example/catalog"
+    }
+    ```
+
+  $ demo init
+  $ demo init
+
+  assert {
+    exit 0
+    stdout contains "up to date"
+    not {
+      stderr contains "error"
+    }
+  }
+}

@@ -1,39 +1,219 @@
-# `reportage docs` (issue #170): the primary documentation generation flow.
-# Sources selected by glob are parsed — never executed — and aggregated into a
-# single plain text document at <out-dir>/index.txt. The exact serialization
-# contract is fixed by tests/fixtures/docs/*/index.snapshot.txt; these cases
-# verify the CLI-observable flow: exit code, stdout mutation report, generated
-# file, fallbacks, and the absence of execution side effects.
-#
-# These cases stay on `docs` deliberately (issue #257): the Reportage-source
-# contract itself is owned by `docs-reportage` and pinned there, while `docs`
-# keeps emitting that document only until its product-facing cutover. Keeping
-# them here means the cutover has to revisit every assertion it invalidates
-# instead of silently changing an unwatched command.
+# `reportage docs` (issues #170, #257): the product-facing documentation
+# generation flow. Sources selected by glob are parsed — never executed — and
+# projected into a single plain text document at <out-dir>/index.txt describing
+# the product under test, not the Reportage DSL that tests it. The exact
+# serialization contract is fixed by tests/fixtures/docs-product/*/index.snapshot.txt;
+# these cases verify the CLI-observable flow: exit code, stdout mutation report,
+# generated file, the product projection, and the absence of execution side
+# effects.
 
-case "glob collects multiple sources into one plain text document" {
-  write <"src/a.repor"> ```
+# The shape the projection exists for: a file the reader prepares, a command
+# they run, and the conditions the run is verified to satisfy — all in the
+# order the scenario wrote them.
+case "a write, a command, and an assertion become file, command, and verified outcome" {
+  write <"src/init.repor"> ```
     document file {
-      title "Documented file"
-      group "Filesystem"
-      description "File-level description."
+      title "Project setup"
+      group "Getting started"
+      description "How a project is created."
     }
 
     document case {
-      title "Documented case"
+      title "Initializing a project"
+      description "Creates the config file."
     }
 
-    case "documented" {
-      $ true
+    case "init" {
+      write <"demo.kdl"> "name \"demo\"\n"
+      $ demo init
+      assert {
+        exit 0
+        stdout contains "created"
+        file <"demo.kdl"> exists
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    stdout contains "generated: out/index.txt"
+    file <"out/index.txt"> exists
+    file <"out/index.txt"> contains "Getting started"
+    file <"out/index.txt"> contains "Project setup"
+    file <"out/index.txt"> contains "How a project is created."
+    file <"out/index.txt"> contains "Initializing a project"
+    file <"out/index.txt"> contains "Creates the config file."
+    file <"out/index.txt"> contains ```
+      File
+        demo.kdl
+          name "demo"
+      ```
+    file <"out/index.txt"> contains ```
+      Command
+        demo init
+      ```
+    file <"out/index.txt"> contains ```
+      Verified outcome
+        the exit code is 0
+        standard output contains "created"
+        "demo.kdl" exists
+      ```
+  }
+}
+
+# A reportage assertion verifies the current checkpoint, not the action before
+# it, so the projection keeps the interleaving instead of pairing each
+# assertion with one command: two commands before one checkpoint stay two, and
+# a second checkpoint stays separate.
+case "multiple commands and checkpoints keep their order" {
+  write <"src/order.repor"> ```
+    case "multi" {
+      $ first-command
+      $ second-command
+      assert {
+        exit 0
+      }
+      $ third-command
+      assert {
+        stderr empty
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    file <"out/index.txt"> contains ```
+      Command
+        first-command
+
+      Command
+        second-command
+
+      Verified outcome
+        the exit code is 0
+
+      Command
+        third-command
+
+      Verified outcome
+        standard error is empty
+      ```
+  }
+}
+
+# `before_each` is shared setup, so it reaches every example as preparation —
+# and the Reportage-specific name never appears.
+case "before_each is projected as each example's preparation" {
+  write <"src/setup.repor"> ```
+    before_each {
+      write <"seed.txt"> "seed"
+      $ prepare-workspace
+    }
+
+    case "uses the seed" {
+      $ run-with-seed
       assert {
         exit 0
       }
     }
     ```
 
-  write <"src/nested/b.repor"> ```
-    case "nested case" {
-      $ true
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    file <"out/index.txt"> contains ```
+      Preparation
+
+      File
+        seed.txt
+          seed
+
+      Command
+        prepare-workspace
+
+      Steps
+
+      Command
+        run-with-seed
+      ```
+    not {
+      file <"out/index.txt"> contains "before_each"
+    }
+  }
+}
+
+# The product document never shows the DSL that produced it: no case, assert,
+# before_each, or write wrapper, and no `.repor` path.
+case "no Reportage DSL wrapper appears in the product document" {
+  write <"src/a.repor"> ```
+    before_each {
+      write <"seed.txt"> "seed"
+    }
+
+    case "documented" {
+      write <"config.kdl"> "name \"demo\"\n"
+      $ demo init
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    not {
+      file <"out/index.txt"> contains "case \"documented\" {"
+    }
+    not {
+      file <"out/index.txt"> contains "assert {"
+    }
+    not {
+      file <"out/index.txt"> contains "before_each {"
+    }
+    not {
+      file <"out/index.txt"> contains "write <"
+    }
+    not {
+      file <"out/index.txt"> contains ".repor"
+    }
+  }
+}
+
+# `**` recurses into subdirectories — directories are never recursed into
+# implicitly — and every selected source lands in the one document, ordered by
+# the shared `document file` ordering contract.
+case "a ** pattern collects nested sources into one document in order" {
+  write <"src/second.repor"> ```
+    document file {
+      title "Second section"
+      group "Guides"
+      order 2
+    }
+
+    case "second" {
+      $ second-command
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"src/nested/first.repor"> ```
+    document file {
+      title "First section"
+      group "Guides"
+      order 1
+    }
+
+    case "first" {
+      $ first-command
       assert {
         exit 0
       }
@@ -45,21 +225,55 @@ case "glob collects multiple sources into one plain text document" {
   assert {
     exit 0
     stdout contains "generated: out/index.txt"
-    file <"out/index.txt"> exists
-    file <"out/index.txt"> contains "Reportage Documentation"
-    file <"out/index.txt"> contains "Filesystem"
-    file <"out/index.txt"> contains "Documented file"
-    file <"out/index.txt"> contains "Documented case"
-    file <"out/index.txt"> contains "src/nested/b.repor"
+    file <"out/index.txt"> contains ```
+      Section
+        First section
+
+      Example
+        first
+
+      Command
+        first-command
+
+      Verified outcome
+        the exit code is 0
+
+      Section
+        Second section
+      ```
+  }
+}
+
+# An empty expected value has no useful delimited form, so it is named. `""` is
+# a valid expected value, so the wording has to be stated rather than left to a
+# format's quoting.
+case "an empty expected value is named rather than quoted" {
+  write <"src/empty-value.repor"> ```
+    case "empty expected value" {
+      $ run
+      assert {
+        stdout contains ""
+      }
+    }
+    ```
+
+  $ reportage docs 'src/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    file <"out/index.txt"> contains ```
+      Verified outcome
+        standard output contains the empty string
+      ```
   }
 }
 
 # Sources without document blocks fall back to the file stem as title, the
-# fixed default group `Index`, and the case name as case title.
+# fixed default group `Index`, and the case name as example title.
 case "documentation-free sources fall back to stem, Index group, and case names" {
   write <"src/fallback-source.repor"> ```
     case "fallback case name" {
-      $ true
+      $ run
       assert {
         exit 0
       }
@@ -76,8 +290,8 @@ case "documentation-free sources fall back to stem, Index group, and case names"
   }
 }
 
-# A valid source with zero cases still yields a document entry with its file
-# metadata and source path; generation succeeds.
+# A valid source with zero cases has no example to document, so only its
+# metadata appears; generation succeeds.
 case "a source with zero cases still generates index.txt" {
   write <"src/empty.repor"> ```
     document file {
@@ -90,9 +304,8 @@ case "a source with zero cases still generates index.txt" {
   assert {
     exit 0
     file <"out/index.txt"> contains "Case-less"
-    file <"out/index.txt"> contains "src/empty.repor"
     not {
-      file <"out/index.txt"> contains "Reportage source"
+      file <"out/index.txt"> contains "Example"
     }
   }
 }
@@ -102,7 +315,7 @@ case "a source with zero cases still generates index.txt" {
 case "explicit --format plain and --layout single-file match the defaults" {
   write <"src/a.repor"> ```
     case "one" {
-      $ true
+      $ run
       assert {
         exit 0
       }
@@ -124,7 +337,7 @@ case "explicit --format plain and --layout single-file match the defaults" {
 case "--index-file-name writes the document under the given name" {
   write <"src/a.repor"> ```
     case "one" {
-      $ true
+      $ run
       assert {
         exit 0
       }
@@ -137,7 +350,7 @@ case "--index-file-name writes the document under the given name" {
     exit 0
     stdout contains "generated: out/readme.md"
     file <"out/readme.md"> exists
-    file <"out/readme.md"> contains "Reportage Documentation"
+    file <"out/readme.md"> contains "# Documentation"
     not {
       file <"out/index.md"> exists
     }
@@ -149,7 +362,7 @@ case "--index-file-name writes the document under the given name" {
 case "--index-file-name without an extension produces an extension-less file" {
   write <"src/a.repor"> ```
     case "one" {
-      $ true
+      $ run
       assert {
         exit 0
       }
