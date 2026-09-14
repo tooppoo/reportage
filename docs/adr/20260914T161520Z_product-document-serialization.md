@@ -19,24 +19,47 @@ A verified condition must be rendered as an English sentence built from the obse
 `file <"f"> contains "x"` reads as containment, and `dir <"d"> contains "x"` reads as a named entry, because only the pair disambiguates them.
 
 The sentences must be identical across formats.
-A shared phrasing layer builds them, and a format supplies only how a value is decorated — quoted in plain text, a code span in Markdown.
+A shared phrasing layer builds them, and a format supplies only how a value is delimited — quoted in plain text, a code span in Markdown.
 Two formats describing the same assertion differently would mean the documentation says two things about one verified fact.
 
 No sentence may name a Reportage construct.
 A reader is told what was verified, not which DSL expressed it.
 
+### A logical composition is worded as the group it negates or joins
+
+`not { A B }` is `not(all(A, B))`, never `not(A) and not(B)` (see [Language semantics](../reference/semantics.md) — Logical composition), so it must not be worded as "none of the following": that claims every child fails, which is a stronger condition than the one verified, and would make the document assert something the scenario never checked.
+
+A `not` over several conditions is therefore worded as a negated group, and a `not` over exactly one is worded as a plain negation, because with one child the group *is* the child.
+Wording that varies with arity is accepted here because the correct English varies with arity while the meaning does not.
+
 ### Conditions stay one line; file content keeps its lines
 
-Expected text inside a condition must be escaped onto one line (`\n`, `\t`, `\\`, `"`), because a list of verified conditions is read by scanning line starts and one multi-line value would break that for every condition after it.
+Expected text inside a condition must be reduced to one line, with `\`, newlines, and tabs escaped, because a list of verified conditions is read by scanning line starts and one multi-line value would break that for every condition after it.
 
 File content must not be escaped and must keep its line structure, because it is a block a reader copies.
 
 The two opposite rules apply to the same `DocumentedText` model, which is why the choice belongs here rather than in the model.
 
+### A format makes its own delimiter unambiguous
+
+Reducing a value to one line is shared; keeping it inside a quote or a code span is not.
+Plain text escapes a `"` inside a quoted value, and Markdown sizes a code span past the longest backtick run in the value and pads it when the value's own edge is a backtick.
+
+This matters for the inputs this projection targets: a CLI that quotes a file name in its output, or a configuration format that uses backticks, would otherwise close its own delimiter and corrupt the rest of the line.
+The fence rule already protects block content; the inline rule is the same hazard one level down, and both live with the format that has it.
+
 ### A captured value is shown as its name
 
 A value captured while the example runs has no text in the source, so it renders as `<name>` — the name of the value in the example — inside both conditions and file content.
 Resolving it would require running the scenario, which documentation generation must not do.
+
+### The default document title is projection-specific
+
+Omitting `--title` must produce `Documentation` for `docs` and `Reportage Documentation` for `docs-reportage`.
+A product's documentation headed `Reportage Documentation` puts reportage in front of the product on the document's most prominent line, which is the failure the product projection exists to avoid, and it would be the default every adopting project silently ships.
+
+This is a deliberate exception to the rule that the presentation options keep the same contract on both subcommands ([ADR: Reportage-Source Documentation Is Its Own Subcommand](20260907T230710Z_reportage-source-documentation-subcommand.md)).
+The option's meaning, validation, and verbatim treatment are unchanged; only the value used when the option is absent differs, and it differs because the absent value is itself a piece of content.
 
 ### The scenario's own path is not shown
 
@@ -54,6 +77,9 @@ They must be emitted only when the example has preparation: with none, there is 
 
 A file's content is indented four spaces beneath its path, so a file step stays one block; an empty file is its path alone rather than a block with a blank line.
 
+File content is reproduced verbatim inside that indentation, so a content line that carries trailing whitespace keeps it: trimming would corrupt the example a reader copies.
+Renderer-generated lines add none, and a value's own trailing blank lines are dropped, because a block ending in a blank line cannot be told apart from the empty line that separates blocks.
+
 ### Markdown: the same navigation as the Reportage-source format
 
 The Markdown format keeps the `## Contents` list, the explicit `<a id="...">` anchors, and the anchored-heading structure of the Reportage-source Markdown format, because `--format markdown` must produce the same *kind* of document whichever projection filled it.
@@ -67,7 +93,7 @@ A file's content is fenced with no info string: the content is the product's own
 
 ### Fences and slugs come from the shared Markdown primitives
 
-Both Markdown formats compute anchor slugs and fence lengths with the same code.
+Both Markdown formats compute anchor slugs, fence lengths, and code-span delimiters with the same code.
 The slug normalization and the "one backtick longer than the longest run, at least three" rule are documented user-facing contracts, and a second implementation would let two documents claim to follow one rule while following two.
 
 ## Alternatives Considered
@@ -111,6 +137,7 @@ Rejected: it would add table-of-contents entries for setup shared by every examp
 - Condition wording is now a user-facing contract fixed by snapshots; rephrasing a sentence is a visible documentation change for every downstream project.
 - Escaped expected text is less readable than the original when the value is long.
 - The plain format's `Preparation` / `Steps` labels are structure carried by convention rather than by indentation, so a consumer parsing the plain document has to know them.
+- A file whose content ends with blank lines is documented without them, because the plain format's block separation has no way to express that.
 
 ### Neutral Consequences
 

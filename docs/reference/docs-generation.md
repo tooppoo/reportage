@@ -48,7 +48,7 @@ Both subcommands read the `document file` / `document case` metadata of every se
 - `--out-dir` is required.
 - `--format` defaults to `plain`; `plain` and `markdown` are the supported formats.
 - `--layout` defaults to `single-file`; `single-file` is the only v0 layout.
-- `--title` sets the document title for every format; it defaults to `Reportage Documentation`.
+- `--title` sets the document title for every format. Omitted, it defaults to `Documentation` for `docs` and `Reportage Documentation` for `docs-reportage`. See [Document title](#document-title).
 - `--index-file-name` sets the generated index document's name; it defaults to `index` with the extension chosen by `--format`. See [Index file name](#index-file-name).
 - The generated document is written under `--out-dir`, never to stdout.
 - On success, each written file is reported on stdout as `generated: <path>`.
@@ -110,7 +110,7 @@ String ordering is locale-independent and case-sensitive (byte-wise `String` com
 
 `--title <string>` sets the document title, shared by every format:
 
-- Unspecified, the title is `Reportage Documentation`.
+- Unspecified, the title is `Documentation` for `reportage docs` and `Reportage Documentation` for `reportage docs-reportage`. The default is the one thing the option does not share between the two subcommands: a product's own documentation must not be headed by reportage's name, which is what the product projection exists to avoid. An explicitly empty `--title ''` is a value, not an omission, and is used verbatim.
 - `plain` uses it as the first line of the document; `markdown` uses it as the level 1 heading.
 - The value is used verbatim: empty strings, newlines, and Markdown syntax are neither rejected nor trimmed nor escaped (see [Input text policy](#input-text-policy)).
 - The title is a render option of the invocation, not a Catalog property: it never affects Catalog ordering, fallbacks, or anchor IDs.
@@ -201,7 +201,8 @@ Verified outcome
 - `Preparation` and `Steps` are label-only blocks that bound the shared setup. They appear only when the example has preparation; without it, the example's own steps follow its metadata directly.
 - A `Verified outcome` block holds one condition per line, with nested compositions indented two further spaces.
 - Expected text inside a condition is escaped onto one line (`\n`, `\t`, `\\`, `"`); file content is never escaped and keeps its lines.
-- Line endings are normalized to LF, no line carries trailing whitespace, and the document ends with exactly one LF.
+- Line endings are normalized to LF and the document ends with exactly one LF. No renderer-generated line adds trailing whitespace; a file content line that carries trailing whitespace keeps it, since the block is what a reader copies.
+- A value's own trailing blank lines are not reproduced: a block ending in a blank line has no representation when blocks are separated by exactly one empty line.
 
 ### Product Markdown serialization
 
@@ -249,7 +250,7 @@ A valid source with zero cases still appears with its file metadata and source p
 
 The serialization contract:
 
-- The document starts with the document title (`--title`, default `Reportage Documentation`).
+- The document starts with the document title (`--title`, default `Reportage Documentation` for this subcommand).
 - Blocks (`Group`, `File`, `Source path`, `Description`, `Case`, `Reportage source`) are separated by exactly one empty line.
 - `Group` / `File` / `Source path` / `Case` / `Description` values are indented by two spaces per logical line; absent descriptions omit the whole `Description` block.
 - Each `Reportage source` block holds the case's complete snippet: the file's `before_each` block first when the source declares one, an empty line, then the case block. A zero-case source with a `before_each` renders the setup alone as one `Reportage source` block.

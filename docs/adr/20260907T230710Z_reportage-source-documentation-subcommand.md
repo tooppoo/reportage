@@ -36,6 +36,8 @@ The migration is staged: `docs-reportage` is introduced first with the existing 
 During that interval the two subcommands generate identical output.
 This is a transitional state, not a supported equivalence: nothing may be built on `docs` and `docs-reportage` agreeing.
 
+> **Update (2026-09-14, issue [#257](https://github.com/tooppoo/reportage/issues/257)):** the staged migration is complete. `docs` now generates the product-facing projection described in [ADR: Product Document Serialization](20260914T161520Z_product-document-serialization.md), so the two subcommands no longer produce identical output.
+
 ## Alternatives Considered
 
 ### A `--view` / `--reportage-source` option on `docs`
@@ -69,7 +71,7 @@ Rejected: the two have different audiences and different output destinations, an
 
 ### Neutral Consequences
 
-- Until the product-facing cutover, `docs` and `docs-reportage` produce identical documents, so the transitional state is testable but must not be relied on.
+- Until the product-facing cutover, `docs` and `docs-reportage` produce identical documents, so the transitional state is testable but must not be relied on. (That interval has since ended; see the update note above.)
 - The internal boundary between the two projections is left to [ADR: Product Documentation Projection](20260908T131134Z_product-documentation-projection.md); this decision constrains only the CLI surface.
 
 ## References

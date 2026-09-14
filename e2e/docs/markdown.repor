@@ -32,7 +32,7 @@ case "markdown format generates index.md with a TOC, anchors, and step blocks" {
     exit 0
     stdout contains "generated: out/index.md"
     file <"out/index.md"> exists
-    file <"out/index.md"> contains "# Reportage Documentation"
+    file <"out/index.md"> contains "# Documentation"
     file <"out/index.md"> contains "## Contents"
     file <"out/index.md"> contains "- [Filesystem](#group-1-filesystem)"
     file <"out/index.md"> contains "<a id=\"example-1-1-1-file-creation\"></a>"
@@ -65,7 +65,7 @@ case "--title applies to both plain and markdown formats" {
     file <"out/index.txt"> contains "Project documentation"
     file <"out/index.md"> contains "# Project documentation"
     not {
-      file <"out/index.md"> contains "Reportage Documentation"
+      file <"out/index.md"> contains "# Documentation"
     }
   }
 }
@@ -217,8 +217,9 @@ case "an empty --title is accepted and replaces the default title" {
   }
 }
 
-# A valid source with zero cases still gets its file heading, source path,
-# and TOC entry; no case heading or code fence is generated.
+# A valid source with zero cases still gets its section heading and TOC entry;
+# it has no example, so no example heading and no verified outcome appear. The
+# product document shows no source path at all.
 case "a zero-case source appears in markdown without example sections" {
   write <"src/empty.repor"> ```
     document file {

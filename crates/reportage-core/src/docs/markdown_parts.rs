@@ -75,6 +75,30 @@ fn slug(title: &str) -> Option<String> {
     if out.is_empty() { None } else { Some(out) }
 }
 
+/// A value wrapped in a code span that cannot be broken by the value itself.
+///
+/// The same hazard as [`fenced`], on the inline side: a product whose messages
+/// or paths contain backticks — a CLI that quotes a file name, a config format
+/// that uses them — would otherwise close the span early and corrupt the rest
+/// of the line. CommonMark's rules are applied in full: the delimiter is one
+/// backtick longer than the longest run inside the value, and a value that
+/// begins or ends with a backtick (or is all spaces) is padded with one space
+/// on each side, which the renderer strips again.
+///
+/// The value must already be a single line; a code span cannot contain a line
+/// break.
+pub(super) fn code_span(value: &str) -> String {
+    let delimiter = "`".repeat(longest_backtick_run(value) + 1);
+    let needs_padding = value.starts_with('`')
+        || value.ends_with('`')
+        || (!value.is_empty() && value.chars().all(|c| c == ' '));
+    if needs_padding {
+        format!("{delimiter} {value} {delimiter}")
+    } else {
+        format!("{delimiter}{value}{delimiter}")
+    }
+}
+
 /// A body wrapped in a fenced code block with the given info string.
 ///
 /// The fence must be computed on the exact body before LF normalization (the
@@ -176,6 +200,20 @@ mod tests {
             toc_entry(2, "Raw *title*", "case-1-1-1"),
             "    - [Raw *title*](#case-1-1-1)"
         );
+    }
+
+    /// The inline counterpart of the fence rule: a value containing backticks
+    /// must not be able to close its own span.
+    #[test]
+    fn a_code_span_is_longer_than_any_backtick_run_in_the_value() {
+        assert_eq!(code_span("plain"), "`plain`");
+        assert_eq!(code_span("a ` b"), "``a ` b``");
+        assert_eq!(code_span("a ``` b"), "````a ``` b````");
+        // CommonMark strips one leading and trailing space, so a value whose
+        // own edge is a backtick needs that padding to survive.
+        assert_eq!(code_span("`x`"), "`` `x` ``");
+        assert_eq!(code_span("   "), "`     `");
+        assert_eq!(code_span(""), "``");
     }
 
     /// A metadata value's own trailing newline must not change block

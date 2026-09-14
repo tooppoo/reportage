@@ -2,10 +2,10 @@
 //! #170, #171, #257).
 //!
 //! The Reportage-source serialization contract these snapshots fix is owned by
-//! `docs-reportage`, so the suite drives that subcommand: `docs` keeps
-//! generating the same document only until its product-facing cutover, and
-//! pinning the source contract to it would move the snapshots with that
-//! change.
+//! `docs-reportage`, so the suite drives that subcommand. `docs` generates the
+//! product-facing projection instead; its counterpart suite is
+//! `docs_product_generation.rs`. Keeping the two apart is what pins each
+//! contract to the subcommand that owns it.
 //!
 //! Each scenario under `tests/fixtures/docs/<scenario>/sources/` is copied
 //! into a temp working directory and generated through the real binary; the

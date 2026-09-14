@@ -1,4 +1,4 @@
-# Reportage Documentation
+# Documentation
 
 ## Contents
 
@@ -69,7 +69,7 @@ demo init
 
 - the exit code is 0
 - standard output contains `up to date`
-- none of the following:
+- not:
   - standard error contains `error`
 
 <a id="section-1-2-installing-a-skill"></a>
@@ -141,5 +141,5 @@ demo install no-such-skill
 
 - the exit code is 1
 - standard error contains `unknown skill`
-- none of the following:
+- not:
   - the directory `.demo/skills` has an entry named `no-such-skill`

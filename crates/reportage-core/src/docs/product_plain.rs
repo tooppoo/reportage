@@ -20,8 +20,12 @@
 //!   path alone
 //! - a `Verified outcome` block holds one condition per line, with nested
 //!   logical compositions indented two further spaces
-//! - line endings are normalized to LF, no line carries trailing whitespace,
-//!   and the document ends with exactly one LF
+//! - line endings are normalized to LF and the document ends with exactly one
+//!   LF; no renderer-generated line adds trailing whitespace, while a file
+//!   content line that carries some keeps it, because the block is what a
+//!   reader copies
+//! - a value's own trailing blank lines are not reproduced: they have no
+//!   representation between blocks separated by one empty line
 //!
 //! Nothing here names a Reportage construct. The source path is deliberately
 //! not shown either: it locates the scenario that produced the example, which
@@ -46,8 +50,11 @@ pub struct ProductPlainRenderer;
 struct PlainStyle;
 
 impl ValueStyle for PlainStyle {
+    /// A quote inside the value is escaped, so the closing quote is always the
+    /// one that ends the value. The backslash is already escaped by
+    /// `one_line`, which is what keeps `\"` unambiguous here.
     fn code(&self, value: &str) -> String {
-        format!("\"{value}\"")
+        format!("\"{}\"", value.replace('"', "\\\""))
     }
 }
 
@@ -65,7 +72,17 @@ impl DocumentRenderer<ProductDocumentationCatalog> for ProductPlainRenderer {
             }
         }
 
-        blocks.join("\n\n") + "\n"
+        // A value whose last logical line is blank — a file whose content ends
+        // with an empty line — would otherwise leave its block ending in a
+        // newline and put two empty lines before the next block. Plain text
+        // has no way to show a trailing blank line inside a block anyway, so
+        // the separation contract wins over reproducing it.
+        blocks
+            .iter()
+            .map(|block| block.trim_end_matches('\n'))
+            .collect::<Vec<_>>()
+            .join("\n\n")
+            + "\n"
     }
 
     fn file_extension(&self) -> &'static str {
@@ -375,11 +392,14 @@ mod tests {
 
         assert!(document.ends_with('\n'));
         assert!(!document.ends_with("\n\n"));
+        // Scoped to renderer-generated lines: file content is reproduced
+        // verbatim, so content that carries trailing whitespace keeps it (see
+        // `content_keeps_trailing_whitespace_but_not_trailing_blank_lines`).
         for line in document.lines() {
             assert_eq!(
                 line,
                 line.trim_end(),
-                "no generated line may carry trailing whitespace"
+                "no renderer-generated line may carry trailing whitespace"
             );
         }
     }
@@ -406,6 +426,54 @@ mod tests {
         assert!(document.contains("    first\n    second\n"));
     }
 
+    /// A value containing the format's own delimiter must not close it: the
+    /// quote is escaped, and the backslash `one_line` already escaped keeps
+    /// the result unambiguous.
+    #[test]
+    fn a_quoted_value_escapes_a_quote_inside_it() {
+        let document = render(&catalog(vec![ProductExample {
+            title: "Quoting".to_string(),
+            description: None,
+            preparation: Vec::new(),
+            steps: vec![
+                command_step("run"),
+                verification_step(vec![observation(
+                    ObservedSubject::Stdout,
+                    ObservedOperation::Contains(ExpectedValue::Text(DocumentedText::Literal(
+                        "say \"hi\"".to_string(),
+                    ))),
+                )]),
+            ],
+        }]));
+
+        assert!(document.contains("standard output contains \"say \\\"hi\\\"\"\n"));
+    }
+
+    /// File content is reproduced verbatim, so a content line that carries
+    /// trailing whitespace keeps it — trimming would corrupt the example a
+    /// reader copies. A value's own trailing blank lines are dropped instead,
+    /// because plain text cannot show them between one-empty-line separators.
+    #[test]
+    fn content_keeps_trailing_whitespace_but_not_trailing_blank_lines() {
+        let document = render(&catalog(vec![ProductExample {
+            title: "Whitespace".to_string(),
+            description: None,
+            preparation: Vec::new(),
+            steps: vec![
+                file_step("a.txt", "trailing   \nlast\n\n", None),
+                command_step("run"),
+                verification_step(vec![observation(
+                    ObservedSubject::ExitCode,
+                    ObservedOperation::Is(ExpectedValue::Number(0)),
+                )]),
+            ],
+        }]));
+
+        assert!(document.contains("    trailing   \n"));
+        assert!(document.contains("    last\n\nCommand\n"));
+        assert!(!document.contains("\n\n\n"));
+    }
+
     /// A nested composition keeps its structure through indentation, so the
     /// grouping the scenario wrote survives into the documentation.
     #[test]
@@ -427,7 +495,7 @@ mod tests {
 
         assert!(document.contains(concat!(
             "Verified outcome\n",
-            "  none of the following:\n",
+            "  not:\n",
             "    standard error is empty\n",
         )));
     }

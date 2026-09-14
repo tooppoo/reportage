@@ -43,10 +43,10 @@
 //! docs/adr/20260914T161520Z_product-document-serialization.md.
 
 use super::markdown_parts::{
-    anchor_id, anchored_heading, description_block, fenced, numbered, toc_entry,
+    anchor_id, anchored_heading, code_span, description_block, fenced, numbered, toc_entry,
 };
 use super::product::{ExampleStep, ProductDocumentationCatalog};
-use super::product_render::{ValueStyle, condition_lines, content_lines, mode_suffix};
+use super::product_render::{ValueStyle, condition_lines, content_lines, mode_suffix, one_line};
 use super::render::{DocumentRenderer, RenderOptions, lf};
 
 /// The `markdown` format for product documentation.
@@ -56,8 +56,11 @@ pub struct ProductMarkdownRenderer;
 struct MarkdownStyle;
 
 impl ValueStyle for MarkdownStyle {
+    /// Through `code_span`, so a value containing backticks — a CLI message
+    /// that quotes a file name, a config format that uses them — cannot close
+    /// its own span.
     fn code(&self, value: &str) -> String {
-        format!("`{value}`")
+        code_span(value)
     }
 }
 
@@ -130,7 +133,11 @@ impl DocumentRenderer<ProductDocumentationCatalog> for ProductMarkdownRenderer {
 fn step_blocks(step: &ExampleStep) -> Vec<String> {
     match step {
         ExampleStep::File(file) => {
-            let mut blocks = vec![format!("`{}`{}", lf(&file.path), mode_suffix(file.mode))];
+            let mut blocks = vec![format!(
+                "{}{}",
+                code_span(&one_line(&file.path)),
+                mode_suffix(file.mode)
+            )];
             let lines = content_lines(&file.content);
             if !lines.is_empty() {
                 // No info string: the content is the product's own file
@@ -385,11 +392,32 @@ mod tests {
         assert!(document.contains(concat!(
             "**Verified outcome**\n",
             "\n",
-            "- none of the following:\n",
+            "- not:\n",
             "  - at least one of the following:\n",
             "    - the exit code is 0\n",
             "    - standard error is empty\n",
         )));
+    }
+
+    /// A value containing backticks — a CLI that quotes a file name, a config
+    /// format that uses them — must not close its own code span.
+    #[test]
+    fn a_code_span_survives_backticks_in_the_value() {
+        let document = one_example(
+            vec![
+                file_step("a`b.txt", "x\n", None),
+                verification_step(vec![DocumentedExpectation::Observation {
+                    subject: ObservedSubject::Stdout,
+                    operation: ObservedOperation::Contains(ExpectedValue::Text(
+                        DocumentedText::Literal("created `demo.kdl`".to_string()),
+                    )),
+                }]),
+            ],
+            Vec::new(),
+        );
+
+        assert!(document.contains("``a`b.txt``"));
+        assert!(document.contains("- standard output contains `` created `demo.kdl` ``"));
     }
 
     /// Metadata is inserted verbatim — the raw metadata policy the

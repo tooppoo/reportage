@@ -17,13 +17,18 @@ use super::product::{
     ObservedOperation, ObservedSubject, TextSegment,
 };
 
-/// How a format decorates the values inside a condition.
+/// How a format delimits the values inside a condition.
 ///
 /// The only thing a format is allowed to vary: plain text quotes a path,
 /// Markdown wraps it in a code span, and the sentence around it stays
-/// identical.
+/// identical. Each implementation owns making its own delimiter unambiguous
+/// for the value it is given — quoting a value containing a quote, or spanning
+/// one containing backticks — because that hazard is format-specific.
+///
+/// The value arrives already reduced to one line by [`one_line`], since
+/// neither a quoted fragment nor a code span can carry a line break.
 pub(super) trait ValueStyle {
-    /// Decorates a literal fragment of the documentation: a path, a piece of
+    /// Delimits a literal fragment of the documentation: a path, a piece of
     /// expected text, a pattern.
     fn code(&self, value: &str) -> String;
 }
@@ -63,7 +68,16 @@ pub(super) fn condition_lines(
                 out.push(ConditionLine {
                     depth,
                     text: match operator {
-                        CompositionOperator::Not => "none of the following:".to_string(),
+                        // `not { A B }` negates the two taken together —
+                        // `not(all(A, B))`, never `not(A) and not(B)` (see
+                        // docs/reference/semantics.md — Logical composition).
+                        // Wording it as "none of the following" would claim
+                        // each child fails, which is a different and stronger
+                        // condition than the one verified. With a single
+                        // child the group is the child, so the plain negation
+                        // is both correct and the readable form.
+                        CompositionOperator::Not if children.len() == 1 => "not:".to_string(),
+                        CompositionOperator::Not => "not all of the following:".to_string(),
                         CompositionOperator::All => "all of the following:".to_string(),
                         CompositionOperator::Any => "at least one of the following:".to_string(),
                     },
@@ -94,10 +108,13 @@ fn observation_sentence(
         ObservedSubject::ExitCode => "the exit code".to_string(),
         ObservedSubject::Stdout => "standard output".to_string(),
         ObservedSubject::Stderr => "standard error".to_string(),
-        ObservedSubject::File { path } => style.code(path),
-        ObservedSubject::Dir { path } => format!("the directory {}", style.code(path)),
+        ObservedSubject::File { path } => style.code(&one_line(path)),
+        ObservedSubject::Dir { path } => format!("the directory {}", style.code(&one_line(path))),
         ObservedSubject::FileCount { glob } => {
-            format!("the number of files matching {}", style.code(glob))
+            format!(
+                "the number of files matching {}",
+                style.code(&one_line(glob))
+            )
         }
     };
 
@@ -120,13 +137,15 @@ fn observation_sentence(
             }
             _ => format!("does not contain {}", expected_value(value, style)),
         },
-        ObservedOperation::Matches { pattern } => format!("matches {}", style.code(pattern)),
+        ObservedOperation::Matches { pattern } => {
+            format!("matches {}", style.code(&one_line(pattern)))
+        }
         ObservedOperation::CountIs { comparison, count } => match comparison {
             super::product::CountComparison::Exactly => format!("is {count}"),
             super::product::CountComparison::AtLeast => format!("is at least {count}"),
         },
         ObservedOperation::StructuredQuery { expression } => {
-            format!("satisfies {}", style.code(expression))
+            format!("satisfies {}", style.code(&one_line(expression)))
         }
     };
 
@@ -141,7 +160,7 @@ fn expected_value(value: &ExpectedValue, style: &dyn ValueStyle) -> String {
         ExpectedValue::FileContents {
             path,
             origin: FileContentsOrigin::Example,
-        } => format!("exactly the contents of {}", style.code(path)),
+        } => format!("exactly the contents of {}", style.code(&one_line(path))),
         // The path is deliberately not shown: it names a file kept beside the
         // scenario source, which a reader following this example has no way to
         // find and no reason to look for.
@@ -154,30 +173,35 @@ fn expected_value(value: &ExpectedValue, style: &dyn ValueStyle) -> String {
 
 /// Documented text on one line, so a condition stays scannable.
 ///
-/// Newlines, tabs, backslashes, and double quotes are escaped rather than
-/// wrapped: a list of verified conditions is read by scanning line starts, and
-/// one multi-line expected value would break that for every condition after
-/// it. A captured value appears as its name in angle brackets, which is the
-/// only thing known about it without running the example.
+/// A captured value appears as its name in angle brackets, which is the only
+/// thing known about it without running the example; literal parts are reduced
+/// by [`one_line`].
 pub(super) fn inline_text(text: &DocumentedText) -> String {
     match text {
-        DocumentedText::Literal(literal) => escape(literal),
+        DocumentedText::Literal(literal) => one_line(literal),
         DocumentedText::Composed(segments) => segments
             .iter()
             .map(|segment| match segment {
-                TextSegment::Literal(literal) => escape(literal),
+                TextSegment::Literal(literal) => one_line(literal),
                 TextSegment::Captured { binding } => format!("<{binding}>"),
             })
             .collect(),
     }
 }
 
-fn escape(value: &str) -> String {
+/// A value reduced to one line, with its line structure escaped.
+///
+/// A list of verified conditions is read by scanning line starts, so one
+/// multi-line value would break that for every condition after it. The
+/// backslash is escaped alongside the line escapes, so a literal `\n` in the
+/// source stays distinguishable from a real newline. Quoting and code spans
+/// are not handled here: those are a format's own delimiter problem, solved by
+/// its [`ValueStyle`].
+pub(super) fn one_line(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for c in value.chars() {
         match c {
             '\\' => out.push_str("\\\\"),
-            '"' => out.push_str("\\\""),
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
@@ -381,12 +405,9 @@ mod tests {
         );
 
         assert_eq!(
-            lines
-                .iter()
-                .map(|line| (line.depth, line.text.as_str()))
-                .collect::<Vec<_>>(),
+            depths_and_text(&lines),
             vec![
-                (0, "none of the following:"),
+                (0, "not:"),
                 (1, "at least one of the following:"),
                 (2, "the exit code is 1"),
                 (2, "standard error is empty"),
@@ -394,13 +415,68 @@ mod tests {
         );
     }
 
-    /// Conditions stay one line each, so a multi-line expected value is
-    /// escaped rather than wrapped.
+    fn depths_and_text(lines: &[ConditionLine]) -> Vec<(usize, &str)> {
+        lines
+            .iter()
+            .map(|line| (line.depth, line.text.as_str()))
+            .collect()
+    }
+
+    /// `not { A B }` is `not(all(A, B))`, so it must not read as "none of the
+    /// following", which would claim both children fail. With one child the
+    /// group is the child, so the negation is stated plainly.
     #[test]
-    fn inline_text_escapes_line_structure() {
+    fn a_not_over_several_conditions_negates_the_group_not_each_child() {
+        let one = condition_lines(
+            &DocumentedExpectation::Composition {
+                operator: CompositionOperator::Not,
+                children: vec![DocumentedExpectation::Observation {
+                    subject: ObservedSubject::Stderr,
+                    operation: ObservedOperation::IsEmpty,
+                }],
+            },
+            &Quoted,
+        );
+        assert_eq!(
+            depths_and_text(&one),
+            vec![(0, "not:"), (1, "standard error is empty"),]
+        );
+
+        let several = condition_lines(
+            &DocumentedExpectation::Composition {
+                operator: CompositionOperator::Not,
+                children: vec![
+                    DocumentedExpectation::Observation {
+                        subject: ObservedSubject::ExitCode,
+                        operation: ObservedOperation::Is(ExpectedValue::Number(0)),
+                    },
+                    DocumentedExpectation::Observation {
+                        subject: ObservedSubject::Stdout,
+                        operation: ObservedOperation::Contains(text("ok")),
+                    },
+                ],
+            },
+            &Quoted,
+        );
+        assert_eq!(
+            depths_and_text(&several),
+            vec![
+                (0, "not all of the following:"),
+                (1, "the exit code is 0"),
+                (1, "standard output contains \"ok\""),
+            ]
+        );
+    }
+
+    /// Conditions stay one line each, so a multi-line expected value is
+    /// reduced rather than wrapped. The backslash is escaped alongside, so a
+    /// literal `\n` in the source stays distinct from a real newline; the
+    /// quote is not, because delimiting is the format's job.
+    #[test]
+    fn inline_text_escapes_line_structure_but_not_delimiters() {
         assert_eq!(
             inline_text(&DocumentedText::Literal("a\nb\t\"c\"\\d".to_string())),
-            "a\\nb\\t\\\"c\\\"\\\\d"
+            "a\\nb\\t\"c\"\\\\d"
         );
     }
 
@@ -435,7 +511,7 @@ mod tests {
             TextSegment::Literal("\"\n".to_string()),
         ]);
 
-        assert_eq!(inline_text(&composed), "name \\\"<id>\\\"\\n");
+        assert_eq!(inline_text(&composed), "name \"<id>\"\\n");
         assert_eq!(content_lines(&composed), vec!["name \"<id>\""]);
     }
 

@@ -186,6 +186,64 @@ case "no Reportage DSL wrapper appears in the product document" {
   }
 }
 
+# `**` recurses into subdirectories — directories are never recursed into
+# implicitly — and every selected source lands in the one document, ordered by
+# the shared `document file` ordering contract.
+case "a ** pattern collects nested sources into one document in order" {
+  write <"src/second.repor"> ```
+    document file {
+      title "Second section"
+      group "Guides"
+      order 2
+    }
+
+    case "second" {
+      $ second-command
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  write <"src/nested/first.repor"> ```
+    document file {
+      title "First section"
+      group "Guides"
+      order 1
+    }
+
+    case "first" {
+      $ first-command
+      assert {
+        exit 0
+      }
+    }
+    ```
+
+  $ reportage docs 'src/**/*.repor' --out-dir out
+
+  assert {
+    exit 0
+    stdout contains "generated: out/index.txt"
+    file <"out/index.txt"> contains ```
+      Section
+        First section
+
+      Example
+        first
+
+      Command
+        first-command
+
+      Verified outcome
+        the exit code is 0
+
+      Section
+        Second section
+      ```
+  }
+}
+
 # Sources without document blocks fall back to the file stem as title, the
 # fixed default group `Index`, and the case name as example title.
 case "documentation-free sources fall back to stem, Index group, and case names" {
@@ -268,7 +326,7 @@ case "--index-file-name writes the document under the given name" {
     exit 0
     stdout contains "generated: out/readme.md"
     file <"out/readme.md"> exists
-    file <"out/readme.md"> contains "Reportage Documentation"
+    file <"out/readme.md"> contains "# Documentation"
     not {
       file <"out/index.md"> exists
     }

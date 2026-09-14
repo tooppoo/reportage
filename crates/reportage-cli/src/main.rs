@@ -142,8 +142,15 @@ struct DocsArgs {
     /// Document title, applied to every format. Used verbatim: never
     /// rejected, trimmed, or escaped, even when empty or containing Markdown
     /// syntax; see docs/reference/docs-generation.md — Input text policy.
-    #[arg(long, value_name = "STRING", default_value = docs::render::DEFAULT_DOCUMENT_TITLE)]
-    title: String,
+    ///
+    /// The default depends on the subcommand rather than being a clap
+    /// `default_value`, because a product's documentation must not be headed
+    /// by reportage's name: `docs` defaults to `Documentation` and
+    /// `docs-reportage` to `Reportage Documentation`. An explicitly empty
+    /// `--title ''` therefore has to stay distinguishable from an omitted one,
+    /// which an `Option` gives and a default value would not.
+    #[arg(long, value_name = "STRING")]
+    title: Option<String>,
 
     /// Name of the generated index document. Omitted, the name is `index` and
     /// the extension follows `--format` (`index.txt`, `index.md`); given, the
@@ -272,7 +279,10 @@ fn run_docs(args: &DocsArgs, projection: docs::DocumentProjection) -> ! {
         layout: match args.layout {
             DocsLayout::SingleFile => docs::DocumentLayout::SingleFile,
         },
-        title: args.title.clone(),
+        title: args
+            .title
+            .clone()
+            .unwrap_or_else(|| docs::render::default_document_title(projection).to_string()),
         index_file_name: args.index_file_name.clone(),
     };
 
